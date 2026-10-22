@@ -84,7 +84,6 @@ function makeProjection(): OrchestrationV2ThreadProjection {
     requestedAt: createdAt,
     startedAt: createdAt,
     completedAt: status === "completed" ? createdAt : null,
-    checkpointId: null,
     contextHandoffId: null,
   }));
   return {
@@ -116,7 +115,6 @@ function makeProjection(): OrchestrationV2ThreadProjection {
       providerTurnId: null,
       nativeItemRef: null,
       runtimeRequestId: null,
-      checkpointScopeId: null,
       startedAt: createdAt,
       completedAt: run.completedAt,
     })),

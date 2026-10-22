@@ -28,8 +28,6 @@ const RPC_AGGREGATES = {
   [ORCHESTRATION_V2_WS_METHODS.getWorkflowScript]: "orchestration",
   [ORCHESTRATION_V2_WS_METHODS.stopWorkflow]: "orchestration",
   [ORCHESTRATION_V2_WS_METHODS.getTurnItem]: "orchestration",
-  [ORCHESTRATION_V2_WS_METHODS.getTurnDiff]: "orchestration",
-  [ORCHESTRATION_V2_WS_METHODS.getFullThreadDiff]: "orchestration",
   [ORCHESTRATION_V2_WS_METHODS.searchThreads]: "orchestration",
   [ORCHESTRATION_V2_WS_METHODS.searchThread]: "orchestration",
   [ORCHESTRATION_V2_WS_METHODS.searchThreadStream]: "orchestration",
@@ -211,6 +209,8 @@ const RPC_AGGREGATES = {
   [WS_METHODS.subscribeServerLifecycle]: "server",
   [WS_METHODS.subscribeAuthAccess]: "auth",
   [WS_METHODS.subscribeBackgroundPolicy]: "server",
+  "ozi.checks.list": "orchestrationV2",
+  "ozi.checks.subscribe": "orchestrationV2",
 } as const satisfies Readonly<Record<WsRpcMethod, string>>;
 
 const RPC_SPAN_PREFIX = "ws.rpc";

@@ -101,8 +101,6 @@ function timelineProjection(itemCount: number): OrchestrationV2ThreadProjection 
     messages: [],
     plans: [],
     turnItems: visibleTurnItems.map((row) => row.item),
-    checkpointScopes: [],
-    checkpoints: [],
     contextHandoffs: [],
     contextTransfers: [],
     visibleTurnItems,

@@ -20,8 +20,8 @@ const sourceModules = [
   "provider/ProviderRuntimeIngestion.ts",
   "persistence/ProjectionSnapshotQuery.ts",
   "persistence/OrchestrationEventStore.ts",
-  "checkpointing/CheckpointStore.ts",
-  "checkpointing/CheckpointDiffQuery.ts",
+  "ozi/Completion.ts",
+  "ozi/Evidence.ts",
   "server.ts",
 ] as const;
 

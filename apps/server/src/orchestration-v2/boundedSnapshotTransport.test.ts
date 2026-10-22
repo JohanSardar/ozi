@@ -156,7 +156,6 @@ function runCreated(
       requestedAt: at,
       startedAt: at,
       completedAt: at,
-      checkpointId: null,
       contextHandoffId: null,
     },
   };

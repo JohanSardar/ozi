@@ -1,3 +1,5 @@
+import * as EventStore from "./EventStore.ts";
+import * as Completion from "../ozi/Completion.ts";
 import { runRanAfter } from "@t3tools/shared/orchestrationV2ThreadError";
 import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
 import {
@@ -171,6 +173,8 @@ function latestStartedRun(
 export const make = Effect.gen(function* () {
   const settings = yield* ServerSettings.ServerSettingsService;
   const projections = yield* ProjectionStore.ProjectionStoreV2;
+  const completion = yield* Completion.Completion;
+  const eventStore = yield* EventStore.EventStoreV2;
   const eventSink = yield* EventSink.EventSinkV2;
   const ids = yield* IdAllocator.IdAllocatorV2;
   const outbox = yield* EffectOutbox.EffectOutboxV2;
@@ -203,30 +207,29 @@ export const make = Effect.gen(function* () {
       stoppedThisPass: ReadonlyMap<string, RecoverySession> = new Map(),
     ) {
       const now = yield* DateTime.now;
-      const runs = [] as Array<OrchestrationV2ThreadProjection["runs"][number]>;
+      const runs: Array<OrchestrationV2ThreadProjection["runs"][number]> = [];
+      const recovered: Array<OrchestrationV2ThreadProjection["runs"][number]> = [];
+      const native = yield* projections
+        .getThreadRecords(projection.thread.id, ["providerTurns"])
+        .pipe(
+          Effect.mapError(
+            (cause) =>
+              new ProviderRuntimeRecoveryError({
+                operation: "reconcile",
+                threadId: projection.thread.id,
+                cause,
+              }),
+          ),
+        );
       for (const run of nonterminalRuns(projection)) {
-        if (run.status === "waiting") {
-          const checkpointEffects = yield* outbox
-            .listByCommandId(CommandId.make(`command:effect:checkpoint.capture:${run.id}`))
-            .pipe(
-              Effect.mapError(
-                (cause) =>
-                  new ProviderRuntimeRecoveryError({
-                    operation: "reconcile",
-                    threadId: projection.thread.id,
-                    cause,
-                  }),
-              ),
-            );
-          const hasReplayableCheckpoint = checkpointEffects.some(
-            (effect) =>
-              effect.request.type === "checkpoint.capture" &&
-              effect.request.runId === run.id &&
-              (effect.status === "pending" || effect.status === "running"),
-          );
-          if (hasReplayableCheckpoint) continue;
-        }
-        runs.push(run);
+        const terminal = native.providerTurns.findLast(
+          (turn) =>
+            turn.runAttemptId === run.activeAttemptId &&
+            turn.providerThreadId === run.providerThreadId,
+        );
+        if (trigger === "startup" && terminal?.status === "completed")
+          recovered.push({ ...run, status: "completed", completedAt: terminal.completedAt ?? now });
+        else runs.push(run);
       }
       const messageRequestNodeIds = new Set(
         projection.runtimeRequests
@@ -262,6 +265,40 @@ export const make = Effect.gen(function* () {
           ),
         );
       const events: Array<OrchestrationV2DomainEvent> = [];
+      const completionEffects: Array<EffectOutbox.PendingOrchestrationEffectV2> = [];
+      for (const run of recovered) {
+        const eventId = yield* allocateEventId();
+        const candidate = yield* Completion.capture({ run, projections, now, eventId }).pipe(
+          Effect.provideService(EventStore.EventStoreV2, eventStore),
+          Effect.mapError(
+            (cause) =>
+              new ProviderRuntimeRecoveryError({
+                operation: "reconcile",
+                threadId: projection.thread.id,
+                cause,
+              }),
+          ),
+        );
+        events.push({
+          id: eventId,
+          type: "run.updated",
+          threadId: projection.thread.id,
+          runId: run.id,
+          occurredAt: now,
+          payload: { ...run, ...(candidate?.check ? { completionCheck: candidate.check } : {}) },
+        });
+        if (candidate) completionEffects.push(candidate.effect);
+        const node = projection.nodes.find((node) => node.id === run.rootNodeId);
+        if (node)
+          events.push({
+            id: yield* allocateEventId(),
+            type: "node.updated",
+            threadId: projection.thread.id,
+            runId: run.id,
+            occurredAt: now,
+            payload: { ...node, status: "completed", completedAt: run.completedAt },
+          });
+      }
       const cancelledBackgroundWork = new Map<
         ProviderThreadId,
         Array<OrchestrationV2RestartCancelledBackgroundWork>
@@ -604,7 +641,6 @@ export const make = Effect.gen(function* () {
         const noteRun = latestStartedRun(projection, providerThreadId);
         if (noteRun === undefined) continue;
         // Its own event: a run snapshot read before this commit could regress
-        // a lifecycle change (e.g. a checkpoint completing the run) made since.
         events.push({
           id: yield* allocateEventId(),
           type: "run.background-work-cancelled",
@@ -624,7 +660,13 @@ export const make = Effect.gen(function* () {
       const continuationRun =
         continueAfterRestart && trigger === "startup"
           ? restartContinuationRun(
-              { ...projection, providerSessions: sessionsLiveAtStart(projection, stoppedThisPass) },
+              {
+                ...projection,
+                runs: projection.runs.map(
+                  (run) => recovered.find((candidate) => candidate.id === run.id) ?? run,
+                ),
+                providerSessions: sessionsLiveAtStart(projection, stoppedThisPass),
+              },
               now,
             )
           : undefined;
@@ -638,6 +680,7 @@ export const make = Effect.gen(function* () {
             },
           ]
         : [];
+      effects.push(...completionEffects);
       const stoppedSessions = projection.providerSessions.filter(
         (candidate) => candidate.status !== "stopped" && candidate.status !== "error",
       ).length;
@@ -792,7 +835,13 @@ export const make = Effect.gen(function* () {
   );
 
   const recover = Effect.gen(function* () {
-    return (yield* reconcile("startup")) satisfies ProviderRuntimeRecoverySummary;
+    const result = yield* reconcile("startup");
+    yield* completion.recover.pipe(
+      Effect.mapError(
+        (cause) => new ProviderRuntimeRecoveryError({ operation: "drain-outbox", cause }),
+      ),
+    );
+    return result satisfies ProviderRuntimeRecoverySummary;
   });
 
   return ProviderRuntimeRecoveryService.of({ reconcile, prepareForShutdown, recover });

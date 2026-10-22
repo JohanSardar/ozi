@@ -86,8 +86,12 @@ it("m1.main-loadout preserves the Pi loadout, prompt and tools after resume and 
   });
   const assertLoadout = async () => {
     const records = await h.records();
+    const source = records.findLast(
+      (record) => record.provider === "pi" && record.event === "prompt" && record.role === "main",
+    )!;
+    expect(source).toBeTruthy();
     const loadout = records.findLast(
-      (record) => record.provider === "pi" && record.event === "loadout",
+      (record) => record.event === "loadout" && record.pid === source.pid,
     )!;
     expect(loadout.instructions).toBe(prompt);
     expect(loadout.tools?.map((tool) => tool.name)).toContain("read_skill");

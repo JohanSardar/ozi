@@ -1,8 +1,5 @@
 import { useAtomValue } from "@effect/atom-react";
-import {
-  type CheckpointDiffTarget,
-  type ComposerPathSearchTarget,
-} from "@t3tools/client-runtime/state/threads";
+import { type ComposerPathSearchTarget } from "@t3tools/client-runtime/state/threads";
 import {
   createThreadSearchResultsAtomFamily,
   makeThreadSearchKey,
@@ -339,48 +336,6 @@ export function useProjectContentSearch(target: ProjectContentSearchTarget) {
     truncated: result.data?.truncated ?? false,
     invalidRegex: target.useRegex && result.data?.regexFallbackError !== undefined,
   };
-}
-
-export function useCheckpointDiff(
-  target: CheckpointDiffTarget,
-  options?: { readonly enabled?: boolean },
-) {
-  const enabled =
-    options?.enabled !== false &&
-    target.environmentId !== null &&
-    target.threadId !== null &&
-    target.fromTurnCount !== null &&
-    target.toTurnCount !== null;
-  const fullThreadTarget =
-    enabled && target.fromTurnCount === 0
-      ? {
-          environmentId: target.environmentId!,
-          input: {
-            threadId: target.threadId!,
-            toTurnCount: target.toTurnCount!,
-            ignoreWhitespace: target.ignoreWhitespace,
-          },
-        }
-      : null;
-  const turnTarget =
-    enabled && target.fromTurnCount !== 0
-      ? {
-          environmentId: target.environmentId!,
-          input: {
-            threadId: target.threadId!,
-            fromTurnCount: target.fromTurnCount!,
-            toTurnCount: target.toTurnCount!,
-            ignoreWhitespace: target.ignoreWhitespace,
-          },
-        }
-      : null;
-  const fullThread = useEnvironmentQuery(
-    fullThreadTarget === null ? null : orchestrationEnvironment.fullThreadDiff(fullThreadTarget),
-  );
-  const turn = useEnvironmentQuery(
-    turnTarget === null ? null : orchestrationEnvironment.turnDiff(turnTarget),
-  );
-  return fullThreadTarget === null ? turn : fullThread;
 }
 
 export function useTurnItemDetail(

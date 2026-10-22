@@ -2,6 +2,7 @@ import {
   OZI_MAIN_THREAD_ID,
   OziJobError,
   OziJobHandleInput,
+  OziJobCard,
   OrchestrationV2DispatchCommandResult,
   OrchestratorMcpFailure,
 } from "@t3tools/contracts";
@@ -14,6 +15,14 @@ import * as Jobs from "./Jobs.ts";
 import * as ThreadManagement from "../orchestration-v2/ThreadManagementService.ts";
 
 export const JobsToolkit = Toolkit.make(
+  Tool.make("job_cards", {
+    description: "Read current job cards and their exact report event IDs.",
+    parameters: Tool.EmptyParams,
+    success: Schema.Array(OziJobCard),
+    failure: Schema.Union([OziJobError, OrchestratorMcpFailure]),
+    failureMode: "return",
+    dependencies: [McpInvocationContext, Jobs.Jobs],
+  }),
   Tool.make("handle_job", {
     description:
       "Close a job against the exact eventId shown on its card. Close leaves work and requests alone. Reuse commandId when retrying.",
@@ -26,6 +35,7 @@ export const JobsToolkit = Toolkit.make(
 );
 
 export const layer = McpToolAccess.toLayer(JobsToolkit, {
+  job_cards: McpToolAccess.readsAsCaller(() => Effect.flatMap(Jobs.Jobs, (jobs) => jobs.cards())),
   handle_job: McpToolAccess.actsAsCaller((input) =>
     Effect.gen(function* () {
       const scope = yield* McpInvocationContext;

@@ -29,8 +29,6 @@ import * as Queue from "effect/Queue";
 import * as Ref from "effect/Ref";
 import * as Stream from "effect/Stream";
 import * as TestClock from "effect/testing/TestClock";
-
-import * as LegacyV1ThreadImporter from "./legacy/LegacyV1ThreadImporter.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import * as CommandReceiptStore from "./CommandReceiptStore.ts";
@@ -536,37 +534,6 @@ it.effect("uses thread-not-found only after a projection loads outside the proje
     expect(error).toBeInstanceOf(ThreadManagementService.ThreadManagementThreadNotFoundError);
     expect(error).toMatchObject({ projectId, threadId });
     expect("cause" in error).toBe(false);
-  }).pipe(Effect.provide(layerTest));
-});
-
-it.effect("preserves failed legacy materialization when reading checkpoint context", () => {
-  const threadId = ThreadId.make("thread:thread-management:checkpoint-import-failure");
-  const importError = new LegacyV1ThreadImporter.LegacyV1ThreadImportError({
-    threadId,
-    operation: "hydrate transcript for",
-    cause: new Error("checkpoint import failed"),
-  });
-  const layerTest = ThreadManagementService.layerWithLegacyImporter.pipe(
-    Layer.provide(Layer.mock(ProviderSessionManager.ProviderSessionManagerV2)({})),
-    Layer.provide(
-      Layer.mergeAll(
-        Layer.mock(Orchestrator.OrchestratorV2)({
-          getCheckpointContext: () =>
-            Effect.succeed({ runs: [], checkpointScopes: [], checkpoints: [] }),
-        }),
-        Layer.mock(LegacyV1ThreadImporter.LegacyV1ThreadImporter)({
-          ensureTranscript: () => Effect.fail(importError),
-        }),
-      ),
-    ),
-    Layer.provide(ServerSettings.layerTest()),
-    Layer.provide(layerReceiptsTest),
-  );
-  return Effect.gen(function* () {
-    const service = yield* ThreadManagementService.ThreadManagementService;
-    const error = yield* service.getCheckpointContext(threadId).pipe(Effect.flip);
-    expect(error).toBeInstanceOf(Orchestrator.OrchestratorProjectionError);
-    expect(error).toMatchObject({ threadId, cause: importError });
   }).pipe(Effect.provide(layerTest));
 });
 

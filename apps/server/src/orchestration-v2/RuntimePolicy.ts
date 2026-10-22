@@ -101,6 +101,31 @@ const mainSelectionError = (
     });
 };
 
+const checkerSelectionError = (
+  input: Parameters<RuntimePolicyV2Shape["resolve"]>[0],
+  snapshot: ServerProvider | undefined,
+) => {
+  if (input.thread.role !== "checker") return;
+  const model = snapshot?.models.find((model) => model.slug === input.modelSelection.model);
+  for (const selected of input.modelSelection.options ?? []) {
+    const descriptor = model?.capabilities?.optionDescriptors?.find(
+      (option) => option.id === selected.id,
+    );
+    if (!descriptor && !["thinking", "reasoningEffort", "effort"].includes(selected.id)) continue;
+    if (
+      !descriptor ||
+      (descriptor.type === "select"
+        ? !descriptor.options.some((option) => option.id === selected.value)
+        : typeof selected.value !== "boolean")
+    )
+      return new RuntimePolicyResolveError({
+        projectId: input.thread.projectId,
+        providerInstanceId: input.modelSelection.instanceId,
+        cause: `Unsupported checker option ${selected.id}=${selected.value}.`,
+      });
+  }
+};
+
 export const layerFromProjectStore: Layer.Layer<
   RuntimePolicyV2,
   never,
@@ -113,8 +138,11 @@ export const layerFromProjectStore: Layer.Layer<
     return RuntimePolicyV2.of({
       resolve: Effect.fn("RuntimePolicyV2.resolve")(function* (input) {
         const instance = yield* providerInstances.getInstance(input.modelSelection.instanceId);
-        const snapshot = instance === undefined ? undefined : yield* instance.snapshot.getSnapshot;
-        const invalid = mainSelectionError(input, snapshot);
+        let snapshot = instance === undefined ? undefined : yield* instance.snapshot.getSnapshot;
+        if (instance && checkerSelectionError(input, snapshot))
+          snapshot = yield* instance.snapshot.refresh;
+        const invalid =
+          mainSelectionError(input, snapshot) ?? checkerSelectionError(input, snapshot);
         if (invalid) return yield* invalid;
         const supportedRuntimeModes = snapshot?.supportedRuntimeModes;
         const cwd =
@@ -184,8 +212,11 @@ export const layerInstallation = Layer.effect(
           ),
         );
         const instance = yield* providerInstances.getInstance(input.modelSelection.instanceId);
-        const snapshot = instance === undefined ? undefined : yield* instance.snapshot.getSnapshot;
-        const invalid = mainSelectionError(input, snapshot);
+        let snapshot = instance === undefined ? undefined : yield* instance.snapshot.getSnapshot;
+        if (instance && checkerSelectionError(input, snapshot))
+          snapshot = yield* instance.snapshot.refresh;
+        const invalid =
+          mainSelectionError(input, snapshot) ?? checkerSelectionError(input, snapshot);
         if (invalid) return yield* invalid;
         return ProviderAdapter.ProviderAdapterV2RuntimePolicy.make({
           runtimeMode: providerRuntimeMode(

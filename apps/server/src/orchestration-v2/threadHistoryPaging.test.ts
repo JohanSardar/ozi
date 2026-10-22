@@ -170,8 +170,6 @@ function makeProjection(visibleTurnItems: OrchestrationV2ProjectedTurnItem[]) {
     messages: [],
     plans: [],
     turnItems: visibleTurnItems.map((row) => row.item),
-    checkpointScopes: [],
-    checkpoints: [],
     contextHandoffs: [],
     contextTransfers: [],
     visibleTurnItems,
@@ -437,40 +435,6 @@ describe("threadHistoryPaging", () => {
     expect(bounded.projection.visibleTurnItems.map((row) => row.position)).toEqual([0, 1, 2, 3, 4]);
     expect(bounded.latestLocalTurnOrdinal).toBe(40);
     expect(computeLatestLocalTurnOrdinal(full.turnItems)).toBe(40);
-  });
-
-  it("preserves linked control rows as one coherent graph", () => {
-    const base = makeProjection(Array.from({ length: 40 }, (_, index) => makeRow(index)));
-    const linked = {
-      ...base,
-      runs: [{ id: "run-linked", threadId: THREAD }],
-      attempts: [{ id: "attempt-linked", runId: "run-linked" }],
-      nodes: [{ id: "node-linked", runId: "run-linked", attemptId: "attempt-linked" }],
-      providerThreads: [{ id: "provider-thread-linked", runId: "run-linked" }],
-      providerTurns: [
-        {
-          id: "provider-turn-linked",
-          providerThreadId: "provider-thread-linked",
-          nodeId: "node-linked",
-        },
-      ],
-      checkpointScopes: [{ id: "scope-linked", runId: "run-linked" }],
-      checkpoints: [{ id: "checkpoint-linked", scopeId: "scope-linked" }],
-    } as unknown as typeof base;
-
-    const bounded = buildBoundedThreadProjection({
-      projection: linked,
-      snapshotSequence: 7,
-      policy: { maxItems: 5, maxEncodedBytes: 10_000_000 },
-    });
-
-    expect(bounded.projection.runs).toEqual(linked.runs);
-    expect(bounded.projection.attempts).toEqual(linked.attempts);
-    expect(bounded.projection.nodes).toEqual(linked.nodes);
-    expect(bounded.projection.providerThreads).toEqual(linked.providerThreads);
-    expect(bounded.projection.providerTurns).toEqual(linked.providerTurns);
-    expect(bounded.projection.checkpointScopes).toEqual(linked.checkpointScopes);
-    expect(bounded.projection.checkpoints).toEqual(linked.checkpoints);
   });
 
   it("carries a full-projection watermark when the bounded window is inherited-only", () => {
@@ -774,41 +738,6 @@ describe("threadHistoryPaging", () => {
       expect(build(bytes).payloadBudgetExceeded).toBe(false);
       expect(build(bytes - 1).payloadBudgetExceeded).toBe(true);
     }
-  });
-
-  it("keeps agent-only turns visible when checkpoint file lists fill the byte budget", () => {
-    const items = Array.from({ length: 3 }, (_, turn) => {
-      const first = makeRow(turn * 5);
-      const prompt = {
-        ...first,
-        item: {
-          ...first.item,
-          type: "user_message" as const,
-          createdBy: "agent" as const,
-          creationSource: "provider" as const,
-          inputIntent: "turn_start" as const,
-          messageId: MessageId.make(`agent-prompt-${turn}`),
-          text: `Step ${turn}`,
-          attachments: [],
-        },
-      } as OrchestrationV2ProjectedTurnItem;
-      return [prompt, ...Array.from({ length: 4 }, (_, index) => makeRow(turn * 5 + index + 1))];
-    }).flat();
-    const files = Array.from(
-      { length: 15_000 },
-      (_, index) =>
-        `work/ws-${index % 40}/.jj/repo/store/extra/${index.toString(16).padStart(40, "0")}`,
-    );
-    const projection = {
-      ...makeProjection(items),
-      checkpoints: [{ id: "checkpoint-1", files }],
-    } as unknown as ReturnType<typeof makeProjection>;
-
-    const bounded = buildBoundedThreadProjection({ projection, snapshotSequence: 1 });
-
-    expect(bounded.projection.visibleTurnItems).toHaveLength(items.length);
-    expect(bounded.hasMoreHistory).toBe(false);
-    expect(bounded.payloadBudgetExceeded).toBe(true);
   });
 
   it("keeps paged historical plan detail in the turn item and only status in its artifact", () => {
