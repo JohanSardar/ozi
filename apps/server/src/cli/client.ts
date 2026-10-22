@@ -47,6 +47,7 @@ import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http";
 import { Socket } from "effect/socket";
 import { RpcClient, RpcSerialization } from "effect/rpc";
 import { OwnerCredential } from "../ozi/OwnerCredential.ts";
+import { Mistake, Replay } from "../ozi/RepairModel.ts";
 import { resolveBaseDir } from "../os-jank.ts";
 import { isProcessAlive, readPersistedServerRuntimeState } from "../serverRuntimeState.ts";
 import { buildPairingUrl } from "../startupAccess.ts";
@@ -75,11 +76,10 @@ class ClientError extends Schema.TaggedError<ClientError>()("OziClientError", {
   }
 }
 
-const request = Effect.fn("ozi.request")(function* <A>(
+const post = Effect.fn("ozi.post")(function* (
   origin: string,
   token: string,
   path: string,
-  schema: Schema.Codec<A, unknown>,
   body?: unknown,
 ) {
   const client = yield* HttpClient.HttpClient;
@@ -91,10 +91,23 @@ const request = Effect.fn("ozi.request")(function* <A>(
       HttpClientRequest.bodyText(yield* encodeJson(body), "application/json"),
     );
   const response = yield* client.execute(outgoing);
-  return yield* HttpClientResponse.schemaBodyJson(schema)(
-    yield* HttpClientResponse.filterStatusOk(response),
-  );
+  return yield* HttpClientResponse.filterStatusOk(response);
 });
+
+const request = Effect.fn("ozi.request")(
+  <A>(
+    origin: string,
+    token: string,
+    path: string,
+    schema: Schema.Codec<A, unknown>,
+    body?: unknown,
+  ) =>
+    post(origin, token, path, body).pipe(Effect.flatMap(HttpClientResponse.schemaBodyJson(schema))),
+);
+
+const decodeRepairRow = Schema.decodeEffect(
+  Schema.fromJsonString(Schema.NullOr(Schema.Union([Mistake, Replay]))),
+);
 
 const connect = Effect.fn("ozi.connect")(function* (baseDir: Option.Option<string>) {
   const fs = yield* FileSystem.FileSystem;
@@ -474,15 +487,33 @@ const waitCommand = Command.make("wait", {
     Effect.gen(function* () {
       if (flags.entity === "mistake" || flags.entity === "replay") {
         const { state, token } = yield* connect(flags.baseDir);
-        yield* print(
-          yield* request(state.origin, token, "/api/ozi/repair", Schema.Unknown, {
-            kind: "wait",
-            entity: flags.entity,
-            id: flags.id,
-            state: flags.state,
-            timeout: flags.timeout,
-          }),
+        const result = yield* post(state.origin, token, "/api/ozi/repair", {
+          kind: "wait",
+          entity: flags.entity,
+          id: flags.id,
+        }).pipe(
+          Effect.flatMap((response) =>
+            response.stream.pipe(
+              Stream.decodeText(),
+              Stream.splitLines,
+              Stream.mapEffect((line) => decodeRepairRow(line)),
+              Stream.filter(
+                (row) =>
+                  row !== null &&
+                  row.id === flags.id &&
+                  (("status" in row ? row.status : row.state) === flags.state ||
+                    (flags.state === "finished" &&
+                      "state" in row &&
+                      (row.state === "passed" || row.state === "failed"))),
+              ),
+              Stream.runHead,
+            ),
+          ),
+          Effect.timeout(`${flags.timeout} seconds`),
         );
+        if (Option.isNone(result))
+          return yield* new ClientError({ operation: "repair subscription ended" });
+        yield* print(result.value);
         return;
       }
       const { client } = yield* connect(flags.baseDir);
