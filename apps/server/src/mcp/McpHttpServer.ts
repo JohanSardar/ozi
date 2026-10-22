@@ -75,6 +75,7 @@ import * as HtmlHandlers from "./toolkits/html/handlers.ts";
 import { HtmlPreviewTool, HtmlPreviewToolkit, HtmlRenderToolkit } from "./toolkits/html/tools.ts";
 import { mcpTools } from "../ozi/McpTools.ts";
 import * as Skills from "../ozi/Skills.ts";
+import * as JobsMcp from "../ozi/JobsMcp.ts";
 
 const MainMcpRequest = Schema.Struct({
   id: Schema.optional(Schema.Unknown),
@@ -1148,6 +1149,7 @@ export const layerMcpTransport = McpServer.layerHttp({
 
 export const layer = Layer.mergeAll(
   toolkitRegistration(Skills.SkillToolkit, Skills.layer),
+  toolkitRegistration(JobsMcp.JobsToolkit, JobsMcp.layer),
   layerPreviewToolkit,
   layerOrchestratorToolkit,
   layerThreadToolkit,

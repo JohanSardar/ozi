@@ -54,15 +54,14 @@ import * as ThreadForkService from "./ThreadForkService.ts";
 import * as TurnItemPositionStore from "./TurnItemPositionStore.ts";
 import * as ScheduledTaskService from "../scheduledTasks/ScheduledTaskService.ts";
 import * as SecretRequests from "../secrets/SecretRequests.ts";
+import * as Jobs from "../ozi/Jobs.ts";
 
 export const layerEventInfrastructure = Layer.mergeAll(
   OrchestrationEventStore.layer,
   OrchestrationCommandReceipts.layer,
 );
 
-const layerRuntimePolicyProvided = RuntimePolicy.layerFromProjectStore.pipe(
-  Layer.provide(ProjectStore.layer),
-);
+const layerRuntimePolicyProvided = RuntimePolicy.layerInstallation;
 
 const layerEventStoreProvided = EventStore.layerFromOrchestrationEventStore.pipe(
   Layer.provide(layerEventInfrastructure),
@@ -360,6 +359,9 @@ export const layer = Layer.mergeAll(
 );
 
 export const layerProduction = Layer.mergeAll(
+  Jobs.layer.pipe(
+    Layer.provide(Layer.mergeAll(layerStores, layerEventSinkProvided, IdAllocator.layer)),
+  ),
   layerEventSinkProvided,
   IdAllocator.layer,
   layer.pipe(Layer.provide(layerProjectService)),

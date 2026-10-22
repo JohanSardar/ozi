@@ -1570,6 +1570,9 @@ export function threadShellFromProjection(
     createdBy: projection.thread.createdBy,
     creationSource: projection.thread.creationSource,
     id: projection.thread.id,
+    jobId: projection.thread.jobId ?? null,
+    visibility: projection.thread.visibility ?? "user",
+    handledEventId: projection.thread.handledEventId ?? null,
     role: projection.thread.role ?? "worker",
     ...(projection.thread.effectiveLoadout === undefined
       ? {}
@@ -1826,6 +1829,9 @@ function shellFromState(input: {
     createdBy: input.state.thread.createdBy,
     creationSource: input.state.thread.creationSource,
     id: input.state.thread.id,
+    jobId: input.state.thread.jobId ?? null,
+    visibility: input.state.thread.visibility ?? "user",
+    handledEventId: input.state.thread.handledEventId ?? null,
     role: input.state.thread.role ?? "worker",
     ...(input.state.thread.effectiveLoadout === undefined
       ? {}

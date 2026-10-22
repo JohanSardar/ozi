@@ -1,7 +1,20 @@
 import * as Schema from "effect/Schema";
-import { CLIENT_REQUEST_RESPONSES, SERVER_NOTIFICATION_PARAMS } from "effect-codex-app-server/rpc";
+import {
+  CLIENT_REQUEST_RESPONSES,
+  SERVER_NOTIFICATION_PARAMS,
+  SERVER_REQUEST_PARAMS,
+} from "effect-codex-app-server/rpc";
 import * as NodeFS from "node:fs";
 import { id, interpreter, launch, lines, sessionFile, write } from "./agent.mjs";
+
+const requestDecoders = {
+  "item/tool/requestUserInput": Schema.decodeUnknownSync(
+    SERVER_REQUEST_PARAMS["item/tool/requestUserInput"],
+  ),
+  "item/commandExecution/requestApproval": Schema.decodeUnknownSync(
+    SERVER_REQUEST_PARAMS["item/commandExecution/requestApproval"],
+  ),
+};
 
 if (launch("codex")) {
   const sessions = new Map();
@@ -67,7 +80,7 @@ if (launch("codex")) {
       },
       request(requestId, kind, value) {
         requests.set(requestId, engine);
-        write({
+        const request = {
           id: requestId,
           method:
             kind === "ask" ? "item/tool/requestUserInput" : "item/commandExecution/requestApproval",
@@ -77,6 +90,7 @@ if (launch("codex")) {
                   threadId: thread.id,
                   turnId: turn.id,
                   itemId: id(),
+                  isBlocking: true,
                   questions: [
                     {
                       id: "answer",
@@ -92,12 +106,15 @@ if (launch("codex")) {
                   threadId: thread.id,
                   turnId: turn.id,
                   itemId: id(),
+                  startedAtMs: Date.now(),
                   command: String(value),
                   cwd: process.cwd(),
                   reason: "Scripted approval",
                   availableDecisions: ["accept", "decline"],
                 },
-        });
+        };
+        requestDecoders[request.method](request.params);
+        write(request);
       },
     });
     const loadout = (params) => {

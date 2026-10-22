@@ -27,10 +27,13 @@ New code lives in `apps/server/src/ozi/` and `apps/web/src/components/ozi/`. Eve
 
 ### Jobs (`ozi/Jobs.ts`)
 
-- `cards(mainThreadId) → JobCard[]` via existing snapshots/subscriptions.
+- `cards(mainThreadId) → JobCard[]` via authenticated `ozi.jobs.get` and `ozi.jobs.subscribe` (empty payload, stream of card arrays). `ozi.jobs.handle` returns the existing command receipt sequence.
+- Cards expose `jobId`, current `eventId`, title, column, agent, short status, `checking`, `requestEventId`, report, requests with owner thread IDs, `handledEventId`, and `updatedAt`. Secret values never enter cards. M2 reports are null; completed leads stay Running/checking until M3.
 - `handle({commandId, jobId, eventId, evidence}) → CommandReceipt`. Errors: `UnknownJob`, `WrongJob`, `StaleEvent`, `InvalidEvidence`, no mutation.
 - Thread fields only: `jobId`, `visibility`, `handledEventId`. No job tables.
 - Column: any unresolved question/approval/secret/login/Blocked in the job → Needs you; else unresolved or unchecked work → Running; checked lead report for current request → Ready; handled → Done. Newer request, actionable event or result reopens.
+- M2 accepts close evidence against the exact current `eventId`; accepted/verified evidence requires M3. `ozi close --command-id` retries the same command without closing a newer event. Close leaves active work and requests alone.
+- Main alone may pass `jobId` to delegation. Helpers inherit it; related follow-ups use the lead's existing send/queue path. An unavailable worker leaves a lead with its blocker and no agent run. Scheduled jobs inherit quiet visibility; internal threads do not appear in cards.
 
 ### Completion (`ozi/Completion.ts`)
 
@@ -55,7 +58,7 @@ Only Pi, Claude and Codex providers and desktop and web clients ship. Provider r
 
 ## Main agent
 
-- Startup creates the sole main thread, `ozi-main`, in a Workspace project rooted at `<home>/workspace`. Main delegates in that workspace.
+- Startup creates the sole main thread, `ozi-main`, rooted at `<home>/workspace`. Workers share a per-job scratch directory under `<home>/workspace/jobs/`; execution does not select a project or worktree. Legacy project storage remains for retained scheduler and coding APIs until their owning slices are removed.
 - Thread projections and shells expose `role: "main" | "main-fork" | "worker"` and `effectiveLoadout: {provider, model, options: [{id, value}], toolNames, systemPromptSha256}`. Tool names describe the injected MCP catalog; the hash covers the server-owned prompt. Main forks retain the restricted loadout with role `main-fork`.
 - Main selections are fixed on launch, resume and fork: Pi `anthropic/claude-opus-5-5`, `thinking: high`, `fastMode: false`. Unavailable selections fail. Main cannot change workspace, provider or model, or archive/delete itself.
 - Pi main disables built-in tools, extension/skill/context/prompt-template discovery, and loads only the injected MCP bridge. The server checks the role allowlist on tool calls and limits thread targets to main's own descendants.
@@ -90,9 +93,9 @@ One binary, `ozi`. Every command takes `--json`. Client commands find the server
 | `ozi todos`                                              | External to-dos with source and freshness.                                               |
 | `ozi wait <job\|thread\|check> <id> <state> [--timeout]` | Block until the state holds; non-zero on timeout.                                        |
 
-M1 implements `serve`, `service`, `pair`, `status`, `say`, `steer`, `stop`, `thread`, and `wait`. Other commands arrive with their owning milestones. `--home`/`OZI_HOME` selects server state; `--data-root`/`OZI_DATA_ROOT` selects the data repository. Desktop launchers may use the `--base-dir` alias.
+M1 implements `serve`, `service`, `pair`, `status`, `say`, `steer`, `stop`, `thread`, and `wait`. M2 adds `jobs`, `job`, `answer`, `close`, and `wait job`. Other commands arrive with their owning milestones. `--home`/`OZI_HOME` selects server state; `--data-root`/`OZI_DATA_ROOT` selects the data repository. Desktop launchers may use the `--base-dir` alias.
 
-Until main bootstrap lands, the CLI resolves main in one function using the most recent thread. A first `say` creates a Codex conversation when no thread exists. `status` returns server configuration, the shell snapshot and the complete main projection; `thread` returns the complete thread projection. `wait thread <id> text:<substring>` waits for transcript text. JSON errors retain a non-zero exit code.
+The CLI resolves main by its fixed `ozi-main` ID. `status` returns server configuration, the shell snapshot and the complete main projection; `thread` returns the complete thread projection. `job` returns `{card, lead}`; `jobs` returns a card array. `answer` routes questions, allow/deny approvals and secret entry to the request's owning thread. `wait thread <id> text:<substring>` waits for transcript text; `wait job` uses `needs_you`, `running`, `ready`, or `done`. JSON errors retain a non-zero exit code.
 
 ## E2E
 

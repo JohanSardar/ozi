@@ -6,16 +6,20 @@ import {
   ProjectId,
   ProviderInstanceId,
   type RuntimeMode,
+  type ServerProvider,
 } from "@t3tools/contracts";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as FileSystem from "effect/FileSystem";
+import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 
 import * as ProviderInstanceRegistry from "../provider/ProviderInstanceRegistry.ts";
 import * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAdapter";
 import * as ProjectStore from "./ProjectStore.ts";
+import * as ServerConfig from "../config.ts";
 
 export class RuntimePolicyResolveError extends Schema.TaggedError<RuntimePolicyResolveError>()(
   "RuntimePolicyResolveError",
@@ -72,6 +76,31 @@ function providerRuntimeMode(
     : "approval-required";
 }
 
+const mainSelectionError = (
+  input: Parameters<RuntimePolicyV2Shape["resolve"]>[0],
+  snapshot: ServerProvider | undefined,
+) => {
+  if (!isOziMain(input.thread)) return;
+  const thinking = snapshot?.models
+    .find((model) => model.slug === input.modelSelection.model)
+    ?.capabilities?.optionDescriptors?.find((option) => option.id === "thinking");
+  if (
+    !isOziMainSelection(input.modelSelection) ||
+    snapshot?.driver !== "pi" ||
+    !snapshot.enabled ||
+    !snapshot.installed ||
+    snapshot.status === "error" ||
+    snapshot.auth.status === "unauthenticated" ||
+    thinking?.type !== "select" ||
+    !thinking.options.some((option) => option.id === "high")
+  )
+    return new RuntimePolicyResolveError({
+      projectId: input.thread.projectId,
+      providerInstanceId: input.modelSelection.instanceId,
+      cause: "Main requires available Pi anthropic/claude-opus-5-5, high thinking, fast off.",
+    });
+};
+
 export const layerFromProjectStore: Layer.Layer<
   RuntimePolicyV2,
   never,
@@ -85,31 +114,8 @@ export const layerFromProjectStore: Layer.Layer<
       resolve: Effect.fn("RuntimePolicyV2.resolve")(function* (input) {
         const instance = yield* providerInstances.getInstance(input.modelSelection.instanceId);
         const snapshot = instance === undefined ? undefined : yield* instance.snapshot.getSnapshot;
-        if (isOziMain(input.thread)) {
-          const model = snapshot?.models.find(
-            (candidate) => candidate.slug === input.modelSelection.model,
-          );
-          const thinking = model?.capabilities?.optionDescriptors?.find(
-            (option) => option.id === "thinking",
-          );
-          if (
-            !isOziMainSelection(input.modelSelection) ||
-            snapshot?.driver !== "pi" ||
-            !snapshot.enabled ||
-            !snapshot.installed ||
-            snapshot.status === "error" ||
-            snapshot.auth.status === "unauthenticated" ||
-            thinking?.type !== "select" ||
-            !thinking.options.some((option) => option.id === "high")
-          ) {
-            return yield* new RuntimePolicyResolveError({
-              projectId: input.thread.projectId,
-              providerInstanceId: input.modelSelection.instanceId,
-              cause:
-                "Main requires available Pi anthropic/claude-opus-5-5, high thinking, fast off.",
-            });
-          }
-        }
+        const invalid = mainSelectionError(input, snapshot);
+        if (invalid) return yield* invalid;
         const supportedRuntimeModes = snapshot?.supportedRuntimeModes;
         const cwd =
           input.thread.worktreePath ??
@@ -138,6 +144,54 @@ export const layerFromProjectStore: Layer.Layer<
           ));
         return ProviderAdapter.ProviderAdapterV2RuntimePolicy.make({
           runtimeMode: providerRuntimeMode(input.thread.runtimeMode, supportedRuntimeModes),
+          interactionMode: input.thread.interactionMode,
+          cwd,
+        });
+      }),
+    });
+  }),
+);
+
+export const layerInstallation = Layer.effect(
+  RuntimePolicyV2,
+  Effect.gen(function* () {
+    const providerInstances = yield* ProviderInstanceRegistry.ProviderInstanceRegistry;
+    const config = yield* ServerConfig.ServerConfig;
+    const fs = yield* FileSystem.FileSystem;
+    const path = yield* Path.Path;
+    return RuntimePolicyV2.of({
+      resolve: Effect.fn("RuntimePolicyV2.installation")(function* (input) {
+        const workspace = path.join(config.baseDir, "workspace");
+        const jobId = input.thread.jobId;
+        const cwd =
+          jobId == null
+            ? workspace
+            : path.join(
+                workspace,
+                "jobs",
+                yield* Effect.promise(() =>
+                  crypto.subtle.digest("SHA-256", new TextEncoder().encode(jobId)),
+                ).pipe(Effect.map((digest) => Buffer.from(digest).toString("hex"))),
+              );
+        yield* fs.makeDirectory(cwd, { recursive: true }).pipe(
+          Effect.mapError(
+            (cause) =>
+              new RuntimePolicyResolveError({
+                projectId: input.thread.projectId,
+                providerInstanceId: input.modelSelection.instanceId,
+                cause,
+              }),
+          ),
+        );
+        const instance = yield* providerInstances.getInstance(input.modelSelection.instanceId);
+        const snapshot = instance === undefined ? undefined : yield* instance.snapshot.getSnapshot;
+        const invalid = mainSelectionError(input, snapshot);
+        if (invalid) return yield* invalid;
+        return ProviderAdapter.ProviderAdapterV2RuntimePolicy.make({
+          runtimeMode: providerRuntimeMode(
+            input.thread.runtimeMode,
+            snapshot?.supportedRuntimeModes,
+          ),
           interactionMode: input.thread.interactionMode,
           cwd,
         });

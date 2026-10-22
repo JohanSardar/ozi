@@ -11,7 +11,6 @@ import {
   type OrchestrationV2Subagent,
   type OrchestrationV2ThreadProjection,
   type OrchestrationV2ThreadShell,
-  type OrchestrationV2ThreadLaunchWorkspaceStrategy,
   type OrchestrationV2TurnItem,
   OrchestratorMcpFailure,
   type OrchestratorMcpCapabilitiesResult,
@@ -92,7 +91,6 @@ import {
 import { runOutcome } from "../orchestration-v2/RestartBackgroundNote.ts";
 import * as ThreadManagementService from "../orchestration-v2/ThreadManagementService.ts";
 import * as ThreadLaunchService from "../orchestration-v2/ThreadLaunchService.ts";
-import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
 import { isSnoozed } from "../orchestration-v2/ThreadSettlementService.ts";
 import { userFacingDispatchErrorMessage } from "../orchestration-v2/UserFacingErrors.ts";
 import * as ProjectService from "../project/ProjectService.ts";
@@ -983,7 +981,6 @@ const make = Effect.gen(function* () {
   const scheduledTasks = yield* ScheduledTaskService.ScheduledTaskService;
   const projects = yield* ProjectService.ProjectService;
   const threadLaunch = yield* ThreadLaunchService.ThreadLaunchService;
-  const gitDriver = yield* GitVcsDriver.GitVcsDriver;
   const serverSettings = yield* ServerSettings.ServerSettingsService;
 
   const requireProject = (projectId: ProjectId) =>
@@ -2068,23 +2065,59 @@ const make = Effect.gen(function* () {
         requestKey: key,
         operation: "delegate-task",
       });
-      const isRetryOfAcceptedDelegation = yield* threadManagement.hasReceipt(commandId);
+      if (input.jobId !== undefined) {
+        if (!isOziMain(parent.thread))
+          return yield* failure("invalid_request", "Only main may select a job.");
+        const lead = yield* loadProjection(input.jobId);
+        if (
+          lead.thread.jobId !== lead.thread.id ||
+          lead.thread.lineage.rootThreadId !== parent.thread.lineage.rootThreadId
+        )
+          return yield* failure("invalid_request", "The job does not belong to main.");
+      }
+      let launchFailure: string | undefined;
       const target = yield* resolveTargetRechecking({
         parent,
         target:
           isOziMain(parent.thread) &&
           input.target?.providerInstanceId === undefined &&
-          input.target?.driverKind === undefined &&
-          input.target?.model === undefined
+          input.target?.driverKind === undefined
             ? {
                 providerInstanceId: OZI_WORKER_SELECTION.instanceId,
-                model: OZI_WORKER_SELECTION.model,
+                model: input.target?.model ?? OZI_WORKER_SELECTION.model,
                 options: input.target?.options ?? OZI_WORKER_SELECTION.options,
               }
             : input.target,
         providers,
-        skipProjectEnablementFilter: isRetryOfAcceptedDelegation,
-      });
+        skipProjectEnablementFilter: true,
+      }).pipe(
+        Effect.catchIf(
+          (error) =>
+            isOziMain(parent.thread) &&
+            (error.code === "provider_unavailable" || error.code === "model_unavailable"),
+          () => {
+            launchFailure = "Worker unavailable. Update its provider or model and retry.";
+            const provider = providers.find((provider) =>
+              input.target?.providerInstanceId !== undefined
+                ? provider.instanceId === input.target.providerInstanceId
+                : input.target?.driverKind !== undefined &&
+                  provider.driver === input.target.driverKind,
+            );
+            return Effect.succeed({
+              modelSelection: {
+                instanceId:
+                  input.target?.providerInstanceId ??
+                  provider?.instanceId ??
+                  OZI_WORKER_SELECTION.instanceId,
+                model:
+                  input.target?.model ?? provider?.models[0]?.slug ?? OZI_WORKER_SELECTION.model,
+                options: [],
+              },
+              supportedRuntimeModes: undefined,
+            } satisfies ResolvedTarget);
+          },
+        ),
+      );
       const runtimeMode = yield* resolveRuntimeMode(
         parent.thread.runtimeMode,
         input.runtimeMode,
@@ -2094,38 +2127,8 @@ const make = Effect.gen(function* () {
         parent.thread.interactionMode,
         input.interactionMode,
       );
-      let workspaceStrategy: OrchestrationV2ThreadLaunchWorkspaceStrategy | undefined;
-      if (isOziMain(parent.thread) && input.isolation === "worktree")
-        return yield* failure("invalid_request", "Main delegates in the shared workspace.");
-      if (input.isolation === "worktree" && !isRetryOfAcceptedDelegation) {
-        const project = yield* requireProject(parent.thread.projectId);
-        const base = yield* gitDriver
-          .resolveCommit({
-            cwd: parent.thread.worktreePath ?? project.workspaceRoot,
-            revision: "HEAD",
-          })
-          .pipe(
-            Effect.mapError(() =>
-              failure("invalid_request", "Unable to resolve the parent checkout commit."),
-            ),
-          );
-        // Launch preparation creates the worktree from the project root, so a
-        // parent checkout in another repository (such as a Git folder inside
-        // Scratch) would hand it a commit it cannot find.
-        if (parent.thread.worktreePath !== null) {
-          yield* gitDriver
-            .resolveCommit({ cwd: project.workspaceRoot, revision: base.commitSha })
-            .pipe(
-              Effect.mapError(() =>
-                failure(
-                  "invalid_request",
-                  `Isolation "worktree" creates the child checkout in project "${project.title}" (${project.workspaceRoot}), which does not contain the parent checkout's commit. Use isolation "shared" to work in the parent's checkout.`,
-                ),
-              ),
-            );
-        }
-        workspaceStrategy = { type: "worktree", baseRef: base.commitSha, startFromOrigin: false };
-      }
+      if (input.isolation === "worktree")
+        return yield* failure("invalid_request", "Workers run in the installation workspace.");
       // ThreadManagementService.dispatch is the chokepoint for this command
       // type's own enablement check, using the same command id and its
       // receipt-replay exemption, so no separate assert runs here.
@@ -2138,12 +2141,13 @@ const make = Effect.gen(function* () {
           parentThreadId: scope.thread.threadId,
           parentRunId: parentRun.id,
           parentNodeId: parentRun.rootNodeId,
+          ...(input.jobId === undefined ? {} : { jobId: input.jobId }),
+          ...(launchFailure === undefined ? {} : { launchFailure }),
           task: taskPrompt(input),
           ...(input.title === undefined ? {} : { title: input.title }),
           modelSelection: target.modelSelection,
           runtimeMode,
           interactionMode,
-          ...(workspaceStrategy === undefined ? {} : { workspaceStrategy }),
           // Async delegations wake the parent on every child terminal; wait
           // delegations deliver through the blocking tool call, so a wake is
           // only needed if the parent settled first (timeout, disconnect).
@@ -2830,7 +2834,6 @@ export const layer: Layer.Layer<
   | Crypto.Crypto
   | ThreadManagementService.ThreadManagementService
   | ThreadLaunchService.ThreadLaunchService
-  | GitVcsDriver.GitVcsDriver
   | ProviderRegistry.ProviderRegistry
   | ProviderAdapterRegistry.ProviderAdapterRegistryV2
   | ScheduledTaskService.ScheduledTaskService

@@ -525,7 +525,7 @@ const make = Effect.gen(function* () {
             : serverSettings.getSettings.pipe(
                 Effect.orDie,
                 Effect.flatMap((current) =>
-                  resolveProjectProviderInstanceEnabled(current, input.projectId, input.instanceId)
+                  resolveProjectProviderInstanceEnabled(current, null, input.instanceId)
                     ? Effect.void
                     : new ThreadManagementProviderInstanceDisabledError({
                         projectId: input.projectId,
@@ -655,6 +655,7 @@ const make = Effect.gen(function* () {
           ),
         );
       case "delegated_task.request":
+        if (command.launchFailure !== undefined) return Effect.void;
         return orchestrator.getThreadRecords(command.parentThreadId, []).pipe(
           Effect.flatMap((parent) =>
             assertProviderInstanceEnabled({
