@@ -68,31 +68,31 @@ Only Pi, Claude and Codex providers and desktop and web clients ship. Provider r
 
 One binary, `ozi`. Every command takes `--json`. Client commands find the server from `--home` (default `~/.ozi`) and authenticate with its owner session.
 
-| Command                                                  | Does                                                                                     |
-| -------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| `ozi serve [--home] [--data-root] [--port] [--host]`     | Run the server.                                                                          |
-| `ozi service install\|status\|restart\|uninstall`        | systemd user service.                                                                    |
-| `ozi pair`                                               | Pairing URL for a new client.                                                            |
-| `ozi status`                                             | Server, main thread, effective loadouts (model, options, tools, prompt hash), providers. |
-| `ozi say <text> [--file <path>]…`                        | Message main; queues when busy.                                                          |
-| `ozi steer <text> [--thread <id>]`                       | Steer the active turn.                                                                   |
-| `ozi stop [--thread <id>]`                               | Stop a thread's work.                                                                    |
-| `ozi thread <id> [--provider <id> --model <model>]`      | Transcript, loadout, state; optional provider/model selection.                           |
-| `ozi jobs`                                               | Cards by column.                                                                         |
-| `ozi job <id>`                                           | Card plus lead transcript.                                                               |
-| `ozi answer <requestId> <value…>`                        | Answer a question, approval (`allow`/`deny`) or secret.                                  |
-| `ozi close <jobId> <eventId>`                            | Handle a card.                                                                           |
-| `ozi checks [<threadId>]`                                | Check rounds and verdicts.                                                               |
-| `ozi mistakes` / `ozi mistake <id>`                      | Mistake log.                                                                             |
-| `ozi replays`                                            | Replay cases and results.                                                                |
-| `ozi fixes` / `ozi undo <fixId>`                         | Shipped fixes; manual undo.                                                              |
-| `ozi schedules` / `ozi schedule add\|rm\|run`            | Interval, time-of-day and webhook schedules bound to main.                               |
-| `ozi todos`                                              | External to-dos with source and freshness.                                               |
-| `ozi wait <job\|thread\|check> <id> <state> [--timeout]` | Block until the state holds; non-zero on timeout.                                        |
+| Command                                                                         | Does                                                                                                   |
+| ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `ozi serve [--home] [--data-root] [--port] [--host]`                            | Run the server.                                                                                        |
+| `ozi service install\|status\|restart\|uninstall`                               | systemd user service.                                                                                  |
+| `ozi pair`                                                                      | Pairing URL for a new client.                                                                          |
+| `ozi status`                                                                    | Server, main thread, effective loadouts (model, options, tools, prompt hash), providers.               |
+| `ozi say <text> [--file <path>]…`                                               | Message main; queues when busy.                                                                        |
+| `ozi steer <text> [--thread <id>]`                                              | Steer the active turn.                                                                                 |
+| `ozi stop [--thread <id>]`                                                      | Stop a thread's work.                                                                                  |
+| `ozi thread <id> [--provider <id> --model <model>] [--fork] [--message <text>]` | Transcript, loadout, state; select a worker model, fork the latest stable run, or send to that thread. |
+| `ozi jobs`                                                                      | Cards by column.                                                                                       |
+| `ozi job <id>`                                                                  | Card plus lead transcript.                                                                             |
+| `ozi answer <requestId> <value…>`                                               | Answer a question, approval (`allow`/`deny`) or secret.                                                |
+| `ozi close <jobId> <eventId>`                                                   | Handle a card.                                                                                         |
+| `ozi checks [<threadId>]`                                                       | Check rounds and verdicts.                                                                             |
+| `ozi mistakes` / `ozi mistake <id>`                                             | Mistake log.                                                                                           |
+| `ozi replays`                                                                   | Replay cases and results.                                                                              |
+| `ozi fixes` / `ozi undo <fixId>`                                                | Shipped fixes; manual undo.                                                                            |
+| `ozi schedules` / `ozi schedule add\|rm\|run`                                   | Interval, time-of-day and webhook schedules bound to main.                                             |
+| `ozi todos`                                                                     | External to-dos with source and freshness.                                                             |
+| `ozi wait <job\|thread\|check> <id> <state> [--timeout]`                        | Block until the state holds; non-zero on timeout.                                                      |
 
 M1 implements `serve`, `service`, `pair`, `status`, `say`, `steer`, `stop`, `thread`, and `wait`. Other commands arrive with their owning milestones. `--home`/`OZI_HOME` selects server state; `--data-root`/`OZI_DATA_ROOT` selects the data repository. Desktop launchers may use the `--base-dir` alias.
 
-Until main bootstrap lands, the CLI resolves main in one function using the most recent thread. A first `say` creates a Codex conversation when no thread exists. `status` returns server configuration, the shell snapshot and the complete main projection; `thread` returns the complete thread projection. `wait thread <id> text:<substring>` waits for transcript text. JSON errors retain a non-zero exit code.
+The CLI resolves main by `role: "main"`; worker and fork activity never changes the default target. `status` returns server configuration, the shell snapshot and the complete main projection with its effective loadout; `thread` returns the complete thread projection. `--fork` creates a child from the latest stable run; other thread flags then address the child. Main and main-fork model changes fail. `wait thread <id> text:<substring>` waits for transcript text. JSON errors retain a non-zero exit code. Uploaded text files include their name, saved path and UTF-8 content in main's prompt so main can delegate a complete brief without file tools.
 
 ## E2E
 
@@ -116,7 +116,7 @@ Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` 
 - `m1.steer-queue-stop`: steer main mid-turn; queue a follow-up; stop main; stop a worker.
 - `m1.read-skill`: main loads a data-root skill by name; unknown name errors.
 - `m1.remote-client`: web client pairs with the server over its network address and chats.
-- `m1.cli-json`: every `ozi` command returns valid JSON with `--json`.
+- `m1.cli-json`: every implemented `ozi` command returns valid JSON with `--json`; native forks of Pi, Claude and Codex workers preserve the source conversation.
 
 ### M2 Jobs
 

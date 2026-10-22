@@ -32,6 +32,10 @@ export function launch(provider) {
     );
     return false;
   }
+  if (argv.includes("--help")) {
+    process.stdout.write(`${provider} ${argv[0]}\n`);
+    return false;
+  }
   if (provider === "codex" && argv[0] === "login") {
     process.stderr.write("Logged in using ChatGPT\n");
     return false;

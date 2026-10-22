@@ -44,6 +44,7 @@ import type {
   SnapShotSource,
 } from "@t3tools/contracts";
 import {
+  isOziMain,
   EnvironmentRequestInvalidError,
   AuthOrchestrationOperateScope,
   ProviderDriverKind,
@@ -2375,11 +2376,10 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     provider: selectedProviderStatus,
     interactionMode: requestedInteractionMode,
   });
-  const selectedModelSelection: ModelSelection = createModelSelection(
-    selectedInstanceId,
-    selectedModel,
-    selectedModelOptionsForDispatch,
-  );
+  const selectedModelSelection: ModelSelection =
+    activeThread && isOziMain(activeThread) && activeThreadModelSelection
+      ? activeThreadModelSelection
+      : createModelSelection(selectedInstanceId, selectedModel, selectedModelOptionsForDispatch);
   const selectedModelForPicker = selectedModel;
   const modelOptionsByInstance = new Map<ProviderInstanceId, ReadonlyArray<AppModelOption>>();
   for (const entry of providerInstanceEntries) {

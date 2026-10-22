@@ -1,10 +1,10 @@
 import * as HostProcess from "@t3tools/shared/HostProcess";
+import * as NodeBuffer from "node:buffer";
 import { AgentScope } from "@t3tools/shared/AgentScope";
 import { getModelSelectionStringOptionValue } from "@t3tools/shared/model";
 import { readToolOutputImage } from "@t3tools/shared/toolOutput";
 import * as Predicate from "effect/Predicate";
 import {
-  defaultInstanceIdForDriver,
   ProviderDriverKind,
   type ChatAttachment,
   type ModelSelection,
@@ -32,7 +32,6 @@ import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Fiber from "effect/Fiber";
-import * as Layer from "effect/Layer";
 import * as Queue from "effect/Queue";
 import * as Schema from "effect/Schema";
 import * as Semaphore from "effect/Semaphore";
@@ -75,7 +74,6 @@ import { PI_FILE_CHANGE_TOOLS } from "./mcpExtensionSource.ts";
 
 export const PI_PROVIDER = ProviderDriverKind.make("pi");
 const PI_DRIVER_KIND = PI_PROVIDER;
-const PI_DEFAULT_INSTANCE_ID = defaultInstanceIdForDriver(PI_DRIVER_KIND);
 const DEFAULT_PI_SETTINGS = Schema.decodeSync(PiSettings)({});
 
 /**
@@ -2355,7 +2353,12 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
               mimeType: attachment.mimeType,
             });
           } else {
-            extraLines.push(`[Attachment saved at ${path}]`);
+            extraLines.push(`[Attachment ${attachment.name} saved at ${path}]`);
+            if (input.runtimePolicy.mainPromptPath !== undefined) {
+              const bytes = yield* fileSystem.readFile(path);
+              if (NodeBuffer.isUtf8(bytes) && !bytes.includes(0))
+                extraLines.push(Buffer.from(bytes).toString("utf8"));
+            }
           }
         }
         const message = extraLines.length === 0 ? text : `${text}\n\n${extraLines.join("\n")}`;
@@ -3411,18 +3414,3 @@ export const PiAdapterV2Driver: ProviderAdapterDriver<PiSettings, PiAdapterV2Dri
       ),
   ),
 };
-
-const layer: Layer.Layer<ProviderAdapter.ProviderAdapterV2, never, PiAdapterV2DriverEnv> =
-  Layer.effect(
-    ProviderAdapter.ProviderAdapterV2,
-    Effect.gen(function* () {
-      const hostEnvironment = yield* HostProcess.Environment;
-      const continuationRequests = yield* ProviderContinuationRequests.ProviderContinuationRequests;
-      return yield* makePiAdapterV2({
-        instanceId: PI_DEFAULT_INSTANCE_ID,
-        settings: DEFAULT_PI_SETTINGS,
-        environment: hostEnvironment,
-        continuationRequests,
-      });
-    }),
-  );

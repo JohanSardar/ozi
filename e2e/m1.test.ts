@@ -1,4 +1,5 @@
 import * as NodeFSP from "node:fs/promises";
+import * as NodeCrypto from "node:crypto";
 import * as NodePath from "node:path";
 import { afterEach, beforeEach, expect, it } from "vite-plus/test";
 import { startHarness, type Harness, type Projection, type Rule } from "./harness.ts";
@@ -52,7 +53,8 @@ const delegate = (task: string, provider?: string): Rule["steps"][number] => ({
 
 it("m1.fresh-install starts isolated state and only the three supported providers", async () => {
   const status = await h.status();
-  expect.soft(status.main, "main bootstrap has not landed").not.toBeNull();
+  expect(status.main?.thread).toMatchObject({ role: "main", effectiveLoadout: { provider: "pi" } });
+  expect(status.snapshot.threads.filter((thread) => thread.role === "main")).toHaveLength(1);
   expect(status.server.providers.map((provider) => provider.driver).sort()).toEqual([
     "claudeAgent",
     "codex",
@@ -69,12 +71,19 @@ it("m1.main-loadout preserves the Pi loadout, prompt and tools after resume and 
     instanceId: "pi",
     model: "anthropic/claude-opus-5-5",
   });
-  expect(initial.thread.modelSelection.options).toEqual(
-    expect.arrayContaining([{ id: "thinkingLevel", value: "high" }]),
-  );
+  expect(initial.thread.modelSelection.options).toEqual([
+    { id: "thinking", value: "high" },
+    { id: "fastMode", value: false },
+  ]);
   const prompt = (
     await NodeFSP.readFile(NodePath.join(h.dataRoot, "prompt.md"), "utf8")
   ).replaceAll("{{ADHD}}", "");
+  expect(initial.thread.effectiveLoadout).toMatchObject({
+    provider: "pi",
+    model: "anthropic/claude-opus-5-5",
+    options: initial.thread.modelSelection.options,
+    systemPromptSha256: NodeCrypto.createHash("sha256").update(prompt).digest("hex"),
+  });
   const assertLoadout = async () => {
     const records = await h.records();
     const loadout = records.findLast(
@@ -94,28 +103,6 @@ it("m1.main-loadout preserves the Pi loadout, prompt and tools after resume and 
     { match: "loadout-before", steps: [{ say: "loadout-before-ok" }] },
     { match: "loadout-resume", steps: [{ say: "loadout-resume-ok" }] },
     { match: "loadout-child", steps: [{ say: "loadout-child-ok" }] },
-    {
-      match: "loadout-fork",
-      steps: [
-        {
-          tool: {
-            name: "t3_thread_fork",
-            arguments: {
-              threadId: initial.thread.id,
-              sourcePoint: { type: "latest_stable" },
-              title: "Loadout fork",
-            },
-          },
-        },
-        {
-          tool: {
-            name: "t3_thread_send",
-            arguments: { threadId: "$result.targetThreadId", message: "loadout-child" },
-          },
-        },
-        { say: "loadout-fork-ok" },
-      ],
-    },
   ]);
   await say("loadout-before");
   await h.wait(initial.thread.id, "completed");
@@ -124,15 +111,26 @@ it("m1.main-loadout preserves the Pi loadout, prompt and tools after resume and 
   await say("loadout-resume");
   await h.wait(initial.thread.id, "completed");
   await assertLoadout();
-  await say("loadout-fork");
-  await h.wait(initial.thread.id, "completed");
-  const fork = (await h.status()).snapshot.threads.find(
-    (thread) => thread.id !== initial.thread.id,
-  )!;
-  const forked = await h.wait(fork.id, "completed");
+  const fork = await h.ozi<Projection>(
+    "thread",
+    initial.thread.id,
+    "--fork",
+    "--message",
+    "loadout-child",
+  );
+  const forked = await h.wait(fork.thread.id, "completed");
+  expect(forked.thread.role).toBe("main-fork");
   expect(forked.thread.modelSelection).toEqual(initial.thread.modelSelection);
+  expect(forked.thread.effectiveLoadout).toEqual(initial.thread.effectiveLoadout);
+  expect((await h.status()).main?.thread.id).toBe(initial.thread.id);
   await assertLoadout();
   expect((await h.records()).some((record) => record.argv?.includes("--fork"))).toBe(true);
+  await expect(
+    h.ozi("thread", initial.thread.id, "--provider", "codex", "--model", "gpt-6.1-sol"),
+  ).rejects.toThrow();
+  await expect(
+    h.ozi("thread", fork.thread.id, "--provider", "codex", "--model", "gpt-6.1-sol"),
+  ).rejects.toThrow();
 });
 
 it("m1.main-cannot-execute rejects execution tools on main", async () => {
@@ -154,9 +152,18 @@ it("m1.main-cannot-execute rejects execution tools on main", async () => {
   expect(call?.result?.isError).toBe(true);
   const launch = (await h.records()).find(
     (record) =>
-      record.provider === "pi" && record.event === "launch" && record.argv?.includes("--mode"),
+      record.provider === "pi" && record.event === "launch" && record.argv?.includes("--extension"),
   );
-  expect(launch?.argv).toContain("--no-tools");
+  expect(launch?.argv).toEqual(
+    expect.arrayContaining([
+      "--no-tools",
+      "--no-extensions",
+      "--no-skills",
+      "--no-context-files",
+      "--no-prompt-templates",
+      "--system-prompt",
+    ]),
+  );
 });
 
 it("m1.delegate-async starts the default worker and returns its result to main", async () => {
@@ -187,6 +194,7 @@ it("m1.delegate-async starts the default worker and returns its result to main",
     (thread) => thread.id !== initial.thread.id,
   );
   expect(workers).toHaveLength(1);
+  expect(workers[0]!.role).toBe("worker");
   expect(workers[0]!.modelSelection).toMatchObject({
     instanceId: "codex",
     model: "gpt-6.1-sol",
@@ -196,6 +204,11 @@ it("m1.delegate-async starts the default worker and returns its result to main",
     ]),
   });
   expect(content(await h.thread(initial.thread.id))).toContain("worker started");
+  const projection = await h.wait(initial.thread.id, "completed");
+  expect(projection.runs.filter((run) => run.status === "completed").length).toBeGreaterThanOrEqual(
+    2,
+  );
+  expect((await h.status()).main?.thread.id).toBe(initial.thread.id);
 });
 
 it("m1.responsive answers another message while a worker stays active", async () => {
@@ -265,14 +278,22 @@ it("m1.attachments delivers file content to main and the delegated brief", async
     { match: "attachment read", provider: "pi", steps: [{ say: "attachment reported" }] },
   ]);
   await h.ozi("say", "attachment-request", "--file", file);
-  await h.wait(initial.thread.id, "completed");
+  await h.wait(initial.thread.id, "text:attachment reported");
   const records = await h.records();
   expect(
-    records.some((record) => record.provider === "pi" && record.prompt?.includes("attachment.txt")),
+    records.some(
+      (record) =>
+        record.provider === "pi" &&
+        record.prompt?.includes("attachment.txt") &&
+        record.prompt.includes("ozi-attachment-marker"),
+    ),
   ).toBe(true);
   expect(
     records.some(
-      (record) => record.provider === "codex" && record.prompt?.includes("attachment.txt"),
+      (record) =>
+        record.provider === "codex" &&
+        record.prompt?.includes("attachment.txt") &&
+        record.prompt.includes("ozi-attachment-marker"),
     ),
   ).toBe(true);
   expect(
@@ -364,11 +385,33 @@ it("m1.cli-json returns JSON and exercises each provider, attachments, waits and
     ["claudeAgent", "claude-opus-5-5"],
     ["pi", "anthropic/claude-opus-5-5"],
   ]) {
-    await h.ozi("thread", threadId, "--provider", provider!, "--model", model!);
-    await h.script([{ match: `json-${provider}`, steps: [{ say: `json-result-${provider}` }] }]);
+    await h.script([
+      {
+        match: `^json-${provider}`,
+        role: "main",
+        steps: [delegate(`json-worker-${provider}`, provider), { say: `json-started-${provider}` }],
+      },
+      {
+        match: `json-worker-${provider}`,
+        role: "worker",
+        steps: [{ say: `json-result-${provider}` }],
+      },
+      {
+        match: `json-result-${provider}`,
+        role: "main",
+        steps: [{ say: `json-reported-${provider}` }],
+      },
+    ]);
     await h.ozi("say", `json-${provider}`, "--file", file);
+    await h.wait(threadId, `text:json-reported-${provider}`);
     const projection = await h.wait(threadId, "completed");
-    expect(content(projection)).toContain(`json-result-${provider}`);
+    expect(content(projection)).toContain(`json-reported-${provider}`);
+    const worker = (await h.status()).snapshot.threads.find(
+      (thread) => thread.role === "worker" && thread.providerInstanceId === provider,
+    )!;
+    expect(
+      await h.ozi("thread", worker.id, "--provider", provider!, "--model", model!),
+    ).toHaveProperty("runs");
   }
   expect(await h.ozi("pair")).toHaveProperty("url");
   expect(await h.ozi("status")).toHaveProperty("main");
@@ -396,32 +439,26 @@ it.each([
   ["pi", "anthropic/claude-opus-5-5"],
   ["claudeAgent", "claude-opus-5-5"],
 ])("m1.cli-json native-forks %s without changing the source", async (provider, model) => {
-  const sourceId = await bootstrap();
-  await h.ozi("thread", sourceId, "--provider", provider!, "--model", model!);
+  const mainId = (await main()).thread.id;
   await h.script([
-    { match: "native-seed", steps: [{ say: "native-seeded" }] },
     {
-      match: "native-fork$",
-      steps: [
-        {
-          tool: {
-            name: "t3_thread_fork",
-            arguments: {
-              threadId: sourceId,
-              sourcePoint: { type: "latest_stable" },
-              title: "Native fork",
-            },
-          },
-        },
-        {
-          tool: {
-            name: "t3_thread_send",
-            arguments: { threadId: "$result.targetThreadId", message: "native-child" },
-          },
-        },
-        { say: "fork issued" },
-      ],
+      match: "^native-start$",
+      role: "main",
+      steps: [delegate("native-seed", provider), { say: "native worker started" }],
     },
+    { match: "native-seed", role: "worker", steps: [{ say: "native-seeded" }] },
+    { match: "native-seeded", role: "main", steps: [{ say: "native worker ready" }] },
+  ]);
+  await say("native-start");
+  await h.wait(mainId, "text:native worker ready");
+  await h.wait(mainId, "completed");
+  const sourceId = (await h.status()).snapshot.threads.find(
+    (thread) => thread.role === "worker",
+  )!.id;
+  await h.wait(sourceId, "completed");
+  await h.ozi("thread", sourceId, "--provider", provider!, "--model", model!);
+  const before = await h.thread(sourceId);
+  await h.script([
     {
       match: "native-child",
       steps: [
@@ -435,15 +472,13 @@ it.each([
       ],
     },
     { match: "native-resume", steps: [{ say: "source still usable" }] },
+    { match: "source still usable", role: "main", steps: [{ say: "native source reported" }] },
   ]);
-  await say("native-seed");
-  await h.wait(sourceId, "completed");
-  const before = await h.thread(sourceId);
-  await say("native-fork");
+  const fork = await h.ozi<Projection>("thread", sourceId, "--fork", "--message", "native-child");
   await h.ozi("wait", "thread", sourceId, "text:source still usable", "--timeout", "30");
-  const fork = (await h.status()).snapshot.threads.find((thread) => thread.id !== sourceId)!;
-  expect(fork).toBeDefined();
-  const child = await h.wait(fork.id, "completed");
+  const child = await h.wait(fork.thread.id, "completed");
+  expect(child.thread.role).toBe("worker");
+  expect(child.thread.modelSelection).toEqual((await h.thread(sourceId)).thread.modelSelection);
   expect(content(child)).toContain("native-fork-result");
   expect((await h.thread(sourceId)).messages.slice(0, before.messages.length)).toEqual(
     before.messages,
