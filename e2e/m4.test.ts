@@ -229,13 +229,13 @@ it("m4.webhook verifies raw bytes, suppresses replays, filters and coalesces rea
     (await post(body, undefined, `${endpoint.slice(0, endpoint.lastIndexOf("/"))}/wrong`)).status,
   ).toBe(404);
   const filtered = await post(JSON.stringify({ action: "ignored", delivery: "ignored" }));
-  expect(filtered.headers["x-t3-hook-outcome"]).toBe("filtered");
+  expect(filtered.headers["x-ozi-hook-outcome"]).toBe("filtered");
   expect((await post(body)).status).toBe(202);
-  expect((await post(body)).headers["x-t3-hook-outcome"]).toBe("duplicate");
+  expect((await post(body)).headers["x-ozi-hook-outcome"]).toBe("duplicate");
   const coalesced = await post(
     JSON.stringify({ action: "changed", delivery: "two", subject: "same", text: "second" }),
   );
-  expect(coalesced.headers["x-t3-hook-outcome"]).toBe("coalesced");
+  expect(coalesced.headers["x-ozi-hook-outcome"]).toBe("coalesced");
   expect((await schedules()).find((item) => item.id === task.id)?.runCount).toBe(0);
   await advance("10s");
   await h.wait("ozi-main", "text:Webhook delegated");
@@ -247,7 +247,7 @@ it("m4.webhook verifies raw bytes, suppresses replays, filters and coalesces rea
   expect(card.requests[0]?.prompt).toBe("Choose a response");
   expect((await schedules()).find((item) => item.id === task.id)?.runCount).toBe(1);
   await h.restart();
-  expect((await post(body)).headers["x-t3-hook-outcome"]).toBe("duplicate");
+  expect((await post(body)).headers["x-ozi-hook-outcome"]).toBe("duplicate");
   expect(JSON.stringify(await schedules())).not.toContain(secret);
   expect(JSON.stringify(await h.ozi("jobs"))).not.toContain(secret);
 });
