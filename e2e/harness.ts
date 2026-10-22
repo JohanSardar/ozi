@@ -26,6 +26,7 @@ export type Step =
   | { approval: string }
   | { wait: true }
   | { exec: string }
+  | { history: "partial" }
   | { fail: string };
 export type Rule = {
   match: string;
@@ -225,7 +226,15 @@ export async function startHarness(
       NodeChildProcess.execFile(
         process.execPath,
         [cli, ...args, "--home", home, "--json"],
-        { cwd: dataRoot, env, timeout: 45_000, maxBuffer: 16 * 1024 * 1024 },
+        {
+          cwd: dataRoot,
+          env,
+          timeout:
+            args[0] === "wait" && args.includes("--timeout")
+              ? Math.max(45_000, Number(args[args.indexOf("--timeout") + 1]) * 1000 + 5000)
+              : 45_000,
+          maxBuffer: 16 * 1024 * 1024,
+        },
         (error, stdout, stderr) => {
           if (error) {
             const message = `ozi ${args.join(" ")}: ${[stdout, stderr].filter(Boolean).join("\n") || error.message}`;

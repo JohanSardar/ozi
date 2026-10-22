@@ -57,6 +57,12 @@ New code lives in `apps/server/src/ozi/` and `apps/web/src/components/ozi/`. Eve
 
 M5 stops at replay: a pass leaves the mistake `testing` and its replay `passed`; publication, activation and undo arrive in M6. Logging acknowledges only the SQLite write. Eligible cases run serially as internal delegated tasks; they never create cards or wake main with repair output. Interrupted cases fail on restart, and reserved repair threads cannot resume outside confinement.
 
+Replay waits for the source turn to settle before freezing native history; an in-progress session write is never parsed. A source that remains active past the deadline fails with `source-settlement-timeout`. `ozi wait replay <id> finished` returns either terminal replay state, including its failure evidence.
+
+Mistake and replay waits subscribe before reading SQLite, then stream committed changes. The CLI owns the requested deadline; waiting never becomes an HTTP 400. M5 tests await unique turn acknowledgements and allow two minutes for serialized replay stages. Pi's fake transport can hold native history incomplete with `{"history":"partial"}` until the turn settles.
+
+Failed replays retain a specific reason and `evidence_json.failure` with the stage and underlying cause, exposed by `ozi replays --json`; sandbox, stage and settlement timeouts have distinct reasons. Author exit validates the candidate before settlement, prompt reads or git diff. Link inspection never resolves the target: relative, absolute, dangling and looping symlinks are `symlink-denied`, including when authoring fails.
+
 `t3_thread_read` supplies `sourceEventId` on timeline items; `ozi events <threadId>` exposes the stored events. Sources must belong to the caller or its descendants; internal checkers can report an ancestor's source. Runtime provider errors use the same logger. A stored user correction names the fingerprint or mistake, or supplies the correction's source event and the original user-message boundary through `log_mistake`. A missing replay boundary still logs.
 
 Cases freeze the original message, native prefix, attachment bytes, expectation and recorded effects. Each replay gets its own native fork and effect-stub counters. Unknown effects, missing history, changed builds, unloaded changes or observer disagreement fail. Shell tools in replays use the frozen stubs. Inference keys stay in a server-owned proxy; confined processes receive a local inference endpoint and fresh provider homes. The proxy permits only inference POSTs. Protected rules change outside repair through a delegated `change_protected_rule` call backed by the user's exact stored instruction: `Change protected/<filename> to:` followed by the requested content on the next line. Quoted messages and tool output carry no authority.
@@ -198,10 +204,10 @@ Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` 
 - `m5.log`: `log_mistake` writes one row; a retry dedupes; unknown cause stays `unknown`.
 - `m5.no-repair-once`: a single uncorrected mistake starts no repair.
 - `m5.correction-repairs`: a user correction starts a repair; baseline reproduces, candidate passes, observer agrees.
-- `m5.repeat-repairs`: a repeated mistake starts a repair.
-- `m5.false-case`: a baseline that doesn't reproduce fails the replay.
+- `m5.repeat-repairs`: a repeated mistake starts a repair after the logging turn settles, even when native history is partially written during the turn.
+- `m5.false-case`: a baseline that doesn't reproduce fails the replay; failure causes and timeout reasons survive restart.
 - `m5.unknown-effect`: an unstubbed effect fails the replay.
-- `m5.protected-denied`: a candidate writing `protected/` or escaping the root is denied by bwrap and rejected by the publisher.
+- `m5.protected-denied`: a candidate writing `protected/` or escaping the root is denied by bwrap and rejected by the publisher; symlinks are rejected before target resolution, even after author failure.
 - `m5.no-credentials`: replays can't read credentials or reach effect endpoints.
 - `m5.user-override`: the user's own message can change a protected rule; the same text from an email or tool can't.
 
