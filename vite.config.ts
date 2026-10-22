@@ -7,11 +7,6 @@ const RESTRICTED_IMPORT_PATHS = [
     message:
       "Import from an explicit @t3tools/client-runtime/* subpath. The package has no root export.",
   },
-  {
-    name: "@pierre/diffs/react",
-    importNames: ["CodeView"],
-    message: "Use StyledDiffCodeView so web diff surfaces share styling and virtualized geometry.",
-  },
 ];
 
 const RESTRICTED_UI_VARIANT_PATTERNS = [
@@ -23,29 +18,8 @@ const RESTRICTED_UI_VARIANT_PATTERNS = [
   },
 ];
 
-const RESTRICTED_PULL_REQUEST_GLYPH_IMPORTS = {
-  name: "lucide-react",
-  importNames: [
-    "GitMerge",
-    "GitMergeIcon",
-    "GitPullRequest",
-    "GitPullRequestIcon",
-    "GitPullRequestArrow",
-    "GitPullRequestArrowIcon",
-    "GitPullRequestClosed",
-    "GitPullRequestClosedIcon",
-    "GitPullRequestDraft",
-    "GitPullRequestDraftIcon",
-    "GitPullRequestCreate",
-    "GitPullRequestCreateIcon",
-    "GitPullRequestCreateArrow",
-    "GitPullRequestCreateArrowIcon",
-  ],
-  message:
-    "Pick a glyph by meaning from PullRequestGlyph in apps/web/src/components/pullRequest/pullRequestIcons.tsx so every surface draws the same pull request the same way.",
-};
-
 export default defineConfig({
+  test: { projects: ["e2e"] },
   resolve: {
     alias: {
       "~": NodeURL.fileURLToPath(new URL("./apps/web/src", import.meta.url)),
@@ -68,7 +42,6 @@ export default defineConfig({
       "*.tsbuildinfo",
       "**/routeTree.gen.ts",
       "**/*.graphql.ts",
-      "packages/source-control-github/schema/**",
       "apps/server/schema/**",
       "*.icon/**",
     ],
@@ -93,7 +66,6 @@ export default defineConfig({
       "*.tsbuildinfo",
       "**/routeTree.gen.ts",
       "**/*.graphql.ts",
-      "packages/source-control-github/schema/**",
       "apps/server/schema/**",
     ],
     plugins: ["eslint", "oxc", "react", "unicorn", "typescript"],
@@ -132,10 +104,7 @@ export default defineConfig({
       "typescript/require-array-sort-compare": "off",
       "typescript/restrict-template-expressions": "off",
       "typescript/unbound-method": "off",
-      "eslint/no-restricted-imports": [
-        "error",
-        { paths: [...RESTRICTED_IMPORT_PATHS, RESTRICTED_PULL_REQUEST_GLYPH_IMPORTS] },
-      ],
+      "eslint/no-restricted-imports": ["error", { paths: RESTRICTED_IMPORT_PATHS }],
       "t3code/no-global-process-runtime": "error",
       "t3code/no-inline-schema-compile": "warn",
       "t3code/no-low-value-comments": "error",
@@ -155,10 +124,7 @@ export default defineConfig({
         rules: { "t3code/no-rpc-permission-bypass": ["error", { allowRawClientAccess: false }] },
       },
       {
-        files: [
-          "packages/client-runtime/src/state/runtime.ts",
-          "packages/client-runtime/src/state/vcsAction.ts",
-        ],
+        files: ["packages/client-runtime/src/state/runtime.ts"],
         rules: {
           "t3code/no-rpc-permission-bypass": [
             "error",
@@ -167,16 +133,8 @@ export default defineConfig({
         },
       },
       {
-        files: [
-          "apps/web/src/components/settings/ConnectionsSettings.tsx",
-          "apps/web/src/components/device/DevicePhoneViewport.tsx",
-          "apps/web/src/components/device/DeviceDuoViewport.tsx",
-        ],
+        files: ["apps/web/src/components/settings/ConnectionsSettings.tsx"],
         rules: { "t3code/no-rpc-permission-bypass": ["error", { allowRawClientAccess: true }] },
-      },
-      {
-        files: ["packages/client-runtime/src/connection/outdatedHostUpdate.ts"],
-        rules: { "t3code/no-rpc-permission-bypass": "off" },
       },
       {
         files: [
@@ -190,14 +148,6 @@ export default defineConfig({
         rules: { "t3code/no-global-process-runtime": "off" },
       },
       {
-        // The `t3` npm launcher is published as plain, dependency-free Node.
-        files: ["scripts/npm-launcher/**"],
-        rules: {
-          "t3code/no-global-process-runtime": "off",
-          "t3code/namespace-node-imports": "off",
-        },
-      },
-      {
         files: ["apps/server/src/mcp/McpHttpServer.ts"],
         rules: { "t3code/no-raw-mcp-registration": "off" },
       },
@@ -208,15 +158,11 @@ export default defineConfig({
           "eslint/no-restricted-imports": [
             "error",
             {
-              paths: [...RESTRICTED_IMPORT_PATHS, RESTRICTED_PULL_REQUEST_GLYPH_IMPORTS],
+              paths: RESTRICTED_IMPORT_PATHS,
               patterns: RESTRICTED_UI_VARIANT_PATTERNS,
             },
           ],
         },
-      },
-      {
-        files: ["apps/web/src/components/pullRequest/pullRequestIcons.tsx"],
-        rules: { "eslint/no-restricted-imports": ["error", { paths: RESTRICTED_IMPORT_PATHS }] },
       },
       {
         // React commits state set in a raw ResizeObserver callback after the paint, so derived
@@ -318,18 +264,6 @@ export default defineConfig({
         // The sign-in masthead is T3 brand artwork: fixed gradients, not theme surfaces.
         files: ["apps/web/src/components/auth/AuthSurfaceShell.tsx"],
         rules: { "shadcn/no-arbitrary-values": "off" },
-      },
-      {
-        // Shared client code must not call APIs missing from Hermes. Our ESNext
-        // TypeScript target accepts them even when they would crash mobile at launch.
-        // Tests run on Node and are exempt.
-        files: [
-          "packages/client-runtime/src/**",
-          "packages/contracts/src/**",
-          "packages/shared/src/**",
-        ],
-        excludeFiles: ["**/*.test.ts", "**/*.test.tsx"],
-        rules: { "t3code/no-hermes-unsupported-apis": "error" },
       },
       {
         // The compiler only compiles a use* function that calls a hook; one that calls none is

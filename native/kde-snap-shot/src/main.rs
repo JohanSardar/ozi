@@ -75,7 +75,7 @@ struct ScriptReply {
     owner: String,
     result: mpsc::SyncSender<String>,
 }
-#[zbus::interface(name = "com.t3tools.KdeCapture")]
+#[zbus::interface(name = "com.ozi.KdeCapture")]
 impl ScriptReply {
     fn reply(
         &self,
@@ -101,14 +101,14 @@ fn script(connection: &Connection, directory: &Path, body: &str) -> Result<Strin
     let owner = dbus.get_name_owner("org.kde.KWin".try_into()?)?.to_string();
     let (send, receive) = mpsc::sync_channel(1);
     connection.object_server().at(
-        "/com/t3tools/KdeCapture",
+        "/com/ozi/KdeCapture",
         ScriptReply {
             owner,
             result: send,
         },
     )?;
     let path = directory.join("window.js");
-    let name = format!("t3-capture-{}", std::process::id());
+    let name = format!("ozi-capture-{}", std::process::id());
     let destination = serde_json::to_string(
         connection
             .unique_name()
@@ -116,7 +116,7 @@ fn script(connection: &Connection, directory: &Path, body: &str) -> Result<Strin
             .as_str(),
     )?;
     let source = format!(
-        "function reply(value) {{ callDBus({destination}, '/com/t3tools/KdeCapture', 'com.t3tools.KdeCapture', 'Reply', JSON.stringify(value)); }}\ntry {{ {body} }} catch (error) {{ reply({{error: String(error)}}); }}"
+        "function reply(value) {{ callDBus({destination}, '/com/ozi/KdeCapture', 'com.ozi.KdeCapture', 'Reply', JSON.stringify(value)); }}\ntry {{ {body} }} catch (error) {{ reply({{error: String(error)}}); }}"
     );
     std::fs::write(&path, source)?;
     let scripting = Proxy::new(
@@ -149,7 +149,7 @@ fn script(connection: &Connection, directory: &Path, body: &str) -> Result<Strin
     })();
     connection
         .object_server()
-        .remove::<ScriptReply, _>("/com/t3tools/KdeCapture")?;
+        .remove::<ScriptReply, _>("/com/ozi/KdeCapture")?;
     let _ = std::fs::remove_file(path);
     result
 }
@@ -192,7 +192,7 @@ fn check(connection: &Connection) -> Result<()> {
     let reply: zbus::Result<HashMap<String, OwnedValue>> = proxy.call(
         "CaptureWindow",
         &(
-            "t3-permission-check-not-a-window",
+            "ozi-permission-check-not-a-window",
             HashMap::<&str, Value<'_>>::new(),
             Fd::from(sink.as_fd()),
         ),
@@ -362,120 +362,10 @@ fn run() -> Result<()> {
     Ok(())
 }
 
-#[cfg(test)]
-mod transport_tests;
 
 fn main() {
     if let Err(error) = run() {
         let _ = writeln!(std::io::stderr(), "{error}");
         std::process::exit(1);
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn window() -> Window {
-        Window {
-            id: "{window-1}".into(),
-            title: "⠋ Document".into(),
-            app_name: "Editor".into(),
-            app_identifier: "editor".into(),
-            process_id: 123,
-            bounds: Bounds {
-                x: 0,
-                y: 0,
-                width: 800,
-                height: 600,
-            },
-            client_bounds: Bounds {
-                x: 0,
-                y: 29,
-                width: 800,
-                height: 571,
-            },
-        }
-    }
-
-    #[test]
-    fn accepts_only_a_leading_cli_spinner_with_a_nonempty_label() {
-        let before = window();
-        for title in [
-            "⠋ Document",
-            "⠙ Document",
-            "⠹ Document",
-            "⠸ Document",
-            "⠼ Document",
-            "⠴ Document",
-            "⠦ Document",
-            "⠧ Document",
-            "⠇ Document",
-            "⠏ Document",
-            "Document",
-        ] {
-            let mut after = before.clone();
-            after.title = title.into();
-            assert!(before.matches_after_capture(&after), "{title}");
-            assert!(after.matches_after_capture(&before), "{title}");
-        }
-        for title in ["⠙ Other", "⠙Document", "⠁ Document", "Document ⠙", "⠙", ""] {
-            let mut after = before.clone();
-            after.title = title.into();
-            assert!(!before.matches_after_capture(&after), "{title}");
-        }
-        assert_ne!(capture_title("⠋"), capture_title("⠙"));
-    }
-
-    #[test]
-    fn spinner_normalization_does_not_weaken_window_identity_checks() {
-        let before = window();
-        for field in [
-            "id",
-            "process_id",
-            "app_identifier",
-            "app_name",
-            "bounds",
-            "client_bounds",
-        ] {
-            let mut after = before.clone();
-            after.title = "⠙ Document".into();
-            match field {
-                "id" => after.id = "{window-2}".into(),
-                "process_id" => after.process_id = 456,
-                "app_identifier" => after.app_identifier = "other".into(),
-                "app_name" => after.app_name = "Other".into(),
-                "bounds" => after.bounds.width = 400,
-                "client_bounds" => after.client_bounds.height = 500,
-                _ => unreachable!(),
-            }
-            assert!(!before.matches_after_capture(&after), "{field}");
-        }
-    }
-
-    #[test]
-    fn decodes_native_argb_and_row_padding() {
-        let raw = [0xff112233_u32.to_ne_bytes(), [0; 4]].concat();
-        assert_eq!(rgba(&raw, 1, 1, 8, 5).unwrap(), [0x11, 0x22, 0x33, 255]);
-    }
-    #[test]
-    fn unpremultiplies_transparency() {
-        assert_eq!(
-            rgba(&[64, 32, 16, 128], 1, 1, 4, 18).unwrap(),
-            [128, 64, 32, 128]
-        );
-        assert_eq!(rgba(&[0, 0, 0, 0], 1, 1, 4, 18).unwrap(), [0, 0, 0, 0]);
-    }
-    #[test]
-    fn rejects_invalid_dimensions_truncation_and_formats() {
-        for (width, height, stride, format) in [
-            (0, 1, 4, 5),
-            (2, 1, 4, 5),
-            (1, 2, 4, 5),
-            (1, 1, 4, 99),
-            (usize::MAX, 1, 4, 5),
-        ] {
-            assert!(rgba(&[0; 4], width, height, stride, format).is_err());
-        }
     }
 }

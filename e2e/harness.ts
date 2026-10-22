@@ -391,8 +391,9 @@ export async function startHarness(
       spawnServer();
       await ready();
     },
-    async restart(environment: Record<string, string> = {}) {
+    async restart(environment: Record<string, string> = {}, prepare?: () => Promise<void>) {
       await stopServer();
+      await prepare?.();
       Object.assign(env, environment);
       spawnServer();
       await ready();

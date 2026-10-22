@@ -46,8 +46,6 @@ interface LegacyThreadRow {
   readonly settled_override: string | null;
   readonly settled_at: string | null;
   readonly unsettled_at: string | null;
-  readonly snoozed_until: string | null;
-  readonly snoozed_at: string | null;
   readonly pinned_at: string | null;
   readonly pin_order_key: string | null;
   readonly active_order_key: string | null;
@@ -108,7 +106,7 @@ export interface LegacyV1ThreadImporterShape {
 export class LegacyV1ThreadImporter extends Context.Service<
   LegacyV1ThreadImporter,
   LegacyV1ThreadImporterShape
->()("t3/orchestration-v2/legacy/LegacyV1ThreadImporter") {}
+>()("ozi/orchestration-v2/legacy/LegacyV1ThreadImporter") {}
 
 const decodeModelSelection = Schema.decodeUnknownOption(ModelSelection);
 const decodeAttachments = Schema.decodeUnknownOption(Schema.Array(ChatAttachment));
@@ -203,8 +201,6 @@ function importedThread(row: LegacyThreadRow): OrchestrationV2AppThread {
     settledOverride: settledOverrideFor(row.settled_override),
     settledAt: nullableDateTime(row.settled_at),
     unsettledAt: nullableDateTime(row.unsettled_at),
-    snoozedUntil: nullableDateTime(row.snoozed_until),
-    snoozedAt: nullableDateTime(row.snoozed_at),
     pinnedAt: nullableDateTime(row.pinned_at),
     pinOrderKey: row.pin_order_key?.trim() || null,
     lastVisitedAt: null,
@@ -412,8 +408,6 @@ const make = Effect.gen(function* () {
         thread.settled_override,
         thread.settled_at,
         thread.unsettled_at,
-        thread.snoozed_until,
-        thread.snoozed_at,
         thread.pinned_at,
         thread.pin_order_key,
         thread.active_order_key,
@@ -426,8 +420,6 @@ const make = Effect.gen(function* () {
         ON projection.thread_id = legacy_import.thread_id
       WHERE json_type(projection.payload_json, '$.pinnedAt') IS NULL
          OR json_type(projection.payload_json, '$.pinOrderKey') IS NULL
-         OR json_type(projection.payload_json, '$.snoozedUntil') IS NULL
-         OR json_type(projection.payload_json, '$.snoozedAt') IS NULL
          OR json_type(projection.payload_json, '$.unsettledAt') IS NULL
          OR json_type(projection.payload_json, '$.activeOrderKey') IS NULL
       ORDER BY thread.created_at ASC, thread.thread_id ASC
@@ -442,9 +434,6 @@ const make = Effect.gen(function* () {
         ...current,
         pinnedAt: current.pinnedAt === undefined ? legacy.pinnedAt : current.pinnedAt,
         pinOrderKey: current.pinOrderKey === undefined ? legacy.pinOrderKey : current.pinOrderKey,
-        snoozedUntil:
-          current.snoozedUntil === undefined ? legacy.snoozedUntil : current.snoozedUntil,
-        snoozedAt: current.snoozedAt === undefined ? legacy.snoozedAt : current.snoozedAt,
         unsettledAt: current.unsettledAt === undefined ? legacy.unsettledAt : current.unsettledAt,
         activeOrderKey:
           current.activeOrderKey === undefined ? legacy.activeOrderKey : current.activeOrderKey,
@@ -483,8 +472,6 @@ const make = Effect.gen(function* () {
         thread.settled_override,
         thread.settled_at,
         thread.unsettled_at,
-        thread.snoozed_until,
-        thread.snoozed_at,
         thread.pinned_at,
         thread.pin_order_key,
         thread.active_order_key,

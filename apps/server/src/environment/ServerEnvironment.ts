@@ -41,14 +41,14 @@ export class ServerEnvironment extends Context.Service<
     readonly getEnvironmentId: Effect.Effect<EnvironmentId>;
     readonly getDescriptor: Effect.Effect<ExecutionEnvironmentDescriptor>;
   }
->()("t3/environment/ServerEnvironment") {}
+>()("ozi/environment/ServerEnvironment") {}
 
 export class ServerEnvironmentIdentity extends Context.Service<
   ServerEnvironmentIdentity,
   {
     readonly getEnvironmentId: Effect.Effect<EnvironmentId>;
   }
->()("t3/environment/ServerEnvironment/ServerEnvironmentIdentity") {}
+>()("ozi/environment/ServerEnvironment/ServerEnvironmentIdentity") {}
 
 function platformOs(platform: NodeJS.Platform): ExecutionEnvironmentDescriptor["platform"]["os"] {
   switch (platform) {
@@ -206,18 +206,10 @@ export const make = Effect.gen(function* () {
       databaseStorage: true,
       otlpEndpointCheck: true,
       threadRestartContinuation: true,
-      projectSettingsOverrides: true,
-      projectProviderInstanceOverrides: true,
-      threadSnooze: true,
       environmentThemes: true,
       usagePriceOverrides: true,
       usageModelAliases: true,
-      threadPinning: true,
-      threadPinReorder: true,
-      threadActiveReorder: true,
       threadTitleRegeneration: true,
-      commandOutputStreaming: true,
-      threadVisitedTracking: true,
       serverResolvedCommandContext: true,
       threadStop: true,
       environmentIcon: true,

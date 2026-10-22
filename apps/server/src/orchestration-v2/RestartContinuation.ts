@@ -46,8 +46,7 @@ function restartContinuationBlocked(
   if (
     thread.archivedAt !== null ||
     thread.deletedAt !== null ||
-    thread.settledOverride === "settled" ||
-    (thread.snoozedUntil != null && DateTime.isGreaterThan(thread.snoozedUntil, now))
+    thread.settledOverride === "settled"
   )
     return true;
   const turn = latestProviderTurnForAttempt(projection.providerTurns, source.activeAttemptId);

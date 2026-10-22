@@ -40,35 +40,6 @@ export const TimestampFormat = Schema.Literals(["locale", "12-hour", "24-hour"])
 export type TimestampFormat = typeof TimestampFormat.Type;
 const DEFAULT_TIMESTAMP_FORMAT: TimestampFormat = "locale";
 
-export const DiffLayout = Schema.Literals(["stacked", "split"]);
-export type DiffLayout = typeof DiffLayout.Type;
-const DEFAULT_DIFF_LAYOUT: DiffLayout = "stacked";
-
-export const SidebarProjectSortOrder = Schema.Literals(["updated_at", "created_at", "manual"]);
-export type SidebarProjectSortOrder = typeof SidebarProjectSortOrder.Type;
-const DEFAULT_SIDEBAR_PROJECT_SORT_ORDER: SidebarProjectSortOrder = "updated_at";
-
-export const SidebarThreadSortOrder = Schema.Literals(["updated_at", "created_at"]);
-export type SidebarThreadSortOrder = typeof SidebarThreadSortOrder.Type;
-const DEFAULT_SIDEBAR_THREAD_SORT_ORDER: SidebarThreadSortOrder = "updated_at";
-
-export const SidebarProjectGroupingMode = Schema.Literals([
-  "repository",
-  "repository_path",
-  "separate",
-]);
-export type SidebarProjectGroupingMode = typeof SidebarProjectGroupingMode.Type;
-const DEFAULT_SIDEBAR_PROJECT_GROUPING_MODE: SidebarProjectGroupingMode = "repository";
-const MIN_SIDEBAR_THREAD_PREVIEW_COUNT = 1;
-const MAX_SIDEBAR_THREAD_PREVIEW_COUNT = 15;
-export const SidebarThreadPreviewCount = Schema.Int.check(
-  Schema.isBetween({
-    minimum: MIN_SIDEBAR_THREAD_PREVIEW_COUNT,
-    maximum: MAX_SIDEBAR_THREAD_PREVIEW_COUNT,
-  }),
-);
-export type SidebarThreadPreviewCount = typeof SidebarThreadPreviewCount.Type;
-const DEFAULT_SIDEBAR_THREAD_PREVIEW_COUNT: SidebarThreadPreviewCount = 6;
 const MIN_GLASS_OPACITY = 40;
 const MAX_GLASS_OPACITY = 100;
 export const GlassOpacity = Schema.Int.check(
@@ -338,15 +309,9 @@ export const ClientSettingsSchema = Schema.Struct({
   confirmQuit: QuitConfirmationModeSetting.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_QUIT_CONFIRMATION_MODE)),
   ),
-  confirmThreadArchive: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
-  confirmThreadDelete: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
-  confirmThreadUnpin: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   dismissedProviderUpdateNotificationKeys: Schema.Array(TrimmedNonEmptyString).pipe(
     Schema.withDecodingDefault(Effect.succeed([])),
   ),
-  diffFilesCollapsed: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
-  diffIgnoreWhitespace: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
-  diffLayout: DiffLayout.pipe(Schema.withDecodingDefault(Effect.succeed(DEFAULT_DIFF_LAYOUT))),
   environmentIdentificationMode: EnvironmentIdentificationMode.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_ENVIRONMENT_IDENTIFICATION_MODE)),
   ),
@@ -388,26 +353,6 @@ export const ClientSettingsSchema = Schema.Struct({
   ),
   proactivePanelsEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   showSkillsInSlashMenu: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
-  legacySidebarEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
-  sidebarWorkingShelfEnabled: Schema.Boolean.pipe(
-    Schema.withDecodingDefault(Effect.succeed(false)),
-  ),
-  sidebarProjectGroupingMode: SidebarProjectGroupingMode.pipe(
-    Schema.withDecodingDefault(Effect.succeed(DEFAULT_SIDEBAR_PROJECT_GROUPING_MODE)),
-  ),
-  sidebarProjectGroupingOverrides: Schema.Record(
-    TrimmedNonEmptyString,
-    SidebarProjectGroupingMode,
-  ).pipe(Schema.withDecodingDefault(Effect.succeed({}))),
-  sidebarProjectSortOrder: SidebarProjectSortOrder.pipe(
-    Schema.withDecodingDefault(Effect.succeed(DEFAULT_SIDEBAR_PROJECT_SORT_ORDER)),
-  ),
-  sidebarThreadSortOrder: SidebarThreadSortOrder.pipe(
-    Schema.withDecodingDefault(Effect.succeed(DEFAULT_SIDEBAR_THREAD_SORT_ORDER)),
-  ),
-  sidebarThreadPreviewCount: SidebarThreadPreviewCount.pipe(
-    Schema.withDecodingDefault(Effect.succeed(DEFAULT_SIDEBAR_THREAD_PREVIEW_COUNT)),
-  ),
   timestampFormat: TimestampFormat.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_TIMESTAMP_FORMAT)),
   ),
@@ -782,7 +727,6 @@ export const ServerSettings = Schema.Struct({
    */
   projectSettingsFolded: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   compactIdleThreads: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
-  snoozeLimitedThreads: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   autoResumeLimitedThreads: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   providerHealthRefreshInterval: Schema.DurationFromMillis.pipe(
     Schema.withDecodingDefault(
@@ -984,7 +928,6 @@ export const ServerSettingsPatch = Schema.Struct({
   ),
   compactIdleThreads: Schema.optionalKey(Schema.Boolean),
   autoResumeLimitedThreads: Schema.optionalKey(Schema.Boolean),
-  snoozeLimitedThreads: Schema.optionalKey(Schema.Boolean),
   providerHealthRefreshInterval: Schema.optionalKey(Schema.DurationFromMillis),
   environmentIcon: Schema.optionalKey(Schema.NullOr(EnvironmentMachineKind)),
   textGenerationModelSelection: Schema.optionalKey(ModelSelectionPatch),
@@ -1048,12 +991,6 @@ export const ClientSettingsPatch = Schema.Struct({
   browserProfiles: Schema.optionalKey(Schema.Array(BrowserProfile)),
   browserDefaultProfileId: Schema.optionalKey(BrowserProfileId),
   confirmQuit: Schema.optionalKey(QuitConfirmationMode),
-  confirmThreadArchive: Schema.optionalKey(Schema.Boolean),
-  confirmThreadDelete: Schema.optionalKey(Schema.Boolean),
-  confirmThreadUnpin: Schema.optionalKey(Schema.Boolean),
-  diffFilesCollapsed: Schema.optionalKey(Schema.Boolean),
-  diffIgnoreWhitespace: Schema.optionalKey(Schema.Boolean),
-  diffLayout: Schema.optionalKey(DiffLayout),
   environmentIdentificationMode: Schema.optionalKey(EnvironmentIdentificationMode),
   glassOpacity: Schema.optionalKey(GlassOpacity),
   fontSizeInterface: Schema.optionalKey(InterfaceFontSize),
@@ -1074,15 +1011,6 @@ export const ClientSettingsPatch = Schema.Struct({
   followUpBehavior: Schema.optionalKey(Schema.Literals(["queue", "steer"])),
   proactivePanelsEnabled: Schema.optionalKey(Schema.Boolean),
   showSkillsInSlashMenu: Schema.optionalKey(Schema.Boolean),
-  legacySidebarEnabled: Schema.optionalKey(Schema.Boolean),
-  sidebarWorkingShelfEnabled: Schema.optionalKey(Schema.Boolean),
-  sidebarProjectGroupingMode: Schema.optionalKey(SidebarProjectGroupingMode),
-  sidebarProjectGroupingOverrides: Schema.optionalKey(
-    Schema.Record(TrimmedNonEmptyString, SidebarProjectGroupingMode),
-  ),
-  sidebarProjectSortOrder: Schema.optionalKey(SidebarProjectSortOrder),
-  sidebarThreadSortOrder: Schema.optionalKey(SidebarThreadSortOrder),
-  sidebarThreadPreviewCount: Schema.optionalKey(SidebarThreadPreviewCount),
   timestampFormat: Schema.optionalKey(TimestampFormat),
   snapShotEnabled: Schema.optionalKey(Schema.Boolean),
   snapShotIncludeAccessibility: Schema.optionalKey(Schema.Boolean),

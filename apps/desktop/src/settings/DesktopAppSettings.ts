@@ -166,7 +166,7 @@ export class DesktopAppSettings extends Context.Service<
   }
 >()("@t3tools/desktop/settings/DesktopAppSettings") {}
 
-export function resolveDefaultDesktopSettings(appVersion: string): DesktopSettings {
+export function resolveDefaultDesktopSettings(): DesktopSettings {
   return {
     ...DEFAULT_DESKTOP_SETTINGS,
   };
@@ -186,11 +186,7 @@ export function normalizeMainWindowBounds(value: unknown): DesktopWindowBounds |
   return Option.getOrNull(decodeDesktopWindowBounds(value));
 }
 
-function normalizeDesktopSettingsDocument(
-  parsed: DesktopSettingsDocument,
-  appVersion: string,
-): DesktopSettings {
-  const defaultSettings = resolveDefaultDesktopSettings(appVersion);
+function normalizeDesktopSettingsDocument(parsed: DesktopSettingsDocument): DesktopSettings {
   const mainWindowBounds = normalizeMainWindowBounds(parsed.mainWindowBounds);
 
   const wslBackendEnabled =
@@ -339,9 +335,8 @@ function applyWslWindowsFallback(settings: DesktopSettings): DesktopSettings {
 function readSettings(
   fileSystem: FileSystem.FileSystem,
   settingsPath: string,
-  appVersion: string,
 ): Effect.Effect<DesktopSettings> {
-  const defaultSettings = resolveDefaultDesktopSettings(appVersion);
+  const defaultSettings = resolveDefaultDesktopSettings();
 
   return fileSystem.readFileString(settingsPath).pipe(
     Effect.option,
@@ -350,7 +345,7 @@ function readSettings(
         onNone: () => Effect.succeed(defaultSettings),
         onSome: (raw) =>
           decodeDesktopSettingsJson(raw).pipe(
-            Effect.map((parsed) => normalizeDesktopSettingsDocument(parsed, appVersion)),
+            Effect.map((parsed) => normalizeDesktopSettingsDocument(parsed)),
             Effect.orElseSucceed(() => defaultSettings),
           ),
       }),
@@ -475,11 +470,7 @@ export const make = Effect.gen(function* () {
   return DesktopAppSettings.of({
     get: SynchronizedRef.get(settingsRef),
     load: Effect.gen(function* () {
-      const settings = yield* readSettings(
-        fileSystem,
-        environment.desktopSettingsPath,
-        environment.appVersion,
-      );
+      const settings = yield* readSettings(fileSystem, environment.desktopSettingsPath);
       return yield* SynchronizedRef.setAndGet(settingsRef, settings);
     }).pipe(Effect.withSpan("desktop.settings.load")),
     setMainWindowBounds: (bounds, isMaximized) =>

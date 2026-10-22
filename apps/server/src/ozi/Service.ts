@@ -26,7 +26,7 @@ export class Service extends Context.Service<
       action: "install" | "status" | "restart" | "uninstall",
     ) => Effect.Effect<unknown, ServiceError | PlatformError>;
   }
->()("t3/ozi/Service") {}
+>()("ozi/ozi/Service") {}
 
 const quote = (value: string) =>
   `"${value.replaceAll("\\", "\\\\").replaceAll('"', '\\"').replaceAll("%", "%%").replaceAll("$", "$$").replaceAll("\n", "\\n")}"`;

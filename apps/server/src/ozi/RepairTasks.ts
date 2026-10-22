@@ -43,7 +43,7 @@ export class RepairTasks extends Context.Service<
       Scope.Scope
     >;
   }
->()("t3/ozi/RepairTasks") {}
+>()("ozi/ozi/RepairTasks") {}
 
 export const isRepairThread = (threadId: string) =>
   threadId.startsWith("thread:delegated-task:ozi-repair%3A");

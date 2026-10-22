@@ -119,7 +119,7 @@ export class OrchestrationEventStore extends Context.Service<
       readonly project: (event: ApplicationStoredEvent) => A;
     }) => Stream.Stream<A, OrchestrationEventStoreError>;
   }
->()("t3/persistence/OrchestrationEventStore") {}
+>()("ozi/persistence/OrchestrationEventStore") {}
 const decodeProjectEvent = Schema.decodeUnknownEffect(ApplicationProjectEvent);
 const UnknownFromJsonString = Schema.fromJsonString(Schema.Unknown);
 const EventMetadataFromJsonString = Schema.fromJsonString(ApplicationEventMetadata);

@@ -164,7 +164,6 @@ export type ProjectionLimitRecoveryCandidate = Pick<
   | "latestRunCompletedAt"
   | "updatedAt"
   | "limitRecovery"
-  | "snoozedUntil"
 >;
 
 export interface ProjectionProviderControlContext {
@@ -311,7 +310,6 @@ export interface ProjectionStoreV2Shape {
   readonly getLimitRecoveryCandidates: (options: {
     readonly now: DateTime.Utc;
     readonly autoResume: boolean;
-    readonly snooze: boolean;
   }) => Effect.Effect<ReadonlyArray<ProjectionLimitRecoveryCandidate>, ProjectionStoreV2Error>;
   readonly getThreadWorktreePaths: (options?: {
     readonly includeArchived?: boolean;
@@ -433,7 +431,7 @@ export interface ProjectionStoreV2Shape {
 }
 
 export class ProjectionStoreV2 extends Context.Service<ProjectionStoreV2, ProjectionStoreV2Shape>()(
-  "t3/orchestration-v2/ProjectionStore/ProjectionStoreV2",
+  "ozi/orchestration-v2/ProjectionStore/ProjectionStoreV2",
 ) {}
 
 export const ORCHESTRATION_V2_PROJECTION_SCHEMA_VERSION = 2;
@@ -543,8 +541,6 @@ export function applyToProjection(
     case "thread.deleted":
     case "thread.settled":
     case "thread.unsettled":
-    case "thread.snoozed":
-    case "thread.unsnoozed":
     case "thread.pinned":
     case "thread.unpinned":
     case "thread.pin-reordered":
@@ -1285,8 +1281,6 @@ export function threadShellFromProjection(
     settledOverride: projection.thread.settledOverride,
     settledAt: projection.thread.settledAt,
     unsettledAt: projection.thread.unsettledAt ?? null,
-    snoozedUntil: projection.thread.snoozedUntil ?? null,
-    snoozedAt: projection.thread.snoozedAt ?? null,
     pinnedAt: projection.thread.pinnedAt ?? null,
     pinOrderKey: projection.thread.pinOrderKey ?? null,
     lastVisitedAt: projection.thread.lastVisitedAt,
@@ -1522,8 +1516,6 @@ function shellFromState(input: {
     settledOverride: input.state.thread.settledOverride,
     settledAt: input.state.thread.settledAt,
     unsettledAt: input.state.thread.unsettledAt ?? null,
-    snoozedUntil: input.state.thread.snoozedUntil ?? null,
-    snoozedAt: input.state.thread.snoozedAt ?? null,
     pinnedAt: input.state.thread.pinnedAt ?? null,
     pinOrderKey: input.state.thread.pinOrderKey ?? null,
     lastVisitedAt: input.state.thread.lastVisitedAt,
@@ -1563,8 +1555,6 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
             case "thread.deleted":
             case "thread.settled":
             case "thread.unsettled":
-            case "thread.snoozed":
-            case "thread.unsnoozed":
             case "thread.pinned":
             case "thread.unpinned":
             case "thread.pin-reordered":
@@ -2315,8 +2305,6 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
             event.type !== "thread.deleted" &&
             event.type !== "thread.settled" &&
             event.type !== "thread.unsettled" &&
-            event.type !== "thread.snoozed" &&
-            event.type !== "thread.unsnoozed" &&
             event.type !== "thread.pinned" &&
             event.type !== "thread.unpinned" &&
             event.type !== "thread.pin-reordered" &&
@@ -3325,20 +3313,13 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
                 AND json_extract(t.payload_json, '$.limitRecovery.resetAt') IS json_extract(item.payload_json, '$.failure.resetAt')
                 AND json_extract(t.payload_json, '$.limitRecovery.autoResume') = 1
                 AND julianday(json_extract(item.payload_json, '$.failure.resetAt')) <= julianday(${DateTime.formatIso(options.now)})
-                AND (
-                  json_extract(t.payload_json, '$.snoozedUntil') IS NULL
-                  OR julianday(json_extract(t.payload_json, '$.snoozedUntil')) <= julianday(${DateTime.formatIso(options.now)})
-                )
               )
               OR (
                 (
                   json_extract(t.payload_json, '$.limitRecovery.runId') IS NOT r.run_id
                   OR json_extract(t.payload_json, '$.limitRecovery.resetAt') IS NOT json_extract(item.payload_json, '$.failure.resetAt')
                 )
-                AND (
-                  ${booleanInt(options.autoResume)}
-                  OR (${booleanInt(options.snooze)} AND julianday(json_extract(item.payload_json, '$.failure.resetAt')) > julianday(${DateTime.formatIso(options.now)}))
-                )
+                AND ${booleanInt(options.autoResume)}
               )
             )
             AND NOT EXISTS (
@@ -3369,7 +3350,6 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
             settledOverride: thread.settledOverride,
             pendingRuntimeRequest: null,
             limitRecovery: thread.limitRecovery ?? null,
-            snoozedUntil: thread.snoozedUntil ?? null,
           });
         }
         return candidates;

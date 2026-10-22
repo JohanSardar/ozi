@@ -19,6 +19,7 @@
     "playwright": "1.60.0",
     "react": "catalog:",
     "react-dom": "catalog:",
+    "typescript-legacy": "npm:typescript@~6.0.3",
     "vite-plus": "catalog:"
   }
 }
