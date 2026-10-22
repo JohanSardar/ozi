@@ -116,12 +116,18 @@ it("m3.continue resumes the original worker before releasing its report", async 
     steps: [{ say: "unfinished" }],
     rules: [
       verdict("Claim: unfinished$", again("Complete the final action.")),
-      { match: "Complete the final action", role: "worker", steps: [{ say: "finished" }] },
+      {
+        match: "Complete the final action",
+        role: "worker",
+        steps: [{ say: "finished after continue" }],
+      },
+      { match: "finished after continue", role: "main", steps: [{ say: "main got the result" }] },
     ],
   });
   await waitJob(id, "ready");
   expect((await checks(id)).map((check) => check.state)).toEqual(["continued", "checked"]);
   expect((await h.thread(id)).runs).toHaveLength(2);
+  await h.wait("ozi-main", "text:main got the result", 40);
 });
 
 it("m3.blocked counts three rounds without verified progress", async () => {
@@ -350,12 +356,14 @@ it("m3.needs-user surfaces checker blockers immediately", async () => {
   expect(JSON.stringify(await job(id))).toContain("Choose the destination account.");
   await h.script([
     { match: "Use the test account", role: "worker", steps: [{ say: "account selected" }] },
+    { match: "account selected", role: "main", steps: [{ say: "main got the account" }] },
     { match: ".*", role: "main", repeat: true, steps: [{ say: "coordinated" }] },
   ]);
   const request = (await job(id)).requests[0]!;
   await h.ozi("answer", request.id, "Use the test account");
   await waitJob(id, "ready");
   expect((await job(id)).handledEventId).toBeNull();
+  await h.wait("ozi-main", "text:main got the account", 40);
 });
 
 it("m3.close-exact rejects stale reports and reopens on a newer result", async () => {

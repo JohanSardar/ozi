@@ -208,7 +208,7 @@ Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` 
 ### M3 Completion
 
 - `m3.worker-done`: a worker claim is checked; `done` → Ready with the report.
-- `m3.continue`: `continue` resumes the worker, which finishes; then Ready.
+- `m3.continue`: `continue` resumes the worker, which finishes; then Ready, and main receives the result.
 - `m3.blocked`: three rounds without progress → Blocked in Needs you.
 - `m3.progress-resets`: verified progress resets the round count.
 - `m3.main-checked`: main's text-only claim is checked; `continue` makes main delegate.
@@ -217,7 +217,7 @@ Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` 
 - `m3.bad-verdict`: malformed verdict or checker error counts as an unsuccessful round.
 - `m3.steer-supersedes`: steering during a check discards its verdict.
 - `m3.stop-unchecked`: stopped work is not checked.
-- `m3.needs-user`: `needs_user` moves the card to Needs you at once.
+- `m3.needs-user`: `needs_user` moves the card to Needs you at once; after the answer the worker finishes, the card is Ready and main receives the result.
 - `m3.close-exact`: closing the shown report → Done; a stale event returns clean `StaleEvent` JSON or a plain message; a newer result reopens.
 - `m3.accept-closes`: clear user acceptance closes the card.
 - `m3.close-vs-stop`: Close hides without stopping; Stop shows Needs you / Stopped without checking or accepting; close → Done, a new request → Running.

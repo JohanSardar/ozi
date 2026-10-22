@@ -242,11 +242,14 @@ export function delegatedTaskProgress(projection: {
   const workRuns = projection.runs.filter(
     (run) => !monitorRuns.has(run.id) && run.status !== "rolled_back",
   );
-  const active = workRuns.some(
-    (run) =>
-      (!terminal(run.status) && !(run.status === "queued" && run.queueHeld === true)) ||
-      (run.status === "completed" && run.completionCheck?.state !== "checked"),
-  );
+  const byRecency = (a: (typeof workRuns)[number], b: (typeof workRuns)[number]) =>
+    runRanAfter(a, b) ? -1 : runRanAfter(b, a) ? 1 : 0;
+  const latest = workRuns.toSorted(byRecency)[0];
+  const active =
+    workRuns.some(
+      (run) => !terminal(run.status) && !(run.status === "queued" && run.queueHeld === true),
+    ) ||
+    (latest?.status === "completed" && latest.completionCheck?.state !== "checked");
   const children =
     projection.subagents.some(
       (task) =>
@@ -265,7 +268,7 @@ export function delegatedTaskProgress(projection: {
         (run.status !== "completed" || run.completionCheck?.state === "checked") &&
         (run.startedAt !== null || run.ordinal === 1),
     )
-    .toSorted((a, b) => (runRanAfter(a, b) ? -1 : runRanAfter(b, a) ? 1 : 0))[0];
+    .toSorted(byRecency)[0];
   return {
     state:
       active || resultRun === undefined
