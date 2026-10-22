@@ -31,7 +31,7 @@ export type Step =
 export type Rule = {
   match: string;
   provider?: "pi" | "codex" | "claude";
-  role?: "main" | "worker";
+  role?: "main" | "worker" | "checker";
   steps: Step[];
   repeat?: boolean;
   stage?: "author" | "baseline" | "candidate" | "observer";
@@ -39,6 +39,7 @@ export type Rule = {
 export type FakeRecord = {
   provider: string;
   event: string;
+  role?: string;
   pid: number;
   prompt?: string;
   instructions?: string;
@@ -46,6 +47,9 @@ export type FakeRecord = {
   name?: string;
   result?: { isError?: boolean; structuredContent?: Record<string, unknown> };
   tools?: { name: string }[];
+  nativeId?: string;
+  file?: string;
+  sha256?: string;
 };
 const repo = NodeURL.fileURLToPath(new URL("..", import.meta.url));
 const cli = NodePath.join(repo, "apps/server/src/bin.ts");
@@ -147,6 +151,7 @@ export async function startHarness(
   let page: Page | undefined;
   let server: NodeChildProcess.ChildProcess;
   let output = "";
+  let closed = false;
   const spawnServer = () => {
     server = NodeChildProcess.spawn(
       process.execPath,
@@ -170,6 +175,9 @@ export async function startHarness(
       ],
       { cwd: dataRoot, env, stdio: ["ignore", "pipe", "pipe", "pipe"] },
     );
+    (server.stdio[3] as NodeStream.Writable).on("error", (error) => {
+      output += String(error);
+    });
     (server.stdio[3] as NodeStream.Writable).end(
       JSON.stringify({
         mode: "desktop",
@@ -190,7 +198,7 @@ export async function startHarness(
       output += chunk.toString();
     });
   };
-  const ozi = <T = unknown>(...args: string[]) =>
+  const ozi = <T = unknown>(...args: string[]): Promise<T> =>
     new Promise<T>((resolve, reject) => {
       NodeChildProcess.execFile(
         process.execPath,
@@ -198,7 +206,40 @@ export async function startHarness(
         { cwd: dataRoot, env, timeout: 45_000, maxBuffer: 16 * 1024 * 1024 },
         (error, stdout, stderr) => {
           if (error) {
-            reject(new Error(`ozi ${args.join(" ")}: ${stdout || stderr || error.message}`));
+            const message = `ozi ${args.join(" ")}: ${stdout || stderr || error.message}`;
+            if (args[0] === "wait")
+              void ozi<import("@t3tools/contracts").OziCheck[]>("checks").then(
+                async (checks) => {
+                  const pending = await Promise.all(
+                    checks
+                      .filter((check) => check.state === "checking")
+                      .map(async (check) => {
+                        const id = check.rounds.at(-1)?.checkerThreadId;
+                        if (!id) return null;
+                        const projection = await ozi<Projection>("thread", id);
+                        return {
+                          thread: projection.thread,
+                          runs: projection.runs,
+                          messages: projection.messages,
+                        };
+                      }),
+                  );
+                  const records = (await NodeFSP.readFile(log, "utf8"))
+                    .split("\n")
+                    .filter(Boolean)
+                    .map((line) => JSON.parse(line) as FakeRecord)
+                    .filter(
+                      (record) => record.result?.isError || record.name === "completion_evidence",
+                    );
+                  reject(
+                    new Error(
+                      `${message}\nChecks: ${JSON.stringify(checks)}\nCheckers: ${JSON.stringify(pending)}\nTools: ${JSON.stringify(records)}`,
+                    ),
+                  );
+                },
+                () => reject(new Error(message)),
+              );
+            else reject(new Error(message));
             return;
           }
           try {
@@ -263,7 +304,8 @@ export async function startHarness(
     thread: (id: string) => ozi<Projection>("thread", id),
     wait: (id: string, state: string, timeout = 15) =>
       ozi<Projection>("wait", "thread", id, state, "--timeout", String(timeout)),
-    script: (rules: Rule[]) => NodeFSP.writeFile(script, JSON.stringify(rules)),
+    script: (rules: Rule[], options?: { forkWait: string[] }) =>
+      NodeFSP.writeFile(script, JSON.stringify(options ? { rules, ...options } : rules)),
     records: async (): Promise<FakeRecord[]> =>
       (await NodeFSP.readFile(log, "utf8"))
         .split("\n")
@@ -283,6 +325,13 @@ export async function startHarness(
       await page.goto(url.toString());
       return page;
     },
+    async crash() {
+      const exited = new Promise<void>((resolve) => server.once("exit", () => resolve()));
+      server.kill("SIGKILL");
+      await exited;
+      spawnServer();
+      await ready();
+    },
     async restart(environment: Record<string, string> = {}) {
       await stopServer();
       Object.assign(env, environment);
@@ -290,6 +339,8 @@ export async function startHarness(
       await ready();
     },
     async close() {
+      if (closed) return;
+      closed = true;
       await browser?.close();
       await stopServer();
       await NodeFSP.writeFile(NodePath.join(root, "server.log"), output);

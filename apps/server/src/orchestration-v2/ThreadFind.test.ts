@@ -168,7 +168,6 @@ function run(
       requestedAt: at(1),
       startedAt: at(1),
       completedAt: at(2),
-      checkpointId: null,
       contextHandoffId: null,
     },
   };

@@ -115,8 +115,7 @@ relevant event resets the budget; successful publication, disabling, or unlinkin
 After the budget is exhausted, publication waits for another relevant event instead of generating
 continuous traffic during an outage.
 
-Focused coverage: `ProjectionSettlement.test.ts`, `ThreadSettlementService.test.ts`,
-`runtimeLayer.test.ts`, `AgentAwarenessRelay.test.ts`, `GitVcsDriverCore.test.ts`,
+Focused coverage: `e2e/m3.test.ts`, `AgentAwarenessRelay.test.ts`, `GitVcsDriverCore.test.ts`,
 `ThreadStatusIndicators.subscriptions.browser.test.tsx`, and `desktopLocal.test.ts`.
 
 ## Mobile looping animations

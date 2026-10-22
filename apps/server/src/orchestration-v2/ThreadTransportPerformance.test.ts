@@ -128,8 +128,6 @@ function makeProjection(): OrchestrationV2ThreadProjection {
     messages: [],
     plans: [],
     turnItems: visibleTurnItems.map((row) => row.item),
-    checkpointScopes: [],
-    checkpoints: [],
     contextHandoffs: [],
     contextTransfers: [],
     visibleTurnItems,

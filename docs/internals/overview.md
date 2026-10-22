@@ -62,7 +62,7 @@ from getting ahead of the event log.
 
 The [effect worker](../../apps/server/src/orchestration-v2/EffectWorker.ts) performs side effects
 after intent has been recorded, then feeds results back into orchestration. A command acknowledgement
-therefore means the intent committed, not that the provider, checkpoint, or other follow-up work
+therefore means the intent committed, not that the provider or other follow-up work
 finished. Keep external I/O out of command decisions and the database transaction. Effects tied to
 a lost provider process cannot simply replay; recovery retires them before admitting new work.
 
@@ -70,30 +70,15 @@ Persisted events must remain decodable on replay. Changing a schema affects old 
 startup as well as live RPC traffic. Compatibility work must account for stored history, not just
 what the newest client sends.
 
-## Turn completion and checkpoints
+## Completion checks
 
-A provider turn ending and its follow-up work settling are separate milestones. Orchestration
-records provider turn and run state independently from
-[run finalization](../../apps/server/src/orchestration-v2/RunFinalizationService.ts). A late
-checkpoint or diff must not extend the recorded provider duration or keep the client showing
-provider work as active. PR discovery after completion also checks that the checkout still matches
-the thread's non-default branch and that a newer run is not active.
-
-[Checkpoints](../../apps/server/src/checkpointing/CheckpointStore.ts) use hidden Git refs to
-capture workspace state without adding commits to the user's branch. A revert must coordinate
-workspace state with the provider conversation. A provider that cannot roll back its conversation
-must reject that operation before changing the filesystem.
-
-Thread settlement is server-owned. The
-[settlement service](../../apps/server/src/orchestration-v2/ThreadSettlementService.ts) evaluates PR
-and inactivity settings without a connected client. Merge notifications invalidate cached PR state
-and trigger a check. A merge outside T3, such as an agent running `gh pr merge`, sends no
-notification, so the [PR sync reactor](../../apps/server/src/orchestration-v2/PullRequestSyncReactor.ts)
-re-reads a thread's open links when a run that ran a merge or close command ends. The guarded
-`thread.auto-settle` command rejects newer activity, explicit settlement overrides, and live or
-blocked work. It records the activity timestamp for stable
-sorting and detaches idle provider sessions. Clients render the persisted result; they do not
-derive settlement from their own clocks or PR caches.
+[Completion](../../apps/server/src/ozi/Completion.ts) commits each settled claim and its check
+outbox effect together. An internal native fork checks the outcome with evidence-only tools.
+The source accepts input throughout and releases queued work as soon as its fork exists.
+Checked outcomes become Ready; missing work continues, and human blockers surface immediately.
+Three unsuccessful rounds without verified progress become Blocked. Steering supersedes late
+verdicts. [Jobs](../../apps/server/src/ozi/Jobs.ts) records exact-event disposition and reopens
+cards when new obligations arrive. Checkpoints and automatic thread settlement are removed.
 
 ## Waiting for asynchronous work
 

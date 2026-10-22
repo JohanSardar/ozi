@@ -170,8 +170,9 @@ it("m2.drawer opens the lead conversation while the main composer stays usable",
   await drawer.getByRole("button", { name: "Close drawer" }).click();
   expect(await main.inputValue()).toBe("Keep this message too");
   const card = page.locator(`[data-job-id="${job.jobId}"]`);
-  await card.getByText("Double-checking it's fully done…", { exact: true }).waitFor();
-  await card.getByRole("button", { name: "Close", exact: true }).click();
+  await h.ozi("wait", "job", job.jobId, "ready", "--timeout", "20");
+  await card.getByText("The job received your message", { exact: false }).waitFor();
+  await card.getByRole("button", { name: "Got it, close", exact: true }).click();
   await h.ozi("wait", "job", job.jobId, "done", "--timeout", "20");
   await page
     .getByRole("region", { name: "Done", exact: true })

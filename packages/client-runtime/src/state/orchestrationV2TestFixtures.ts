@@ -93,8 +93,6 @@ export const v2Projection: OrchestrationV2ThreadProjection = {
   messages: [],
   plans: [],
   turnItems: [],
-  checkpointScopes: [],
-  checkpoints: [],
   contextHandoffs: [],
   contextTransfers: [],
   visibleTurnItems: [],

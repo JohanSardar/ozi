@@ -160,7 +160,6 @@ const make = Effect.gen(function* () {
             runtimeRequests: [],
           }),
         steerTurn: () => Effect.fail(protocol()),
-        rollbackThread: () => Effect.fail(protocol()),
         forkThread: () => Effect.fail(protocol()),
         respondToRuntimeRequest: () => Effect.fail(protocol()),
         interruptTurn: () => (active ? Fiber.interrupt(active).pipe(Effect.asVoid) : Effect.void),

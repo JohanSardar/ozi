@@ -92,8 +92,6 @@ export const idleThreadProjection = (
     messages: [],
     plans: [],
     turnItems: [],
-    checkpointScopes: [],
-    checkpoints: [],
     contextHandoffs: [],
     contextTransfers: [],
     visibleTurnItems: [],

@@ -1,3 +1,4 @@
+import { OZI_WS_METHODS, OziCheck } from "@t3tools/contracts";
 import {
   AuthPairingCredentialResult,
   AuthWebSocketTicketResult,
@@ -227,10 +228,14 @@ const send = Effect.fn("ozi.send")(function* (
     attachments.push({ ...metadata, id: ChatAttachmentId.make(upload.attachmentId) });
   }
   const projection = yield* client[O.getThreadProjection]({ threadId });
-  const active = projection.runs.find((run) =>
-    ["preparing", "starting", "running", "waiting"].includes(run.status),
+  const active = projection.runs.find(
+    (run) =>
+      (run.completionCheck?.state === "checking" && !run.completionCheck.sourceCaptured) ||
+      ["preparing", "starting", "running", "waiting"].includes(run.status),
   );
-  if (steer && !active) return yield* new ClientError({ operation: "has no active turn to steer" });
+  const pendingCheck = projection.runs.some((run) => run.completionCheck?.state === "checking");
+  if (steer && !active && !pendingCheck)
+    return yield* new ClientError({ operation: "has no active turn to steer" });
   const result = yield* client[O.dispatchCommand]({
     type: "message.dispatch",
     commandId: CommandId.make(yield* (yield* Crypto.Crypto).randomUUIDv4()),
@@ -240,7 +245,7 @@ const send = Effect.fn("ozi.send")(function* (
     attachments,
     createdBy: "user",
     creationSource: "cli",
-    ...(steer ? { deliveryIntent: "steer" as const } : {}),
+    ...(steer && active ? { deliveryIntent: "steer" as const } : {}),
     dispatchMode:
       steer && active
         ? { type: "steer_active", targetRunId: active.id }
@@ -410,6 +415,17 @@ const answerCommand = Command.make("answer", {
         yield* print({ answered: true });
         return;
       }
+      if (request.kind === "blocked") {
+        yield* emit(
+          OrchestrationV2DispatchCommandResult,
+          yield* send({
+            baseDir: flags.baseDir,
+            thread: Option.some(request.threadId),
+            text: value,
+          }),
+        );
+        return;
+      }
       if (request.kind !== "question" && request.kind !== "approval")
         return yield* new ClientError({ operation: "requires the indicated human action" });
       if (request.kind === "approval" && value !== "allow" && value !== "deny")
@@ -483,6 +499,18 @@ const waitCommand = Command.make("wait", {
         yield* emit(OziJobCard, result.value);
         return;
       }
+      if (flags.entity === "check") {
+        const result = yield* client[OZI_WS_METHODS.checksSubscribe]({}).pipe(
+          Stream.filter((checks) =>
+            checks.some((check) => check.id === flags.id && check.state === flags.state),
+          ),
+          Stream.runHead,
+          Effect.timeout(`${flags.timeout} seconds`),
+        );
+        if (Option.isNone(result))
+          return yield* new ClientError({ operation: "check subscription ended" });
+        return yield* emit(Schema.Array(OziCheck), result.value);
+      }
       const threadId = ThreadId.make(flags.id);
       const { client: reader } = yield* connect(flags.baseDir);
       const result = yield* client[O.subscribeThread]({ threadId }).pipe(
@@ -524,6 +552,23 @@ const waitCommand = Command.make("wait", {
       if (Option.isNone(result))
         return yield* new ClientError({ operation: "wait subscription ended" });
       yield* emit(OrchestrationV2ThreadProjection, result.value);
+    }),
+  ),
+);
+
+const checksCommand = Command.make("checks", {
+  ...locationFlags,
+  threadId: Argument.String("threadId").pipe(Argument.withSchema(ThreadId), Argument.optional),
+}).pipe(
+  Command.withHandler((flags) =>
+    Effect.gen(function* () {
+      const { client } = yield* connect(flags.baseDir);
+      yield* emit(
+        Schema.Array(OziCheck),
+        yield* client[OZI_WS_METHODS.checksList](
+          Option.isSome(flags.threadId) ? { threadId: flags.threadId.value } : {},
+        ),
+      );
     }),
   ),
 );
@@ -756,6 +801,7 @@ const testClockCommand = Command.make("test-clock", {
 );
 
 export const clientCommands = [
+  checksCommand,
   todosCommand,
   schedulesCommand,
   scheduleCommand,

@@ -56,7 +56,7 @@ import { useUpdatePrimarySettings } from "./useSettings";
 
 const primaryId = EnvironmentId.make("primary");
 const remoteId = EnvironmentId.make("remote");
-const patch = { sidebarAutoSettleOnMerge: false } satisfies ServerSettingsPatch;
+const patch = {} satisfies ServerSettingsPatch;
 const session = (scopes: ReadonlyArray<AuthEnvironmentScope>): AuthSessionState => ({
   authenticated: true,
   scopes,

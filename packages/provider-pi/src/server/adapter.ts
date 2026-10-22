@@ -26,7 +26,6 @@ import {
 import { PiSettings } from "../settings.ts";
 import * as Cause from "effect/Cause";
 import * as DateTime from "effect/DateTime";
-import * as Deferred from "effect/Deferred";
 import * as Option from "effect/Option";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
@@ -104,7 +103,6 @@ const PiProviderCapabilitiesV2 = {
   threads: {
     canCreateEmptyThread: true,
     canReadThreadSnapshot: true,
-    canRollbackThread: true,
     canForkThread: true,
     canForkFromTurn: true,
     canForkFromSubagentThread: false,
@@ -168,15 +166,6 @@ const PiProviderCapabilitiesV2 = {
     supportsDeltaHandoff: true,
     supportsFullThreadHandoff: true,
     maxRecommendedHandoffChars: null,
-  },
-  checkpointing: {
-    appCanCheckpointFilesystem: true,
-    supportsNestedCheckpointScopes: false,
-    providerCanRollbackConversation: true,
-    // CommandPolicy.ensureRollback requires the snapshot whenever provider
-    // rollback is enabled; rollbackThread returns the updated provider thread.
-    providerRollbackReturnsSnapshot: true,
-    providerCanReadConversationSnapshot: true,
   },
   identity: {
     nativeThreadIds: "strong",
@@ -466,7 +455,18 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
         return yield* protocolError(resolvedLaunchArgs.message);
       }
       const launch = buildPiRpcLaunch({
-        launchArgs: resolvedLaunchArgs.args,
+        launchArgs: input.runtimePolicy.evidenceOnly
+          ? [
+              ...resolvedLaunchArgs.args,
+              "--system-prompt",
+              input.runtimePolicy.systemPrompt ?? "",
+              "--no-extensions",
+              "--no-skills",
+              "--no-context-files",
+              "--no-prompt-templates",
+            ]
+          : resolvedLaunchArgs.args,
+        disableTools: input.runtimePolicy.evidenceOnly === true,
         environment: options.environment,
         mcpSession,
         extensionPath,
@@ -533,20 +533,11 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
       let stopRequested = false;
       let unsolicitedActivityDetected = false;
       let pendingWake: PiWake | null = null;
-      let rollbackBarrier: Deferred.Deferred<
-        void,
-        ProviderAdapter.ProviderAdapterProtocolError
-      > | null = null;
       let closed = false;
       yield* Effect.addFinalizer(() =>
         Effect.gen(function* () {
           closed = true;
           pendingWake = null;
-          if (rollbackBarrier !== null)
-            yield* Deferred.fail(
-              rollbackBarrier,
-              protocolError("Pi session closed during rollback"),
-            );
         }),
       );
       let appliedModel: string | null = null;
@@ -788,7 +779,6 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
             providerTurnId: turn.providerTurn.id,
             nativeItemRef: providerRef(nativeItemId),
             runtimeRequestId: null,
-            checkpointScopeId: null,
             startedAt,
             completedAt,
           },
@@ -1314,7 +1304,6 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
           providerTurnId,
           nativeItemRef: providerRef(nativeRequestId),
           runtimeRequestId: requestId,
-          checkpointScopeId: null,
           startedAt: createdAt,
           completedAt: null,
         };
@@ -1668,10 +1657,6 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
             ) {
               const wake: PiWake = { state, events: [event] };
               pendingWake = wake;
-              if (rollbackBarrier !== null) {
-                yield* stopPendingWake(wake);
-                return;
-              }
               yield* updateProviderSession("running", null);
               yield* continuationRequests
                 .offer({
@@ -2045,11 +2030,6 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
             }
             return;
           }
-          case "t3.rollback_barrier": {
-            if (rollbackBarrier !== null && event["barrier"] === rollbackBarrier)
-              yield* Deferred.succeed(rollbackBarrier, undefined);
-            return;
-          }
           case "t3.settle_probe": {
             const data = event["data"];
             const probeFailed = event["probeFailed"] === true;
@@ -2105,11 +2085,6 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
           sessionEventPermit.withPermits(1)(
             Effect.gen(function* () {
               const state = threadState;
-              if (rollbackBarrier !== null)
-                yield* Deferred.fail(
-                  rollbackBarrier,
-                  protocolError("Pi transport closed during rollback"),
-                );
               pendingWake = null;
               const interrupted = state?.activeTurn?.interrupted === true;
               if (state?.activeTurn != null) {
@@ -2154,8 +2129,6 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
         threadInput: ProviderAdapter.ProviderAdapterV2EnsureThreadInput,
         publish = true,
       ) {
-        if (rollbackBarrier !== null)
-          return yield* protocolError("Cannot register a Pi thread during rollback");
         if (threadState !== null && threadState.activeTurn !== null) {
           return yield* protocolError("Cannot register a Pi thread while a turn is active");
         }
@@ -2424,8 +2397,6 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
           }),
         startTurn: Effect.fn("PiAdapter.startTurn")(
           function* (turnInput) {
-            if (rollbackBarrier !== null)
-              return yield* protocolError("Cannot start a Pi turn during rollback");
             const state = threadState;
             if (state === null) {
               return yield* protocolError("Pi session has no registered thread");
@@ -2538,7 +2509,6 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
                 state.activeTurn !== null ||
                 closed ||
                 stopRequested ||
-                rollbackBarrier !== null ||
                 state.providerThread.nativeThreadRef?.nativeId !==
                   turnInput.providerThread.nativeThreadRef?.nativeId
               ) {
@@ -2879,134 +2849,6 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
               ),
             ),
         ),
-        rollbackThread: Effect.fn("PiAdapter.rollbackThread")(
-          function* (rollbackInput) {
-            const state = threadState;
-            if (state === null) {
-              return yield* protocolError("Pi session has no registered thread");
-            }
-            if (state.providerThread.id !== rollbackInput.providerThread.id) {
-              return yield* protocolError(
-                "Pi rollback requested for a thread this session does not host",
-              );
-            }
-            if (state.activeTurn !== null) {
-              return yield* protocolError("Cannot roll back while a Pi turn is active");
-            }
-            if (pendingWake !== null) {
-              return yield* protocolError("Cannot roll back while native Pi work awaits a turn");
-            }
-            const boundary = piForkBoundary(rollbackInput);
-            if (boundary.type === "nothing") {
-              return piThreadSnapshot(state.providerThread);
-            }
-            const forkEntryId = yield* piForkEntry(
-              boundary,
-              rollbackInput.providerThread.createdAt,
-              request({ type: "get_entries" }),
-            );
-            return yield* Effect.acquireUseRelease(
-              sessionEventPermit.withPermits(1)(
-                Effect.gen(function* () {
-                  if (
-                    rollbackBarrier !== null ||
-                    threadState !== state ||
-                    state.activeTurn !== null ||
-                    pendingWake !== null ||
-                    closed ||
-                    stopRequested
-                  )
-                    return yield* protocolError(
-                      "Pi rollback ownership changed before its fork could start",
-                    );
-                  const barrier = yield* Deferred.make<
-                    void,
-                    ProviderAdapter.ProviderAdapterProtocolError
-                  >();
-                  rollbackBarrier = barrier;
-                  return barrier;
-                }),
-              ),
-              (barrier) =>
-                Effect.gen(function* () {
-                  const forkData = yield* lifecycleRequest({ type: "fork", entryId: forkEntryId });
-                  if (recordField(forkData, "cancelled") === true)
-                    return yield* protocolError("A Pi extension cancelled the session fork");
-                  const forkState = yield* request({ type: "get_state" }).pipe(
-                    Effect.onError(() =>
-                      Effect.sync(() => {
-                        threadState = null;
-                      }),
-                    ),
-                  );
-                  const forkSessionFile = recordString(forkState, "sessionFile");
-                  if (forkSessionFile === undefined) {
-                    threadState = null;
-                    return yield* protocolError("Pi fork did not return a persisted session file");
-                  }
-                  const entriesData = yield* request({ type: "get_entries" }).pipe(
-                    Effect.orElseSucceed(() => undefined),
-                  );
-                  const leafId = recordString(entriesData, "leafId") ?? null;
-                  // RPC responses bypass the pump. Drain preceding native events
-                  // before deciding whether this fork can replace their binding.
-                  const queued = yield* Queue.offer(connection.events, {
-                    type: "t3.rollback_barrier",
-                    barrier,
-                  });
-                  if (!queued) return yield* protocolError("Pi transport closed during rollback");
-                  yield* Deferred.await(barrier);
-                  return yield* sessionEventPermit.withPermits(1)(
-                    Effect.gen(function* () {
-                      if (pendingWake !== null) {
-                        yield* stopPendingWake(pendingWake);
-                        return yield* protocolError(
-                          "Native Pi work started while rollback was changing the session",
-                        );
-                      }
-                      if (
-                        threadState !== state ||
-                        state.activeTurn !== null ||
-                        closed ||
-                        stopRequested
-                      )
-                        return yield* protocolError(
-                          "Pi rollback ownership changed during its fork",
-                        );
-                      lastNativeThreadId = forkSessionFile;
-                      appliedModel = null;
-                      appliedThinking = null;
-                      appliedSessionName = null;
-                      lastKnownLeaf = leafId;
-                      leafCursorStale = entriesData === undefined;
-                      yield* updateProviderThread(state, {
-                        nativeThreadRef: providerRef(forkSessionFile),
-                        nativeConversationHeadRef: leafId === null ? null : providerRef(leafId),
-                      });
-                      rollbackBarrier = null;
-                      return piThreadSnapshot(state.providerThread);
-                    }),
-                  );
-                }).pipe(Effect.onInterrupt(() => connection.terminate)),
-              (barrier) =>
-                Effect.sync(() => {
-                  if (rollbackBarrier === barrier) rollbackBarrier = null;
-                }),
-            );
-          },
-          (effect, rollbackInput) =>
-            effect.pipe(
-              Effect.mapError(
-                (cause) =>
-                  new ProviderAdapter.ProviderAdapterRollbackThreadError({
-                    driver: PI_PROVIDER,
-                    providerThreadId: rollbackInput.providerThread.id,
-                    checkpointId: rollbackInput.target.checkpointId,
-                    cause,
-                  }),
-              ),
-            ),
-        ),
         forkThread: Effect.fn("PiAdapter.forkThread")(
           function* (forkInput) {
             if (threadState?.activeTurn != null) {
@@ -3319,12 +3161,6 @@ function piExtensionDisplayName(extensionPath: string | undefined): string {
   const normalized = extensionPath.replace(/\\/g, "/").replace(/\/+$/, "");
   const name = normalized.slice(normalized.lastIndexOf("/") + 1).replace(/\.[^.]+$/, "");
   return name.length === 0 ? "Pi extension" : name;
-}
-
-function piThreadSnapshot(
-  providerThread: OrchestrationV2ProviderThread,
-): ProviderAdapter.ProviderAdapterV2ThreadSnapshot {
-  return { providerThread, providerTurns: [], messages: [], runtimeRequests: [] };
 }
 
 function piQuestion(

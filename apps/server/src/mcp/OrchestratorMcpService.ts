@@ -1,3 +1,4 @@
+import { isSnoozed } from "../orchestration-v2/threadActivity.ts";
 import { isOziMain, OZI_WORKER_SELECTION } from "@t3tools/contracts";
 import {
   CommandId,
@@ -91,7 +92,6 @@ import {
 import { runOutcome } from "../orchestration-v2/RestartBackgroundNote.ts";
 import * as ThreadManagementService from "../orchestration-v2/ThreadManagementService.ts";
 import * as ThreadLaunchService from "../orchestration-v2/ThreadLaunchService.ts";
-import { isSnoozed } from "../orchestration-v2/ThreadSettlementService.ts";
 import { userFacingDispatchErrorMessage } from "../orchestration-v2/UserFacingErrors.ts";
 import * as ProjectService from "../project/ProjectService.ts";
 import * as ProviderRegistry from "../provider/ProviderRegistry.ts";
@@ -581,7 +581,10 @@ function latestTerminalResultRun(
 
 function canExposeTaskRunResult(run: OrchestrationV2Run | undefined): run is OrchestrationV2Run {
   return (
-    run !== undefined && run.status !== "rolled_back" && isTerminalTaskStatus(taskStatusForRun(run))
+    run !== undefined &&
+    run.status !== "rolled_back" &&
+    (run.status !== "completed" || run.completionCheck?.state === "checked") &&
+    isTerminalTaskStatus(taskStatusForRun(run))
   );
 }
 
@@ -907,8 +910,6 @@ function turnItemText(item: OrchestrationV2TurnItem): string | null {
       return jsonText({ patterns: item.patterns, results: item.results });
     case "approval_request":
       return item.prompt ?? item.requestKind;
-    case "checkpoint":
-      return jsonText(item.files);
     case "run_interrupt_request":
     case "run_interrupt_result":
     case "system_notice":

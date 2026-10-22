@@ -1,5 +1,6 @@
 import {
   ORCHESTRATION_V2_WS_METHODS,
+  MessageId,
   type EnvironmentId,
   type OziJobRequest,
   type ThreadId,
@@ -9,6 +10,7 @@ import {
   squashAtomCommandFailure,
   type AtomCommandResult,
 } from "@t3tools/client-runtime/state/runtime";
+import { newMessageId } from "../../lib/utils";
 import { connectionAtomRuntime } from "../../connection/runtime";
 import { threadEnvironment } from "../../state/threads";
 import { serverEnvironment } from "../../state/server";
@@ -37,6 +39,7 @@ export function useJobActions(environmentId: EnvironmentId) {
     reportFailure: false,
     reportDefect: false,
   });
+  const start = useOrchestrationCommand(threadEnvironment.startTurn, { reportFailure: false });
   const interrupt = useOrchestrationCommand(threadEnvironment.interruptTurn, {
     reportFailure: false,
   });
@@ -48,6 +51,26 @@ export function useJobActions(environmentId: EnvironmentId) {
       const projection = requireCommand(
         await read({ environmentId, input: { threadId: request.threadId } }),
       );
+      if (request.kind === "blocked") {
+        requireCommand(
+          await start({
+            environmentId,
+            input: {
+              threadId: request.threadId,
+              message: {
+                messageId: MessageId.make(newMessageId()),
+                role: "user",
+                text: value,
+                attachments: [],
+              },
+              runtimeMode: projection.thread.runtimeMode,
+              interactionMode: projection.thread.interactionMode,
+              dispatchMode: "auto",
+            },
+          }),
+        );
+        return;
+      }
       if (request.kind === "secret") {
         const item = projection.turnItems.find(
           (item) => item.type === "secret_request" && String(item.id) === String(request.id),

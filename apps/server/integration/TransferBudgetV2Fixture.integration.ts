@@ -82,7 +82,6 @@ export function turnEvents(
     requestedAt: now,
     startedAt: now,
     completedAt: null,
-    checkpointId: null,
     contextHandoffId: null,
   };
   const common = {

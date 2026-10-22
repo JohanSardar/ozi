@@ -5,7 +5,6 @@ import {
   canDetachThreadProviderSession,
   canForkProjectedAssistantItem,
   deriveThreadQueueWorkflowState,
-  resolveLatestMergeBackRun,
   threadSupportsProviderHandoff,
 } from "./threadWorkflows.ts";
 
@@ -384,41 +383,4 @@ describe("thread workflows", () => {
       }),
     ).toBe(false);
   });
-
-  it("merges the newest provider-finished run while checkpoint capture is pending", () => {
-    const projection = {
-      runs: [
-        { id: "newest-queued", status: "queued", ordinal: 3 },
-        { id: "older-completed", status: "completed", ordinal: 1 },
-        { id: "newest-finished", status: "waiting", ordinal: 2 },
-      ],
-    } as never;
-
-    expect(resolveLatestMergeBackRun(projection)?.id).toBe("newest-finished");
-  });
-
-  it("does not let a stale completed run later in storage order hide the waiting checkpoint", () => {
-    const projection = {
-      runs: [
-        { id: "newest-finished", status: "waiting", ordinal: 2 },
-        { id: "older-completed", status: "completed", ordinal: 1 },
-      ],
-    } as never;
-
-    expect(resolveLatestMergeBackRun(projection)?.id).toBe("newest-finished");
-  });
-
-  it.each(["preparing", "starting", "running"] as const)(
-    "does not merge older history while a newer run is %s",
-    (status) => {
-      const projection = {
-        runs: [
-          { id: "older-completed", status: "completed", ordinal: 1 },
-          { id: "newer-active", status, ordinal: 2 },
-        ],
-      } as never;
-
-      expect(resolveLatestMergeBackRun(projection)).toBeNull();
-    },
-  );
 });
