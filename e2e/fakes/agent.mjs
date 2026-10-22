@@ -216,6 +216,8 @@ export function interpreter(provider, hooks) {
           await hooks.request(requestId, step.ask ? "ask" : "approval", step.ask ?? step.approval);
           result = await answer;
           log(provider, "answer", { requestId, result });
+        } else if (step.history) {
+          await hooks.history(step.history);
         } else if (step.wait) {
           log(provider, "waiting", {});
           await new Promise((resolve) =>
