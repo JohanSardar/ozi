@@ -568,6 +568,9 @@ importers:
 
   e2e:
     devDependencies:
+      '@anthropic-ai/claude-code':
+        specifier: 2.1.304
+        version: 2.1.304
       '@earendil-works/pi-coding-agent':
         specifier: 1.4.0
         version: 1.4.0(@aws-sdk/credential-provider-node@3.972.87)(@modelcontextprotocol/sdk@1.29.0(zod@4.6.5))(@smithy/signature-v4@5.7.4)(bufferutil@4.1.0)(utf-8-validate@6.0.6)(ws@8.22.0(bufferutil@4.1.0)(utf-8-validate@6.0.6))(zod@4.6.5)
@@ -1323,6 +1326,55 @@ packages:
       '@anthropic-ai/sdk': '>=0.93.0'
       '@modelcontextprotocol/sdk': ^1.29.0
       zod: ^4.0.0
+
+  '@anthropic-ai/claude-code-darwin-arm64@2.1.304':
+    resolution: {integrity: sha512-io7hBh98nUB3wTzg+XKoh2pN4j71w155wj2jAoF9bwWrnT7u6gcm9vTh0geArjABGNSh2+GaApa+lYREWOOwxw==}
+    cpu: [arm64]
+    os: [darwin]
+
+  '@anthropic-ai/claude-code-darwin-x64@2.1.304':
+    resolution: {integrity: sha512-og+GudUxBNKFVHZiKkDO3ESrlpdA2JDVanj0BJB0fgOhyt3eU2BZPOxpW+IG6lL/jtkrr85n3MGhd7mQ/nmgfg==}
+    cpu: [x64]
+    os: [darwin]
+
+  '@anthropic-ai/claude-code-linux-arm64-musl@2.1.304':
+    resolution: {integrity: sha512-bTJbGLmcTafkuVp45XUmJTiTPKCudiTyZge3XUFZuLFSXyiw/cLVt4CE52EZ1HKmcqmIryGtsTcMGFTjRKgjnA==}
+    cpu: [arm64]
+    os: [linux]
+    libc: [musl]
+
+  '@anthropic-ai/claude-code-linux-arm64@2.1.304':
+    resolution: {integrity: sha512-iS+JKciRosAtrrgb1UkD7h8f/8olkeVA+4aK6aeb9LkLGZ1d6ME6CQxpbUO56QGR/2oPJt0QgDv7MWwRNlwd7A==}
+    cpu: [arm64]
+    os: [linux]
+    libc: [glibc]
+
+  '@anthropic-ai/claude-code-linux-x64-musl@2.1.304':
+    resolution: {integrity: sha512-vip5klHVN7sorXljEXR15AAKrdePHaKVjxgwnRNWVIXL7cjVsE6PdVlNfmzOWPJqyoMJXDTlKBXOfPu85s/Rkw==}
+    cpu: [x64]
+    os: [linux]
+    libc: [musl]
+
+  '@anthropic-ai/claude-code-linux-x64@2.1.304':
+    resolution: {integrity: sha512-yZ/zZk3y7e0zbkMs740y9Z+bs40MmWApwM9qHQ8Adis01SycQlyaZnHYhB/+UOeFJcL+hzbiIGCIyuTKyL2U7Q==}
+    cpu: [x64]
+    os: [linux]
+    libc: [glibc]
+
+  '@anthropic-ai/claude-code-win32-arm64@2.1.304':
+    resolution: {integrity: sha512-oHqntcr0EVQn4/wOTNr5QIYmmfIYD/yyHtLZ1fE7D44fwRb40Qybsi0wWttM1GoPF7GifOaBW9/YuVRgeYILIw==}
+    cpu: [arm64]
+    os: [win32]
+
+  '@anthropic-ai/claude-code-win32-x64@2.1.304':
+    resolution: {integrity: sha512-BXEQwzYyCKAWxa+CPVoq2+jl2ZcQIi8urs5iPQBcQyHOwONuwJ+InHC4nCDkWy8Nk7cMsT+2o3DHeYRxlkn/nw==}
+    cpu: [x64]
+    os: [win32]
+
+  '@anthropic-ai/claude-code@2.1.304':
+    resolution: {integrity: sha512-oAD2KLEUdAbsAMxQMWYHq/AHCUlkYuZ80ovkL0mVSy07z+EeDhIo19/XpRA2NVI+9/LZCC+NXCJm+/hIvhNWWQ==}
+    engines: {node: '>=22.0.0'}
+    hasBin: true
 
   '@anthropic-ai/sdk@0.129.0':
     resolution: {integrity: sha512-MH7LB20kNpGLUpPTe2OG5XvL/KhX8HUO9XyBaFjgFk6TLS4Xjt0VPIuMKywe7POKKPslX+QxSlVok9e+8kG5Nw==}
@@ -10382,6 +10434,41 @@ snapshots:
       '@anthropic-ai/sdk': 0.129.0(zod@4.6.5)
       '@modelcontextprotocol/sdk': 1.29.0(zod@4.6.5)
       zod: 4.6.5
+
+  '@anthropic-ai/claude-code-darwin-arm64@2.1.304':
+    optional: true
+
+  '@anthropic-ai/claude-code-darwin-x64@2.1.304':
+    optional: true
+
+  '@anthropic-ai/claude-code-linux-arm64-musl@2.1.304':
+    optional: true
+
+  '@anthropic-ai/claude-code-linux-arm64@2.1.304':
+    optional: true
+
+  '@anthropic-ai/claude-code-linux-x64-musl@2.1.304':
+    optional: true
+
+  '@anthropic-ai/claude-code-linux-x64@2.1.304':
+    optional: true
+
+  '@anthropic-ai/claude-code-win32-arm64@2.1.304':
+    optional: true
+
+  '@anthropic-ai/claude-code-win32-x64@2.1.304':
+    optional: true
+
+  '@anthropic-ai/claude-code@2.1.304':
+    optionalDependencies:
+      '@anthropic-ai/claude-code-darwin-arm64': 2.1.304
+      '@anthropic-ai/claude-code-darwin-x64': 2.1.304
+      '@anthropic-ai/claude-code-linux-arm64': 2.1.304
+      '@anthropic-ai/claude-code-linux-arm64-musl': 2.1.304
+      '@anthropic-ai/claude-code-linux-x64': 2.1.304
+      '@anthropic-ai/claude-code-linux-x64-musl': 2.1.304
+      '@anthropic-ai/claude-code-win32-arm64': 2.1.304
+      '@anthropic-ai/claude-code-win32-x64': 2.1.304
 
   '@anthropic-ai/sdk@0.129.0(zod@4.6.5)':
     dependencies:
