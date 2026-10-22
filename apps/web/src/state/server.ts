@@ -22,7 +22,6 @@ import { mergeWithDefaultKeybindings } from "@t3tools/shared/keybindings";
 import * as Option from "effect/Option";
 import { AsyncResult, Atom } from "effect/reactivity";
 
-import { isConnectedWithConfig } from "../components/settings/scopedSettings";
 import { environmentCatalog } from "../connection/catalog";
 import { connectionAtomRuntime } from "../connection/runtime";
 import { environmentAtomList } from "./environmentAtomList";
@@ -130,7 +129,12 @@ export function createShortcutKeybindingsAtom(input: {
       return get(input.primaryConfigAtom)?.keybindings ?? null;
     }
     const environments = [...get(input.environmentsAtom).values()];
-    return environments.find(isConnectedWithConfig)?.serverConfig?.keybindings ?? null;
+    return (
+      environments.find(
+        (environment) =>
+          environment.connection.phase === "connected" && environment.serverConfig !== null,
+      )?.serverConfig?.keybindings ?? null
+    );
   });
   return Atom.make((get): ServerConfig["keybindings"] =>
     mergeWithDefaultKeybindings(get(customAtom) ?? []),

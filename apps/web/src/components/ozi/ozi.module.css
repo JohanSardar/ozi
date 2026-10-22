@@ -1,0 +1,427 @@
+.ozi-app {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  position: relative;
+  overflow: hidden;
+  background: var(--background);
+  color: var(--foreground);
+  font-size: 13px;
+}
+.ozi-titlebar {
+  height: 40px;
+  min-height: 40px;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 0 14px;
+  background: var(--muted);
+  border-bottom: 1px solid var(--border);
+}
+:global(.electron-mac) .ozi-titlebar {
+  padding-left: 80px;
+}
+:global(.electron-windows) .ozi-titlebar {
+  padding-right: 145px;
+}
+.ozi-title-spacer {
+  flex: 1;
+}
+.ozi-needs-pill {
+  border-radius: 999px;
+  padding: 2px 9px;
+  background: #ffe9e3;
+  color: #b8371e;
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.ozi-workspace {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  min-height: 0;
+  flex: 1;
+}
+.ozi-workspace[data-job-open="true"] {
+  grid-template-columns: minmax(0, 1fr) 430px;
+}
+.ozi-workspace[data-browser-open="true"] {
+  grid-template-columns: minmax(0, 1fr) min(860px, 90vw);
+}
+.ozi-conversation {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  overflow: hidden;
+  background: var(--background);
+}
+.ozi-messages {
+  overflow: auto;
+  padding: 18px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  min-height: 0;
+  flex: 1;
+  overscroll-behavior: contain;
+}
+.ozi-message {
+  align-self: flex-start;
+  max-width: 90%;
+  padding: 9px 12px;
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 14px 14px 14px 4px;
+  overflow-wrap: anywhere;
+  line-height: 1.5;
+  min-width: 0;
+}
+.ozi-message-user {
+  align-self: flex-end;
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-color: transparent;
+  border-radius: 14px 14px 4px 14px;
+}
+.ozi-who {
+  color: var(--muted-foreground);
+  font-size: 11px;
+  font-weight: 600;
+  margin-bottom: 3px;
+}
+.ozi-job-panel {
+  overflow: auto;
+  padding: 12px;
+  background: var(--muted);
+  border-left: 1px solid var(--border);
+  overscroll-behavior: contain;
+}
+.ozi-column {
+  margin: 6px 0 16px;
+}
+.ozi-column h2 {
+  font-size: 11.5px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--muted-foreground);
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  margin: 0 0 7px;
+  font-weight: 600;
+}
+.ozi-column h2 span {
+  border-radius: 999px;
+  background: var(--border);
+  padding: 0 7px;
+  font-size: 11px;
+}
+.ozi-column-needs_you h2 {
+  color: #c4391b;
+}
+.ozi-column-needs_you h2 span {
+  background: #ffd9cf;
+  color: #a92c13;
+}
+.ozi-empty {
+  font-size: 12px;
+  color: var(--muted-foreground);
+  padding: 4px 2px;
+}
+.ozi-job {
+  background: var(--card);
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 10px 11px;
+  margin-bottom: 8px;
+}
+.ozi-job-needs_you {
+  border-color: #e9a18d;
+  box-shadow: 0 0 0 2px color-mix(in srgb, #ffb8a6 16%, transparent);
+}
+.ozi-job-done {
+  opacity: 0.55;
+}
+.ozi-job-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 7px;
+  font-weight: 600;
+}
+.ozi-card-open {
+  text-align: left;
+  flex: 1;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.ozi-agent {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--muted-foreground);
+  background: var(--muted);
+  border-radius: 6px;
+  padding: 1px 6px;
+}
+.ozi-job-status {
+  color: var(--muted-foreground);
+  font-size: 12px;
+  margin-top: 5px;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  white-space: pre-wrap;
+}
+.ozi-dot {
+  width: 8px;
+  height: 8px;
+  background: #4876dc;
+  border-radius: 50%;
+  flex: none;
+  display: inline-block;
+}
+.ozi-dot-checking {
+  background: #dba621;
+}
+.ozi-request {
+  margin-top: 8px;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+.ozi-request label {
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  white-space: pre-wrap;
+}
+.ozi-options {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  margin-top: 7px;
+}
+.ozi-options button,
+.ozi-actions button,
+.ozi-composer button,
+.ozi-running button,
+.ozi-drawer > header button,
+.ozi-browser > button {
+  font: inherit;
+  font-size: 12px;
+  border: 1px solid var(--border);
+  background: var(--background);
+  color: var(--foreground);
+  border-radius: 8px;
+  padding: 5px 9px;
+  cursor: pointer;
+}
+.ozi-options button {
+  text-align: left;
+}
+.ozi-app button:disabled {
+  cursor: default;
+  opacity: 0.5;
+}
+.ozi-app button:focus-visible,
+.ozi-app a:focus-visible,
+.ozi-app input:focus-visible,
+.ozi-app textarea:focus-visible {
+  outline: 2px solid var(--primary);
+  outline-offset: 2px;
+}
+.ozi-actions {
+  display: flex;
+  gap: 6px;
+  margin-top: 8px;
+}
+.ozi-report {
+  margin-top: 8px;
+  font-size: 12.5px;
+  line-height: 1.5;
+  background: color-mix(in srgb, #61b570 8%, var(--card));
+  border: 1px solid color-mix(in srgb, #61b570 30%, var(--border));
+  border-radius: 9px;
+  padding: 7px 9px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+.ozi-app .ozi-primary {
+  background: var(--primary);
+  color: var(--primary-foreground);
+  border-color: var(--primary);
+}
+.ozi-composer {
+  padding: 10px 14px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  border-top: 1px solid var(--border);
+}
+.ozi-composer textarea,
+.ozi-request input {
+  width: 100%;
+  font: inherit;
+  padding: 9px 11px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  color: var(--foreground);
+  resize: vertical;
+}
+.ozi-composer textarea {
+  min-height: 70px;
+  max-height: 200px;
+}
+.ozi-composer-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ozi-composer-actions > button:last-child {
+  margin-left: auto;
+}
+.ozi-composer-actions select {
+  background: var(--card);
+  font: inherit;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 4px;
+}
+.ozi-attach {
+  cursor: pointer;
+  font-size: 12px;
+}
+.ozi-attach input {
+  max-width: 150px;
+  font-size: 11px;
+  margin-left: 8px;
+}
+.ozi-attachments {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.ozi-muted {
+  font-size: 11px;
+  color: var(--muted-foreground);
+  margin-top: 5px;
+}
+.ozi-error {
+  font-size: 12px;
+  color: var(--destructive);
+  padding: 5px 0;
+  overflow-wrap: anywhere;
+}
+.ozi-connection {
+  font-size: 12px;
+  padding: 9px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--card);
+  color: var(--muted-foreground);
+  margin: 0 0 12px;
+}
+.ozi-running {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  padding: 4px 14px;
+  font-size: 12px;
+  color: var(--muted-foreground);
+}
+.ozi-running button {
+  margin-left: auto;
+}
+.ozi-drawer,
+.ozi-browser {
+  position: absolute;
+  top: 40px;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  background: var(--background);
+  border-left: 1px solid var(--border);
+  box-shadow: -12px 0 30px #0002;
+  z-index: 20;
+  width: 430px;
+  max-width: 92%;
+}
+.ozi-drawer > header {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.ozi-drawer > header b {
+  flex: 1;
+  font-size: 14px;
+}
+.ozi-drawer > .ozi-conversation {
+  flex: 1;
+}
+.ozi-brief {
+  background: color-mix(in srgb, var(--primary) 6%, var(--card));
+  border: 1px solid color-mix(in srgb, var(--primary) 20%, var(--border));
+  border-radius: 10px;
+  padding: 8px 10px;
+  font-size: 12.5px;
+  white-space: pre-wrap;
+}
+.ozi-brief b {
+  display: block;
+  font-size: 11px;
+  color: var(--primary);
+  margin-bottom: 3px;
+}
+.ozi-browser {
+  width: min(860px, 90vw);
+  z-index: 15;
+}
+.ozi-browser > button {
+  align-self: flex-end;
+  margin: 6px;
+}
+@media (max-width: 700px) {
+  .ozi-workspace,
+  .ozi-workspace[data-job-open="true"],
+  .ozi-workspace[data-browser-open="true"] {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .ozi-job-panel {
+    display: none;
+  }
+  .ozi-show-jobs .ozi-job-panel {
+    display: block;
+  }
+  .ozi-show-jobs .ozi-workspace > .ozi-conversation {
+    position: absolute;
+    visibility: hidden;
+    pointer-events: none;
+    width: 100%;
+    height: calc(100% - 40px);
+  }
+  .ozi-titlebar {
+    gap: 8px;
+  }
+  .ozi-drawer {
+    max-width: calc(100% - 16px);
+  }
+}
+
+.ozi-job {
+  position: relative;
+}
+.ozi-card-open::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 12px;
+}
+.ozi-request,
+.ozi-actions,
+.ozi-job [role="alert"],
+.ozi-job [role="status"] {
+  position: relative;
+  z-index: 1;
+}

@@ -108,11 +108,11 @@ features:
     status: planned
   - id: panel
     reqs: [one-conversation, drawer, card-columns]
-    module: JobPanel
+    module: apps/web/src/components/ozi + e2e/m2.ui.test.ts
     cli: [jobs]
     milestone: 2
     scenarios: [m2.drawer, m2.no-thread-list]
-    status: planned
+    status: building
   - id: completion-check
     reqs: [end-of-turn-check]
     module: Completion
