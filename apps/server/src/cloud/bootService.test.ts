@@ -525,7 +525,7 @@ it.layer(NodeServices.layer)("boot service install", (it) => {
         const path = yield* Path.Path;
         const envPath = path.join(baseDir, SERVICE_ENV_FILE);
         const envBytes = new TextEncoder().encode(
-          '# user configuration\r\nT3CODE_TOKEN="literal $HOME # token"',
+          '# user configuration\r\nOZI_TOKEN="literal $HOME # token"',
         );
         yield* fs.writeFile(envPath, envBytes);
         yield* service.install();

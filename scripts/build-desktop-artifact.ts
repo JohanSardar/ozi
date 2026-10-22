@@ -62,7 +62,7 @@ import { Command, Flag } from "effect/cli";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
 const LINUX_ICON_SIZES = [16, 22, 24, 32, 48, 64, 128, 256, 512] as const;
-const DESKTOP_APP_ID = "com.t3tools.t3code";
+const DESKTOP_APP_ID = "com.ozi.app";
 const APPLE_TEAM_ID_PATTERN = /^[A-Z0-9]{10}$/u;
 
 const BuildPlatform = Schema.Literals(["mac", "linux", "win"]);
@@ -932,8 +932,8 @@ interface StagePackageJson {
   readonly name: string;
   readonly version: string;
   readonly buildVersion: string;
-  readonly t3codeCommitHash: string;
-  readonly t3codeWebAuthn?: MacWebAuthnEntitlements;
+  readonly oziCommitHash: string;
+  readonly oziWebAuthn?: MacWebAuthnEntitlements;
   readonly private: true;
   readonly packageManager: string;
   readonly description: string;
@@ -952,7 +952,7 @@ export const STAGE_INSTALL_ARGS = ["install", "--prod"] as const;
 export const DESKTOP_ELECTRON_LANGUAGES = ["en-US"] as const;
 export const DESKTOP_FILE_EXCLUSIONS = [
   // asar so spawning helpers and loading native addons both use real paths.
-  // T3 Code always passes the user's installed Claude executable to the SDK,
+  // Ozi always passes the user's installed Claude executable to the SDK,
   // so the SDK's optional platform packages (each a ~200MB bundled executable)
   // are dead weight. The trailing dash keeps the SDK's own JS package.
   "!**/node_modules/@anthropic-ai/claude-agent-sdk-*/**/*",
@@ -1096,7 +1096,7 @@ export class InvalidAppleTeamIdError extends Schema.TaggedError<InvalidAppleTeam
   },
 ) {
   override get message(): string {
-    return `T3CODE_APPLE_TEAM_ID '${this.teamId}' must be a 10-character Apple Developer Team ID.`;
+    return `OZI_APPLE_TEAM_ID '${this.teamId}' must be a 10-character Apple Developer Team ID.`;
   }
 }
 
@@ -1105,7 +1105,7 @@ export class MissingMacPasskeyProvisioningProfileError extends Schema.TaggedErro
   {},
 ) {
   override get message(): string {
-    return "T3CODE_MACOS_PROVISIONING_PROFILE must point to an Associated Domains provisioning profile.";
+    return "OZI_MACOS_PROVISIONING_PROFILE must point to an Associated Domains provisioning profile.";
   }
 }
 
@@ -1114,7 +1114,7 @@ export class MissingMacPasskeyDomainConfigurationError extends Schema.TaggedErro
   {},
 ) {
   override get message(): string {
-    return "T3CODE_CLERK_PUBLISHABLE_KEY or T3CODE_CLERK_PASSKEY_RP_DOMAINS is required for signed macOS passkey builds.";
+    return "OZI_CLERK_PUBLISHABLE_KEY or OZI_CLERK_PASSKEY_RP_DOMAINS is required for signed macOS passkey builds.";
   }
 }
 
@@ -1125,7 +1125,7 @@ export class InvalidMacPasskeyPublishableKeyError extends Schema.TaggedError<Inv
   },
 ) {
   override get message(): string {
-    return "T3CODE_CLERK_PUBLISHABLE_KEY is invalid.";
+    return "OZI_CLERK_PUBLISHABLE_KEY is invalid.";
   }
 }
 
@@ -1193,22 +1193,22 @@ function normalizePasskeyRpDomain(value: string): string {
 export function resolveMacPasskeySigningConfiguration(
   env: Readonly<Record<string, string | undefined>>,
 ): MacPasskeySigningConfiguration {
-  const teamId = env.T3CODE_APPLE_TEAM_ID?.trim().toUpperCase() ?? "";
+  const teamId = env.OZI_APPLE_TEAM_ID?.trim().toUpperCase() ?? "";
   if (!APPLE_TEAM_ID_PATTERN.test(teamId)) {
     throw new InvalidAppleTeamIdError({ teamId });
   }
 
-  const provisioningProfilePath = env.T3CODE_MACOS_PROVISIONING_PROFILE?.trim() ?? "";
+  const provisioningProfilePath = env.OZI_MACOS_PROVISIONING_PROFILE?.trim() ?? "";
   if (provisioningProfilePath.length === 0) {
     throw new MissingMacPasskeyProvisioningProfileError();
   }
 
-  const configuredRpDomains = env.T3CODE_CLERK_PASSKEY_RP_DOMAINS?.trim();
+  const configuredRpDomains = env.OZI_CLERK_PASSKEY_RP_DOMAINS?.trim();
   let rpDomains: readonly string[];
   if (configuredRpDomains) {
     rpDomains = configuredRpDomains.split(",").map(normalizePasskeyRpDomain);
   } else {
-    const publishableKey = env.T3CODE_CLERK_PUBLISHABLE_KEY?.trim();
+    const publishableKey = env.OZI_CLERK_PUBLISHABLE_KEY?.trim();
     if (!publishableKey) {
       throw new MissingMacPasskeyDomainConfigurationError();
     }
@@ -1576,16 +1576,16 @@ const AzureTrustedSigningOptionsConfig = Config.all({
 });
 
 const BuildEnvConfig = Config.all({
-  platform: Config.schema(BuildPlatform, "T3CODE_DESKTOP_PLATFORM").pipe(Config.option),
-  target: Config.String("T3CODE_DESKTOP_TARGET").pipe(Config.option),
-  arch: Config.schema(BuildArch, "T3CODE_DESKTOP_ARCH").pipe(Config.option),
-  version: Config.String("T3CODE_DESKTOP_VERSION").pipe(Config.option),
-  outputDir: Config.String("T3CODE_DESKTOP_OUTPUT_DIR").pipe(Config.option),
-  skipBuild: Config.Boolean("T3CODE_DESKTOP_SKIP_BUILD").pipe(Config.withDefault(false)),
-  keepStage: Config.Boolean("T3CODE_DESKTOP_KEEP_STAGE").pipe(Config.withDefault(false)),
-  signed: Config.Boolean("T3CODE_DESKTOP_SIGNED").pipe(Config.withDefault(false)),
-  verbose: Config.Boolean("T3CODE_DESKTOP_VERBOSE").pipe(Config.withDefault(false)),
-  wslRuntime: Config.String("T3CODE_DESKTOP_WSL_RUNTIME").pipe(Config.option),
+  platform: Config.schema(BuildPlatform, "OZI_DESKTOP_PLATFORM").pipe(Config.option),
+  target: Config.String("OZI_DESKTOP_TARGET").pipe(Config.option),
+  arch: Config.schema(BuildArch, "OZI_DESKTOP_ARCH").pipe(Config.option),
+  version: Config.String("OZI_DESKTOP_VERSION").pipe(Config.option),
+  outputDir: Config.String("OZI_DESKTOP_OUTPUT_DIR").pipe(Config.option),
+  skipBuild: Config.Boolean("OZI_DESKTOP_SKIP_BUILD").pipe(Config.withDefault(false)),
+  keepStage: Config.Boolean("OZI_DESKTOP_KEEP_STAGE").pipe(Config.withDefault(false)),
+  signed: Config.Boolean("OZI_DESKTOP_SIGNED").pipe(Config.withDefault(false)),
+  verbose: Config.Boolean("OZI_DESKTOP_VERBOSE").pipe(Config.withDefault(false)),
+  wslRuntime: Config.String("OZI_DESKTOP_WSL_RUNTIME").pipe(Config.option),
 });
 
 const resolveBooleanFlag = (flag: Option.Option<boolean>, envValue: boolean) =>
@@ -1812,12 +1812,12 @@ const rustTargetIsInstalled = Effect.fn("rustTargetIsInstalled")(function* (targ
 export const preflightLinuxDesktopBuild = Effect.fn("preflightLinuxDesktopBuild")(function* (
   arch: typeof BuildArch.Type = "x64",
 ) {
-  const reuseResourceMonitor = yield* Config.Boolean("T3CODE_DESKTOP_REUSE_RESOURCE_MONITOR").pipe(
+  const reuseResourceMonitor = yield* Config.Boolean("OZI_DESKTOP_REUSE_RESOURCE_MONITOR").pipe(
     Config.withDefault(false),
   );
-  const reuseCaptureHelpers = yield* Config.Boolean(
-    "T3CODE_DESKTOP_REUSE_LINUX_CAPTURE_HELPERS",
-  ).pipe(Config.withDefault(false));
+  const reuseCaptureHelpers = yield* Config.Boolean("OZI_DESKTOP_REUSE_LINUX_CAPTURE_HELPERS").pipe(
+    Config.withDefault(false),
+  );
   const needsRust = !reuseResourceMonitor || !reuseCaptureHelpers;
   const rustTarget = resolveResourceMonitorRustTargets("linux", arch)[0]!;
 
@@ -1853,7 +1853,7 @@ export const preflightMacDesktopBuild = Effect.fn("preflightMacDesktopBuild")(fu
   arch: typeof BuildArch.Type,
 ) {
   const rustTargets = resolveResourceMonitorRustTargets("mac", arch);
-  const reuseResourceMonitor = yield* Config.Boolean("T3CODE_DESKTOP_REUSE_RESOURCE_MONITOR").pipe(
+  const reuseResourceMonitor = yield* Config.Boolean("OZI_DESKTOP_REUSE_RESOURCE_MONITOR").pipe(
     Config.withDefault(false),
   );
   const checks = yield* Effect.all(
@@ -1910,9 +1910,9 @@ function windowsVswherePrerequisiteScript(arch: typeof BuildArch.Type): string {
 export const preflightWindowsDesktopBuild = Effect.fn("preflightWindowsDesktopBuild")(
   function* (input: { readonly arch: typeof BuildArch.Type; readonly bundlesWslRuntime: boolean }) {
     const rustTarget = resolveResourceMonitorRustTargets("win", input.arch)[0]!;
-    const reuseResourceMonitor = yield* Config.Boolean(
-      "T3CODE_DESKTOP_REUSE_RESOURCE_MONITOR",
-    ).pipe(Config.withDefault(false));
+    const reuseResourceMonitor = yield* Config.Boolean("OZI_DESKTOP_REUSE_RESOURCE_MONITOR").pipe(
+      Config.withDefault(false),
+    );
     const python = yield* resolvePythonForNodeGyp();
     const checks = yield* Effect.all(
       {
@@ -2113,7 +2113,7 @@ export const verifyPackagedBundleIsSelfContained = Effect.fn("verifyPackagedBund
     const path = yield* Path.Path;
 
     const probeRoot = yield* fs.makeTempDirectoryScoped({
-      prefix: "t3code-bundle-selfcheck-",
+      prefix: "ozi-bundle-selfcheck-",
     });
     const extractedApp = path.join(probeRoot, "extracted");
     const probeApp = path.join(probeRoot, "app");
@@ -2200,7 +2200,7 @@ export const stageLinuxCaptureHelper = Effect.fn("stageLinuxCaptureHelper")(func
   const [rustTarget] = resolveResourceMonitorRustTargets("linux", input.arch);
   // Release CI restores these binaries from a cache keyed on the crate sources and
   // skips the Rust toolchain on a hit, so the build must be skippable too.
-  const reuseHelpers = yield* Config.Boolean("T3CODE_DESKTOP_REUSE_LINUX_CAPTURE_HELPERS").pipe(
+  const reuseHelpers = yield* Config.Boolean("OZI_DESKTOP_REUSE_LINUX_CAPTURE_HELPERS").pipe(
     Config.withDefault(false),
   );
   const binaryPath = path.join(
@@ -2263,7 +2263,7 @@ export const stageResourceMonitor = Effect.fn("stageResourceMonitor")(function* 
   const manifestPath = path.join(input.repoRoot, "native/resource-monitor/Cargo.toml");
   const executableName = resourceMonitorExecutableName(input.platform);
   const rustTargets = resolveResourceMonitorRustTargets(input.platform, input.arch);
-  const reuseResourceMonitor = yield* Config.Boolean("T3CODE_DESKTOP_REUSE_RESOURCE_MONITOR").pipe(
+  const reuseResourceMonitor = yield* Config.Boolean("OZI_DESKTOP_REUSE_RESOURCE_MONITOR").pipe(
     Config.withDefault(false),
   );
   const builtBinaries: string[] = [];
@@ -2417,7 +2417,7 @@ const stageMacIcons = Effect.fn("build-desktop-artifact.stageMacIcons")(function
   }
 
   const tmpRoot = yield* fs.makeTempDirectoryScoped({
-    prefix: "t3code-icon-build-",
+    prefix: "ozi-icon-build-",
   });
 
   const iconPngPath = path.join(stageResourcesDir, "icon.png");
@@ -2638,8 +2638,8 @@ export function resolvePackageManagerUserAgent(packageManager: string): string {
 
 export function resolveDesktopProductName(version: string): string {
   return resolveDesktopBrandChannel(version) === "nightly"
-    ? "T3 Code (Nightly)"
-    : (desktopPackageJson.productName ?? "T3 Code");
+    ? "Ozi (Nightly)"
+    : (desktopPackageJson.productName ?? "Ozi");
 }
 
 export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
@@ -2659,7 +2659,7 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
   const buildConfig: Record<string, unknown> = {
     appId: DESKTOP_APP_ID,
     productName: resolveDesktopProductName(version),
-    artifactName: "T3-Code-${version}-${arch}.${ext}",
+    artifactName: "Ozi-${version}-${arch}.${ext}",
     electronLanguages: [...DESKTOP_ELECTRON_LANGUAGES],
     files: [
       ...DESKTOP_FILE_EXCLUSIONS,
@@ -2699,13 +2699,13 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
         // macOS 26 offers Messages/Mail codes in every text field unless opted out.
         NSAutoFillRequiresTextContentTypeForOneTimeCodeOnMac: true,
         NSLocalNetworkUsageDescription:
-          "T3 Code connects to devices on your local network for remote environments and commands run by terminals and coding agents.",
+          "Ozi connects to devices on your local network for remote environments and commands run by terminals and coding agents.",
         NSScreenCaptureUsageDescription:
-          "T3 Code captures the active window when you use the window capture shortcut.",
+          "Ozi captures the active window when you use the window capture shortcut.",
         NSCameraUsageDescription:
-          "T3 Code lets commands run by terminals and coding agents use the camera.",
+          "Ozi lets commands run by terminals and coding agents use the camera.",
         NSMicrophoneUsageDescription:
-          "T3 Code lets commands run by terminals and coding agents use the microphone.",
+          "Ozi lets commands run by terminals and coding agents use the microphone.",
         // macOS lists an app under Default web browser only when it opens web
         // pages as documents as well as http and https links (see protocols).
         CFBundleDocumentTypes: [
@@ -2719,8 +2719,8 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
       },
       protocols: [
         {
-          name: "T3 Code",
-          schemes: ["t3code", "t3code-dev"],
+          name: "Ozi",
+          schemes: ["ozi", "ozi-dev"],
         },
         {
           name: "Web site URL",
@@ -2769,28 +2769,28 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
     const repoRoot = yield* RepoRoot;
     buildConfig.linux = {
       target: target === "AppImage" ? [target, "deb"] : [target],
-      executableName: "t3code",
+      executableName: "ozi",
       icon: "icons",
       category: "Development",
       synopsis: "Desktop GUI for coding agents",
-      maintainer: "T3 Tools <hello@t3.codes>",
+      maintainer: "Ozi",
       protocols: [
         {
-          name: "T3 Code",
-          schemes: ["t3code", "t3code-dev"],
+          name: "Ozi",
+          schemes: ["ozi", "ozi-dev"],
         },
       ],
       desktop: {
         entry: {
-          StartupWMClass: "t3code",
+          StartupWMClass: "ozi",
         },
       },
     };
     buildConfig.deb = {
       // FPM runs outside the staged app directory, so source paths must be absolute.
       fpm: [
-        `${path.join(repoRoot, "apps/desktop/resources/linux/com.t3tools.t3code.metainfo.xml")}=/usr/share/metainfo/com.t3tools.t3code.metainfo.xml`,
-        `${path.join(repoRoot, "LICENSE")}=/usr/share/doc/t3code/copyright`,
+        `${path.join(repoRoot, "apps/desktop/resources/linux/com.ozi.app.metainfo.xml")}=/usr/share/metainfo/com.ozi.app.metainfo.xml`,
+        `${path.join(repoRoot, "LICENSE")}=/usr/share/doc/ozi/copyright`,
       ],
       // Debian 13 and Ubuntu 24.04 renamed some for 64-bit time; the old name
       // is the fallback for older releases.
@@ -2988,7 +2988,7 @@ export const stageWindowsServerSidecar = Effect.fn("stageWindowsServerSidecar")(
     sidecarDependencies,
   );
   const sidecarPackageJson = {
-    name: "t3code-server",
+    name: "ozi-server",
     version: input.appVersion,
     private: true,
     packageManager: rootPackageJson.packageManager,
@@ -3108,7 +3108,7 @@ export const verifyWindowsPrimaryFffNativeLoad = Effect.fn(
   if (hostPlatform !== "win32" || hostArchitecture !== input.targetArch) return;
 
   const probeRoot = yield* fs.makeTempDirectoryScoped({
-    prefix: "t3code-windows-primary-native-probe-",
+    prefix: "ozi-windows-primary-native-probe-",
   });
   const fffEntryPath = path.join(input.asarPath, "node_modules/@ff-labs/fff-node/dist/index.js");
   const probeEnv = { ...process.env };
@@ -3491,7 +3491,7 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
   const commitHash = yield* resolveGitCommitHash(repoRoot);
   const mkdir = options.keepStage ? fs.makeTempDirectory : fs.makeTempDirectoryScoped;
   const stageRoot = yield* mkdir({
-    prefix: `t3code-desktop-${options.platform}-stage-`,
+    prefix: `ozi-desktop-${options.platform}-stage-`,
   });
 
   const stageAppDir = path.join(stageRoot, "app");
@@ -3708,19 +3708,19 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
       ? path.join(stageAppDir, WINDOWS_SERVER_RESOURCE_SOURCE_DIR, WINDOWS_SERVER_ASAR_RESOURCE)
       : undefined;
   const stagePackageJson: StagePackageJson = {
-    name: "t3code",
+    name: "ozi",
     version: appVersion,
     buildVersion: appVersion,
-    t3codeCommitHash: commitHash,
+    oziCommitHash: commitHash,
     // Read by apps/desktop/src/preview/Passkeys.ts; must match the signed entitlements.
-    ...(macWebAuthn ? { t3codeWebAuthn: macWebAuthn } : {}),
+    ...(macWebAuthn ? { oziWebAuthn: macWebAuthn } : {}),
     private: true,
     packageManager: rootPackageJson.packageManager,
     description:
-      "T3 Code is an open-source desktop app for coding agents. Work with your existing agent subscriptions, review code changes, and run commands in your projects. Connect from desktop or web to continue working remotely.",
+      "Ozi is an open-source desktop app for coding agents. Work with your existing agent subscriptions, review code changes, and run commands in your projects. Connect from desktop or web to continue working remotely.",
     license: "MIT",
     homepage: "https://t3.codes",
-    author: "T3 Tools",
+    author: "Ozi",
     main: "apps/desktop/dist-electron/boot.cjs",
     build: yield* createBuildConfig(
       options.platform,
@@ -3939,57 +3939,55 @@ const buildDesktopArtifact = Effect.fn("buildDesktopArtifact")(function* (
 
 const buildDesktopArtifactCli = Command.make("build-desktop-artifact", {
   platform: Flag.Literals("platform", BuildPlatform.literals).pipe(
-    Flag.withDescription("Build platform (env: T3CODE_DESKTOP_PLATFORM)."),
+    Flag.withDescription("Build platform (env: OZI_DESKTOP_PLATFORM)."),
     Flag.optional,
   ),
   target: Flag.String("target").pipe(
     Flag.withDescription(
-      "Artifact target, for example dmg/AppImage/nsis (env: T3CODE_DESKTOP_TARGET).",
+      "Artifact target, for example dmg/AppImage/nsis (env: OZI_DESKTOP_TARGET).",
     ),
     Flag.optional,
   ),
   arch: Flag.Literals("arch", BuildArch.literals).pipe(
-    Flag.withDescription("Build arch, for example arm64/x64/universal (env: T3CODE_DESKTOP_ARCH)."),
+    Flag.withDescription("Build arch, for example arm64/x64/universal (env: OZI_DESKTOP_ARCH)."),
     Flag.optional,
   ),
   buildVersion: Flag.String("build-version").pipe(
-    Flag.withDescription(
-      "Compiled bundle and desktop package version (env: T3CODE_DESKTOP_VERSION).",
-    ),
+    Flag.withDescription("Compiled bundle and desktop package version (env: OZI_DESKTOP_VERSION)."),
     Flag.optional,
   ),
   outputDir: Flag.String("output-dir").pipe(
-    Flag.withDescription("Output directory for artifacts (env: T3CODE_DESKTOP_OUTPUT_DIR)."),
+    Flag.withDescription("Output directory for artifacts (env: OZI_DESKTOP_OUTPUT_DIR)."),
     Flag.optional,
   ),
   skipBuild: Flag.Boolean("skip-build").pipe(
     Flag.withDescription(
-      "Skip `vp run build:desktop` and use existing dist artifacts (env: T3CODE_DESKTOP_SKIP_BUILD).",
+      "Skip `vp run build:desktop` and use existing dist artifacts (env: OZI_DESKTOP_SKIP_BUILD).",
     ),
     Flag.optional,
   ),
   keepStage: Flag.Boolean("keep-stage").pipe(
-    Flag.withDescription("Keep temporary staging files (env: T3CODE_DESKTOP_KEEP_STAGE)."),
+    Flag.withDescription("Keep temporary staging files (env: OZI_DESKTOP_KEEP_STAGE)."),
     Flag.optional,
   ),
   signed: Flag.Boolean("signed").pipe(
     Flag.withDescription(
-      "Enable signing/notarization discovery; Windows uses Azure Trusted Signing (env: T3CODE_DESKTOP_SIGNED).",
+      "Enable signing/notarization discovery; Windows uses Azure Trusted Signing (env: OZI_DESKTOP_SIGNED).",
     ),
     Flag.optional,
   ),
   verbose: Flag.Boolean("verbose").pipe(
-    Flag.withDescription("Stream subprocess stdout (env: T3CODE_DESKTOP_VERBOSE)."),
+    Flag.withDescription("Stream subprocess stdout (env: OZI_DESKTOP_VERBOSE)."),
     Flag.optional,
   ),
   wslRuntime: Flag.String("wsl-runtime").pipe(
     Flag.withDescription(
-      "Path to the Linux CLI release archive (t3-<version>-linux-x64.tar.gz) to embed as the WSL runtime of a Windows build (env: T3CODE_DESKTOP_WSL_RUNTIME).",
+      "Path to the Linux CLI release archive (t3-<version>-linux-x64.tar.gz) to embed as the WSL runtime of a Windows build (env: OZI_DESKTOP_WSL_RUNTIME).",
     ),
     Flag.optional,
   ),
 }).pipe(
-  Command.withDescription("Build a desktop artifact for T3 Code."),
+  Command.withDescription("Build a desktop artifact for Ozi."),
   Command.withHandler((input) => Effect.flatMap(resolveBuildOptions(input), buildDesktopArtifact)),
 );
 

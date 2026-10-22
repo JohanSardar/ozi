@@ -55,13 +55,11 @@ import * as DesktopClientSettings from "./settings/DesktopClientSettings.ts";
 import * as DesktopSavedEnvironments from "./settings/DesktopSavedEnvironments.ts";
 import * as DesktopSnapShot from "./snapShot/DesktopSnapShot.ts";
 import * as DesktopAppSettings from "./settings/DesktopAppSettings.ts";
-import * as DesktopPreReadyFileSystem from "./app/DesktopPreReadyFileSystem.ts";
 import * as DesktopPreReadyPlatform from "./app/DesktopPreReadyPlatform.ts";
 import * as DesktopShellEnvironment from "./shell/DesktopShellEnvironment.ts";
 import * as DesktopSshEnvironment from "./ssh/DesktopSshEnvironment.ts";
 import * as DesktopSshPasswordPrompts from "./ssh/DesktopSshPasswordPrompts.ts";
 import * as DesktopState from "./app/DesktopState.ts";
-import * as DesktopLegacyLocalStorage from "./app/DesktopLegacyLocalStorage.ts";
 import * as DesktopTelemetryPublisher from "./telemetry/DesktopTelemetryPublisher.ts";
 import * as DesktopRendererHistory from "./telemetry/DesktopRendererHistory.ts";
 import * as BrowserImport from "./preview/BrowserImport/BrowserImport.ts";
@@ -104,7 +102,7 @@ const layerDesktopEnvironment = Layer.unwrap(
 const resolveDesktopSshCliRunner = (
   environment: DesktopEnvironment.DesktopEnvironment["Service"],
 ): RemoteT3RunnerOptions => {
-  const devRemoteEntryPath = Option.getOrUndefined(environment.devRemoteT3ServerEntryPath);
+  const devRemoteEntryPath = Option.getOrUndefined(environment.devRemoteServerEntryPath);
   if (environment.isDevelopment && devRemoteEntryPath !== undefined) {
     return {
       nodeScriptPath: devRemoteEntryPath,
@@ -140,7 +138,6 @@ const layerDesktopFoundation = Layer.mergeAll(
   MacPermissions.layer,
   DesktopState.layer,
   DesktopShutdown.layer,
-  DesktopLegacyLocalStorage.layer,
   DesktopAppSettings.layer,
   DesktopClientSettings.layer,
   DesktopConnectionCatalogStore.layer.pipe(Layer.provideMerge(DesktopSavedEnvironments.layer)),
@@ -213,9 +210,7 @@ const layerDesktopApplication = Layer.mergeAll(
   Layer.provideMerge(layerDesktopLocalEnvironmentAuth),
 );
 
-// Clerk resolves userData before Electron is ready, so it gets the synchronous FileSystem.
 const layerDesktopClerk = DesktopClerk.layer.pipe(
-  Layer.provide(DesktopPreReadyFileSystem.layer),
   Layer.provideMerge(ElectronShell.layer),
   Layer.provideMerge(layerDesktopEnvironment),
   Layer.provideMerge(NodeServices.layer),

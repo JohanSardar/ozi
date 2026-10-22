@@ -1,6 +1,7 @@
 import { tokenizeCliArgs } from "@t3tools/shared/cliArgs";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
+import * as NodeModule from "node:module";
 
 import type { McpProviderSessionConfig } from "@t3tools/provider-core/server/mcpSession";
 import {
@@ -240,6 +241,25 @@ export const materializePiT3McpExtension = Effect.fn("materializePiT3McpExtensio
   return dest;
 });
 
+export const piClaudeBridgeExtensionPath = () =>
+  NodeModule.createRequire(import.meta.url).resolve("pi-claude-bridge/src/index.ts");
+
+export const piMainAgentDir = (cacheDir: string) => `${cacheDir.replace(/\\/g, "/")}/ozi-main-pi`;
+
+export const materializePiMainBridge = Effect.fn("materializePiMainBridge")(function* (
+  cacheDir: string,
+) {
+  const fs = yield* FileSystem.FileSystem;
+  const extensionPath = piClaudeBridgeExtensionPath();
+  const agentDir = piMainAgentDir(cacheDir);
+  yield* fs.makeDirectory(agentDir, { recursive: true });
+  yield* fs.writeFileString(
+    `${agentDir}/claude-bridge.json`,
+    '{"askClaude":{"enabled":false},"provider":{"strictMcpConfig":true,"autoMemoryEnabled":false,"pathToClaudeCodeExecutable":"claude"}}\n',
+  );
+  return { extensionPath, agentDir };
+});
+
 export function buildPiRpcLaunch(input: {
   readonly launchArgs: ReadonlyArray<string>;
   readonly environment: NodeJS.ProcessEnv;
@@ -251,6 +271,7 @@ export function buildPiRpcLaunch(input: {
   readonly disableTools?: boolean;
   readonly mainPromptPath?: string;
   readonly mainSystemPrompt?: string;
+  readonly mainBridge?: { readonly extensionPath: string; readonly agentDir: string };
   readonly runtimeMode?: "approval-required" | "auto-accept-edits" | "auto" | "full-access";
 }): {
   readonly args: ReadonlyArray<string>;
@@ -277,12 +298,13 @@ export function buildPiRpcLaunch(input: {
       ? launchArgs
       : [
           "--provider",
-          "anthropic",
+          "claude-bridge",
           "--model",
           "claude-opus-5-5",
           "--thinking",
           "high",
-          "--no-tools",
+          "--no-builtin-tools",
+          "--no-mcp",
           "--no-extensions",
           "--no-skills",
           "--no-context-files",
@@ -302,6 +324,7 @@ export function buildPiRpcLaunch(input: {
   ) {
     args.push("--extension", input.extensionPath);
   }
+  if (input.mainBridge !== undefined) args.push("--extension", input.mainBridge.extensionPath);
   const environment = { ...input.environment };
   // These values belong to the current T3 session. Never let a Pi child reuse
   // credentials inherited from the server or a parent provider process.
@@ -315,6 +338,13 @@ export function buildPiRpcLaunch(input: {
     env: {
       ...environment,
       ...(input.mainPromptPath === undefined ? {} : { OZI_MAIN_PROMPT_PATH: input.mainPromptPath }),
+      ...(input.mainBridge === undefined
+        ? {}
+        : {
+            PI_CODING_AGENT_DIR: input.mainBridge.agentDir,
+            CLAUDE_CODE_DISABLE_FAST_MODE: "1",
+            ENABLE_TOOL_SEARCH: "false",
+          }),
       ...(hasT3Extension && input.extensionPath !== undefined
         ? { [T3_PI_MCP_EXTENSION_PATH_ENV]: input.extensionPath }
         : {}),

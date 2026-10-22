@@ -250,7 +250,12 @@ const resolveAutoBootstrapWelcomeTargets = Effect.gen(function* () {
         threadId: OZI_MAIN_THREAD_ID,
         providerInstanceId: OZI_MAIN_SELECTION.instanceId,
         occurredAt: now,
-        payload: { ...projection.thread, role: "main", effectiveLoadout: loadout.effectiveLoadout },
+        payload: {
+          ...projection.thread,
+          modelSelection: OZI_MAIN_SELECTION,
+          role: "main",
+          effectiveLoadout: loadout.effectiveLoadout,
+        },
       },
     ],
   });

@@ -49,7 +49,7 @@ const baseConfig: DesktopBackendManager.DesktopBackendStartConfig = {
     mode: "desktop",
     noBrowser: true,
     port: 3773,
-    t3Home: "/tmp/t3",
+    oziHome: "/tmp/t3",
     host: "127.0.0.1",
     desktopBootstrapToken: "token",
     tailscaleServeEnabled: false,

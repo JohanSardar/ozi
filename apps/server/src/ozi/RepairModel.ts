@@ -38,6 +38,22 @@ export const Replay = Schema.Struct({
 });
 export type Replay = typeof Replay.Type;
 
+export const Fix = Schema.Struct({
+  id: Schema.String,
+  at: Schema.String,
+  commit_sha: Schema.String,
+  predecessor: Schema.String,
+  state: Schema.Literals(["publishing", "shipped", "undoing", "undone", "failed"]),
+  before_head: Schema.NullOr(Schema.String),
+  target: Schema.String,
+  snapshot: Schema.String,
+  paths_json: Schema.String,
+  conflict: Schema.Number,
+  checkpoint: Schema.NullOr(Schema.String),
+  error: Schema.NullOr(Schema.String),
+});
+export type Fix = typeof Fix.Type;
+
 export class RepairError extends Schema.TaggedError<RepairError>()("OziRepairError", {
   reason: Schema.String,
   cause: Schema.optional(Schema.Defect()),
