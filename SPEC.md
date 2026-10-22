@@ -230,7 +230,7 @@ Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` 
 - `m6.publish`: a passed fix is one data-root commit, active in the next turn and after restart.
 - `m6.recurrence-undo`: the mistake recurring after a fix reverts it → `undone`.
 - `m6.edit-conflict`: a revert conflicting with a user edit keeps the pre-fix build and posts a blocker.
-- `m6.crash-publish`: real server crashes before journaling and at journal, file, git-head and confirmed-state boundaries of publish and undo recover a complete build with matching status; conflict recovery posts its blocker and retries create no duplicate activation.
+- `m6.crash-publish`: real server crashes before journaling and at journal, file, git-head and confirmed-state boundaries of publish and undo recover a complete build with matching status; conflict recovery posts its blocker and retries create no duplicate activation. Each crash boundary is an independent E2E case with its own deadline.
 - `m6.audit`: no excluded T3 product paths, exports or dependencies remain. The desktop audit scans tracked desktop runtime and packaging source, shared desktop identity boundaries, and all source environment variables; notices, vendored references, tests and documentation are allowed. It builds the desktop bundle, checks local and WSL launch argv, starts the bundled server with isolated state beside a T3 sentinel, and pairs another server through Settings → Connections.
 - `m6.public-ready`: MIT notices for T3, Pi and Firstmate present; no personal data in the tree.
 
