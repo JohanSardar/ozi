@@ -10741,14 +10741,27 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
     if (
       command.type === "thread.stop" ||
       (command.type === "message.dispatch" &&
-        (command.createdBy !== "system" || command.scheduledTaskId !== undefined))
+        (command.createdBy !== "system" || command.scheduledTaskId !== undefined) &&
+        command.notification === undefined &&
+        command.delegatedCompletion === undefined)
     ) {
       const current = yield* projectionStore
         .getThreadRecords(command.threadId, ["runs"])
         .pipe(mapDispatchError(command));
       const now = yield* DateTime.now;
       for (const run of current.runs) {
-        if (run.completionCheck?.state !== "checking" && run.completionCheck?.state !== "continued")
+        const check = run.completionCheck;
+        if (!check) continue;
+        if (
+          check.state !== "checking" &&
+          !(
+            check.state === "continued" &&
+            (command.type === "thread.stop" ||
+              !current.runs.some(
+                (continuation) => continuation.userMessageId === `${check.id}:continue`,
+              ))
+          )
+        )
           continue;
         yield* emit(
           events,
@@ -10759,7 +10772,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           runId: run.id,
           occurredAt: now,
           payload: {
-            ...run.completionCheck,
+            ...check,
             state: "superseded",
             updatedAt: DateTime.formatIso(now),
           },
