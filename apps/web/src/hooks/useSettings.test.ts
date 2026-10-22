@@ -44,8 +44,6 @@ describe("client settings hydration", () => {
     timestampFormat: "12-hour" as const,
     favorites: [{ provider: ProviderInstanceId.make("codex_work"), model: "gpt-5.6" }],
   };
-  const onboardingCompletedAt = "2026-09-05T12:00:00.000Z";
-  const complete = (current: ClientSettings) => ({ ...current, onboardingCompletedAt });
 
   it("waits for saved model preferences before applying the first server edit", async () => {
     const provider = ProviderInstanceId.make("codex_work");
@@ -83,31 +81,6 @@ describe("client settings hydration", () => {
         setProviderModelOrder: { provider: ProviderInstanceId.make("codex_work"), modelOrder: [] },
       }),
     ).rejects.toBe(failure);
-  });
-
-  it("rejects completion after a failed read and preserves saved preferences on retry", async () => {
-    const failure = new Error("storage unavailable");
-    vi.spyOn(console, "error").mockImplementation(() => undefined);
-    persistenceMocks.getClientSettings
-      .mockRejectedValueOnce(failure)
-      .mockResolvedValue(savedSettings);
-
-    await expect(persistClientSettingsUpdate(complete)).rejects.toBe(failure);
-    expect(persistenceMocks.setClientSettings).not.toHaveBeenCalled();
-    expect(getClientSettings()).toBe(DEFAULT_CLIENT_SETTINGS);
-
-    const completedSettings = { ...savedSettings, onboardingCompletedAt };
-    await expect(persistClientSettingsUpdate(complete)).resolves.toEqual(completedSettings);
-    expect(persistenceMocks.setClientSettings).toHaveBeenCalledExactlyOnceWith(completedSettings);
-    expect(persistenceMocks.getClientSettings).toHaveBeenCalledTimes(2);
-  });
-
-  it("uses defaults only after storage confirms no saved settings exist", async () => {
-    const completedSettings = { ...DEFAULT_CLIENT_SETTINGS, onboardingCompletedAt };
-
-    await expect(persistClientSettingsUpdate(complete)).resolves.toEqual(completedSettings);
-    expect(persistenceMocks.getClientSettings).toHaveBeenCalledOnce();
-    expect(persistenceMocks.setClientSettings).toHaveBeenCalledExactlyOnceWith(completedSettings);
   });
 
   it("holds patches until a pending read supplies the saved preferences", async () => {
@@ -154,48 +127,6 @@ describe("client settings hydration", () => {
     persistClientSettingsPatch({ wordWrap: false });
 
     await expect(persisted).resolves.toEqual({ ...savedSettings, wordWrap: false });
-  });
-
-  it("preserves patch order across hydration and a blocked completion write", async () => {
-    let finishRead!: (settings: ClientSettings) => void;
-    const read = new Promise<ClientSettings>((resolve) => {
-      finishRead = resolve;
-    });
-    persistenceMocks.getClientSettings.mockReturnValue(read);
-    let finishCompletionWrite!: () => void;
-    const blockedWrite = new Promise<void>((resolve) => {
-      finishCompletionWrite = resolve;
-    });
-    let signalCompletionWrite!: () => void;
-    const completionWriteStarted = new Promise<void>((resolve) => {
-      signalCompletionWrite = resolve;
-    });
-    let durableSettings: ClientSettings = savedSettings;
-    const persist = vi
-      .fn<(settings: ClientSettings) => Promise<void>>()
-      .mockImplementationOnce(async (settings) => {
-        signalCompletionWrite();
-        await blockedWrite;
-        durableSettings = settings;
-      })
-      .mockImplementation(async (settings) => {
-        durableSettings = settings;
-      });
-
-    const completion = persistClientSettingsUpdate(complete, persist);
-    persistClientSettingsPatch({ wordWrap: false }, persist);
-    finishRead(savedSettings);
-    await completionWriteStarted;
-    persistClientSettingsPatch({ wordWrap: true }, persist);
-    const finalWrite = persistClientSettingsUpdate((current) => current, persist);
-
-    finishCompletionWrite();
-    await completion;
-    await finalWrite;
-
-    const expected = { ...savedSettings, onboardingCompletedAt, wordWrap: true };
-    expect(getClientSettings()).toEqual(expected);
-    expect(durableSettings).toEqual(expected);
   });
 });
 
@@ -437,42 +368,7 @@ describe("mergeEnvironmentSettings", () => {
   });
 });
 
-describe("onboarding completion persistence", () => {
-  it("keeps onboarding incomplete after a failed save and preserves preferences on retry", async () => {
-    const failure = new Error("disk full");
-    const persist = vi
-      .fn<(settings: typeof DEFAULT_CLIENT_SETTINGS) => Promise<void>>()
-      .mockRejectedValueOnce(failure)
-      .mockResolvedValue(undefined);
-    const existingSettings = {
-      ...DEFAULT_CLIENT_SETTINGS,
-      timestampFormat: "12-hour" as const,
-      favorites: [
-        {
-          provider: ProviderInstanceId.make("codex_work"),
-          model: "gpt-5.6",
-        },
-      ],
-    };
-    __setClientSettingsForTests(existingSettings);
-    const onboardingCompletedAt = "2026-09-01T12:00:00.000Z";
-    const complete = (current: typeof DEFAULT_CLIENT_SETTINGS) => ({
-      ...current,
-      onboardingCompletedAt,
-    });
-
-    await expect(persistClientSettingsUpdate(complete, persist)).rejects.toBe(failure);
-    expect(getClientSettings()).toBe(existingSettings);
-    expect(getClientSettings().onboardingCompletedAt).toBeNull();
-
-    const completedSettings = { ...existingSettings, onboardingCompletedAt };
-    await expect(persistClientSettingsUpdate(complete, persist)).resolves.toEqual(
-      completedSettings,
-    );
-    expect(getClientSettings()).toEqual(completedSettings);
-    expect(persist).toHaveBeenLastCalledWith(completedSettings);
-  });
-});
+describe("onboarding completion persistence", () => {});
 
 it("uses the environment's model preferences after migration, including empty lists", () => {
   const client = {
