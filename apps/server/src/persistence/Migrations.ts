@@ -70,10 +70,11 @@ import Migration0066 from "./Migrations/066_RepairClientSettlementTimestamps.ts"
 import Migration0067 from "./Migrations/067_WebhookDedupe.ts";
 import Migration0075 from "./Migrations/075_OziRepair.ts";
 import Migration0076 from "./Migrations/076_OziCompletion.ts";
+import Migration0080 from "./Migrations/080_OziFixes.ts";
 
-import Migration0077 from "./Migrations/077_RemoveSourceControl.ts";
+import Migration0081 from "./Migrations/081_RemoveSourceControl.ts";
 
-import Migration0078 from "./Migrations/078_RemoveRelay.ts";
+import Migration0082 from "./Migrations/082_RemoveRelay.ts";
 
 export const migrationEntries = [
   [1, "OrchestrationEvents", Migration0001],
@@ -144,8 +145,9 @@ export const migrationEntries = [
   [67, "WebhookDedupe", Migration0067],
   [75, "OziRepair", Migration0075],
   [76, "OziCompletion", Migration0076],
-  [77, "RemoveSourceControl", Migration0077],
-  [78, "RemoveRelay", Migration0078],
+  [80, "OziFixes", Migration0080],
+  [81, "RemoveSourceControl", Migration0081],
+  [82, "RemoveRelay", Migration0082],
 ] as const;
 
 export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);
