@@ -27,7 +27,7 @@ export type OziEffectiveLoadout = typeof OziEffectiveLoadout.Type;
 
 export const OZI_MAIN_SELECTION: ModelSelection = {
   instanceId: ProviderInstanceId.make("pi"),
-  model: "anthropic/claude-opus-5-5",
+  model: "claude-bridge/claude-opus-5-5",
   options: [
     { id: "thinking", value: "high" },
     { id: "fastMode", value: false },

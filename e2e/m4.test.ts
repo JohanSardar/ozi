@@ -105,6 +105,8 @@ it("m4.time-of-day fires only at the selected local time and weekday", async () 
 });
 
 it("m4.useful-card reveals only checked useful findings and binds scheduled requests", async () => {
+  const request =
+    "Routine check: find the free space on the root filesystem. Only tell me if it is below 5 GB; otherwise there is nothing to report.";
   await scripts([
     {
       match: "^finding-wake$",
@@ -119,6 +121,22 @@ it("m4.useful-card reveals only checked useful findings and binds scheduled requ
     },
     {
       match: "release finding",
+      role: "checker",
+      steps: [{ say: JSON.stringify({ verdict: "done", useful: true }) }],
+    },
+    {
+      match: "^Routine check:",
+      role: "main",
+      steps: [delegate("free-space-worker"), { say: "Free space delegated" }],
+    },
+    { match: "^free-space-worker$", role: "worker", steps: [{ say: "718 GB free" }] },
+    {
+      match: `${request}.*Claim: 718 GB free$`,
+      role: "checker",
+      steps: [{ say: JSON.stringify({ verdict: "done", useful: false }) }],
+    },
+    {
+      match: "Claim: 718 GB free$",
       role: "checker",
       steps: [{ say: JSON.stringify({ verdict: "done", useful: true }) }],
     },
@@ -145,7 +163,32 @@ it("m4.useful-card reveals only checked useful findings and binds scheduled requ
   )!;
   expect(checked.requestEventId).toBe(card.requestEventId);
   await h.ozi("wait", "check", checked.id, "checked", "--timeout", "40");
+  await h.wait("ozi-main", "idle");
+  const routine = await add("--every", "1m", "--prompt", request);
+  await h.ozi("schedule", "run", routine.id);
+  await h.wait("ozi-main", "text:Free space delegated");
+  const routineWorker = (await h.status()).snapshot.threads.find(
+    (thread) => thread.title === "free-space-worker",
+  )!;
+  const routineRun = (await h.wait(routineWorker.id, "completed")).runs.at(-1)!;
+  const routineChecks = await h.ozi<OziCheck[]>(
+    "wait",
+    "check",
+    routineRun.completionCheck!.id,
+    "checked",
+    "--timeout",
+    "40",
+  );
+  const routineCheck = routineChecks.find((check) => check.id === routineRun.completionCheck!.id)!;
+  expect(routineCheck.rounds.at(-1)?.verdict).toEqual({ verdict: "done", useful: false });
+  expect(
+    (await h.records()).find(
+      (record) => record.role === "checker" && record.prompt?.endsWith("Claim: 718 GB free"),
+    )?.prompt,
+  ).toContain(request);
+  expect((await h.ozi<Card[]>("jobs")).map((job) => job.jobId)).toEqual([worker.id]);
   await h.restart();
+  expect((await h.ozi<Card[]>("jobs")).map((job) => job.jobId)).toEqual([worker.id]);
   expect(await h.ozi<{ card: Card }>("job", worker.id)).toMatchObject({
     card: { column: "ready", report: { useful: true, text: "Useful finding" } },
   });
@@ -607,6 +650,13 @@ it("m4.removed rejects retired APIs and commands and removes their repository sl
   await expect(h.ozi("serve", "--auto-bootstrap-project-from-cwd")).rejects.toThrow(
     "Unrecognized flag: --auto-bootstrap-project-from-cwd",
   );
+  const { migrationEntries } = await import("../apps/server/src/persistence/Migrations.ts");
+  const ids = migrationEntries.map(([id]) => id);
+  expect(new Set(ids).size).toBe(ids.length);
+  expect(ids).toEqual([...ids].sort((a, b) => a - b));
+  const fixes = migrationEntries.find(([, name]) => name === "OziFixes")![0];
+  for (const [id, name] of migrationEntries)
+    if (/^Remove(?:SourceControl|Relay|Workspace)/.test(name)) expect(id).toBeGreaterThan(fixes);
   const root = NodeURL.fileURLToPath(new URL("..", import.meta.url));
   for (const path of [
     "infra",
@@ -656,7 +706,7 @@ it("m4.removed rejects retired APIs and commands and removes their repository sl
   expect(mac).toContain("clang");
   expect(mac).not.toMatch(/cargo|rustc|rustTargets|resourceMonitor/);
   expect(build).not.toMatch(/stageResourceMonitor|resource-monitor/);
-  expect(build).toContain('const DESKTOP_APP_ID = "app.ozi.desktop"');
+  expect(build).toContain('const DESKTOP_APP_ID = "com.ozi.app"');
   const desktop = JSON.parse(await NodeFSP.readFile(root + "/apps/desktop/package.json", "utf8"));
   expect(desktop.productName).toBe("Ozi");
 });
