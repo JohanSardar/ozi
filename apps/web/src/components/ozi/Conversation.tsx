@@ -1,5 +1,5 @@
 import { useAtomValue } from "@effect/atom-react";
-import { primaryServerKeybindingsAtom } from "../../state/server";
+import { environmentKeybindingsAtom } from "../../state/server";
 import { resolveShortcutCommand } from "../../keybindings";
 import styles from "./ozi.module.css";
 import { newMessageId } from "../../lib/utils";
@@ -146,7 +146,7 @@ export function Conversation({
   job?: boolean;
 }) {
   const state = useEnvironmentThread(environmentId, threadId);
-  const keybindings = useAtomValue(primaryServerKeybindingsAtom);
+  const keybindings = useAtomValue(environmentKeybindingsAtom(environmentId));
   const projection = Option.getOrNull(state.data);
   const prepared = usePreparedConnection(environmentId);
   const start = useOrchestrationCommand(threadEnvironment.startTurn, { reportFailure: false });

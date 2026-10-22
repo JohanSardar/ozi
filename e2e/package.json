@@ -10,6 +10,7 @@
     "@anthropic-ai/claude-code": "2.1.304",
     "@earendil-works/pi-coding-agent": "1.4.0",
     "@t3tools/contracts": "workspace:*",
+    "@t3tools/shared": "workspace:*",
     "@types/node": "catalog:",
     "@types/react": "catalog:",
     "@types/react-dom": "catalog:",
