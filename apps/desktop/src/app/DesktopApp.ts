@@ -236,6 +236,7 @@ const bootstrap = Effect.gen(function* () {
       yield* desktopWindow.showConnectingSplash;
     }
     yield* primaryBackend.start;
+    yield* desktopWindow.ensureMain;
     yield* logBootstrapInfo("bootstrap backend start requested");
     yield* appActivation.start.pipe(
       Effect.tap(() => logBootstrapInfo("desktop app control socket ready")),
