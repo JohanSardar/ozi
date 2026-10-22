@@ -8,6 +8,20 @@
   color: var(--foreground);
   font-size: 13px;
 }
+.ozi-connect {
+  margin: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  font-size: 14px;
+}
+.ozi-connect a {
+  padding: 6px 14px;
+  border-radius: 8px;
+  background: var(--primary);
+  color: var(--primary-foreground);
+}
 .ozi-titlebar {
   height: 40px;
   min-height: 40px;
