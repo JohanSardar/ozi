@@ -39,12 +39,8 @@ import * as Persistence from "../platform/persistence.ts";
 import * as EnvironmentSupervisor from "./supervisor.ts";
 import * as ConnectionDriver from "./driver.ts";
 import * as ConnectionWakeups from "./wakeups.ts";
+import { connectionAddressKey } from "./addresses.ts";
 import {
-  GitHubRoutingPermissions,
-  gitHubRoutingConnectionKey,
-} from "./githubRoutingPermissions.ts";
-import {
-  RELAY_ROUTE_ID,
   connectionRouteId,
   connectionRoutes,
   credentialConnectionId,
@@ -144,12 +140,6 @@ export class EnvironmentRegistry extends Context.Service<
       | PlatformEnvironmentRemovalError
       | ConnectionBlockedError
     >;
-    readonly removeRelayEnvironments: () => Effect.Effect<
-      void,
-      | Persistence.ConnectionPersistenceError
-      | ConnectionAttemptError
-      | PlatformEnvironmentRemovalError
-    >;
     readonly retryNow: (environmentId: EnvironmentId) => Effect.Effect<void>;
     readonly setEnabled: (
       environmentId: EnvironmentId,
@@ -205,10 +195,8 @@ export const make = Effect.gen(function* () {
   const storage = yield* Persistence.ConnectionTargetStore;
   const registrations = yield* Persistence.ConnectionRegistrationStore;
   const cache = yield* Persistence.EnvironmentCacheStore;
-  const ownedDataCleanup = yield* Persistence.EnvironmentOwnedDataCleanup;
   const profiles = yield* ConnectionProfileStore.ConnectionProfileStore;
   const credentials = yield* ConnectionCredentialStore.ConnectionCredentialStore;
-  const githubRoutingPermissions = yield* GitHubRoutingPermissions;
   const connectivity = yield* Connectivity.Connectivity;
   const driver = yield* ConnectionDriver.ConnectionDriver;
   const wakeups = yield* ConnectionWakeups.ConnectionWakeups;
@@ -504,20 +492,6 @@ export const make = Effect.gen(function* () {
     yield* createServiceScope(entry);
   });
 
-  const forgetRoutingTrust = (
-    environmentId: EnvironmentId,
-    operation: "register-connection" | "set-connection-routes",
-  ) =>
-    githubRoutingPermissions.forget(environmentId).pipe(
-      Effect.mapError(
-        (error) =>
-          new Persistence.ConnectionPersistenceError({
-            operation,
-            message: error.message,
-          }),
-      ),
-    );
-
   const persistedRoutes = (entry: ConnectionCatalogEntry) =>
     connectionRoutes(entry).map((route) => route.target as PersistedConnectionTarget);
 
@@ -527,7 +501,7 @@ export const make = Effect.gen(function* () {
    */
   const withRoutes = (previous: ConnectionCatalogEntry, routes: ReadonlyArray<ConnectionRoute>) => {
     const next = entryWithRoutes(previous, routes);
-    if (gitHubRoutingConnectionKey(previous) === gitHubRoutingConnectionKey(next)) {
+    if (connectionAddressKey(previous) === connectionAddressKey(next)) {
       return { entry: next, addressesChanged: false };
     }
     const { unsupportedReason: _reason, serverUpdateRequired: _update, ...rest } = next;
@@ -558,7 +532,6 @@ export const make = Effect.gen(function* () {
           );
           const next = withRoutes(previous, upsertRoute(routes, route));
           if (next.addressesChanged) {
-            yield* forgetRoutingTrust(environmentId, "register-connection");
           }
           entry = next.entry;
         }
@@ -579,7 +552,6 @@ export const make = Effect.gen(function* () {
     const environmentId = previous.target.environmentId;
     const next = withRoutes(previous, routes);
     if (next.addressesChanged) {
-      yield* forgetRoutingTrust(environmentId, "set-connection-routes");
     }
     yield* registrations.setRoutes(environmentId, persistedRoutes(next.entry));
     yield* installEntryLocked(next.entry);
@@ -604,28 +576,15 @@ export const make = Effect.gen(function* () {
           const previous = (yield* SubscriptionRef.get(entries)).get(target.environmentId);
           const entry: ConnectionCatalogEntry =
             previous?.unsupportedReason !== undefined &&
-            gitHubRoutingConnectionKey(previous) === gitHubRoutingConnectionKey(registered)
+            connectionAddressKey(previous) === connectionAddressKey(registered)
               ? { ...registered, ...unsupportedState(previous) }
               : registered;
           const persisted = (yield* Ref.get(persistedEnvironmentIds)).has(target.environmentId);
           if (
             persisted ||
             (previous !== undefined &&
-              gitHubRoutingConnectionKey(previous) !== gitHubRoutingConnectionKey(entry))
+              connectionAddressKey(previous) !== connectionAddressKey(entry))
           ) {
-            const revoked = yield* githubRoutingPermissions.forget(target.environmentId).pipe(
-              Effect.tapError((error) =>
-                Effect.logWarning(
-                  "Could not clear GitHub routing permission for a platform environment.",
-                  {
-                    environmentId: target.environmentId,
-                    error,
-                  },
-                ),
-              ),
-              Effect.exit,
-            );
-            if (Exit.isFailure(revoked)) return;
           }
           yield* Ref.update(platformEnvironmentIds, (current) => {
             const next = new Set(current);
@@ -725,19 +684,6 @@ export const make = Effect.gen(function* () {
         environmentId,
         Effect.gen(function* () {
           const entry = (yield* SubscriptionRef.get(entries)).get(environmentId);
-          const revoked = yield* githubRoutingPermissions.forget(environmentId).pipe(
-            Effect.tapError((error) =>
-              Effect.logWarning(
-                "Could not clear GitHub routing permission after platform removal.",
-                {
-                  environmentId,
-                  error,
-                },
-              ),
-            ),
-            Effect.exit,
-          );
-          if (Exit.isFailure(revoked)) return;
           yield* Ref.update(platformEnvironmentIds, (current) => {
             const next = new Set(current);
             next.delete(environmentId);
@@ -769,7 +715,6 @@ export const make = Effect.gen(function* () {
                   }),
                 ),
               ),
-              ownedDataCleanup.clear(environmentId),
             ],
             { concurrency: "unbounded", discard: true },
           );
@@ -810,8 +755,6 @@ export const make = Effect.gen(function* () {
       });
     }
     const entry = yield* getEntry(environmentId);
-
-    yield* githubRoutingPermissions.forget(environmentId);
     yield* registrations.remove(environmentId);
     yield* Ref.update(persistedEnvironmentIds, (current) => {
       const next = new Set(current);
@@ -834,7 +777,6 @@ export const make = Effect.gen(function* () {
             }),
           ),
         ),
-        ownedDataCleanup.clear(environmentId),
       ],
       { concurrency: "unbounded", discard: true },
     );
@@ -975,28 +917,6 @@ export const make = Effect.gen(function* () {
       }),
     );
   });
-
-  const removeRelayEnvironments = Effect.fn("EnvironmentRegistry.removeRelayEnvironments")(
-    function* () {
-      const relayEnvironmentIds = [...(yield* SubscriptionRef.get(entries)).values()]
-        .filter((entry) =>
-          connectionRoutes(entry).some((route) => route.target._tag === "RelayConnectionTarget"),
-        )
-        .map((entry) => entry.target.environmentId);
-
-      yield* Effect.forEach(
-        relayEnvironmentIds,
-        (environmentId) =>
-          removeRoute(environmentId, RELAY_ROUTE_ID).pipe(
-            Effect.catchTags({ EnvironmentNotRegisteredError: () => Effect.void }),
-          ),
-        {
-          concurrency: "unbounded",
-          discard: true,
-        },
-      );
-    },
-  );
 
   const retryNow = (environmentId: EnvironmentId) =>
     acquireSupervisor(environmentId).pipe(
@@ -1144,7 +1064,6 @@ export const make = Effect.gen(function* () {
     remove,
     removeRoute,
     reorderRoutes,
-    removeRelayEnvironments,
     retryNow,
     setEnabled,
     setCompatibility,

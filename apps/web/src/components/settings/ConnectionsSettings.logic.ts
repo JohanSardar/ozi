@@ -1,8 +1,6 @@
 import {
   type AdvertisedEndpoint,
   type AuthGrantScope,
-  AuthTerminalOperateScope,
-  AuthTerminalReadScope,
   type DesktopBridge,
   type DesktopServerExposureState,
   type DesktopWslState,
@@ -18,17 +16,8 @@ export function togglePairingScopeSelection(
   scope: AuthGrantScope,
   checked: boolean,
 ): ReadonlyArray<AuthGrantScope> {
-  const without = (scopes: ReadonlyArray<AuthGrantScope>) =>
-    scopes.filter((currentScope) => currentScope !== scope);
-  if (!checked) {
-    return scope === AuthTerminalReadScope
-      ? without(current).filter((currentScope) => currentScope !== AuthTerminalOperateScope)
-      : without(current);
-  }
-  const next = [...without(current), scope];
-  return scope === AuthTerminalOperateScope && !next.includes(AuthTerminalReadScope)
-    ? [...next, AuthTerminalReadScope]
-    : next;
+  const next = current.filter((value) => value !== scope);
+  return checked ? [...next, scope] : next;
 }
 
 export function canRevokeOtherClients(

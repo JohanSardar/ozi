@@ -1,3 +1,7 @@
+export interface EnvironmentConnectionLease {
+  readonly prepared: PreparedConnection;
+  readonly session: RpcSession.RpcSession;
+}
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
@@ -32,11 +36,6 @@ export type ConnectionDriverProgress =
       readonly stage: Exclude<ConnectionAttemptStage, "preparing">;
       readonly prepared: PreparedConnection;
     };
-
-export interface EnvironmentConnectionLease {
-  readonly prepared: PreparedConnection;
-  readonly session: RpcSession.RpcSession;
-}
 
 export type RouteCheck = "answered" | "silent" | "unchecked";
 

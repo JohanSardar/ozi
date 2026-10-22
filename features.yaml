@@ -176,7 +176,7 @@ features:
     status: passing
   - id: cut-coding
     reqs: [t3-cut, minimal]
-    module: server + contracts + client-runtime + web + desktop + packages + packaging + infra + reference-repos
+    module: server + contracts + client-runtime + web + desktop + packages + packaging + infra + reference-repos + connection
     cli: []
     milestone: 4
     scenarios: [m4.removed]

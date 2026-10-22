@@ -66,9 +66,7 @@ export type EnvironmentSubscriptionRpcTag =
   | typeof WS_METHODS.subscribePreviewEvents
   | typeof WS_METHODS.subscribeDiscoveredLocalServers;
 
-export type EnvironmentStreamCommandRpcTag =
-  | typeof WS_METHODS.chatGptHandoffSubscribe
-  | typeof WS_METHODS.cloudInstallRelayClient;
+export type EnvironmentStreamCommandRpcTag = typeof WS_METHODS.chatGptHandoffSubscribe;
 
 export type EnvironmentStreamRpcTag =
   | EnvironmentSubscriptionRpcTag
