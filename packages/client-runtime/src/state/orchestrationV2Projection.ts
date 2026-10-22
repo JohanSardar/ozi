@@ -226,8 +226,6 @@ export function applyOrchestrationV2ProjectionEvent(
     case "thread.deleted":
     case "thread.settled":
     case "thread.unsettled":
-    case "thread.snoozed":
-    case "thread.unsnoozed":
     case "thread.pinned":
     case "thread.unpinned":
     case "thread.pin-reordered":

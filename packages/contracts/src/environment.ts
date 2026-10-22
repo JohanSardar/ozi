@@ -61,15 +61,6 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
   /** Server checks OTLP endpoints for the telemetry export settings. */
   otlpEndpointCheck: Schema.optionalKey(Schema.Boolean),
   threadRestartContinuation: Schema.optionalKey(Schema.Boolean),
-  projectSettingsOverrides: Schema.optionalKey(Schema.Boolean),
-  /**
-   * Older
-      servers decode the key away (unknown fields are stripped, not
-      rejected), so the per-project provider switch would silently do
-      nothing; clients hide it instead of sending a patch that goes nowhere.
-   */
-  projectProviderInstanceOverrides: Schema.optionalKey(Schema.Boolean),
-  threadSnooze: Schema.optionalKey(Schema.Boolean),
   /** Absent on servers from
       before environment themes shipped, which never emit the events -- so a
       client reconnecting to one must drop published themes rather than keep
@@ -77,17 +68,10 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
   environmentThemes: Schema.optionalKey(Schema.Boolean),
   usagePriceOverrides: Schema.optionalKey(Schema.Boolean),
   usageModelAliases: Schema.optionalKey(Schema.Boolean),
-  threadPinning: Schema.optionalKey(Schema.Boolean),
-  threadPinReorder: Schema.optionalKey(Schema.Boolean),
-  threadActiveReorder: Schema.optionalKey(Schema.Boolean),
   threadTitleRegeneration: Schema.optionalKey(Schema.Boolean),
-  threadVisitedTracking: Schema.optionalKey(Schema.Boolean),
   serverResolvedCommandContext: Schema.optionalKey(Schema.Boolean),
   threadStop: Schema.optionalKey(Schema.Boolean),
   environmentIcon: Schema.optionalKey(Schema.Boolean),
-  /** Server answers orchestration.subscribeCommandOutput. Absent on older servers,
-      which never send command output, so clients must not subscribe. */
-  commandOutputStreaming: Schema.optionalKey(Schema.Boolean),
   /** Server hosts preview tabs in its own headless Chromium (`runtime:
       "server"`) and streams them over `/api/preview-stream`. Clients
       without a local browser runtime open server tabs here. */

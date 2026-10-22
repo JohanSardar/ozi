@@ -13,7 +13,6 @@ import { DEVELOPMENT_ICON_OVERRIDES } from "../../../scripts/lib/brand-assets.ts
 import { findEsmImportsOfExternalPackages } from "../../../scripts/lib/cli-executable-imports.ts";
 import { resolveSpawnCommand } from "@t3tools/shared/shell";
 import {
-  ServerCliBuildAssetMissingError,
   ServerCliCommandExitError,
   ServerCliDevelopmentIconSourceMissingError,
   ServerCliDevelopmentIconTargetMissingError,
@@ -149,7 +148,7 @@ const buildExeCmd = Command.make(
         return yield* new ServerCliExecutableImportError({ bundlePath, specifiers });
       }
       yield* Effect.log(
-        "[cli] Built dist-exe/t3 (expects client/ and the runtime-external node_modules beside it; scripts/build-cli-archive.ts assembles that tree)",
+        "[cli] Built dist-exe/ozi (requires client/ and runtime dependencies beside it)",
       );
     }),
 ).pipe(
@@ -158,52 +157,9 @@ const buildExeCmd = Command.make(
   ),
 );
 
-/**
- * Publishes the `t3.tgz` launcher scripts/build-npm-launcher.ts produced. The
- * launcher downloads its executable from the GitHub Release, so the release
- * workflow runs this only after that release is published.
- */
-const publishCmd = Command.make(
-  "publish",
-  {
-    packagesDir: Flag.String("packages-dir").pipe(
-      Flag.withDescription("Output dir of scripts/build-npm-launcher.ts."),
-    ),
-    tag: Flag.String("tag").pipe(Flag.withDefault("latest")),
-    access: Flag.String("access").pipe(Flag.withDefault("public")),
-    provenance: Flag.Boolean("provenance").pipe(Flag.withDefault(false)),
-    dryRun: Flag.Boolean("dry-run").pipe(Flag.withDefault(false)),
-    verbose: Flag.Boolean("verbose").pipe(Flag.withDefault(false)),
-  },
-  (config) =>
-    Effect.gen(function* () {
-      const path = yield* Path.Path;
-      const fs = yield* FileSystem.FileSystem;
-      const packagesDir = path.resolve(config.packagesDir);
-      const launcherTarball = path.join(packagesDir, "t3.tgz");
-      if (!(yield* fs.exists(launcherTarball))) {
-        return yield* new ServerCliBuildAssetMissingError({ assetPath: launcherTarball });
-      }
-
-      const args = ["publish", "--access", config.access, "--tag", config.tag];
-      if (config.provenance) args.push("--provenance");
-      if (config.dryRun) args.push("--dry-run");
-      const spawnCommand = yield* resolveSpawnCommand("npm", [...args, launcherTarball]);
-      yield* Effect.log(`[cli] npm ${args.join(" ")} t3.tgz`);
-      yield* runCommand(
-        ChildProcess.make(spawnCommand.command, spawnCommand.args, {
-          cwd: packagesDir,
-          stdout: config.verbose ? "inherit" : "ignore",
-          stderr: "inherit",
-          shell: spawnCommand.shell,
-        }),
-      );
-    }),
-).pipe(Command.withDescription("Publish the t3 launcher to npm."));
-
 const cli = Command.make("cli").pipe(
-  Command.withDescription("Ozi server build & publish CLI."),
-  Command.withSubcommands([buildCmd, buildExeCmd, publishCmd]),
+  Command.withDescription("Ozi server build CLI."),
+  Command.withSubcommands([buildCmd, buildExeCmd]),
 );
 
 Command.run(cli, { version: "0.0.0" }).pipe(

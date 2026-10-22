@@ -13,7 +13,6 @@ import type { EnvironmentConnectionPhase } from "../connection/presentation.ts";
 const SHARED_SERVER_SETTING_KEYS = [
   "continueThreadsAfterServerUpdate",
   "autoResumeLimitedThreads",
-  "snoozeLimitedThreads",
   "textGenerationModelSelection",
 ] as const satisfies ReadonlyArray<keyof ServerSettings & keyof ServerSettingsPatch>;
 

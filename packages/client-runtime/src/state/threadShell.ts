@@ -85,10 +85,6 @@ function pendingSubagentRequestsByThread(
 
 const sameWireThreadShell = Schema.toEquivalence(OrchestrationV2ThreadShell);
 
-// While a run streams, the server bumps the shell's timestamps, item counts and
-// latest message several times a second. Only the zero crossing of the counts
-// says anything (whether the thread has started). Once the run stops every
-// field counts again, so snooze wakes and failure times read the current value.
 function sameApartFromStreaming(
   previous: EnvironmentThreadShell,
   next: EnvironmentThreadShell,

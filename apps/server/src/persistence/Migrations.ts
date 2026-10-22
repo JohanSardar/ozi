@@ -77,6 +77,7 @@ import Migration0081 from "./Migrations/081_RemoveSourceControl.ts";
 import Migration0082 from "./Migrations/082_RemoveRelay.ts";
 import Migration0083 from "./Migrations/083_RemoveWorkspaceFeatures.ts";
 import Migration0084 from "./Migrations/084_RemoveWorkspaceLaunch.ts";
+import Migration0085 from "./Migrations/085_RemoveSnooze.ts";
 
 export const migrationEntries = [
   [1, "OrchestrationEvents", Migration0001],
@@ -152,6 +153,7 @@ export const migrationEntries = [
   [82, "RemoveRelay", Migration0082],
   [83, "RemoveWorkspaceFeatures", Migration0083],
   [84, "RemoveWorkspaceLaunch", Migration0084],
+  [85, "RemoveSnooze", Migration0085],
 ] as const;
 
 const makeMigrationLoader = (throughId?: number) =>

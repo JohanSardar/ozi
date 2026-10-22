@@ -1,9 +1,11 @@
 import * as NodeChildProcess from "node:child_process";
 import * as NodeFSP from "node:fs/promises";
 import * as NodePath from "node:path";
+import * as NodeSqlite from "node:sqlite";
 import * as NodeURL from "node:url";
 import { parse, type ArrayExpression, type Node, type Property } from "acorn";
 import { expect, it } from "vite-plus/test";
+import ts from "typescript-legacy";
 import { startHarness } from "./harness.ts";
 
 const repo = NodeURL.fileURLToPath(new URL("..", import.meta.url));
@@ -25,14 +27,19 @@ const exec = (command: string, args: string[]) =>
 
 it("m6.audit desktop never uses T3 Code's identity or legacy state", async () => {
   const paths = (await exec("git", ["ls-files", "-z"])).split("\0").filter(Boolean);
+  expect(
+    JSON.parse(await NodeFSP.readFile(NodePath.join(repo, "apps/server/package.json"), "utf8"))
+      .name,
+  ).toBe("ozi");
   const allow = /(?:^\.repos\/|(?:LICENSE|NOTICE)|\.test\.|^e2e\/|\.md$)/;
   const desktop =
-    /^(?:apps\/desktop\/|scripts\/build-desktop-artifact\.ts$|packages\/shared\/src\/(?:desktopAppControl|devHome|promptLinks|providerAuthReturnUrl|codexAuthHandoff)\.ts$|packages\/contracts\/src\/desktopBootstrap\.ts$|apps\/server\/src\/(?:httpCors|cli\/config)\.ts$|packages\/ssh\/src\/(?:tunnel|auth)\.ts$)/;
+    /^(?:native\/(?:kde|hyprland)-snap-shot\/|apps\/desktop\/|scripts\/build-desktop-artifact\.ts$|packages\/shared\/src\/(?:desktopAppControl|devHome|promptLinks|providerAuthReturnUrl|codexAuthHandoff)\.ts$|packages\/contracts\/src\/desktopBootstrap\.ts$|apps\/server\/src\/(?:httpCors|cli\/config)\.ts$|packages\/ssh\/src\/(?:tunnel|auth)\.ts$)/;
   const forbidden =
-    /\.t3\b|t3code|T3 Code|T3CODE_|T3_SSH_AUTH_SECRET|com\.t3tools|T3SnapShot|snap-shot@t3\.codes/i;
+    /\.t3\b|t3code|T3 Code|T3CODE_|T3_SSH_AUTH_SECRET|com\.t3tools|T3SnapShot|snap-shot@t3\.codes|t3-(?:kde|hyprland|browser-secret|snap-shot)/i;
   const violations: string[] = [];
   for (const path of paths) {
-    if (allow.test(path) || !/\.(?:[cm]?[jt]sx?|json|xml|sh|ps1|ya?ml)$/.test(path)) continue;
+    if (allow.test(path) || !/\.(?:[cm]?[jt]sx?|rs|qml|toml|json|xml|sh|ps1|ya?ml)$/.test(path))
+      continue;
     const source = await NodeFSP.readFile(NodePath.join(repo, path), "utf8").catch((error) => {
       if (error.code === "ENOENT") return "";
       throw error;
@@ -139,6 +146,11 @@ it("m6.audit tests and provider fakes live only in e2e", async () => {
       )
     )
       violations.push(path);
+    if (
+      path.endsWith(".rs") &&
+      /#\[(?:test|cfg\(test\))\]/.test(await NodeFSP.readFile(NodePath.join(repo, path), "utf8"))
+    )
+      violations.push(`${path}: native unit test`);
     if (!/\.(?:[cm]?[jt]sx?|json)$/.test(path)) continue;
     const source = await NodeFSP.readFile(NodePath.join(repo, path), "utf8");
     if (
@@ -154,9 +166,193 @@ it("m6.audit tests and provider fakes live only in e2e", async () => {
 it("m6.audit Knip finds no unused files, exports or dependencies", async () => {
   await exec(NodePath.join(repo, "node_modules/.bin/knip"), [
     "--include",
-    "files,dependencies,exports,nsExports,duplicates",
+    "files,dependencies,exports,nsExports,duplicates,unresolved",
     "--preprocessor",
     "./scripts/knip-schemas.ts",
     "--no-config-hints",
   ]);
 }, 360_000);
+
+const removedCapabilities = [
+  "threadPullRequests",
+  "threadSnooze",
+  "projectWorktreeCleanup",
+  "projectSettingsOverrides",
+  "projectProviderInstanceOverrides",
+  "threadPinning",
+  "threadPinReorder",
+  "threadActiveReorder",
+  "threadVisitedTracking",
+  "commandOutputStreaming",
+];
+const removedSettings =
+  /^(?:diffFilesCollapsed|diffIgnoreWhitespace|diffLayout|confirmThread(?:Archive|Delete|Unpin)|legacySidebarEnabled|sidebar(?:WorkingShelfEnabled|ProjectGroupingMode|ProjectGroupingOverrides|ProjectSortOrder|ThreadSortOrder|ThreadPreviewCount)|snoozeLimitedThreads)$/;
+
+it("m6.audit retired imports, settings, instructions and Ozi comments stay absent", async () => {
+  const paths = (await exec("git", ["ls-files", "-z"])).split("\0").filter(Boolean);
+  const violations = new Set<string>();
+  const retired =
+    /^(?:@effect\/vitest|@vitest\/|vitest(?:\/|$)|@t3tools\/(?:provider-testing|source-control)|@ff-labs\/|@pierre\/diffs|node-pty(?:\/|$))/;
+  for (const path of paths) {
+    if (path.startsWith(".repos/") || !/\.[cm]?[jt]sx?$/.test(path)) continue;
+    const source = await NodeFSP.readFile(NodePath.join(repo, path), "utf8").catch((error) => {
+      if (error.code === "ENOENT") return "";
+      throw error;
+    });
+    const ozi =
+      /^(?:apps\/server\/src\/ozi\/|apps\/web\/src\/components\/ozi\/|e2e\/|scripts\/features\.ts$)/.test(
+        path,
+      );
+    const inherited = !path.startsWith("e2e/") && !path.includes("/persistence/Migrations");
+    const parsed = ts.createSourceFile(path, source, ts.ScriptTarget.Latest, true);
+    const comment = (position: number) => {
+      if (
+        ts.getLeadingCommentRanges(source, position)?.length ||
+        ts.getTrailingCommentRanges(source, position)?.length
+      )
+        violations.add(`${path}: Ozi comment`);
+    };
+    const visit = (node: ts.Node) => {
+      if (ozi) {
+        comment(node.pos);
+        comment(node.end);
+        if (ts.isJsxExpression(node)) comment(node.getStart(parsed) + 1);
+      }
+      if (inherited && (ts.isStringLiteralLike(node) || ts.isJsxText(node))) {
+        if (/\bT3(?: Code| Chat)?\b|t3\.codes|--filter=t3\b|t3\.tgz|dist-exe\/t3\b/.test(node.text))
+          violations.add(`${path}: T3 product text`);
+        if (/Act as the .*sub-agent/.test(node.text)) violations.add(`${path}: role preamble`);
+      }
+      if (
+        (ts.isImportDeclaration(node) || ts.isExportDeclaration(node)) &&
+        node.moduleSpecifier &&
+        ts.isStringLiteral(node.moduleSpecifier) &&
+        retired.test(node.moduleSpecifier.text)
+      )
+        violations.add(`${path}: retired import`);
+      if (
+        ts.isCallExpression(node) &&
+        (node.expression.kind === ts.SyntaxKind.ImportKeyword ||
+          node.expression.getText(parsed) === "require")
+      ) {
+        const argument = node.arguments[0];
+        if (argument && ts.isStringLiteral(argument) && retired.test(argument.text))
+          violations.add(`${path}: retired import`);
+      }
+      if (inherited && (ts.isPropertyAssignment(node) || ts.isPropertySignature(node))) {
+        const name = node.name.getText(parsed);
+        if (removedSettings.test(name)) violations.add(`${path}: retired setting`);
+        if (
+          /\/(?:environment|ServerEnvironment)\.ts$/.test(path) &&
+          removedCapabilities.includes(name)
+        )
+          violations.add(`${path}: retired capability`);
+      }
+      ts.forEachChild(node, visit);
+    };
+    visit(parsed);
+  }
+  expect([...violations]).toEqual([]);
+});
+
+it("m6.audit runtime excludes snooze and preserves delegated briefs", async () => {
+  const h = await startHarness();
+  try {
+    const status = await h.status();
+    for (const key of removedCapabilities)
+      expect(status.server.environment.capabilities).not.toHaveProperty(key);
+    expect(status.server.settings).not.toHaveProperty("snoozeLimitedThreads");
+    for (const key of ["snoozedUntil", "snoozedAt", "lastSnoozeWakeAt"])
+      expect(status.main!.thread).not.toHaveProperty(key);
+    for (const type of ["thread.snooze", "thread.unsnooze"])
+      expect(
+        await h.ozi(
+          "request",
+          "orchestration.dispatchCommand",
+          "--payload",
+          JSON.stringify({ type, commandId: type, threadId: "ozi-main" }),
+        ),
+      ).toMatchObject([{ ok: false }]);
+    await h.script([
+      {
+        match: "audit-delegate",
+        role: "main",
+        steps: [
+          {
+            tool: {
+              name: "delegate_task",
+              arguments: {
+                task: "verbatim-audit-brief",
+                role: "research",
+                title: "Audit",
+                clientRequestId: "audit-brief",
+              },
+            },
+          },
+          { say: "audit-started" },
+        ],
+      },
+      { match: "^verbatim-audit-brief$", role: "worker", steps: [{ say: "audit-brief-verified" }] },
+      { match: "audit-brief-verified", role: "main", steps: [{ say: "audit-reported" }] },
+    ]);
+    await h.ozi("say", "audit-delegate");
+    await h.ozi("wait", "thread", "ozi-main", "text:audit-reported", "--timeout", "30");
+    const worker = (await h.status()).snapshot.threads.find((thread) => thread.role === "worker")!;
+    const lead = await h.thread(worker.id);
+    expect(lead.messages.find((message) => message.role === "user")?.text).toBe(
+      "verbatim-audit-brief",
+    );
+    const record = (await h.records()).find(
+      (entry) => entry.provider === "codex" && entry.event === "prompt" && entry.role === "worker",
+    );
+    expect(record?.instructions).toContain("Do the brief fully yourself.");
+    expect(record?.instructions).not.toMatch(/Act as the .*sub-agent/);
+    await h.restart();
+    expect((await h.status()).main!.thread).not.toHaveProperty("snoozedUntil");
+  } finally {
+    await h.close();
+  }
+});
+
+it("m6.audit existing snooze events migrate without losing the thread", async () => {
+  const h = await startHarness();
+  try {
+    await h.restart({}, async () => {
+      const db = new NodeSqlite.DatabaseSync(NodePath.join(h.home, "userdata/statev2.sqlite"));
+      try {
+        db.exec(`
+          ALTER TABLE projection_threads ADD COLUMN snoozed_until TEXT;
+          ALTER TABLE projection_threads ADD COLUMN snoozed_at TEXT;
+          DELETE FROM effect_sql_migrations WHERE migration_id = 85;
+          UPDATE orchestration_v2_projection_threads
+          SET payload_json = json_set(payload_json, '$.snoozedUntil', '2099-01-01T00:00:00.000Z', '$.snoozedAt', '2026-01-01T00:00:00.000Z')
+          WHERE thread_id = 'ozi-main';
+          INSERT INTO orchestration_events (
+            event_id, aggregate_kind, stream_id, stream_version, event_type,
+            occurred_at, command_id, causation_event_id, correlation_id, actor_kind,
+            payload_json, metadata_json, application_event_version
+          )
+          SELECT 'audit-snooze-event', aggregate_kind, stream_id, stream_version + 1,
+            'thread.snoozed', occurred_at, NULL, NULL, NULL, 'server',
+            (SELECT payload_json FROM orchestration_v2_projection_threads WHERE thread_id = 'ozi-main'),
+            metadata_json, 2
+          FROM orchestration_events WHERE stream_id = 'ozi-main' AND application_event_version = 2
+          ORDER BY sequence DESC LIMIT 1;
+        `);
+      } finally {
+        db.close();
+      }
+    });
+    const events = await h.ozi<{ event: { id: string; type: string; payload: object } }[]>(
+      "events",
+      "ozi-main",
+    );
+    const migrated = events.find((row) => row.event.id === "audit-snooze-event")!;
+    expect(migrated.event.type).toBe("thread.metadata-updated");
+    expect(migrated.event.payload).not.toHaveProperty("snoozedUntil");
+    expect(migrated.event.payload).not.toHaveProperty("snoozedAt");
+    expect((await h.status()).main!.thread.id).toBe("ozi-main");
+  } finally {
+    await h.close();
+  }
+});

@@ -21,7 +21,7 @@ class DataRootError extends Schema.TaggedError<DataRootError>()("DataRootError",
 export class DataRoot extends Context.Service<
   DataRoot,
   { readonly initialize: Effect.Effect<void, DataRootError> }
->()("t3/ozi/DataRoot") {}
+>()("ozi/ozi/DataRoot") {}
 
 const make = Effect.gen(function* () {
   const fs = yield* FileSystem.FileSystem;

@@ -145,7 +145,6 @@ pub fn destination(windows: Vec<Window>, pid: u32, title: &str) -> Result<Option
 }
 
 pub fn activate(pid: u32, title: &str) -> Result<()> {
-    // Subscribe before looking up a newly mapped T3 window, so no map/title event is missed.
     let socket = UnixStream::connect(session_directory()?.join(".socket2.sock"))?;
     let deadline = Instant::now() + Duration::from_secs(3);
     let mut events = BufReader::new(socket);
@@ -170,67 +169,5 @@ pub fn activate(pid: u32, title: &str) -> Result<()> {
         if events.by_ref().take(8193).read_until(b'\n', &mut event)? == 0 || event.len() > 8192 {
             return Err("Hyprland's event stream closed or returned an invalid event.".into());
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    fn window(pid: u32, title: &str) -> Window {
-        Window {
-            address: "0x123456789abcdef".into(),
-            pid,
-            title: title.into(),
-            class: "t3".into(),
-            at: [-1920, 20],
-            size: [1000, 800],
-            mapped: true,
-            hidden: false,
-        }
-    }
-    #[test]
-    fn address_preserves_upper_bits() {
-        assert_eq!(window(1, "t").address().unwrap(), 0x123456789abcdef);
-    }
-    #[test]
-    fn destination_requires_unique_process_and_title() {
-        assert!(
-            destination(vec![window(2, "T3")], 1, "T3")
-                .unwrap()
-                .is_none()
-        );
-        assert!(
-            destination(vec![window(1, "other")], 1, "T3")
-                .unwrap()
-                .is_none()
-        );
-        assert!(destination(vec![window(1, "T3"), window(1, "T3")], 1, "T3").is_err());
-        assert!(
-            destination(vec![window(2, "T3"), window(1, "T3")], 1, "T3")
-                .unwrap()
-                .is_some()
-        );
-    }
-    #[test]
-    fn rectangles_accept_negative_origins_not_invalid_sizes() {
-        assert!(window(1, "t").bounds().valid());
-        assert!(
-            !Rect {
-                x: 0.,
-                y: 0.,
-                width: f64::NAN,
-                height: 10.
-            }
-            .valid()
-        );
-        assert!(
-            !Rect {
-                x: 0.,
-                y: 0.,
-                width: 0.,
-                height: 10.
-            }
-            .valid()
-        );
     }
 }

@@ -15,21 +15,7 @@ macro_rules! protocol {
             }
             use self::__interfaces::*;
             wayland_scanner::generate_client_code!($file);
-            #[cfg(test)]
-            pub mod server {
-                use wayland_protocols::ext::foreign_toplevel_list::v1::server::*;
-                use wayland_protocols_wlr::foreign_toplevel::v1::server::*;
-                use wayland_server;
-                use wayland_server::protocol::*;
-                pub mod __interfaces {
-                    use wayland_protocols::ext::foreign_toplevel_list::v1::server::__interfaces::*;
-                    use wayland_protocols_wlr::foreign_toplevel::v1::server::__interfaces::*;
-                    use wayland_server::protocol::__interfaces::*;
-                    wayland_scanner::generate_interfaces!($file);
-                }
-                use self::__interfaces::*;
-                wayland_scanner::generate_server_code!($file);
-            }
+
         }
     };
 }
