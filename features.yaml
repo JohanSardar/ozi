@@ -10,7 +10,7 @@ requirements:
   end-of-turn-check: Every claimed completion forks a check; gaps continue; silent otherwise.
   blocked: Three rounds without progress post a Blocked card.
   mistake-log: Every mistake is one SQLite row with what and why.
-  repair-trigger: A fix is made only on user correction or a repeat.
+  repair-trigger: A fix requires an explicit correction message reference verified against stored user provenance, scope and event order, or a repeat.
   replay: Fixes are tested by replaying from before the mistake with faked effects and an observer; pass ships, recurrence undoes.
   protected: Self-repair can't change approvals, contacts rule, test cases, credentials. Host OAuth inference stays outside confinement and fails closed without a usable login.
   user-override: The user can change any rule by asking; Ozi never refuses the user.
@@ -190,14 +190,14 @@ features:
     status: passing
   - id: replay
     reqs: [repair-trigger, replay]
-    module: apps/server/src/ozi/Repair.ts + RepairHttp.ts + RepairSandbox.ts + RepairTasks.ts + cli/client.ts + e2e/m5.test.ts
+    module: apps/server/src/ozi/Repair.ts + RepairHttp.ts + RepairSandbox.ts + RepairTasks.ts + cli/client.ts + e2e/m5.test.ts + e2e/m5.real-pi.test.ts
     cli: [replays]
     milestone: 5
     scenarios: [m5.correction-repairs, m5.repeat-repairs, m5.false-case, m5.unknown-effect]
     status: passing
   - id: confinement
     reqs: [protected, user-override]
-    module: apps/server/src/ozi/Repair.ts + RepairSandbox.ts + RepairProgram.ts + e2e/m5.test.ts
+    module: apps/server/src/ozi/Repair.ts + RepairSandbox.ts + RepairProgram.ts + e2e/m5.test.ts + e2e/m5.real-pi.test.ts
     cli: [replays]
     milestone: 5
     scenarios: [m5.protected-denied, m5.no-credentials, m5.user-override]

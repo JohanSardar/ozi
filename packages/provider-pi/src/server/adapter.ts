@@ -2318,9 +2318,13 @@ const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (options: PiAdapt
       const resolvePromptPayload = Effect.fnUntraced(function* (
         text: string,
         attachments: ReadonlyArray<ChatAttachment>,
+        messageId: string,
       ) {
         const images: Array<{ type: "image"; data: string; mimeType: string }> = [];
-        const extraLines: Array<string> = [];
+        const extraLines: Array<string> =
+          input.runtimePolicy.mainPromptPath === undefined
+            ? []
+            : [`[Ozi message ID: ${messageId}]`];
         for (const attachment of attachments) {
           const path = host.resolveAttachmentPath(attachment);
           if (path === null) continue;
@@ -2460,7 +2464,11 @@ const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (options: PiAdapt
               : parsePiCompactCommand(turnInput.message.text);
             const payload =
               !continuation && compactCommand === null
-                ? yield* resolvePromptPayload(turnInput.message.text, turnInput.message.attachments)
+                ? yield* resolvePromptPayload(
+                    turnInput.message.text,
+                    turnInput.message.attachments,
+                    turnInput.message.messageId,
+                  )
                 : null;
             const startedAt = yield* DateTime.now;
             const syntheticNativeTurnId = `${state.providerThread.id}:attempt:${turnInput.attemptId}`;
@@ -2612,6 +2620,7 @@ const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (options: PiAdapt
                 ? yield* resolvePromptPayload(
                     steerInput.message.text,
                     steerInput.message.attachments,
+                    steerInput.message.messageId,
                   )
                 : null;
             // Prompt with streamingBehavior steer is atomic on Pi's side: it

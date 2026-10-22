@@ -138,11 +138,14 @@ export function interpreter(provider, hooks) {
   const interpolate = (value, prompt) => {
     if (typeof value === "string") {
       if (value === "$result") return result;
-      return value.replaceAll("$prompt", prompt).replace(/\$result(?:\.([\w.]+))?/g, (_, path) => {
-        let current = result?.structuredContent ?? result;
-        for (const segment of path?.split(".") ?? []) current = current?.[segment];
-        return typeof current === "string" ? current : JSON.stringify(current);
-      });
+      return value
+        .replaceAll("$messageId", prompt.match(/\[Ozi message ID: ([^\]]+)\]/)?.[1] ?? "")
+        .replaceAll("$prompt", prompt)
+        .replace(/\$result(?:\.([\w.]+))?/g, (_, path) => {
+          let current = result?.structuredContent ?? result;
+          for (const segment of path?.split(".") ?? []) current = current?.[segment];
+          return typeof current === "string" ? current : JSON.stringify(current);
+        });
     }
     if (Array.isArray(value)) return value.map((item) => interpolate(item, prompt));
     if (value && typeof value === "object")
@@ -186,7 +189,8 @@ export function interpreter(provider, hooks) {
                   !tools.some((tool) => /^(?:preview_|t3_project_|t3_terminal_)/.test(tool.name)))
               ? "main"
               : "worker");
-      log(provider, "prompt", { prompt, role, instructions });
+      const message = prompt.replace(/\n\n\[Ozi message ID: [^\]]+\]/g, "");
+      log(provider, "prompt", { prompt: message, role, instructions });
       const script = process.env.OZI_FAKE_SCRIPT
         ? JSON.parse(NodeFS.readFileSync(process.env.OZI_FAKE_SCRIPT, "utf8"))
         : [];
@@ -199,10 +203,10 @@ export function interpreter(provider, hooks) {
           (!rule.role || rule.role === role) &&
           (!rule.stage || rule.stage === process.env.OZI_REPAIR_STAGE) &&
           Boolean(rule.stage) === Boolean(process.env.OZI_REPAIR_STAGE) &&
-          new RegExp(rule.match ?? ".*", "s").test(prompt),
+          new RegExp(rule.match ?? ".*", "s").test(message),
       );
       if (index < 0 && role === "checker") {
-        await hooks.say('{"verdict":"done","useful":true}');
+        await hooks.say('```json\n{"verdict":"done","useful":true}\n```');
         await hooks.done();
         return;
       }

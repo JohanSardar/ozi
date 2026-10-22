@@ -104,7 +104,7 @@ const rpc = (method, params = {}) => new Promise((resolve, reject) => {
   send(input.driver === 'pi' ? {id,type:method,...params} : {id,method,params});
 });
 const spawn = args => {
-  child = cp.spawn(input.executable, args, {cwd:'/data', env:{...process.env,T3_MCP_URL:endpoint,OZI_REPAIR_STAGE:stage,ANTHROPIC_BASE_URL:inference,ANTHROPIC_API_KEY:'ozi-inference',OPENAI_BASE_URL:inference + '/v1',OPENAI_API_KEY:'ozi-inference'}, stdio:['pipe','pipe','pipe']});
+  child = cp.spawn(input.executable, args, {cwd:'/data', env:{...process.env,T3_MCP_URL:endpoint,OZI_REPAIR_STAGE:stage,ANTHROPIC_BASE_URL:inference,ANTHROPIC_API_KEY:'ozi-inference',ANTHROPIC_AUTH_TOKEN:'ozi-inference',CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC:'1',...(input.main ? {CLAUDE_CODE_DISABLE_FAST_MODE:'1'} : {}),ENABLE_TOOL_SEARCH:'false',OPENAI_BASE_URL:inference + '/v1',OPENAI_API_KEY:'ozi-inference'}, stdio:['pipe','pipe','pipe']});
   let stderr = '';
   child.stderr.on('data', bytes => { stderr = (stderr + bytes).slice(-16384); });
   child.on('error', done.reject);
@@ -134,7 +134,8 @@ try {
   if (input.driver === 'pi') {
     fs.mkdirSync('/home/repair/pi', {recursive:true});
     fs.writeFileSync('/home/repair/pi/models.json', JSON.stringify({providers:{anthropic:{baseUrl:inference}}}));
-    spawn(['--mode','rpc','--no-extensions','--no-skills','--no-context-files','--no-prompt-templates','--extension','/launcher/extension.mjs','--system-prompt',system,...(replay || stage === 'observer' ? ['--no-tools'] : []),...(replay ? ['--fork','/case/session.jsonl'] : [])]);
+    if (input.bridge) fs.writeFileSync('/home/repair/pi/claude-bridge.json', JSON.stringify({askClaude:{enabled:false},provider:{strictMcpConfig:true,autoMemoryEnabled:false,pathToClaudeCodeExecutable:input.bridge.executable}}));
+    spawn(['--mode','rpc',...(input.bridge ? ['--provider','claude-bridge','--model',input.model.split('/').at(-1),'--no-mcp','--extension',input.bridge.extensionPath] : []),'--no-extensions','--no-skills','--no-context-files','--no-prompt-templates','--extension','/launcher/extension.mjs','--system-prompt',system,...(replay || stage === 'observer' ? ['--no-builtin-tools'] : []),...(replay ? ['--fork','/case/session.jsonl'] : [])]);
     await rpc('get_state');
     await rpc('set_model',{provider:input.model.includes('/') ? input.model.split('/')[0] : 'anthropic',modelId:input.model.split('/').at(-1)});
     if (options.thinking) await rpc('set_thinking_level',{level:options.thinking});

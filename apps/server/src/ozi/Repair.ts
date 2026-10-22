@@ -8,6 +8,7 @@ import {
   type OrchestrationV2ThreadProjection,
   type OrchestrationV2StoredEvent,
   type OrchestrationV2ThreadShell,
+  type OrchestrationV2ConversationMessage,
 } from "@t3tools/contracts";
 import * as Context from "effect/Context";
 import * as Cause from "effect/Cause";
@@ -47,6 +48,7 @@ import { mcpTools } from "./McpTools.ts";
 import { OZI_WORKER_ROLE } from "@t3tools/provider-core/server/orchestrationInstructions";
 import * as RepairTasks from "./RepairTasks.ts";
 import { readMainPrompt } from "./Loadout.ts";
+import { verdictText } from "./verdictText.ts";
 
 type Caller = Pick<McpThreadCaller, "threadId" | "providerInstanceId"> & {
   readonly origin: "agent" | "runtime";
@@ -126,7 +128,7 @@ export class Repair extends Context.Service<
       threadId: string,
     ) => Effect.Effect<ReadonlyArray<OrchestrationV2StoredEvent>, RepairError>;
     readonly changeProtectedRule: (
-      input: { sourceEventId: string; path: string; content: string },
+      input: { correctionMessageId: string; path: string; content: string },
       caller: Caller,
     ) => Effect.Effect<{ changed: true }, RepairError>;
   }
@@ -195,13 +197,17 @@ const make = Effect.gen(function* () {
   });
   const projection = (id: string) =>
     threads.getThreadSnapshot(ThreadId.make(id)).pipe(Effect.map((value) => value.projection));
-  const corrective = (text: string) =>
-    !/^(?:>|(?:the )?(?:email|web page|tool output)\b)/i.test(text.trim()) &&
-    !/\b(?:not|never)\s+(?:a\s+)?(?:mistake|wrong|incorrect)\b/i.test(text) &&
-    /\b(?:correction|mistake|wrong|incorrect|should|fix)\b/i.test(text);
-  const correction = (text: string, row: Pick<Mistake, "fingerprint" | "what">) =>
-    corrective(text.replaceAll(row.fingerprint, "").replaceAll(row.what, "")) &&
-    (text.includes(row.fingerprint) || text.includes(row.what));
+  const userAuthored = (message: OrchestrationV2ConversationMessage) =>
+    message.role === "user" &&
+    message.createdBy === "user" &&
+    ["cli", "web"].includes(message.creationSource) &&
+    message.scheduledTaskId === undefined;
+  const messageById = Effect.fn("Repair.messageById")(function* (id: string) {
+    const rows = yield* sql<{
+      event_id: string;
+    }>`SELECT event_id FROM orchestration_events WHERE event_type = 'message.updated' AND json_extract(payload_json, '$.id') = ${id} ORDER BY sequence LIMIT 1`;
+    return rows[0] ? yield* eventById(rows[0].event_id) : undefined;
+  });
 
   const rejectLink = Effect.fn("Repair.rejectLink")(function* (file: string) {
     const target = yield* fs.readLink(file).pipe(
@@ -692,9 +698,9 @@ const make = Effect.gen(function* () {
       if (!sameTree(original, yield* tree(baseline)) || !sameTree(authored, yield* tree(candidate)))
         return yield* fail("observer-mutated-build");
       phase = "observer-verdict";
-      const verdict = yield* decodeVerdict(observer.evidence.transcript.join("\n")).pipe(
-        Effect.mapError((cause) => fail("observer-verdict-invalid", cause)),
-      );
+      const verdict = yield* decodeVerdict(
+        verdictText(observer.evidence.transcript.join("\n")),
+      ).pipe(Effect.mapError((cause) => fail("observer-verdict-invalid", cause)));
       const evidence = {
         author,
         baseline: base,
@@ -806,43 +812,47 @@ const make = Effect.gen(function* () {
           const history = yield* sourceEvents(sourceThreadId);
           const existing =
             yield* sql<Mistake>`SELECT * FROM ozi_mistakes WHERE source_event_id = ${input.sourceEventId} AND fingerprint = ${input.fingerprint}`;
-          if (existing[0]) return { id: existing[0].id, status: existing[0].status };
-          const users = history.flatMap((event) =>
-            event.event.type === "message.updated" && event.event.payload.role === "user"
-              ? [{ id: event.event.id, sequence: event.sequence, message: event.event.payload }]
-              : [],
+          const preceding = history.filter(
+            (value) =>
+              value.sequence < source.sequence &&
+              value.event.type === "message.updated" &&
+              userAuthored(value.event.payload),
           );
-          const preceding = users.filter(
-            (event) => event.sequence <= source.sequence && !correction(event.message.text, input),
-          );
-          const boundary = input.beforeUserMessageId
-            ? preceding.find((event) => event.message.id === input.beforeUserMessageId)?.message.id
-            : preceding.at(-1)?.message.id;
-          const correctionHistory =
-            sourceThreadId !== OZI_MAIN_THREAD_ID &&
-            (yield* descendsFrom(current, OZI_MAIN_THREAD_ID))
-              ? [...history, ...(yield* sourceEvents(OZI_MAIN_THREAD_ID))]
-              : history;
-          const corrected = correctionHistory
-            .toSorted((a, b) => a.sequence - b.sequence)
-            .findLast(
-              (value) =>
-                value.sequence >= source.sequence &&
-                value.event.type === "message.updated" &&
-                value.event.payload.role === "user" &&
-                value.event.payload.createdBy === "user" &&
-                ["cli", "web"].includes(value.event.payload.creationSource) &&
-                (correction(value.event.payload.text, input) ||
-                  (value.event.id === source.event.id &&
-                    input.beforeUserMessageId !== undefined &&
-                    boundary !== undefined &&
-                    boundary !== value.event.payload.id &&
-                    corrective(value.event.payload.text))),
-            );
+          const boundaryEvent = input.beforeUserMessageId
+            ? preceding.find(
+                (value) =>
+                  value.event.type === "message.updated" &&
+                  value.event.payload.id === input.beforeUserMessageId,
+              )
+            : preceding.at(-1);
+          const boundary =
+            boundaryEvent?.event.type === "message.updated"
+              ? boundaryEvent.event.payload.id
+              : undefined;
+          const referenced = input.correctionMessageId
+            ? yield* messageById(input.correctionMessageId)
+            : undefined;
+          const correctionThread = referenced
+            ? yield* threads.getThreadShell(referenced.event.threadId)
+            : null;
+          const corrected =
+            referenced &&
+            referenced.sequence > source.sequence &&
+            referenced.event.type === "message.updated" &&
+            userAuthored(referenced.event.payload) &&
+            (referenced.event.threadId === sourceThreadId ||
+              (referenced.event.threadId === OZI_MAIN_THREAD_ID &&
+                (yield* descendsFrom(current, OZI_MAIN_THREAD_ID))) ||
+              (current.thread.jobId != null && correctionThread?.jobId === current.thread.jobId))
+              ? referenced
+              : undefined;
+          const prior = existing[0];
+          if (prior && (prior.status !== "logged" || prior.trigger_event_id !== null || !corrected))
+            return { id: prior.id, status: prior.status };
           const repeat =
             (yield* sql`SELECT id FROM ozi_mistakes WHERE fingerprint = ${input.fingerprint} LIMIT 1`)
               .length > 0;
-          const id = yield* ids.randomUUIDv4();
+          const id = prior?.id ?? (yield* ids.randomUUIDv4());
           const message = current.messages.find((message) => message.id === boundary);
           const attempt = current.attempts.find((attempt) => attempt.runId === message?.runId);
           const sourceRun = current.runs.find((run) => run.id === message?.runId);
@@ -859,7 +869,11 @@ const make = Effect.gen(function* () {
             nativeTurnId,
             selection: sourceRun?.modelSelection ?? current.thread.modelSelection,
           });
-          yield* sql`INSERT INTO ozi_mistakes (id, at, thread, boundary, fingerprint, what, why, harness, status, source_event_id, trigger_event_id) VALUES (${id}, ${DateTime.formatIso(yield* DateTime.now)}, ${sourceThreadId}, ${boundary ?? null}, ${input.fingerprint}, ${input.what}, ${input.why}, ${harness}, 'logged', ${input.sourceEventId}, ${corrected?.event.id ?? (repeat ? input.sourceEventId : null)})`.pipe(
+          yield* (
+            prior
+              ? sql`UPDATE ozi_mistakes SET boundary = ${boundary ?? null}, harness = ${harness}, trigger_event_id = ${corrected!.event.id} WHERE id = ${id}`
+              : sql`INSERT INTO ozi_mistakes (id, at, thread, boundary, fingerprint, what, why, harness, status, source_event_id, trigger_event_id) VALUES (${id}, ${DateTime.formatIso(yield* DateTime.now)}, ${sourceThreadId}, ${boundary ?? null}, ${input.fingerprint}, ${input.what}, ${input.why}, ${harness}, 'logged', ${input.sourceEventId}, ${corrected?.event.id ?? (repeat ? input.sourceEventId : null)})`
+          ).pipe(
             Effect.andThen(publish),
             Effect.andThen(
               corrected || repeat ? Queue.offer(queue, id).pipe(Effect.asVoid) : Effect.void,
@@ -878,20 +892,17 @@ const make = Effect.gen(function* () {
       Effect.gen(function* () {
         if (!/^[a-zA-Z0-9][a-zA-Z0-9._-]*$/.test(input.path))
           return yield* fail("protected-path-denied");
+        const event = (yield* messageById(input.correctionMessageId))?.event;
         let threadId: string | null = caller.threadId;
         let authorized = false;
         const visited = new Set<string>();
         while (threadId && !visited.has(threadId)) {
           visited.add(threadId);
           const current: OrchestrationV2ThreadProjection = yield* projection(threadId);
-          const event = (yield* sourceEvents(threadId)).find(
-            (value) => value.event.id === input.sourceEventId,
-          )?.event;
           if (
             event?.type === "message.updated" &&
-            event.payload.createdBy === "user" &&
-            event.payload.role === "user" &&
-            ["cli", "web"].includes(event.payload.creationSource) &&
+            event.threadId === threadId &&
+            userAuthored(event.payload) &&
             event.payload.text === `Change protected/${input.path} to:\n${input.content}`
           )
             authorized = true;
@@ -955,21 +966,6 @@ const make = Effect.gen(function* () {
             },
           );
           return;
-        }
-        if (event.event.type !== "message.updated") return;
-        const message = event.event.payload;
-        if (
-          message.role !== "user" ||
-          message.createdBy !== "user" ||
-          !["cli", "web"].includes(message.creationSource)
-        )
-          return;
-        for (const row of yield* sql<Mistake>`SELECT * FROM ozi_mistakes WHERE status = 'logged'`) {
-          if (!correction(message.text, row)) continue;
-          const source = yield* eventById(row.source_event_id);
-          if (!source || source.sequence >= event.sequence) continue;
-          yield* sql`UPDATE ozi_mistakes SET trigger_event_id = ${event.event.id} WHERE id = ${row.id}`;
-          yield* Queue.offer(queue, row.id);
         }
       }).pipe(Effect.catch((cause) => Effect.logError("Repair event failed", { cause }))),
     ),

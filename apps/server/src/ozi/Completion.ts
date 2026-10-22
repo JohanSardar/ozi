@@ -30,6 +30,7 @@ import * as RuntimePolicy from "../orchestration-v2/RuntimePolicy.ts";
 import * as ThreadCommandExecutor from "../orchestration-v2/ThreadCommandExecutor.ts";
 import type { PendingOrchestrationEffectV2 } from "../orchestration-v2/EffectOutbox.ts";
 import * as Evidence from "./Evidence.ts";
+import { verdictText } from "./verdictText.ts";
 
 const decodeVerdict = Schema.decodeUnknownEffect(Schema.fromJsonString(OziCheckVerdict));
 
@@ -492,7 +493,7 @@ const make = Effect.gen(function* () {
             });
           const text =
             checker.value.messages.findLast((message) => message.role === "assistant")?.text ?? "";
-          return yield* decodeVerdict(text);
+          return yield* decodeVerdict(verdictText(text));
         }),
       );
       yield* finish(

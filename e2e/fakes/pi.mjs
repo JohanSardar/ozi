@@ -31,12 +31,20 @@ if (launch("pi")) {
     thinkingLevelMap: { off: "off", high: "high", low: "low" },
   };
   let thinkingLevel = "high";
-  const models = argv.some((arg) => arg.includes("pi-claude-bridge"))
-    ? [
-        { ...model, provider: "claude-bridge", id: "claude-sonnet-5-5", name: "Claude Sonnet 5.5" },
-        { ...model, provider: "claude-bridge" },
-      ]
-    : [];
+  const models = [
+    ...(process.env.ANTHROPIC_OAUTH_TOKEN ? [{ ...model, provider: "anthropic" }] : []),
+    ...(argv.some((arg) => arg.includes("pi-claude-bridge"))
+      ? [
+          {
+            ...model,
+            provider: "claude-bridge",
+            id: "claude-sonnet-5-5",
+            name: "Claude Sonnet 5.5",
+          },
+          { ...model, provider: "claude-bridge" },
+        ]
+      : []),
+  ];
   const source = argv.includes("--fork")
     ? option("--fork")
     : argv.includes("--session")

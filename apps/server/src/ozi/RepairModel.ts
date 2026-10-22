@@ -4,6 +4,7 @@ const text = Schema.String.check(Schema.isMinLength(1), Schema.isMaxLength(4096)
 
 export const LogMistake = Schema.Struct({
   sourceEventId: text,
+  correctionMessageId: Schema.optional(text),
   beforeUserMessageId: Schema.optional(text),
   fingerprint: text,
   what: text,

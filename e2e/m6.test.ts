@@ -76,11 +76,45 @@ const occurrence = async (text = "frozen request") => {
   return (await h.ozi<{ id: string }[]>("mistakes")).at(-1)!.id;
 };
 
+const correct = async (id: string) => {
+  const row = await h.ozi<{
+    source_event_id: string;
+    boundary: string;
+    fingerprint: string;
+    what: string;
+    why: string;
+  }>("mistake", id);
+  const acknowledgement = `received ${id}`;
+  await h.script([
+    {
+      match: "Please use",
+      steps: [
+        {
+          tool: {
+            name: "log_mistake",
+            arguments: {
+              sourceEventId: row.source_event_id,
+              beforeUserMessageId: row.boundary,
+              correctionMessageId: "$messageId",
+              fingerprint: row.fingerprint,
+              what: row.what,
+              why: row.why,
+            },
+          },
+        },
+        { say: acknowledgement },
+      ],
+    },
+    ...rules,
+  ]);
+  await h.ozi("say", "Please use the requested answer format from now on.");
+  await h.wait("ozi-main", `text:${acknowledgement}`, 60);
+  await h.wait("ozi-main", "completed", 60);
+};
+
 const publish = async () => {
   const id = await occurrence();
-  await h.script([{ match: "Correction", steps: [{ say: "received" }] }, ...rules]);
-  await h.ozi("say", "Correction: wrong-outcome was a mistake. Fix it.");
-  await h.wait("ozi-main", "completed");
+  await correct(id);
   await h.ozi("wait", "mistake", id, "shipped");
   return (await h.ozi<Fix[]>("fixes")).find((fix) => fix.id === id)!;
 };
@@ -214,9 +248,7 @@ it.each([
   let id: string;
   if (operation === "publish") {
     id = await occurrence();
-    await h.script([{ match: "Correction", steps: [{ say: "received" }] }, ...rules]);
-    await h.ozi("say", "Correction: wrong-outcome was a mistake. Fix it.");
-    await h.wait("ozi-main", "completed");
+    await correct(id);
   } else {
     id = (await publish()).id;
     if (operation === "conflict") {

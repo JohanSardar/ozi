@@ -1,4 +1,5 @@
 import * as HostProcess from "@t3tools/shared/HostProcess";
+import { piClaudeBridgeExtensionPath } from "@t3tools/provider-pi/server";
 import { resolveCommandPath } from "@t3tools/shared/shell";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -87,21 +88,46 @@ const make = Effect.gen(function* () {
       yield* fs.writeFileString(proxy, inferenceProgram);
       const socket = path.join(input.directory, "inference.sock");
       const failure = path.join(input.directory, "inference.failure");
+      const bridged = input.driver === "pi" && input.model.startsWith("claude-bridge/");
       const process = yield* spawner.spawn(
-        ChildProcess.make(executable, [proxy, socket, failure, input.driver], {
+        ChildProcess.make(executable, [proxy, socket, failure, bridged ? "claude" : input.driver], {
           env: environment,
           stdout: "pipe",
         }),
       );
       yield* process.stdout.pipe(Stream.runHead);
       const source = yield* fs.realPath(binary);
-      const modulesIndex = source.indexOf("/node_modules/");
-      const modules =
-        modulesIndex < 0 ? undefined : source.slice(0, modulesIndex + "/node_modules".length);
+      const modules = new Set<string>();
+      const mountModules = (file: string) => {
+        const index = file.indexOf("/node_modules/");
+        if (index < 0) return false;
+        modules.add(file.slice(0, index + "/node_modules".length));
+        return true;
+      };
+      const moduleBinary = mountModules(source);
+      let bridge: { extensionPath: string; executable: string } | undefined;
+      if (bridged) {
+        const extensionPath = piClaudeBridgeExtensionPath();
+        mountModules(extensionPath);
+        const command = yield* resolveCommandPath("claude", { env: environment }).pipe(
+          Effect.provideService(FileSystem.FileSystem, fs),
+          Effect.provideService(Path.Path, path),
+        );
+        if (!command) return yield* new RepairError({ reason: "missing-claude-provider" });
+        const claude = yield* fs.realPath(command);
+        const moduleClaude = mountModules(claude);
+        yield* fs.copyFile(claude, path.join(provider, "claude-bridge"));
+        yield* fs.chmod(path.join(provider, "claude-bridge"), 0o500);
+        bridge = {
+          extensionPath,
+          executable:
+            moduleClaude || claude.startsWith("/usr/") ? claude : "/transport/claude-bridge",
+        };
+      }
       yield* fs.copyFile(source, path.join(provider, path.basename(binary)));
       yield* fs.chmod(path.join(provider, path.basename(binary)), 0o500);
       for (const name of yield* fs.readDirectory(path.dirname(source))) {
-        if (!/\.(?:mjs|cjs|js)$/.test(name)) continue;
+        if (name === path.basename(binary) || !/\.(?:mjs|cjs|js)$/.test(name)) continue;
         const file = path.join(path.dirname(source), name);
         if ((yield* fs.stat(file)).type !== "File") continue;
         yield* fs.copyFile(file, path.join(provider, name));
@@ -120,8 +146,11 @@ const make = Effect.gen(function* () {
         yield* encodeJson({
           ...input,
           binary: path.basename(binary),
+          bridge,
           executable:
-            modules || source.startsWith("/usr/") ? source : `/transport/${path.basename(binary)}`,
+            moduleBinary || source.startsWith("/usr/")
+              ? source
+              : `/transport/${path.basename(binary)}`,
         }),
       );
       const args = [
@@ -198,7 +227,7 @@ const make = Effect.gen(function* () {
         args.push("--setenv", "OZI_FAKE_SCRIPT", "/case/script.json");
       }
       args.push("--ro-bind", socket, "/inference.sock");
-      if (modules) args.push("--ro-bind", modules, modules);
+      for (const directory of modules) args.push("--ro-bind", directory, directory);
       args.push("--chdir", "/data", "--remount-ro", "/");
       const command = ["bwrap", ...args, "/runtime/node", "/launcher/run.mjs"];
       const result = yield* runner.run({
