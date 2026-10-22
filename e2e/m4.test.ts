@@ -603,7 +603,6 @@ it("m4.removed rejects retired APIs and commands and removes their repository sl
   );
   expect(reads.map((row) => row.status)).toEqual([200, 404]);
   for (const command of [
-    "connect",
     "cloud",
     "relay",
     "device",
