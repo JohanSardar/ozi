@@ -367,6 +367,9 @@
   padding: 8px 10px;
   font-size: 12.5px;
   white-space: pre-wrap;
+  flex: none;
+  max-height: 40%;
+  overflow-y: auto;
 }
 .ozi-brief b {
   display: block;

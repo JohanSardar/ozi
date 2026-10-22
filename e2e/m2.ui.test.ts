@@ -104,7 +104,7 @@ it("m2.drawer opens the lead conversation while the main composer stays usable",
           tool: {
             name: "delegate_task",
             arguments: {
-              task: "drawer-worker-brief",
+              task: `drawer-worker-brief ${"Visit details. ".repeat(400)}`,
               title: "Arrange a visit",
               mode: "async",
               clientRequestId: "m2-drawer-worker",
@@ -143,7 +143,13 @@ it("m2.drawer opens the lead conversation while the main composer stays usable",
   await page.getByRole("button", { name: job.title, exact: true }).click();
   const drawer = page.getByRole("complementary", { name: "Job details" });
   await drawer.getByText("Looking at available times", { exact: true }).waitFor();
-  await drawer.getByText("drawer-worker-brief", { exact: true }).first().waitFor();
+  await drawer.getByText("Brief from Ozi", { exact: true }).waitFor();
+  const brief = await drawer
+    .getByText("Brief from Ozi", { exact: true })
+    .locator("..")
+    .boundingBox();
+  const lead = await drawer.getByRole("region", { name: "Job conversation" }).boundingBox();
+  expect(lead!.height).toBeGreaterThan(brief!.height);
   expect(await main.getAttribute("data-main-composer")).toBe("retained");
   expect(await main.inputValue()).toBe("Keep this message");
   await main.fill("Still usable with a job open");
