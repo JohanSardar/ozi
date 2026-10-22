@@ -14,6 +14,7 @@ Milestone: 1 (Connection), in progress.
 - M1 `ozi` CLI (serve, service, pair, status, say, steer, stop, thread, wait; `--json`) and fake-agent E2E harness (fake pi/codex/claude speaking native protocols, scripted, calling real MCP) merged.
 - **M1 fake-agent E2E: 14/14 pass** (`vp test run --root e2e`, 420 s); `features.ts check 1` ok. E2E setup now always rebuilds the web bundle (a stale bundle had hidden a fix).
 - M2 UI merged: one main conversation (T3 thread list, projects, drafts, ChatView/composer replaced by a 477-line Conversation keeping queue/steer, stop, attachments, markdown, HTML renders, MCP apps), JobPanel per the mockup, worker drawer.
+- macOS desktop build pipeline proven on the Air (arm64 DMG, unsigned; needs `SDKROOT` = macOS 26.5 SDK for the native resource monitor until that is cut). Ready to install on the MacBook Pro once SSH is on.
 - Jobs wire contract (`OziJobCard`, evidence, errors, RPC names) in contracts.
 
 ## Blocked (real-agent runs)
