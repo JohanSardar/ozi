@@ -92,6 +92,12 @@ Only Pi, Claude and Codex providers and desktop and web clients ship. Provider r
 - Skills: `read_skill(name)` reads `skills/<name>/SKILL.md` on demand. Unknown names and path or symlink escapes fail.
 - Default main delegation: Codex `gpt-6.1-sol`, `reasoningEffort: xhigh`, `serviceTier: priority`. Workers receive one short role instruction to finish their brief, use available tools, handle computer-solvable interactions, ask only for missing decisions or human-only actions, avoid CAPTCHA solvers, and report plainly.
 
+## Desktop identity
+
+Ozi coexists with T3 Code. Desktop state and the bundled `ozi` shim live under `~/.ozi` or `OZI_HOME`; T3 environment variables and legacy profiles are never read or migrated. Electron uses `Ozi Beta`/`Ozi Dev`, profiles `ozi`/`ozi-dev`, app ID `com.ozi.app` (development `com.ozi.app.dev`) and schemes `ozi`/`ozi-dev`. Locks, safe storage, passkey groups, desktop entries, capture services, browser profiles, caches, update artifacts and WSL paths use Ozi's identity. Release channels use the Ozi app and configured Ozi update repository.
+
+The bundled backend runs `ozi serve --bootstrap-fd 3`; WSL uses `serve --bootstrap-fd 0`. Bootstrap data travels through the descriptor. Settings → Connections accepts an Ozi server's pairing URL, including when the local environment is disabled.
+
 ## CLI
 
 One binary, `ozi`. Every command takes `--json`. Client commands find the server from `--home` (default `~/.ozi`) and authenticate with its owner session.
@@ -131,7 +137,7 @@ A milestone passes when its scenarios pass here and its real-agent run passes: r
 
 Scenario scripts are JSON arrays at `OZI_FAKE_SCRIPT`. Rules match prompt regular expressions, optionally `provider` (`pi`, `codex`, `claude`) and `role` (`main`, `worker`). Matching rules run once in order unless `repeat` is true. Steps are `{"say":"text"}`, `{"tool":{"name":"read_skill","arguments":{"name":"demo"}}}`, `{"ask":"question"}`, `{"approval":"command"}`, `{"wait":true}` or `{"fail":"reason"}`. Tools use the real authenticated MCP endpoint. `$prompt`, `$result` and `$result.field` interpolate the prompt or last tool result. `OZI_FAKE_LOG` records launches, received protocol frames, prompts, tools and results with credentials redacted.
 
-Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` before the first E2E run. The setup builds the web client when its bundle is missing. The harness uses isolated provider homes and kills only its own server process. `OZI_E2E_KEEP=1` preserves temporary artifacts after teardown.
+Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` before the first E2E run. Linux desktop bundle checks require `pkg-config` and `libsecret-1-dev`. The setup builds the web client when its bundle is missing. The harness uses isolated provider homes and kills only its own server process. `OZI_E2E_KEEP=1` preserves temporary artifacts after teardown.
 
 ### M1 Connection
 
@@ -208,5 +214,5 @@ Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` 
 - `m6.recurrence-undo`: the mistake recurring after a fix reverts it → `undone`.
 - `m6.edit-conflict`: a revert conflicting with a user edit keeps the pre-fix build and posts a blocker.
 - `m6.crash-publish`: a crash mid-publish leaves either the old or the new build active.
-- `m6.audit`: no excluded T3 product paths, exports or dependencies remain.
+- `m6.audit`: no excluded T3 product paths, exports or dependencies remain. The desktop audit scans tracked desktop runtime and packaging source, shared desktop identity boundaries, and all source environment variables; notices, vendored references, tests and documentation are allowed. It builds the desktop bundle, checks local and WSL launch argv, starts the bundled server with isolated state beside a T3 sentinel, and pairs another server through Settings → Connections.
 - `m6.public-ready`: MIT notices for T3, Pi and Firstmate present; no personal data in the tree.
