@@ -10748,10 +10748,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         .pipe(mapDispatchError(command));
       const now = yield* DateTime.now;
       for (const run of current.runs) {
-        if (
-          run.completionCheck?.state !== "checking" &&
-          !(command.type === "thread.stop" && run.completionCheck?.state === "continued")
-        )
+        if (run.completionCheck?.state !== "checking" && run.completionCheck?.state !== "continued")
           continue;
         yield* emit(
           events,
@@ -10842,22 +10839,12 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         break;
       case "completion.resume": {
         const current = yield* projectionStore
-          .getThreadRecords(command.threadId, ["runs", "messages"])
+          .getThreadRecords(command.threadId, ["runs"])
           .pipe(mapDispatchError(command));
         const check = current.runs.find(
           (run) => run.completionCheck?.id === command.checkId,
         )?.completionCheck;
-        if (
-          !check ||
-          check.state !== "continued" ||
-          current.messages.some(
-            (message) =>
-              message.createdBy !== "system" &&
-              message.role === "user" &&
-              DateTime.toEpochMillis(message.createdAt) > Date.parse(check.createdAt),
-          )
-        )
-          break;
+        if (check?.state !== "continued") break;
         yield* dispatchMessage(
           {
             type: "message.dispatch",
