@@ -103,6 +103,7 @@ One binary, `ozi`. Every command takes `--json`. Client commands find the server
 | `ozi serve [--home] [--data-root] [--port] [--host] [--public-url]`             | Run the server.                                                                                        |
 | `ozi service install\|status\|restart\|uninstall`                               | systemd user service.                                                                                  |
 | `ozi pair`                                                                      | Pairing URL for a new client.                                                                          |
+| `ozi request <RPC-or-path>… [--method GET                                       | POST] [--payload JSON]`                                                                                | Send authenticated requests to the running server and report each RPC result or HTTP status. |
 | `ozi status`                                                                    | Server, main thread, effective loadouts (model, options, tools, prompt hash), providers.               |
 | `ozi say <text> [--file <path>]…`                                               | Message main; queues when busy.                                                                        |
 | `ozi steer <text> [--thread <id>]`                                              | Steer the active turn.                                                                                 |
@@ -190,7 +191,7 @@ Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` 
 - `m4.webhook`: a signed POST wakes main; bad signature rejected; duplicate suppressed; filter applied.
 - `m4.base-url`: schedules report webhook URLs on the configured base URL.
 - `m4.todos`: external to-dos show labeled; offline/malformed source shows unavailable, not empty; no config hides them.
-- `m4.removed`: no relay, device, terminal, PR or diff paths remain.
+- `m4.removed`: the real server rejects all retired RPC methods and Connect routes, CLI commands are absent, and removed packages, source paths and native resource-monitor bundling are gone. Ozi desktop metadata and macOS preflight have no T3 identity or Rust requirement.
 
 ### M5 Replay
 

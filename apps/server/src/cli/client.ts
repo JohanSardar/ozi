@@ -32,6 +32,7 @@ import {
   WsRpcGroup,
 } from "@t3tools/contracts";
 import * as Crypto from "effect/Crypto";
+import * as Cause from "effect/Cause";
 import * as Console from "effect/Console";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -44,7 +45,7 @@ import * as Stream from "effect/Stream";
 import { Argument, Command, Flag } from "effect/cli";
 import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http";
 import { Socket } from "effect/socket";
-import { RpcClient, RpcSerialization } from "effect/rpc";
+import { Rpc, RpcClient, RpcGroup, RpcSerialization } from "effect/rpc";
 import { OwnerCredential } from "../ozi/OwnerCredential.ts";
 import { resolveBaseDir } from "../os-jank.ts";
 import { isProcessAlive, readPersistedServerRuntimeState } from "../serverRuntimeState.ts";
@@ -56,6 +57,7 @@ const threadFlag = Flag.String("thread").pipe(Flag.withSchema(ThreadId), Flag.op
 const makeClient = RpcClient.make(WsRpcGroup);
 type Client = Effect.Success<typeof makeClient>;
 
+const decodeRequestPayload = Schema.decodeUnknownEffect(Schema.fromJsonString(Schema.Unknown));
 const encodeJson = Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown));
 const encodePairing = Schema.encodeEffect(AuthPairingCredentialResult);
 const decodeTodoSettings = Schema.decodeUnknownEffect(Schema.fromJsonString(OziTodoSettings));
@@ -95,7 +97,9 @@ const request = Effect.fn("ozi.request")(function* <A>(
   );
 });
 
-const connect = Effect.fn("ozi.connect")(function* (baseDir: Option.Option<string>) {
+const connectTransport = Effect.fn("ozi.connectTransport")(function* (
+  baseDir: Option.Option<string>,
+) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const home = yield* resolveBaseDir(Option.getOrUndefined(baseDir) ?? (yield* homeConfig));
@@ -125,10 +129,15 @@ const connect = Effect.fn("ozi.connect")(function* (baseDir: Option.Option<strin
       Layer.provide(RpcSerialization.layerJson),
     );
     const context = yield* Layer.build(protocol);
-    const client = yield* makeClient.pipe(Effect.provide(context));
-    return { client, state: state.value, token: owner.token };
+    return { context, state: state.value, token: owner.token };
   }
   return yield* new ClientError({ operation: "found no running server; start ozi serve" });
+});
+
+const connect = Effect.fn("ozi.connect")(function* (baseDir: Option.Option<string>) {
+  const transport = yield* connectTransport(baseDir);
+  const client = yield* makeClient.pipe(Effect.provide(transport.context));
+  return { ...transport, client };
 });
 
 const snapshot = Effect.fn("ozi.snapshot")(function* (client: Client) {
@@ -800,7 +809,63 @@ const testClockCommand = Command.make("test-clock", {
   ),
 );
 
+const requestCommand = Command.make("request", {
+  ...locationFlags,
+  targets: Argument.String("target").pipe(Argument.variadic({ min: 1 })),
+  method: Flag.Literals("method", ["GET", "POST"]).pipe(Flag.withDefault("GET")),
+  payload: Flag.String("payload").pipe(Flag.withDefault("{}")),
+}).pipe(
+  Command.withHandler((flags) =>
+    Effect.gen(function* () {
+      const { context, state, token } = yield* connectTransport(flags.baseDir);
+      const payload = yield* decodeRequestPayload(flags.payload);
+      const group = RpcGroup.make(
+        ...[...new Set(flags.targets.filter((target) => !target.startsWith("/")))].map((tag) =>
+          Rpc.make(tag, {
+            payload: Schema.Unknown,
+            success: Schema.Unknown,
+            error: Schema.Record(Schema.String, Schema.Unknown),
+          }),
+        ),
+      );
+      const client = yield* RpcClient.make(group).pipe(Effect.provide(context));
+      const http = yield* HttpClient.HttpClient;
+      const rows: Array<Record<string, unknown>> = [];
+      for (const target of flags.targets) {
+        if (!target.startsWith("/")) {
+          rows.push(
+            yield* client[target]!(payload).pipe(
+              Effect.timeout("10 seconds"),
+              Effect.matchCause({
+                onSuccess: (result) => ({ target, ok: true, result }),
+                onFailure: (cause) => ({ target, ok: false, error: Cause.pretty(cause) }),
+              }),
+            ),
+          );
+          continue;
+        }
+        const url = new URL(target, state.origin);
+        if (url.origin !== new URL(state.origin).origin || url.username || url.password)
+          return yield* new ClientError({ operation: "request must address this server" });
+        let outgoing = (
+          flags.method === "POST"
+            ? HttpClientRequest.post(url.toString())
+            : HttpClientRequest.get(url.toString())
+        ).pipe(HttpClientRequest.setHeader("Authorization", "Bearer " + token));
+        if (flags.method === "POST")
+          outgoing = outgoing.pipe(
+            HttpClientRequest.bodyText(yield* encodeJson(payload), "application/json"),
+          );
+        const response = yield* http.execute(outgoing);
+        rows.push({ target, status: response.status, body: yield* response.text });
+      }
+      yield* print(rows);
+    }),
+  ),
+);
+
 export const clientCommands = [
+  requestCommand,
   checksCommand,
   todosCommand,
   schedulesCommand,

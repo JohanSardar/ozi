@@ -170,7 +170,7 @@ features:
   - id: cut-coding
     reqs: [t3-cut, minimal]
     module: server + contracts + client-runtime + web + desktop + packages + packaging + infra + reference-repos + connection + shell-projections + onboarding-removal + branding + product-copy
-    cli: []
+    cli: [request]
     milestone: 4
     scenarios: [m4.removed]
     status: planned
