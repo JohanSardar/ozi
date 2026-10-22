@@ -4,7 +4,7 @@ Milestone: 3 (Completion) complete. Combined fake-agent E2E: 56/56; real-agent r
 
 ## Done
 
-- Fork pinned at T3 v0.1.1 (`fe27e8e`); `origin` = github.com/JohanSardar/ozi (public, not pushed yet).
+- Fork pinned at T3 v0.1.1 (`fe27e8e`); `origin` = github.com/JohanSardar/ozi (public; pushed, PRs from #1).
 - Data root `~/ozi` (git): `prompt.md` verbatim, `protected/`, `skills/`. Pi upgraded to 1.4.0.
 - SPEC.md, features.yaml, `scripts/features.ts` (check + HTML).
 - M1: other providers, mobile and marketing cut (2,079 files, −442K lines). Main = Pi `claude-opus-5-5`, thinking high, fast off, no built-in tools/extensions/skills/context files, verbatim data-root prompt, 24 orchestration MCP tools + `read_skill`; default worker Codex gpt-6.1-sol xhigh Fast; effective loadout on each thread. `ozi` CLI (serve, service, pair, status, say, steer, stop, thread, wait; `--json`). Fake-agent harness: fake pi/codex/claude speak native protocols from scripts and call real MCP.
@@ -14,6 +14,7 @@ Milestone: 3 (Completion) complete. Combined fake-agent E2E: 56/56; real-agent r
 - M3 Completion: automatic atomic claims and outbox, isolated native checks for Pi/Codex/Claude, evidence-verified progress, durable recovery and supersession, per-round misses and token cost, `ozi checks` and `wait check`, exact report acceptance/verification/close. Checkpoint/diff capture, rollback, inactivity/PR auto-settle and finalization services cut with their contracts, UI, CLI and replay helpers. All 15 M3 scenarios pass; `features.ts check 3` ok. Completion cleanup follows Repair's migration for upgrades.
 - M4 information-in merged: schedules (interval, time of day, webhook) bound to main; scheduled/webhook messages count as requests; quiet jobs surface only human needs or checked useful findings. Webhooks use a self-hosted base URL (`--public-url`); test clock; external to-dos from one MCP source (`ozi todos`, panel section, stale/unavailable states). All 6 information-in scenarios pass, including `m4.useful-card` and routine reports remaining quiet across restart.
 - M5 Repair merged: `log_mistake` (one `ozi_mistakes` row, deduped), repair only on correction or repeat, frozen case replay (baseline must reproduce, candidate must pass, observer must agree), real bwrap with no network (inference via a trusted proxy socket), `protected/` read-only, publisher rejects protected changes/path escapes, user-only override. All 9 M5 scenarios pass in the combined 56/56 suite. Gap: proxy forwards API keys only; OAuth logins fail closed (fix in progress).
+- Pre-flight with the real Pi 1.4.0 binary against a fake inference endpoint caught that main sent the model zero tools (`--no-tools` also disables extension tools). Fixed (`--no-builtin-tools --no-mcp`) and guarded by `m1.main-loadout` with the real Pi binary.
 - macOS desktop build pipeline proven on the build Mac (arm64 DMG, unsigned).
 - `chore/ci` branch: one Ozi CI workflow (typecheck, lint, fake-agent E2E, feature graph) replacing T3's 13 workflows.
 

@@ -7,6 +7,7 @@
     "typecheck": "tsc-rs --noEmit"
   },
   "devDependencies": {
+    "@earendil-works/pi-coding-agent": "1.4.0",
     "@t3tools/contracts": "workspace:*",
     "@types/node": "catalog:",
     "@types/react": "catalog:",

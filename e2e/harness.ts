@@ -86,6 +86,7 @@ export async function startHarness(
     publicUrl?: string;
     publicUrlEnv?: string;
     repairPause?: string;
+    realPi?: string;
   } = {},
 ) {
   const root = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "ozi-e2e-"));
@@ -105,7 +106,16 @@ export async function startHarness(
       ["pi", "pi"],
     ].map(([name, driver]) => [
       driver!,
-      { driver, enabled: true, config: { binaryPath: NodePath.join(repo, "e2e/fakes", name!) } },
+      {
+        driver,
+        enabled: true,
+        config: {
+          binaryPath:
+            name === "pi" && options.realPi !== undefined
+              ? NodePath.join(repo, "e2e/node_modules/.bin/pi")
+              : NodePath.join(repo, "e2e/fakes", name!),
+        },
+      },
     ]),
   );
   if (!options.fresh)
@@ -136,6 +146,7 @@ export async function startHarness(
     CODEX_HOME: NodePath.join(root, "codex"),
     CLAUDE_CONFIG_DIR: NodePath.join(root, "claude"),
     PI_CODING_AGENT_DIR: NodePath.join(root, "pi"),
+    ...(options.realPi === undefined ? {} : { ANTHROPIC_API_KEY: "e2e" }),
     T3CODE_LOG_LEVEL: "Error",
     T3CODE_TRACE_TIMING_ENABLED: "false",
     T3CODE_NO_BROWSER: "true",
@@ -144,6 +155,13 @@ export async function startHarness(
     GIT_CONFIG_GLOBAL: NodePath.join(root, "gitconfig"),
   };
   await NodeFSP.mkdir(env.HOME!, { recursive: true });
+  if (options.realPi !== undefined) {
+    await NodeFSP.mkdir(env.PI_CODING_AGENT_DIR!, { recursive: true });
+    await NodeFSP.writeFile(
+      NodePath.join(env.PI_CODING_AGENT_DIR!, "models.json"),
+      JSON.stringify({ providers: { anthropic: { baseUrl: options.realPi } } }),
+    );
+  }
   await NodeFSP.writeFile(
     env.GIT_CONFIG_GLOBAL!,
     "[user]\nname = Ozi E2E\nemail = e2e@example.invalid\n[init]\ndefaultBranch = main\n",
@@ -313,6 +331,15 @@ export async function startHarness(
         );
       }),
     status: () => ozi<Status>("status"),
+    exec: (...args: string[]) =>
+      new Promise<number>((resolve) =>
+        NodeChildProcess.execFile(
+          process.execPath,
+          [cli, ...args, "--home", home],
+          { cwd: dataRoot, env, timeout: 45_000 },
+          (error) => resolve(error ? Number(error.code ?? 1) : 0),
+        ),
+      ),
     thread: (id: string) => ozi<Projection>("thread", id),
     wait: (id: string, state: string, timeout = 15) =>
       ozi<Projection>("wait", "thread", id, state, "--timeout", String(timeout)),
