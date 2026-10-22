@@ -340,6 +340,7 @@ export async function startHarness(
   }
   return {
     root,
+    env,
     home,
     dataRoot,
     port,
@@ -350,6 +351,7 @@ export async function startHarness(
           error ? reject(new Error(stderr || error.message)) : resolve(stdout.trim()),
         );
       }),
+    stop: stopServer,
     status: () => ozi<Status>("status"),
     execOutput,
     exec: async (...args: string[]) => (await execOutput(...args)).code,

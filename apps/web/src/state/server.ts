@@ -38,6 +38,13 @@ export const serverEnvironment = createServerEnvironmentAtoms(connectionAtomRunt
   usageLimitSources: true,
   usageLimitsCommand: true,
 });
+export const environmentKeybindingsAtom = Atom.family((environmentId: EnvironmentId) =>
+  Atom.make((get) =>
+    mergeWithDefaultKeybindings(
+      get(serverEnvironment.configValueAtom(environmentId))?.keybindings ?? [],
+    ),
+  ),
+);
 export const environmentUpdateStatesAtom = environmentAtomList(
   "web-environment-update-states",
   serverEnvironment.updateStateAtom,

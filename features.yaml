@@ -78,7 +78,7 @@ features:
     status: passing
   - id: remote-client
     reqs: [desktop-remote]
-    module: web
+    module: apps/web/src/state/environments.ts + e2e/m1.desktop.test.ts
     cli: [pair]
     milestone: 1
     scenarios: [m1.remote-client]

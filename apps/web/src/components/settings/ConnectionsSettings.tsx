@@ -190,6 +190,7 @@ import {
   usePrimaryEnvironment,
   useRelayEnvironmentDiscovery,
   usePrimaryEnvironmentId,
+  useOziEnvironment,
 } from "~/state/environments";
 import { APP_VERSION } from "~/branding";
 import { requestConfirmDialog } from "~/confirmDialog";
@@ -2034,6 +2035,8 @@ function LocalVersionStatusLabel() {
 }
 
 export function ConnectionsSettings() {
+  const ozi = useOziEnvironment();
+  const setOziEnvironmentId = useUiStateStore((state) => state.setOziEnvironmentId);
   const desktopBridge = window.desktopBridge;
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const { environments } = useEnvironments();
@@ -3851,8 +3854,12 @@ export function ConnectionsSettings() {
       ) : (
         <SettingsSection {...searchableSetting("connections-environment")}>
           <SettingsRow
-            title="No environment selected"
-            description="Connect an environment to view its settings and access."
+            title="Local environment is off"
+            description={
+              ozi.environment
+                ? "Ozi uses your saved remote server."
+                : "Connect your Ozi server below."
+            }
           />
           <LocalEnvironmentSetting />
           {canReadRelay || canManageRelay ? (
@@ -3865,6 +3872,32 @@ export function ConnectionsSettings() {
 
   return (
     <SettingsPageContainer>
+      {ozi.multiple && ozi.environment && (
+        <SettingsSection title="Ozi server">
+          <SettingsRow
+            title="Ozi server"
+            description="The server for your main conversation and jobs."
+            control={
+              <select
+                aria-label="Ozi server"
+                value={ozi.environment.environmentId}
+                onChange={(event) => {
+                  const choice = ozi.choices.find(
+                    ({ environmentId }) => environmentId === event.target.value,
+                  );
+                  if (choice) setOziEnvironmentId(choice.environmentId);
+                }}
+              >
+                {ozi.choices.map(({ environmentId, label }) => (
+                  <option key={environmentId} value={environmentId}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            }
+          />
+        </SettingsSection>
+      )}
       {primarySettings}
       <SettingsSection
         {...searchableSetting("remote-environments")}
