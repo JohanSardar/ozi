@@ -63,7 +63,7 @@ const OrchestratorCapabilitiesTool = Tool.make("orchestrator_capabilities", {
 
 export const DelegateTaskTool = Tool.make("delegate_task", {
   description:
-    "Delegate one outcome to a lead worker. Main defaults to Codex gpt-6.1-sol, xhigh, priority. Helpers inherit the job. Only main may pass jobId to attach work to an existing outcome. Send related follow-ups to its lead. Workers use the installation workspace. Async completion returns here. Keep taskId for status or cancellation.",
+    "Delegate one outcome to a lead worker. Main defaults to Codex gpt-6.1-sol, xhigh, priority. Retries and follow-ups pass the existing jobId, or send to its lead. A failed lead is reused on retry. Only main may pass jobId; helpers inherit it. Workers use the installation workspace. Async completion returns here. Keep taskId for status or cancellation.",
   parameters: OrchestratorMcpDelegateTaskInput,
   success: OrchestratorMcpDelegateTaskResult,
   failure: OrchestratorMcpFailure,
