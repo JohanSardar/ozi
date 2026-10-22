@@ -1,4 +1,5 @@
 import {
+  Box,
   CombinedAutocompleteProvider,
   Container,
   Editor,
@@ -78,7 +79,7 @@ class Secret implements Component {
 }
 
 type Env = Crypto.Crypto | FileSystem.FileSystem | HttpClient.HttpClient | Path.Path;
-type Row = { container: Container; body: Markdown | Text; note: Text; key: string };
+type Row = { container: Container; key: string };
 
 export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<string>) {
   const context = yield* Effect.context<Env>();
@@ -119,6 +120,7 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
   let lastCtrlC = 0;
   let session: Fiber.Fiber<unknown, unknown> | null = null;
   const rows = new Map<string, Row>();
+  const outputs = new Map<string, string>();
 
   const notice = (text: string, tone: "muted" | "red" | "yellow" = "muted") => {
     chat.addChild(new Spacer(1));
@@ -171,59 +173,144 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
     tui.requestRender();
   };
 
+  const tool = (title: string, output: string, state: "pending" | "ok" | "error") => {
+    const lines = output
+      .trimEnd()
+      .split("\n")
+      .filter((line, index, all) => all.length > 1 || line);
+    const shown = lines.slice(0, 10).map((line) => fg("muted", line));
+    if (lines.length > 10) shown.push(fg("dim", `… (${lines.length - 10} more lines)`));
+    const box = new Box(1, 1, (text) =>
+      bg(state === "pending" ? "toolPending" : state === "error" ? "toolError" : "toolOk", text),
+    );
+    box.addChild(new Text([fg("text", title, { bold: true }), ...shown].join("\n"), 0, 0));
+    return box;
+  };
+  const display = (
+    item: OrchestrationV2ThreadProjection["visibleTurnItems"][number]["item"],
+  ): { key: string; parts: Component[] } | null => {
+    const state =
+      item.status === "failed" ? "error" : item.status === "completed" ? "ok" : "pending";
+    if (item.type === "user_message" || item.type === "assistant_message") {
+      const text = [
+        item.text,
+        ...(item.attachments ?? []).map((file) => `_attached ${file.name}_`),
+      ].join("\n\n");
+      if (item.type === "user_message")
+        return {
+          key: text,
+          parts: [
+            new Markdown(text, 1, 1, markdown, {
+              color: (content) => fg("text", content),
+              bgColor: (content) => bg("userBg", content),
+            }),
+          ],
+        };
+      const checking =
+        projection?.runs.find((run) => run.id === item.runId)?.completionCheck?.state ===
+        "checking";
+      return {
+        key: `${text}\u0000${checking}`,
+        parts: [
+          new Markdown(text.trim(), 1, 0, markdown),
+          ...(checking ? [new Text(fg("dim", "unchecked"), 1, 0)] : []),
+        ],
+      };
+    }
+    if (item.type === "command_execution") {
+      if (
+        item.outputOmitted &&
+        item.status === "completed" &&
+        !outputs.has(item.id) &&
+        connection
+      ) {
+        outputs.set(item.id, "");
+        run(
+          connection.client[O.getTurnItem]({ threadId: item.threadId, itemId: item.id }).pipe(
+            Effect.flatMap(({ item: full }) =>
+              Effect.sync(() => {
+                outputs.set(item.id, full?.type === "command_execution" ? (full.output ?? "") : "");
+                renderConversation();
+              }),
+            ),
+            Effect.catchCause(() => Effect.void),
+          ),
+        );
+      }
+      const output = item.output ?? outputs.get(item.id) ?? "";
+      const failed = state === "error" || (item.exitCode !== undefined && item.exitCode !== 0);
+      return {
+        key: `${item.status}\u0000${output}\u0000${item.exitCode}`,
+        parts: [tool(`$ ${item.input}`, output, failed ? "error" : state)],
+      };
+    }
+    if (item.type === "file_change")
+      return {
+        key: `${item.status}\u0000${item.diffStr ?? item.newStr ?? ""}`,
+        parts: [
+          tool(
+            `${item.title ?? "edit"} ${item.fileName}`,
+            item.diffStr ?? item.newStr ?? "",
+            state,
+          ),
+        ],
+      };
+    if (item.type === "dynamic_tool") {
+      if (htmlRenderFromToolItem(item) || mcpAppFromToolItem(item))
+        return {
+          key: "desktop",
+          parts: [new Text(fg("muted", "Open the desktop app to see this reply."), 1, 0)],
+        };
+      const input = JSON.stringify(item.input ?? {});
+      const name = item.toolName ?? item.title ?? "tool";
+      if (name.startsWith("mcp__t3-code__"))
+        return {
+          key: `${item.status}`,
+          parts: [
+            new Text(
+              fg(
+                "dim",
+                `${name.slice(14)} ${input.length > 80 ? `${input.slice(0, 79)}…` : input}`,
+              ),
+              1,
+              0,
+            ),
+          ],
+        };
+      const output =
+        typeof item.output === "string" ? item.output : JSON.stringify(item.output ?? "");
+      const path = (item.input as { path?: unknown } | undefined)?.path;
+      return {
+        key: `${item.status}\u0000${output}`,
+        parts: [tool(`${name} ${typeof path === "string" ? path : input}`, output, state)],
+      };
+    }
+    if (item.type === "error")
+      return {
+        key: item.failure.message,
+        parts: [new Text(fg("red", item.failure.message), 1, 0)],
+      };
+    return null;
+  };
+
   const renderConversation = () => {
     if (!projection) return;
     const seen = new Set<string>();
     for (const { item } of projection.visibleTurnItems) {
-      let text: string | null = null;
-      let note = "";
-      let user = false;
-      if (item.type === "user_message" || item.type === "assistant_message") {
-        user = item.type === "user_message";
-        text = [
-          item.text,
-          ...(item.attachments ?? []).map((file) => `_attached ${file.name}_`),
-        ].join("\n\n");
-        if (
-          !user &&
-          projection.runs.find((run) => run.id === item.runId)?.completionCheck?.state ===
-            "checking"
-        )
-          note = fg("dim", "unchecked");
-      } else if (
-        item.type === "dynamic_tool" &&
-        (htmlRenderFromToolItem(item) || mcpAppFromToolItem(item))
-      )
-        note = fg("muted", "Open the desktop app to see this reply.");
-      else if (item.type === "error") note = fg("red", item.failure.message);
-      else continue;
+      const next = display(item);
+      if (!next) continue;
       seen.add(item.id);
-      const key = `${text ?? ""}\u0000${note}`;
-      const existing = rows.get(item.id);
-      if (existing) {
-        if (existing.key !== key) {
-          if (text !== null) existing.body.setText(user ? text : text.trim());
-          existing.note.setText(note);
-          existing.key = key;
-        }
-        continue;
+      let row = rows.get(item.id);
+      if (!row) {
+        row = { container: new Container(), key: "" };
+        rows.set(item.id, row);
+        chat.addChild(row.container);
       }
-      const container = new Container();
-      const body =
-        text === null
-          ? new Text("", 0, 0)
-          : user
-            ? new Markdown(text, 1, 1, markdown, {
-                color: (content) => fg("text", content),
-                bgColor: (content) => bg("userBg", content),
-              })
-            : new Markdown(text.trim(), 1, 0, markdown);
-      const noteText = new Text(note, 1, 0);
-      container.addChild(new Spacer(1));
-      container.addChild(body);
-      container.addChild(noteText);
-      rows.set(item.id, { container, body, note: noteText, key });
-      chat.addChild(container);
+      if (row.key === next.key) continue;
+      row.key = next.key;
+      row.container.clear();
+      row.container.addChild(new Spacer(1));
+      for (const part of next.parts) row.container.addChild(part);
     }
     for (const [id, row] of rows)
       if (!seen.has(id)) {

@@ -288,6 +288,7 @@ export function interpreter(provider, hooks) {
           });
           result = { stdout: execution.stdout, stderr: execution.stderr, code: execution.status };
           log(provider, "exec", result);
+          await hooks.shell?.(step.exec, result);
           await hooks.say(JSON.stringify(result));
         } else throw new Error(`Unknown fake step: ${JSON.stringify(step)}`);
       }
