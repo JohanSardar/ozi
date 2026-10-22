@@ -109,13 +109,13 @@ const repairRules = (
       {
         say:
           options.observer ??
-          JSON.stringify({
+          `Verdict:\n\`\`\`json\n${JSON.stringify({
             baselineReproduced: true,
             candidatePassed: true,
             agrees: true,
             evidence:
               "Baseline says wrong outcome; candidate says expected outcome for the same request.",
-          }),
+          })}\n\`\`\``,
       },
     ],
   },

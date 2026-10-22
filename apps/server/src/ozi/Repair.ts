@@ -48,6 +48,7 @@ import { mcpTools } from "./McpTools.ts";
 import { OZI_WORKER_ROLE } from "@t3tools/provider-core/server/orchestrationInstructions";
 import * as RepairTasks from "./RepairTasks.ts";
 import { readMainPrompt } from "./Loadout.ts";
+import { verdictText } from "./verdictText.ts";
 
 type Caller = Pick<McpThreadCaller, "threadId" | "providerInstanceId"> & {
   readonly origin: "agent" | "runtime";
@@ -697,9 +698,9 @@ const make = Effect.gen(function* () {
       if (!sameTree(original, yield* tree(baseline)) || !sameTree(authored, yield* tree(candidate)))
         return yield* fail("observer-mutated-build");
       phase = "observer-verdict";
-      const verdict = yield* decodeVerdict(observer.evidence.transcript.join("\n")).pipe(
-        Effect.mapError((cause) => fail("observer-verdict-invalid", cause)),
-      );
+      const verdict = yield* decodeVerdict(
+        verdictText(observer.evidence.transcript.join("\n")),
+      ).pipe(Effect.mapError((cause) => fail("observer-verdict-invalid", cause)));
       const evidence = {
         author,
         baseline: base,

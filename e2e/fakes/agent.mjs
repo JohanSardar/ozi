@@ -206,7 +206,7 @@ export function interpreter(provider, hooks) {
           new RegExp(rule.match ?? ".*", "s").test(message),
       );
       if (index < 0 && role === "checker") {
-        await hooks.say('{"verdict":"done","useful":true}');
+        await hooks.say('```json\n{"verdict":"done","useful":true}\n```');
         await hooks.done();
         return;
       }
