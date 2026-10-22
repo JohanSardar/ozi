@@ -337,7 +337,6 @@ export const ClaudeProviderCapabilitiesV2 = {
   threads: {
     canCreateEmptyThread: true,
     canReadThreadSnapshot: false,
-    canRollbackThread: true,
     canForkThread: true,
     canForkFromTurn: true,
     canForkFromSubagentThread: false,
@@ -402,13 +401,6 @@ export const ClaudeProviderCapabilitiesV2 = {
     supportsDeltaHandoff: true,
     supportsFullThreadHandoff: true,
     maxRecommendedHandoffChars: null,
-  },
-  checkpointing: {
-    appCanCheckpointFilesystem: true,
-    supportsNestedCheckpointScopes: true,
-    providerCanRollbackConversation: true,
-    providerRollbackReturnsSnapshot: true,
-    providerCanReadConversationSnapshot: false,
   },
   identity: {
     nativeThreadIds: "strong",
@@ -578,9 +570,6 @@ export interface ClaudeAgentSdkSubagentLookupInput {
 const isClaudeAgentSdkQueryRunnerError = Schema.is(ClaudeAgentSdkQueryRunnerError);
 const isProviderAdapterRuntimeRequestResponseError = Schema.is(
   ProviderAdapter.ProviderAdapterRuntimeRequestResponseError,
-);
-const isProviderAdapterRollbackThreadError = Schema.is(
-  ProviderAdapter.ProviderAdapterRollbackThreadError,
 );
 
 function queryRunnerError(cause: unknown, method: string): ClaudeAgentSdkQueryRunnerError {
@@ -1259,6 +1248,7 @@ export function makeClaudeQueryOptions(input: {
   readonly supportedDialogKinds?: ClaudeQueryOptions["supportedDialogKinds"];
   readonly allowDangerouslySkipPermissions?: boolean;
   readonly appendSystemPromptFileText?: string;
+  readonly systemPrompt?: string;
 }): ClaudeAgentSdkQueryOptions {
   const compiledSelection = compileClaudeModelSelection(input.modelSelection);
   const {
@@ -1347,7 +1337,7 @@ export function makeClaudeQueryOptions(input: {
       : {}),
     ...(input.environment === undefined ? {} : { env: input.environment }),
     ...(input.mcpServers === undefined ? {} : { mcpServers: input.mcpServers }),
-    systemPrompt: {
+    systemPrompt: input.systemPrompt ?? {
       type: "preset" as const,
       preset: "claude_code" as const,
       append: [T3_CODE_ORCHESTRATION_INSTRUCTIONS, ...launchAppendSystemPrompt].join("\n\n"),
@@ -1442,6 +1432,7 @@ export const CLAUDE_T3_MCP_TOOL_TIMEOUT_MS = 65 * 60 * 1_000;
 export function claudeMcpQueryOverrides(input: {
   readonly mcpSession: McpProviderSession.McpProviderSessionConfig | undefined;
   readonly readOnlySandbox: boolean;
+  readonly evidenceOnly?: boolean;
   readonly allowedTools?: ReadonlyArray<string>;
 }): {
   readonly allowedTools?: ReadonlyArray<string>;
@@ -1451,9 +1442,11 @@ export function claudeMcpQueryOverrides(input: {
   if (session === undefined) {
     return input.allowedTools === undefined ? {} : { allowedTools: input.allowedTools };
   }
-  const mcpAllowedTools = input.readOnlySandbox
-    ? CLAUDE_READ_ONLY_T3_MCP_ALLOWED_TOOLS
-    : [CLAUDE_T3_MCP_TOOL_WILDCARD];
+  const mcpAllowedTools = input.evidenceOnly
+    ? ["mcp__t3-code__t3_thread_read", "mcp__t3-code__completion_evidence"]
+    : input.readOnlySandbox
+      ? CLAUDE_READ_ONLY_T3_MCP_ALLOWED_TOOLS
+      : [CLAUDE_T3_MCP_TOOL_WILDCARD];
   return {
     allowedTools: Array.from(new Set([...(input.allowedTools ?? []), ...mcpAllowedTools])),
     mcpServers: {
@@ -1719,48 +1712,6 @@ const resolveClaudeForkUpToMessageId = Effect.fn("ClaudeAdapterV2.resolveForkUpT
     });
   },
 );
-
-const resolveClaudeRollbackResumeSessionAt = Effect.fn(
-  "ClaudeAdapterV2.resolveRollbackResumeSessionAt",
-)(function* (input: ProviderAdapter.ProviderAdapterV2RollbackThreadInput) {
-  switch (input.target.type) {
-    case "thread_start":
-      return input.providerThread.nativeMetadata?.forkHeadMessageId ?? null;
-    case "provider_turn": {
-      const target = input.target;
-      if (target.providerTurn.providerThreadId !== input.providerThread.id) {
-        return yield* new ProviderAdapter.ProviderAdapterRollbackThreadError({
-          driver: CLAUDE_PROVIDER,
-          providerThreadId: input.providerThread.id,
-          cause: `Cannot roll back Claude thread ${input.providerThread.id} to provider turn ${target.providerTurn.id}: target turn belongs to provider thread ${target.providerTurn.providerThreadId}.`,
-        });
-      }
-
-      const nativeTurnRef = target.providerTurn.nativeTurnRef;
-      if (
-        nativeTurnRef !== null &&
-        nativeTurnRef.driver === CLAUDE_PROVIDER &&
-        nativeTurnRef.nativeId !== null &&
-        !isSyntheticClaudeTurnId(nativeTurnRef.nativeId)
-      ) {
-        return nativeTurnRef.nativeId;
-      }
-
-      const providerTurnsAfterTarget = input.providerThreadTurns.filter(
-        (turn) => turn.ordinal > target.providerTurn.ordinal && isTerminalProviderTurn(turn),
-      );
-      if (providerTurnsAfterTarget.length === 0) {
-        return null;
-      }
-
-      return yield* new ProviderAdapter.ProviderAdapterRollbackThreadError({
-        driver: CLAUDE_PROVIDER,
-        providerThreadId: input.providerThread.id,
-        cause: `Cannot roll back Claude thread ${input.providerThread.id} to provider turn ${target.providerTurn.id}: no SDK assistant message cursor was recorded for that turn.`,
-      });
-    }
-  }
-});
 
 type ClaudeUserContent = SDKUserMessage["message"]["content"];
 type ClaudeUserContentBlock = Exclude<ClaudeUserContent, string>[number];
@@ -2064,8 +2015,9 @@ export function claudeRuntimeQueryPolicyForRuntimePolicy(
       ? "default"
       : "auto"
     : requestedMode;
-  const readOnlyTools =
-    sandboxPolicyKindForClaudeRuntimePolicy(runtimePolicy) === "readOnly"
+  const readOnlyTools = runtimePolicy.evidenceOnly
+    ? []
+    : sandboxPolicyKindForClaudeRuntimePolicy(runtimePolicy) === "readOnly"
       ? CLAUDE_READ_ONLY_ALLOWED_TOOLS
       : undefined;
   const allowedTools =
@@ -3205,7 +3157,6 @@ function buildAssistantArtifacts(input: {
       providerTurnId: input.providerTurnId,
       nativeItemRef,
       runtimeRequestId: null,
-      checkpointScopeId: null,
       startedAt: input.startedAt,
       completedAt: input.completedAt,
     },
@@ -4752,7 +4703,6 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             providerTurnId: input.runId === null ? null : (input.context?.providerTurnId ?? null),
             nativeItemRef,
             runtimeRequestId: null,
-            checkpointScopeId: null,
             startedAt: input.startedAt,
             completedAt,
           };
@@ -5195,7 +5145,6 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
               providerTurnId: null,
               nativeItemRef: task.nativeTaskRef,
               runtimeRequestId: null,
-              checkpointScopeId: null,
               startedAt,
               completedAt,
             };
@@ -5709,7 +5658,6 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
                   strength: "strong",
                 },
                 runtimeRequestId: null,
-                checkpointScopeId: null,
                 startedAt: task.startedAt,
                 completedAt: task.completedAt,
               },
@@ -5739,7 +5687,6 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
                 providerTurnId: null,
                 nativeItemRef: task.nativeTaskRef,
                 runtimeRequestId: null,
-                checkpointScopeId: null,
                 startedAt: task.startedAt,
                 completedAt: task.completedAt,
               },
@@ -5909,7 +5856,6 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             providerTurnId: input.context.providerTurnId,
             nativeItemRef,
             runtimeRequestId: null,
-            checkpointScopeId: null,
             startedAt: updatedAt,
             completedAt: updatedAt,
           };
@@ -6326,7 +6272,6 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             providerTurnId: input.context.providerTurnId,
             nativeItemRef,
             runtimeRequestId: requestId,
-            checkpointScopeId: null,
             startedAt: createdAt,
             completedAt: null,
           };
@@ -8694,6 +8639,17 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             } satisfies PermissionResult;
           }
 
+          if (
+            context.input.runtimePolicy.evidenceOnly &&
+            !["mcp__t3-code__t3_thread_read", "mcp__t3-code__completion_evidence"].includes(
+              toolName,
+            )
+          )
+            return {
+              behavior: "deny",
+              message: "Completion checkers only read source evidence.",
+              toolUseID: callbackOptions.toolUseID,
+            } satisfies PermissionResult;
           const nativeRequestId = callbackOptions.toolUseID;
           const nativeToolInput = claudeNativeToolInputFromRecord(toolInput);
           const heldForEcho = context.heldRootFrames.length > 0;
@@ -9031,6 +8987,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
           const queryPolicy = yield* queryPolicyForTurn(turnInput);
           const mcpOverrides = claudeMcpQueryOverrides({
             mcpSession: yield* mcpSessions.read(turnInput.threadId),
+            evidenceOnly: turnInput.runtimePolicy.evidenceOnly === true,
             readOnlySandbox:
               sandboxPolicyKindForClaudeRuntimePolicy(turnInput.runtimePolicy) === "readOnly",
             ...(queryPolicy.allowedTools === undefined
@@ -9138,6 +9095,9 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
           const shouldResume =
             resumeSessionAt !== undefined || openedWithResume || hasPersistedProviderTurn;
           const queryOptions = makeClaudeQueryOptions({
+            ...(turnInput.runtimePolicy.systemPrompt === undefined
+              ? {}
+              : { systemPrompt: turnInput.runtimePolicy.systemPrompt }),
             modelSelection: turnInput.modelSelection,
             nativeThreadId,
             resume: shouldResume,
@@ -10153,81 +10113,6 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
                 cause: "Claude V2 adapter does not implement snapshots.",
               }),
             ),
-          rollbackThread: Effect.fn("ClaudeAdapterV2.rollbackThread")(
-            function* (rollbackInput) {
-              const currentTurn = yield* Ref.get(activeTurn);
-              if (currentTurn !== null) {
-                return yield* new ProviderAdapter.ProviderAdapterProtocolError({
-                  driver: CLAUDE_PROVIDER,
-                  detail: `Cannot roll back Claude provider thread ${rollbackInput.providerThread.id} while provider turn ${currentTurn.providerTurnId} is active.`,
-                });
-              }
-
-              const nativeThreadId = yield* getNativeThreadId(rollbackInput.providerThread);
-              yield* closeLiveQueryForNativeThread(nativeThreadId);
-              const now = yield* DateTime.now;
-              const resumeSessionAt = yield* resolveClaudeRollbackResumeSessionAt(rollbackInput);
-
-              if (rollbackInput.target.type === "thread_start" && resumeSessionAt === null) {
-                const resetNativeThreadId = yield* queryRunner.allocateSessionId;
-                return {
-                  providerThread: {
-                    ...makeProviderThread({
-                      idAllocator,
-                      providerInstanceId: adapterOptions.instanceId,
-                      appThreadId: rollbackInput.providerThread.appThreadId,
-                      ...(rollbackInput.providerThread.ownerNodeId === null
-                        ? {}
-                        : { ownerNodeId: rollbackInput.providerThread.ownerNodeId }),
-                      providerSessionId: input.providerSessionId,
-                      nativeThreadId: resetNativeThreadId,
-                      ...(rollbackInput.providerThread.forkedFrom === null
-                        ? {}
-                        : { forkedFrom: rollbackInput.providerThread.forkedFrom }),
-                      now,
-                    }),
-                    handoffIds: rollbackInput.providerThread.handoffIds,
-                  },
-                  providerTurns: [],
-                  messages: [],
-                  runtimeRequests: [],
-                };
-              }
-
-              return {
-                providerThread: {
-                  ...rollbackInput.providerThread,
-                  providerSessionId: input.providerSessionId,
-                  nativeConversationHeadRef:
-                    resumeSessionAt === null
-                      ? null
-                      : {
-                          driver: CLAUDE_PROVIDER,
-                          nativeId: resumeSessionAt,
-                          strength: "weak" as const,
-                        },
-                  status: "idle" as const,
-                  lastRunOrdinal: rollbackInput.target.appRunOrdinal,
-                  updatedAt: now,
-                },
-                providerTurns: [],
-                messages: [],
-                runtimeRequests: [],
-              };
-            },
-            (effect, rollbackInput) =>
-              effect.pipe(
-                Effect.mapError((cause) =>
-                  isProviderAdapterRollbackThreadError(cause)
-                    ? cause
-                    : new ProviderAdapter.ProviderAdapterRollbackThreadError({
-                        driver: CLAUDE_PROVIDER,
-                        providerThreadId: rollbackInput.providerThread.id,
-                        cause,
-                      }),
-                ),
-              ),
-          ),
           forkThread: Effect.fn("ClaudeAdapterV2.forkThread")(
             function* (forkInput) {
               const currentTurn = yield* Ref.get(activeTurn);
@@ -10374,39 +10259,3 @@ export const ClaudeAdapterV2Driver: ProviderAdapterDriver<
   defaultConfig: (): ClaudeSettings => DEFAULT_CLAUDE_SETTINGS,
   create: (input) => createClaudeAdapterV2(input, {}),
 };
-
-const makeDefaultClaudeAdapterV2 = Effect.fn("ClaudeAdapterV2.layer")(function* () {
-  const fileSystem = yield* FileSystem.FileSystem;
-  const path = yield* Path.Path;
-  const crypto = yield* Crypto.Crypto;
-  const hostEnvironment = yield* HostProcess.Environment;
-  const idAllocator = yield* IdAllocator.IdAllocatorV2;
-  const queryRunner = yield* ClaudeAgentSdkQueryRunner;
-  const serverConfig = yield* ServerConfig.ServerConfig;
-  const continuationRequests = yield* ProviderContinuationRequests.ProviderContinuationRequests;
-
-  return yield* makeClaudeAdapterV2({
-    instanceId: CLAUDE_DEFAULT_INSTANCE_ID,
-    settings: DEFAULT_CLAUDE_SETTINGS,
-    environment: hostEnvironment,
-    attachmentsDir: serverConfig.attachmentsDir,
-    fileSystem,
-    path,
-    crypto,
-    idAllocator,
-    queryRunner,
-    continuationRequests,
-  });
-});
-
-const layer: Layer.Layer<
-  ProviderAdapter.ProviderAdapterV2,
-  never,
-  | ClaudeAgentSdkQueryRunner
-  | Crypto.Crypto
-  | FileSystem.FileSystem
-  | IdAllocator.IdAllocatorV2
-  | McpProviderSessions.McpProviderSessions
-  | Path.Path
-  | ServerConfig.ServerConfig
-> = Layer.effect(ProviderAdapter.ProviderAdapterV2, makeDefaultClaudeAdapterV2());

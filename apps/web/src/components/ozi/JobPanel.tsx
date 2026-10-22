@@ -213,6 +213,7 @@ function JobCard({
             aria-hidden
           />
           {card.checking ? "Double-checking it's fully done…" : card.status || "Working on it…"}
+          {card.checkState === "continued" && " · Continuing"}
         </p>
       )}
       {card.column === "needs_you" && (

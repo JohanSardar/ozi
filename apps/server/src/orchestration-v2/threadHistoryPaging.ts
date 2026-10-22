@@ -523,7 +523,6 @@ export function buildBoundedThreadProjection(input: {
     turnItems: [],
     visibleTurnItems: [],
   });
-  // Control state (checkpoint file lists, the latest task list) cannot be paged, so it may claim at most
   // half the budget; past that the window would shrink to the one row every page admits.
   const windowBudget = Math.max(
     policy.maxEncodedBytes / 2,

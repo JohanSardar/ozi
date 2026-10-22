@@ -121,7 +121,7 @@ describe("derivePendingBackgroundWork", () => {
     ).toEqual([]);
   });
 
-  it("returns pending work when the latest run is waiting (post-success, pre-checkpoint)", () => {
+  it("returns pending work when the latest run is waiting", () => {
     const tasks = derivePendingBackgroundWork({
       latestRun: { id: "run-1" as never, ordinal: 1, status: "waiting" },
       providerThreads: [{ id: "pt-1" as never }],

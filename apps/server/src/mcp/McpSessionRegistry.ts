@@ -115,10 +115,12 @@ const makeWithOptions = Effect.fn("McpSessionRegistry.make")(function* (
         client: undefined,
         capabilities: new Set<McpInvocationContext.McpCapability>([
           "orchestration",
-          ...(request.role === "main" || request.role === "main-fork"
+          ...(request.role === "checker" || request.role === "main" || request.role === "main-fork"
             ? []
             : (["worktree", "pull-requests"] as const)),
-          ...(request.capabilities ?? (browserToolsAvailable ? (["preview"] as const) : [])),
+          ...(request.role === "checker"
+            ? []
+            : (request.capabilities ?? (browserToolsAvailable ? (["preview"] as const) : []))),
         ]),
         issuedAt,
       };
@@ -227,12 +229,6 @@ export const issueActiveMcpCredential = (
 
 export const touchActiveMcpThread = (threadId: ThreadId): Effect.Effect<void> =>
   activeMcpSessionRegistry ? activeMcpSessionRegistry.touch(threadId) : Effect.void;
-
-const revokeActiveMcpThread = (threadId: ThreadId): Effect.Effect<void> =>
-  activeMcpSessionRegistry ? activeMcpSessionRegistry.revokeThread(threadId) : Effect.void;
-
-const revokeAllActiveMcpCredentials = (): Effect.Effect<void> =>
-  activeMcpSessionRegistry ? activeMcpSessionRegistry.revokeAll : Effect.void;
 
 export const __testing = {
   make: makeWithOptions,

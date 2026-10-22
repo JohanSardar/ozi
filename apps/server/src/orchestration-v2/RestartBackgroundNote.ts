@@ -146,7 +146,6 @@ export function isRestartNoteSource(
 ): boolean {
   return (
     // A failed or interrupted turn is never continued. Recovery cancels a
-    // waiting run it cannot checkpoint, so a cancelled one still qualifies.
     (source.status === "completed" ||
       source.status === "waiting" ||
       source.status === "cancelled") &&

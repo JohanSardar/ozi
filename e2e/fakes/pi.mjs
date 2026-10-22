@@ -1,7 +1,19 @@
 import * as NodeFS from "node:fs";
-import { argv, id, interpreter, launch, lines, option, sessionFile, write } from "./agent.mjs";
+import {
+  argv,
+  id,
+  interpreter,
+  launch,
+  lines,
+  option,
+  sessionFile,
+  write,
+  settled,
+  forkBarrier,
+} from "./agent.mjs";
 
 if (launch("pi")) {
+  if (argv.includes("--fork")) await forkBarrier("pi");
   let sessionId = id();
   let file = sessionFile("pi", sessionId);
   let entries = [];
@@ -63,6 +75,7 @@ if (launch("pi")) {
   });
   const finish = () => {
     active = false;
+    settled("pi", file, file);
     write({ type: "turn_end", message: entries.at(-1)?.message, toolResults: [] });
     write({
       type: "agent_end",
@@ -158,7 +171,18 @@ if (launch("pi")) {
         break;
       case "get_session_stats":
         reply({
-          tokens: { input: 1, output: 1, cacheRead: 0, cacheWrite: 0 },
+          tokens: entries.reduce(
+            (total, entry) => {
+              const usage = entry.message?.usage;
+              return {
+                input: total.input + (usage?.input ?? 0),
+                output: total.output + (usage?.output ?? 0),
+                cacheRead: 0,
+                cacheWrite: 0,
+              };
+            },
+            { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+          ),
           contextUsage: { tokens: 2, contextWindow: model.contextWindow },
           totalCost: 0,
         });

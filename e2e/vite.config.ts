@@ -7,7 +7,7 @@ export default defineConfig({
     fileParallelism: false,
     testTimeout: 180_000,
     hookTimeout: 90_000,
-    reporters: ["default", "json"],
+    reporters: ["verbose", "json"],
     outputFile: "results.json",
   },
 });

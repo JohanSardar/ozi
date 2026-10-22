@@ -79,7 +79,15 @@ function ConversationHistory({
               key={item.id}
               className={`${styles["ozi-message"]} ${item.type === "user_message" ? styles["ozi-message-user"] : ""}`}
             >
-              {item.type === "assistant_message" && <div className={styles["ozi-who"]}>Ozi</div>}
+              {item.type === "assistant_message" && (
+                <div className={styles["ozi-who"]}>
+                  Ozi
+                  {projection.runs.find((run) => run.id === item.runId)?.completionCheck?.state ===
+                  "checking"
+                    ? " · Unchecked"
+                    : ""}
+                </div>
+              )}
               <ChatMarkdown text={item.text} threadRef={threadRef} environmentId={environmentId} />
               {item.attachments?.map((attachment) => (
                 <Attachment
