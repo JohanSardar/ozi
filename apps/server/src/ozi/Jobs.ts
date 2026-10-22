@@ -313,7 +313,12 @@ const make = Effect.gen(function* () {
         checkedEvent.sequence >= current.sequence;
       const checking = !done && !requests.length && !active && !ready;
       const column = done ? "done" : requests.length ? "needs_you" : ready ? "ready" : "running";
-      if (lead.visibility === "quiet" && column !== "needs_you" && column !== "done") continue;
+      if (
+        lead.visibility === "quiet" &&
+        !requests.length &&
+        !(leadCheck?.state === "checked" && leadCheck.rounds.at(-1)?.verdict?.useful === true)
+      )
+        continue;
       cards.push({
         jobId: lead.id,
         eventId: current.event.id,

@@ -59,9 +59,30 @@ export const checkEffect = (
 
 const isRequest = (message: OrchestrationV2ConversationMessage) =>
   message.role === "user" &&
-  message.createdBy !== "system" &&
+  (message.createdBy !== "system" || message.scheduledTaskId !== undefined) &&
   message.notification === undefined &&
   message.delegatedCompletion === undefined;
+
+const orderedMessages = Effect.fn("Completion.orderedMessages")(function* (
+  threadId: ThreadId,
+  store: EventStore.EventStoreV2["Service"],
+) {
+  const events = yield* store
+    .read({ threadId, eventType: "message.updated" })
+    .pipe(Stream.runCollect);
+  const messages = new Map<
+    MessageId,
+    { eventId: EventId; message: OrchestrationV2ConversationMessage }
+  >();
+  for (const { event } of events) {
+    if (event.type !== "message.updated") continue;
+    messages.set(event.payload.id, {
+      eventId: messages.get(event.payload.id)?.eventId ?? event.id,
+      message: event.payload,
+    });
+  }
+  return [...messages.values()];
+});
 
 export const capture = Effect.fn("Completion.capture")(function* (input: {
   run: OrchestrationV2Run;
@@ -83,26 +104,14 @@ export const capture = Effect.fn("Completion.capture")(function* (input: {
         }
       : undefined;
   }
-  const request = projection.messages.findLast(
-    (message) =>
-      isRequest(message) &&
-      (message.runId === input.run.id ||
-        DateTime.toEpochMillis(message.createdAt) <= DateTime.toEpochMillis(input.run.requestedAt)),
-  );
   const store = yield* EventStore.EventStoreV2;
-  const requestEvent = yield* store
-    .read({ threadId: input.run.threadId, eventType: "message.updated" })
-    .pipe(
-      Stream.filter(
-        (stored) =>
-          stored.event.type === "message.updated" &&
-          stored.event.payload.id === (request?.id ?? input.run.userMessageId),
-      ),
-      Stream.runHead,
-    );
-  const requestEventId = Option.isSome(requestEvent)
-    ? requestEvent.value.event.id
-    : EventId.make(input.run.userMessageId);
+  const messages = yield* orderedMessages(input.run.threadId, store);
+  const sourceIndex = messages.findIndex(({ message }) => message.id === input.run.userMessageId);
+  const request = messages.findLast(
+    ({ message }, index) =>
+      isRequest(message) && (message.runId === input.run.id || index <= sourceIndex),
+  );
+  const requestEventId = request?.eventId ?? EventId.make(input.run.userMessageId);
   const previous = projection.runs.findLast(
     (run) => run.completionCheck?.requestEventId === requestEventId,
   )?.completionCheck;
@@ -195,18 +204,18 @@ const make = Effect.gen(function* () {
       effects,
     });
   };
-  const obsolete = (projection: Effect.Success<ReturnType<typeof read>>, check: OziCheck) => {
+  const obsolete = Effect.fn("Completion.obsolete")(function* (
+    projection: Effect.Success<ReturnType<typeof read>>,
+    check: OziCheck,
+  ) {
     const run = projection.runs.find((run) => run.id === check.runId);
-    return (
-      run?.status !== "completed" ||
-      projection.messages.some(
-        (message) =>
-          isRequest(message) &&
-          message.runId !== run.id &&
-          DateTime.toEpochMillis(message.createdAt) >= DateTime.toEpochMillis(run.requestedAt),
-      )
+    if (run?.status !== "completed") return true;
+    const messages = yield* orderedMessages(check.threadId, store);
+    const sourceIndex = messages.findIndex(({ message }) => message.id === run.userMessageId);
+    return messages.some(
+      ({ message }, index) => isRequest(message) && message.runId !== run.id && index > sourceIndex,
     );
-  };
+  });
   const finish = Effect.fn("Completion.finish")(function* (
     check: OziCheck,
     verdict: OziCheckVerdict | null,
@@ -227,7 +236,7 @@ const make = Effect.gen(function* () {
           return;
         check = latest;
         const now = DateTime.formatIso(yield* DateTime.now);
-        const superseded = check.state === "superseded" || obsolete(current, check);
+        const superseded = check.state === "superseded" || (yield* obsolete(current, check));
         const root = (yield* runtimePolicy.resolve({
           thread: current.thread,
           modelSelection: current.thread.modelSelection,
@@ -309,7 +318,7 @@ const make = Effect.gen(function* () {
           : check.state !== "checking" && !(phase === "resolve" && check.state === "superseded"))
       )
         return;
-      if (check.state !== "superseded" && obsolete(projection, check)) {
+      if (check.state !== "superseded" && (yield* obsolete(projection, check))) {
         yield* save({
           ...check,
           state: "superseded",
@@ -378,7 +387,7 @@ const make = Effect.gen(function* () {
               commandId: command(`${round.checkerThreadId}:start`),
               threadId: round.checkerThreadId,
               messageId: MessageId.make(`${round.checkerThreadId}:request`),
-              text: `OZI COMPLETION CHECK round ${round.round}\nIs the current request fully done? Did the claimant hand the user anything it could do itself? Main owes coordination and reporting; background jobs may still run. Inspect inherited history and evidence. Never act, delegate or continue the work. Return only JSON: {"verdict":"done","useful":boolean}, {"verdict":"continue","missing":"specific missing obligations","evidence":["path:sha256 or action receipt from completion_evidence"],"useful":boolean}, or {"verdict":"needs_user","reason":"missing human decision or action","useful":boolean}. Extra tool calls or rewording are not progress.\nClaim: ${check!.report}`,
+              text: `OZI COMPLETION CHECK round ${round.round}\nIs the current request fully done? Did the claimant hand the user anything it could do itself? Main owes coordination and reporting; background jobs may still run. Inspect inherited history and evidence. Never act, delegate or continue the work. Return only JSON: {"verdict":"done","useful":boolean}, {"verdict":"continue","missing":"specific missing obligations","evidence":["path:sha256 or action receipt from completion_evidence"],"useful":boolean}, or {"verdict":"needs_user","reason":"missing human decision or action","useful":boolean}. Routine scheduled or webhook checks without a useful finding return useful:false. A useful finding is information worth the user's attention. Extra tool calls or rewording are not progress.\nClaim: ${check!.report}`,
               attachments: [],
               createdBy: "system",
               creationSource: "server",

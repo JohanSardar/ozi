@@ -10740,7 +10740,8 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
     const effects = yield* Ref.make<Array<PendingOrchestrationEffectV2>>([]);
     if (
       command.type === "thread.stop" ||
-      (command.type === "message.dispatch" && command.createdBy !== "system")
+      (command.type === "message.dispatch" &&
+        (command.createdBy !== "system" || command.scheduledTaskId !== undefined))
     ) {
       const current = yield* projectionStore
         .getThreadRecords(command.threadId, ["runs"])

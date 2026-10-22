@@ -39,7 +39,7 @@ New code lives in `apps/server/src/ozi/` and `apps/web/src/components/ozi/`. Eve
 ### Completion (`ozi/Completion.ts`)
 
 - `claim({threadId, runId, requestEventId, reportItemId|null}) → CommandReceipt`; states `checking | continued | checked | needs_user | blocked | superseded`.
-- Every settled completion creates a candidate automatically, including main, text-only responses, final responses and completion without prose. Checker, interrupted and stopped runs are excluded. The terminal event, candidate and check outbox effect commit atomically before successful delivery or Ready. Recovery uses the same capture path; storage failures retry.
+- Scheduled and webhook system messages count as requests. Request order follows the conversation even when clock timestamps are equal. Every settled completion creates a candidate automatically, including main, text-only responses, final responses and completion without prose. Checker, interrupted and stopped runs are excluded. The terminal event, candidate and check outbox effect commit atomically before successful delivery or Ready. Recovery uses the same capture path; storage failures retry.
 - Checks use T3's native fork paths: Pi waits for `agent_settled` and starts an isolated `--fork` process; Claude and Codex use `ThreadForkService`/`ContextHandoffService`. The source is held only until its native fork exists, then queued input can start before checker inference. There is no checkpoint wait.
 - Checkers have an internal, runtime-owned role, the same provider/model and options with low effort, a fixed non-recursive prompt, and evidence-only tools. Options are checked against a refreshed native catalog. Unsupported options, missing native history, malformed JSON, provider failures and a 120-second deadline consume unsuccessful rounds and never pass.
 - Verdicts are `{"verdict":"done","useful":boolean}`, `{"verdict":"continue","missing":string,"evidence":string[],"useful":boolean}` or `{"verdict":"needs_user","reason":string,"useful":boolean}`. Done releases the report and deduplicated delivery; continue resumes its owner. Main continues by delegating missing work and owes coordination/reporting, including while background work remains. Human needs, questions, failures and login requests surface immediately.
@@ -177,7 +177,7 @@ Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` 
 
 - `m4.interval`: an interval schedule wakes main; nothing useful → no card.
 - `m4.time-of-day`: a fixed-time schedule fires at the faked time.
-- `m4.useful-card`: a scheduled run with a useful finding makes a card.
+- `m4.useful-card`: a scheduled run with a checked useful finding makes a card; unchecked or routine reports remain quiet across restart.
 - `m4.webhook`: a signed POST wakes main; bad signature rejected; duplicate suppressed; filter applied.
 - `m4.base-url`: schedules report webhook URLs on the configured base URL.
 - `m4.todos`: external to-dos show labeled; offline/malformed source shows unavailable, not empty; no config hides them.

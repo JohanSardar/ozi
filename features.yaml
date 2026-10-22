@@ -152,7 +152,7 @@ features:
     cli: [schedules, schedule]
     milestone: 4
     scenarios: [m4.interval, m4.time-of-day, m4.useful-card]
-    status: building
+    status: passing
   - id: webhooks
     reqs: [watchers]
     module: scheduledTasks + e2e/m4.test.ts
