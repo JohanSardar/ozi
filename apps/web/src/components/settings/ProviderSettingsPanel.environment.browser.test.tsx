@@ -143,11 +143,6 @@ vi.mock(import("./settingsLayout"), async (original) => ({
     </div>
   )) as never,
 }));
-// Its own data flows are covered by its suite; this one is about the panel.
-vi.mock(import("./UsageProviderSettings"), async (original) => ({
-  ...(await original()),
-  UsageProviderSettings: (() => null) as never,
-}));
 vi.mock(import("../ProviderUpdatesAction"), async (original) => ({
   ...(await original()),
   ProviderUpdatesAction: (() => null) as never,

@@ -33,8 +33,6 @@ import { reuseProvidersIgnoringCheckedAt } from "./serverProviders.logic";
 export const serverEnvironment = createServerEnvironmentAtoms(connectionAtomRuntime, {
   initialConfigValueAtom: environmentSession.initialConfigValueAtom,
   environmentThemes: true,
-  usageLimitSources: true,
-  usageLimitsCommand: true,
 });
 export const environmentKeybindingsAtom = Atom.family((environmentId: EnvironmentId) =>
   Atom.make((get) =>
