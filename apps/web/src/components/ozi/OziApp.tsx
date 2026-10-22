@@ -1,5 +1,5 @@
 import { useAtomValue } from "@effect/atom-react";
-import { primaryServerKeybindingsAtom } from "../../state/server";
+import { environmentKeybindingsAtom } from "../../state/server";
 import { resolveShortcutCommand } from "../../keybindings";
 import { dispatchPreviewAction } from "../preview/previewActionBus";
 import styles from "./ozi.module.css";
@@ -11,33 +11,32 @@ import { JobDrawer } from "./JobDrawer";
 import { JobPanel, NeedsYouPill } from "./JobPanel";
 import { useJobActions } from "./useJobActions";
 import { useOziJobs } from "./useOziJobs";
-import { usePrimaryEnvironment } from "../../state/environments";
+import { useOziEnvironment, type EnvironmentPresentation } from "../../state/environments";
+import { connectionStatusText } from "@t3tools/client-runtime/connection";
 import { PreviewPanel } from "../preview/PreviewPanel";
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { usePreviewSession } from "../preview/usePreviewSession";
 import { useOziTodos } from "./useOziTodos";
 
 export function OziApp() {
-  const environment = usePrimaryEnvironment();
+  const { environment, isReady } = useOziEnvironment();
   return environment ? (
-    <OziWorkspace environment={environment} />
+    <OziWorkspace key={environment.environmentId} environment={environment} />
   ) : (
     <main className={styles["ozi-app"]}>
-      <p role="status">Connecting to Ozi…</p>
+      <p role="status">
+        {isReady ? "Connect your Ozi server in Connections." : "Loading connections…"}
+      </p>
       <Link to="/settings/connections">Connections</Link>
     </main>
   );
 }
 
-function OziWorkspace({
-  environment,
-}: {
-  environment: NonNullable<ReturnType<typeof usePrimaryEnvironment>>;
-}) {
+function OziWorkspace({ environment }: { environment: EnvironmentPresentation }) {
   const jobs = useOziJobs(environment.environmentId);
   const todos = useOziTodos(environment.environmentId);
   const cards = jobs.cards;
-  const keybindings = useAtomValue(primaryServerKeybindingsAtom);
+  const keybindings = useAtomValue(environmentKeybindingsAtom(environment.environmentId));
   const [opened, setOpened] = useState<OziJobCard | null>(null);
   const [browser, setBrowser] = useState(false);
   const [mobileJobs, setMobileJobs] = useState(false);
@@ -91,6 +90,10 @@ function OziWorkspace({
     <main className={`${styles["ozi-app"]} ${mobileJobs ? styles["ozi-show-jobs"] : ""}`}>
       <header className={styles["ozi-titlebar"] + " drag-region"}>
         <b>Ozi</b>
+        <span role="status">
+          {environment.label} ·{" "}
+          {environment.entry.enabled ? connectionStatusText(environment.connection) : "Off"}
+        </span>
         <span className={styles["ozi-title-spacer"]} />
         <NeedsYouPill cards={cards} />
         <button
