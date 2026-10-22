@@ -8,6 +8,7 @@ Milestone: 1 (Connection), in progress.
 - Data root `~/ozi` (git): `prompt.md` verbatim, `protected/`, `skills/`.
 - Pi upgraded to 1.4.0 (`@earendil-works/pi-coding-agent`).
 - SPEC.md, features.yaml, `scripts/features.ts` (check + HTML).
+- M1 main agent merged: Pi `claude-opus-5-5`, thinking high, fast off, no built-in tools/extensions/skills/context files; verbatim data-root prompt; 24 orchestration MCP tools + `read_skill`; default worker Codex gpt-6.1-sol xhigh Fast; effective loadout on each thread.
 
 ## Blocked (real-agent runs)
 
