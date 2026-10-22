@@ -36,6 +36,9 @@ update it through that manager instead. For example, a Nix profile installation 
 ## What Carries Over
 
 T3 Code discovers the models reported by Pi and exposes their supported thinking levels. The
+Ozi catalog puts `claude-bridge/claude-opus-5-5` first and includes discovered subscription models
+such as `claude-bridge/claude-sonnet-5-5`. Bridge workers load the same bridge as main.
+There is no `default` catalog entry. The
 thinking picker marks the discovered active model's configured level as its default without
 overriding it. Other models keep their Pi defaults when no level is selected. Threads
 use Pi's native session files for resume, rollback, and forks within the same Pi instance. Forks
@@ -77,8 +80,8 @@ threads.
 - If Pi is unavailable, confirm that the configured binary runs on the server machine, then refresh
   the provider in Settings.
 - If no models appear, open Pi directly and confirm its authentication and model configuration.
-- If discovery cannot complete, T3 Code keeps Pi available with the `Pi default` model. Start a
-  thread to let the interactive Pi session handle any startup prompt.
+- If discovery cannot complete, resolve Pi's startup prompt in a terminal and refresh the provider
+  to populate the model catalog.
 - If a project extension is missing, approve the project in Pi, then start a fresh provider session.
 - If a project skill is missing from the `$` menu, approve the project in Pi and refresh the provider.
 - The context meter appears once Pi reports usage for the thread. Some model providers only

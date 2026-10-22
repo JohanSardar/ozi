@@ -232,6 +232,14 @@ const make = Effect.gen(function* () {
             });
         }
         const last = projection.runs.at(-1);
+        if (thread.id === lead.id && last?.status === "interrupted")
+          requests.push({
+            id: RuntimeRequestId.make(last.id),
+            threadId: thread.id,
+            kind: "blocked",
+            prompt: "Stopped",
+            options: [],
+          });
         if (last?.status === "failed" && !projection.runs.some((run) => run.ordinal > last.ordinal))
           requests.push({
             id: RuntimeRequestId.make(last.id),

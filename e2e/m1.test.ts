@@ -43,7 +43,7 @@ const delegate = (task: string, provider?: string): Rule["steps"][number] => ({
                   ? "gpt-6.1-sol"
                   : provider === "claudeAgent"
                     ? "claude-opus-5-5"
-                    : "anthropic/claude-opus-5-5",
+                    : "claude-bridge/claude-opus-5-5",
             },
           }
         : {}),
@@ -249,6 +249,11 @@ it("m1.worker-choice starts Claude and Pi workers on request", async () => {
   const initial = await main();
   await h.script([
     {
+      match: "worker-catalog",
+      role: "main",
+      steps: [{ tool: { name: "orchestrator_capabilities" } }, { say: "catalog inspected" }],
+    },
+    {
       match: "worker-choice",
       provider: "pi",
       steps: [
@@ -266,6 +271,20 @@ it("m1.worker-choice starts Claude and Pi workers on request", async () => {
       repeat: true,
     },
   ]);
+  await say("worker-catalog");
+  await h.wait(initial.thread.id, "text:catalog inspected");
+  const result = (await h.records()).findLast(
+    (record) => record.name === "orchestrator_capabilities",
+  )?.result;
+  const providers = result?.structuredContent?.providers as {
+    providerInstanceId: string;
+    models: { id: string }[];
+  }[];
+  expect(
+    providers
+      .find((provider) => provider.providerInstanceId === "pi")
+      ?.models.map((model) => model.id),
+  ).toEqual(["claude-bridge/claude-opus-5-5", "claude-bridge/claude-sonnet-5-5"]);
   await say("worker-choice");
   await h.wait(initial.thread.id, "completed");
   const workers = (await h.status()).snapshot.threads.filter(
@@ -273,6 +292,16 @@ it("m1.worker-choice starts Claude and Pi workers on request", async () => {
   );
   expect(workers.map((thread) => thread.providerInstanceId).sort()).toEqual(["claudeAgent", "pi"]);
   for (const worker of workers) await h.wait(worker.id, "completed");
+  const records = await h.records();
+  const workerPid = records.find(
+    (record) => record.event === "prompt" && record.prompt === "[worker] choice-pi",
+  )?.pid;
+  expect(
+    records.find((record) => record.event === "launch" && record.pid === workerPid)?.argv,
+  ).toContainEqual(expect.stringContaining("pi-claude-bridge"));
+  expect(
+    records.find((record) => record.pid === workerPid && record.frame?.type === "set_model")?.frame,
+  ).toMatchObject({ provider: "claude-bridge", modelId: "claude-opus-5-5" });
 });
 
 it("m1.attachments delivers file content to main and the delegated brief", async () => {
@@ -387,7 +416,7 @@ it("m1.cli-json returns JSON and exercises each provider, attachments, waits and
   for (const [provider, model] of [
     ["codex", "gpt-6.1-sol"],
     ["claudeAgent", "claude-opus-5-5"],
-    ["pi", "anthropic/claude-opus-5-5"],
+    ["pi", "claude-bridge/claude-opus-5-5"],
   ]) {
     await h.script([
       {
@@ -421,6 +450,14 @@ it("m1.cli-json returns JSON and exercises each provider, attachments, waits and
   expect(await h.ozi("status")).toHaveProperty("main");
   expect(await h.ozi("thread", threadId)).toHaveProperty("runs");
   expect(await h.ozi("service", "status")).toHaveProperty("supported");
+  const invalid = ["schedule", "add", "--every", "1m", "--at", "09:00", "--prompt", "invalid"];
+  const message = "Ozi requires exactly one of --every, --at or --webhook.";
+  expect(await h.execOutput(...invalid, "--json")).toEqual({
+    code: 1,
+    stdout: `${JSON.stringify({ error: { code: "OziClientError", message } })}\n`,
+    stderr: "",
+  });
+  expect(await h.execOutput(...invalid)).toEqual({ code: 1, stdout: "", stderr: `${message}\n` });
   await expect(h.wait(threadId, "impossible", 0.1)).rejects.toThrow();
   await h.script([
     { match: "json-hold", steps: [{ wait: true }] },
@@ -441,7 +478,7 @@ it("m1.cli-json returns JSON and exercises each provider, attachments, waits and
 
 it.each([
   ["codex", "gpt-6.1-sol"],
-  ["pi", "anthropic/claude-opus-5-5"],
+  ["pi", "claude-bridge/claude-opus-5-5"],
   ["claudeAgent", "claude-opus-5-5"],
 ])("m1.cli-json native-forks %s without changing the source", async (provider, model) => {
   const mainId = (await main()).thread.id;
