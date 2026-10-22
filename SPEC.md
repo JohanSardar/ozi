@@ -83,7 +83,7 @@ Cases freeze the original message, native prefix, attachment bytes, expectation 
 
 ### JobPanel (`components/ozi/JobPanel.tsx`)
 
-- The app opens at `/` into `ozi-main`. No thread list, projects, drafts, workspace selectors or branch controls. Settings retain connections, providers, appearance, keybindings, scheduled tasks and licenses. New schedules target main.
+- The app opens at `/` into `ozi-main`. No thread list, projects, drafts, workspace selectors or branch controls. Settings retain connections (including the terminal command), providers, appearance, keybindings, scheduled tasks and licenses. New schedules target main.
 - The desktop window opens independently of its bundled backend. Local startup failure shows an error and leaves Settings → Connections available for a remote server.
 - `JobPanel` renders supplied `OziJobCard[]` with answer, handle, stop and open callbacks. Four sections with counts and empty states; Needs you count in the title bar. Questions, approvals, private entry and reports stay on cards. Close and Stop are separate. Status indicators are static.
 - Opening a card mounts `JobDrawer`, which loads the lead's brief and conversation on demand. Its composer addresses the lead. The main composer remains mounted and usable. HTML replies, MCP apps and the shared browser remain available. To-dos below jobs, labeled with their source, arrive in M4.
@@ -97,6 +97,7 @@ Cases freeze the original message, native prefix, attachment bytes, expectation 
 - Layout: conversation, status line (main idle, working or checking; Needs you count; server and connection), editor.
 - Keys follow Pi: Enter sends, steering main's active turn when it works; Alt+Enter queues a follow-up, shown until it starts. Esc stops main. Ctrl+C clears the editor; twice exits. Slash commands autocomplete: `/jobs`, `/attach <path>`, `/stop`, `/quit`.
 - `/jobs` lists cards by column. A card shows title, agent, report and requests. Questions pick an option or take text, approvals allow or deny, secrets use masked input that is never rendered, Blocked takes a reply. Close sends the displayed `eventId`; errors such as `StaleEvent` show as one line. Stop and Open are separate. Open shows the lead's conversation and the editor addresses the lead until Esc.
+- Settings → Connections in the packaged desktop app installs or removes the `ozi` command: the app's launcher under its home, linked from a folder on PATH. Unpackaged builds hide the row, so the real-agent run verifies it.
 - A card entering Needs you adds one line to the conversation. HTML replies, MCP apps, images and the shared browser show a one-line pointer to the desktop app.
 
 ## Retained surface

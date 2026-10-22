@@ -75,6 +75,7 @@ import {
   SettingsSection,
   useRelativeTimeTick,
 } from "./settingsLayout";
+import { CliCommandSettingsRow } from "./CliCommandSettingsRow";
 import { LocalEnvironmentSetting } from "./LocalEnvironmentSetting";
 import { searchableSetting } from "./settingsSearch";
 import { EnvironmentIconMenu } from "./EnvironmentIconPicker";
@@ -3007,6 +3008,7 @@ export function ConnectionsSettings() {
             }
           >
             <LocalEnvironmentSetting />
+            <CliCommandSettingsRow />
             {canManageLocalBackend ? <SettingsRow title="Version" /> : null}
             {canManageLocalBackend && desktopBridge ? (
               <>
@@ -3362,6 +3364,7 @@ export function ConnectionsSettings() {
             }
           />
           <LocalEnvironmentSetting />
+          <CliCommandSettingsRow />
         </SettingsSection>
       )}
     </>

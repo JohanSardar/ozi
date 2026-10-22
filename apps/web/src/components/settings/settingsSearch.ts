@@ -1,6 +1,7 @@
 import type { KeybindingCommand } from "@t3tools/contracts";
 
 const labels = {
+  "cli-command": "Terminal command",
   "connections-environment": "This machine",
   "github-routing": "GitHub sharing",
   "hold-webhooks-while-offline": "Hold webhooks while offline",
