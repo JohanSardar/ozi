@@ -382,12 +382,35 @@ const make = Effect.gen(function* () {
               createdBy: "system",
               creationSource: "server",
             });
+            let origin = "";
+            if (projection.thread.visibility === "quiet" && projection.thread.jobId) {
+              const lead =
+                projection.thread.id === projection.thread.jobId
+                  ? projection
+                  : yield* projections.getThreadRecords(projection.thread.jobId, []);
+              const parentId = lead.thread.lineage.parentThreadId;
+              if (parentId) {
+                const parent = yield* projections.getThreadRecords(parentId, ["runs", "subagents"]);
+                const task = parent.subagents.findLast(
+                  (task) => task.childThreadId === lead.thread.id,
+                );
+                const run = parent.runs.find((run) => run.id === task?.runId);
+                const messages = yield* orderedMessages(parentId, store);
+                const request = messages.find(
+                  ({ eventId, message }) =>
+                    eventId === run?.completionCheck?.requestEventId ||
+                    message.id === run?.userMessageId,
+                )?.message;
+                if (request?.scheduledTaskId !== undefined)
+                  origin = `\nOriginating request: ${request.text}`;
+              }
+            }
             yield* orchestrator.dispatch({
               type: "message.dispatch",
               commandId: command(`${round.checkerThreadId}:start`),
               threadId: round.checkerThreadId,
               messageId: MessageId.make(`${round.checkerThreadId}:request`),
-              text: `OZI COMPLETION CHECK round ${round.round}\nIs the current request fully done? Did the claimant hand the user anything it could do itself? Main owes coordination and reporting; background jobs may still run. Inspect inherited history and evidence. Never act, delegate or continue the work. Return only JSON: {"verdict":"done","useful":boolean}, {"verdict":"continue","missing":"specific missing obligations","evidence":["path:sha256 or action receipt from completion_evidence"],"useful":boolean}, or {"verdict":"needs_user","reason":"missing human decision or action","useful":boolean}. Routine scheduled or webhook checks without a useful finding return useful:false. A useful finding is information worth the user's attention. Extra tool calls or rewording are not progress.\nClaim: ${check!.report}`,
+              text: `OZI COMPLETION CHECK round ${round.round}\nIs the current request fully done? Did the claimant hand the user anything it could do itself? Main owes coordination and reporting; background jobs may still run. Inspect inherited history and evidence. Never act, delegate or continue the work. Return only JSON: {"verdict":"done","useful":boolean}, {"verdict":"continue","missing":"specific missing obligations","evidence":["path:sha256 or action receipt from completion_evidence"],"useful":boolean}, or {"verdict":"needs_user","reason":"missing human decision or action","useful":boolean}. For quiet jobs, useful:true only when the originating request's reporting condition is met or the user is needed. Extra tool calls or rewording are not progress.${origin}\nClaim: ${check!.report}`,
               attachments: [],
               createdBy: "system",
               creationSource: "server",

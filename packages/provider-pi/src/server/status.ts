@@ -1,4 +1,5 @@
 import {
+  OZI_MAIN_SELECTION,
   type CustomModelSetting,
   type ServerProvider,
   type ServerProviderModel,
@@ -17,7 +18,11 @@ import * as HttpClient from "effect/http/HttpClient";
 import * as ChildProcess from "effect/process/ChildProcess";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 
-import { buildPiRpcLaunch, resolvePiLaunchArgs } from "./mcpInjection.ts";
+import {
+  buildPiRpcLaunch,
+  piClaudeBridgeExtensionPath,
+  resolvePiLaunchArgs,
+} from "./mcpInjection.ts";
 import {
   makePiRpcConnection,
   PiRpcError,
@@ -64,13 +69,6 @@ const PI_RPC_DISCOVERY_TIMEOUT_MS = 30_000;
  */
 export const MINIMUM_PI_VERSION = "0.80.5";
 
-const PI_DEFAULT_MODEL: ServerProviderModel = {
-  slug: "default",
-  name: "Pi default",
-  isCustom: false,
-  capabilities: EMPTY_PI_MODEL_CAPABILITIES,
-};
-
 interface PiDiscovery extends PiDiscoveredCommands {
   readonly models: ReadonlyArray<ServerProviderModel>;
   readonly authenticated: boolean;
@@ -80,11 +78,13 @@ function piModelsFromSettings(
   customModels: ReadonlyArray<CustomModelSetting> | undefined,
   discovered: ReadonlyArray<ServerProviderModel> = [],
 ): ReadonlyArray<ServerProviderModel> {
-  return providerModelsFromSettings(
-    [PI_DEFAULT_MODEL, ...discovered],
-    customModels ?? [],
-    EMPTY_PI_MODEL_CAPABILITIES,
-  );
+  return providerModelsFromSettings(discovered, customModels ?? [], EMPTY_PI_MODEL_CAPABILITIES)
+    .filter((model) => model.slug !== "default")
+    .toSorted(
+      (left, right) =>
+        Number(right.slug === OZI_MAIN_SELECTION.model) -
+        Number(left.slug === OZI_MAIN_SELECTION.model),
+    );
 }
 
 function parseDiscoveredModels(
@@ -136,7 +136,7 @@ const makePiDiscoveryConnection = Effect.fnUntraced(function* (
   cwd?: string,
 ) {
   const launch = buildPiRpcLaunch({
-    launchArgs,
+    launchArgs: [...launchArgs, "--extension", piClaudeBridgeExtensionPath()],
     environment,
     mcpSession: undefined,
     extensionPath: undefined,

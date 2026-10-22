@@ -52,7 +52,7 @@ it.runIf(NodeChildProcess.spawnSync("dbus-daemon", ["--version"]).status === 0)(
       let bindCount = 0;
       server.addMethodHandler((message: Message) => {
         if (message.member === "Register") {
-          expect(message.body[0]).toBe("app.ozi.Ozi");
+          expect(message.body[0]).toBe("com.ozi.app");
           identities.add(message.sender);
           server!.send(Message.newMethodReturn(message));
         } else if (message.member === "Get") {
@@ -116,7 +116,7 @@ it.runIf(NodeChildProcess.spawnSync("dbus-daemon", ["--version"]).status === 0)(
         const received = Promise.withResolvers<void>();
         const capture = vi.fn(() => received.resolve());
         const client = new PortalCaptureShortcut(
-          "app.ozi.Ozi",
+          "com.ozi.app",
           { ...shortcut, key },
           capture,
           () => {},

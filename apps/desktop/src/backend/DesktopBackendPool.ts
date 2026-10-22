@@ -178,7 +178,7 @@ export const layer = Layer.effect(
         electronDialog
           .showErrorBox(
             "This Ozi home is unavailable",
-            "Another Ozi server is using this data directory. Stop that server, pair with it, or choose another home.",
+            "Another Ozi server is using this home. Pair with it in Settings > Connections, stop it with `ozi service uninstall`, or choose a separate OZI_HOME.",
           )
           .pipe(Effect.andThen(electronApp.quit)),
     });
