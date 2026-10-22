@@ -306,6 +306,16 @@ export async function startHarness(
       controller.abort();
     }
   };
+  const execOutput = (...args: string[]) =>
+    new Promise<{ code: number; stdout: string; stderr: string }>((resolve) =>
+      NodeChildProcess.execFile(
+        process.execPath,
+        [cli, ...args, "--home", home],
+        { cwd: dataRoot, env, timeout: 45_000 },
+        (error, stdout, stderr) =>
+          resolve({ code: error ? Number(error.code ?? 1) : 0, stdout, stderr }),
+      ),
+    );
   const stopServer = async () => {
     if (server.exitCode !== null || server.signalCode !== null) return;
     const exited = new Promise<void>((resolve) => server.once("exit", () => resolve()));
@@ -332,15 +342,8 @@ export async function startHarness(
     port,
     ozi,
     status: () => ozi<Status>("status"),
-    exec: (...args: string[]) =>
-      new Promise<number>((resolve) =>
-        NodeChildProcess.execFile(
-          process.execPath,
-          [cli, ...args, "--home", home],
-          { cwd: dataRoot, env, timeout: 45_000 },
-          (error) => resolve(error ? Number(error.code ?? 1) : 0),
-        ),
-      ),
+    execOutput,
+    exec: async (...args: string[]) => (await execOutput(...args)).code,
     thread: (id: string) => ozi<Projection>("thread", id),
     wait: (id: string, state: string, timeout = 15) =>
       ozi<Projection>("wait", "thread", id, state, "--timeout", String(timeout)),
