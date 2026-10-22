@@ -1,6 +1,5 @@
 import {
   isOziMain,
-  OZI_MAIN_TOOL_NAMES,
   PI_BUILTIN_TOOL_NAMES,
   OZI_CHECK_TOOL_NAMES,
   type ModelSelection,
@@ -85,7 +84,7 @@ export const prepareLoadout = Effect.fn("Ozi.prepareLoadout")(function* (
       toolNames: checker
         ? OZI_CHECK_TOOL_NAMES
         : main
-          ? [...PI_BUILTIN_TOOL_NAMES, ...OZI_MAIN_TOOL_NAMES]
+          ? [...PI_BUILTIN_TOOL_NAMES, ...workerTools]
           : workerTools,
       systemPrompt,
     }),

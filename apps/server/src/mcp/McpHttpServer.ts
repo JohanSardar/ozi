@@ -14,12 +14,7 @@ import * as Stream from "effect/Stream";
 import type * as Types from "effect/Types";
 import { AiError, McpProtocol, McpSchema, McpServer, Tool, Toolkit } from "effect/ai";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
-import {
-  OrchestratorMcpFailure,
-  OZI_MAIN_TOOL_NAMES,
-  PreviewAutomationError,
-  ThreadId,
-} from "@t3tools/contracts";
+import { OrchestratorMcpFailure, PreviewAutomationError, ThreadId } from "@t3tools/contracts";
 
 import packageJson from "../../package.json" with { type: "json" };
 import * as ServerConfig from "../config.ts";
@@ -65,8 +60,6 @@ const MainMcpRequest = Schema.Struct({
     }),
   ),
 });
-
-const mainToolNames: ReadonlySet<string> = new Set(OZI_MAIN_TOOL_NAMES);
 
 const mcpResourceMetadataUrl = (request: HttpServerRequest.HttpServerRequest) =>
   HttpServerRequest.toURL(request).pipe(
@@ -278,12 +271,9 @@ const makeMcpAuthMiddleware = Effect.gen(function* () {
             isError: true,
             content: [{ type: "text", text: "This tool is unavailable to main." }],
           });
-        if (rpc.method === "tools/list")
-          return reply({
-            tools: [...mcpTools.values()].filter((tool) => mainToolNames.has(tool.name)),
-          });
+        if (rpc.method === "tools/list") return reply({ tools: [...mcpTools.values()] });
         if (rpc.method === "tools/call") {
-          if (!mainToolNames.has(rpc.params?.name ?? "")) return denied();
+          if (!mcpTools.has(rpc.params?.name ?? "")) return denied();
           if (Option.isNone(threadService)) return denied();
           const threads = threadService.value;
           const args = rpc.params?.arguments ?? {};

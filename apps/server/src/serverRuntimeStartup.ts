@@ -17,6 +17,7 @@ import * as Exit from "effect/Exit";
 import * as Fiber from "effect/Fiber";
 import * as FileSystem from "effect/FileSystem";
 import { prepareLoadout } from "./ozi/Loadout.ts";
+import { mcpTools } from "./ozi/McpTools.ts";
 import * as EventSink from "./orchestration-v2/EventSink.ts";
 import * as IdAllocator from "@t3tools/provider-core/server/IdAllocator";
 import * as Layer from "effect/Layer";
@@ -198,13 +199,9 @@ const resolveAutoBootstrapWelcomeTargets = Effect.gen(function* () {
     });
   }
   const projection = yield* threads.getThreadRecords(OZI_MAIN_THREAD_ID, []);
-  const loadout = yield* prepareLoadout(
-    serverConfig,
-    projection.thread,
-    OZI_MAIN_SELECTION,
-    "pi",
-    [],
-  ).pipe(Effect.provideService(FileSystem.FileSystem, fs), Effect.provideService(Path.Path, path));
+  const loadout = yield* prepareLoadout(serverConfig, projection.thread, OZI_MAIN_SELECTION, "pi", [
+    ...mcpTools.keys(),
+  ]).pipe(Effect.provideService(FileSystem.FileSystem, fs), Effect.provideService(Path.Path, path));
   const events = eventOption.value;
   const ids = idsOption.value;
   const now = yield* DateTime.now;

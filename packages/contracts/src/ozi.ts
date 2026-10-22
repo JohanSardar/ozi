@@ -59,35 +59,6 @@ export const isOziMainSelection = (selection: ModelSelection) =>
   ) === true;
 
 export const PI_BUILTIN_TOOL_NAMES = ["read", "bash", "edit", "write"] as const;
-export const OZI_MAIN_TOOL_NAMES = [
-  "orchestrator_capabilities",
-  "delegate_task",
-  "task_status",
-  "task_cancel",
-  "t3_thread_read",
-  "t3_thread_send",
-  "t3_thread_interrupt",
-  "t3_workflow_stop",
-  "t3_queue_list",
-  "t3_queue_read",
-  "t3_queue_edit",
-  "t3_queue_cancel",
-  "t3_queue_reorder",
-  "t3_queue_promote_to_steer",
-  "t3_pending_request_list",
-  "t3_pending_request_read",
-  "t3_pending_request_respond",
-  "schedule_task",
-  "list_scheduled_tasks",
-  "update_scheduled_task",
-  "delete_scheduled_task",
-  "run_scheduled_task_now",
-  "request_secret",
-  "read_skill",
-  "handle_job",
-  "job_cards",
-  "log_mistake",
-] as const;
 
 export const OziCheckState = Schema.Literals([
   "checking",
