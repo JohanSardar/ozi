@@ -43,6 +43,7 @@ export const baseDirFlag = Flag.String("home")
     Flag.withDescription("Server home (OZI_HOME); state is stored under userdata."),
     Flag.optional,
   );
+export const jsonFlag = Flag.Boolean("json").pipe(Flag.withDefault(false));
 const devUrlFlag = Flag.String("dev-url").pipe(
   Flag.withSchema(Schema.URLFromString),
   Flag.withDescription("Dev web URL to proxy/redirect to (equivalent to VITE_DEV_SERVER_URL)."),
@@ -225,7 +226,7 @@ export const sharedServerCommandFlags = {
   baseDir: baseDirFlag,
   dataRoot: Flag.String("data-root").pipe(Flag.optional),
   publicUrl: Flag.String("public-url").pipe(Flag.optional),
-  json: Flag.Boolean("json"),
+  json: jsonFlag,
   cwd: Argument.String("cwd").pipe(
     Argument.withDescription(
       "Working directory for provider sessions (defaults to the current directory).",
