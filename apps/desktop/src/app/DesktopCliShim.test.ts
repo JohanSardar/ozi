@@ -92,7 +92,7 @@ describe("renderCliShim", () => {
     );
   });
 
-  it("keeps the install's T3 home under sudo, unless one is set", () => {
+  it("keeps the install's Ozi home under sudo, unless one is set", () => {
     const root = tempRoot();
     writeExecutable(NodePath.join(root, "app"), REPORTER);
     const shim = writeShim(root, {
@@ -114,10 +114,10 @@ describe("renderCliShim", () => {
     const shim = writeShim(root, {
       kind: "direct",
       executable,
-      entry: "/opt/T3's/app.asar/bin.mjs",
+      entry: "/opt/Ozi's/app.asar/bin.mjs",
     });
     expect(run(shim, ["browser", "setup"]).stdout.split("\n").slice(1)).toEqual([
-      "/opt/T3's/app.asar/bin.mjs",
+      "/opt/Ozi's/app.asar/bin.mjs",
       "browser",
       "setup",
       "",
@@ -156,7 +156,7 @@ describe("renderCliShim", () => {
 
   it("switches the Windows console to UTF-8 only when a path needs it", () => {
     const ascii = renderCliShim({
-      target: { kind: "windows", executable: "C:\\T3\\Ozi.exe", entry: "C:\\T3\\bin.mjs" },
+      target: { kind: "windows", executable: "C:\\Ozi\\Ozi.exe", entry: "C:\\Ozi\\bin.mjs" },
       shimPath: "C:\\Users\\me\\.t3\\bin\\t3.cmd",
       t3Home: "C:\\Users\\me\\.t3",
     });

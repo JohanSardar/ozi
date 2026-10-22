@@ -212,3 +212,5 @@ Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` 
 - `m6.crash-publish`: a crash mid-publish leaves either the old or the new build active.
 - `m6.audit`: no excluded T3 product paths, exports or dependencies remain.
 - `m6.public-ready`: MIT notices for T3, Pi and Firstmate present; no personal data in the tree.
+
+Product descriptions and connection guidance use Ozi and self-hosted public URLs.

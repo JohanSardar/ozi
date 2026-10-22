@@ -59,7 +59,7 @@ const PROVIDER_FAILURE_REASONS: Record<ProviderAdapterFailureReason, string> = {
 
 /**
  * Walks a cause chain for curated text without reading arbitrary provider
- * defect text. `known` is the message of a domain error T3 raised itself;
+ * defect text. `known` is the message of a domain error Ozi raised itself;
  * `category` is the generic message of the innermost provider wrapper seen.
  */
 function curatedCauseMessages(cause: unknown): {
@@ -94,7 +94,7 @@ function curatedCauseMessages(cause: unknown): {
         case "ContextHandoffDeliveryUncertainError":
           return {
             known:
-              "T3 could not confirm whether conversation history reached the provider. Retry the turn to recover the session.",
+              "Ozi could not confirm whether conversation history reached the provider. Retry the turn to recover the session.",
             category: categoryMessage(),
           };
         case "ProviderAdapterProtocolError": {

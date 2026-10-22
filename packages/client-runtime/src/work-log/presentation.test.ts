@@ -324,7 +324,7 @@ describe("summarizeToolGroup", () => {
 });
 
 describe("resolveWorkEntryToolPresentation", () => {
-  it("presents and summarizes every T3 tool using the same structured identity", () => {
+  it("presents and summarizes every Ozi tool using the same structured identity", () => {
     for (const tool of T3_MCP_TOOL_NAMES) {
       const entry: WorkLogPresentationEntry = {
         id: tool,
@@ -364,19 +364,19 @@ describe("resolveWorkEntryToolPresentation", () => {
     ["run_scheduled_task_now", "Running a scheduled task", "Requested a run of a scheduled task"],
     ["t3_workflow_stop", "Stopping a workflow", "Requested a stop for a workflow"],
   ])("labels %s through its lifecycle", (tool, running, completed) => {
-    expect(resolveWorkEntryToolPresentation({ label: `T3-code.${tool}` })?.displayName).toBe(
+    expect(resolveWorkEntryToolPresentation({ label: `Ozi-code.${tool}` })?.displayName).toBe(
       running,
     );
     expect(
       resolveWorkEntryToolPresentation({
-        label: `T3-code.${tool}`,
+        label: `Ozi-code.${tool}`,
         toolLifecycleStatus: "completed",
       })?.displayName,
     ).toBe(completed);
   });
 
   it("distinguishes an interrupted unwatch from a completed unwatch", () => {
-    const entry = { label: "T3-code.unwatch_pull_request" };
+    const entry = { label: "Ozi-code.unwatch_pull_request" };
     expect(
       (["inProgress", "stopped", "completed"] as const).map(
         (toolLifecycleStatus) =>
@@ -394,7 +394,7 @@ describe("resolveWorkEntryToolPresentation", () => {
       id: "guides",
       createdAt: "2026-10-07T00:00:00.000Z",
       tone: "tool",
-      label: "T3-code.write_pull_request_guides",
+      label: "Ozi-code.write_pull_request_guides",
       toolLifecycleStatus: "completed",
     } satisfies WorkLogPresentationEntry;
     expect({
@@ -409,7 +409,7 @@ describe("resolveWorkEntryToolPresentation", () => {
   });
 
   it("describes delegated-task cancellation as an ongoing action then a request", () => {
-    const entry = { label: "T3-code.task_cancel" };
+    const entry = { label: "Ozi-code.task_cancel" };
     expect(
       (["inProgress", "completed"] as const).map(
         (toolLifecycleStatus) =>
@@ -481,7 +481,7 @@ describe("resolveWorkEntryToolPresentation", () => {
     });
     const failed = {
       ...entry,
-      toolData: { toolName: "T3-code.t3_project_clone", rawOutput: { isError: true } },
+      toolData: { toolName: "Ozi-code.t3_project_clone", rawOutput: { isError: true } },
     };
     expect(summarizeToolGroup([entry, failed])).toEqual({
       summary: "Cloned 1 repository",
@@ -489,7 +489,7 @@ describe("resolveWorkEntryToolPresentation", () => {
     });
   });
 
-  it("does not summarize a foreign structured identity as T3 work", () => {
+  it("does not summarize a foreign structured identity as Ozi work", () => {
     const entry: WorkLogPresentationEntry = {
       id: "foreign",
       createdAt: "2026-09-19T00:00:00.000Z",
@@ -506,7 +506,7 @@ describe("resolveWorkEntryToolPresentation", () => {
       id: "clone",
       createdAt: "2026-09-19T00:00:00.000Z",
       tone: "tool",
-      label: "T3-code.t3_project_clone",
+      label: "Ozi-code.t3_project_clone",
       toolLifecycleStatus: "inProgress",
       itemType: "dynamic_tool",
       toolData: { output: { isError: true } },
@@ -518,7 +518,7 @@ describe("resolveWorkEntryToolPresentation", () => {
     expect(workEntryIndicatesToolSuccess(entry)).toBe(false);
     const childFailure = {
       ...entry,
-      label: "T3-code.task_status",
+      label: "Ozi-code.task_status",
       toolLifecycleStatus: "completed" as const,
       toolData: { output: { taskId: "child", status: "failed", summary: "command not found" } },
     };
@@ -529,7 +529,7 @@ describe("resolveWorkEntryToolPresentation", () => {
     "mcp__t3-code__preview_click",
     "mcp__t3_code__preview_click",
     "mcp__t3code__preview_click",
-    "T3-code.preview_click",
+    "Ozi-code.preview_click",
     "t3-code · preview_click completed",
     "t3_code/preview_click",
     "preview_click",
@@ -560,14 +560,14 @@ describe("resolveWorkEntryToolPresentation", () => {
   ] as const)("describes the tool's own %s state", (toolLifecycleStatus, displayName) => {
     expect(
       resolveWorkEntryToolPresentation({
-        label: "T3-code.preview_click",
+        label: "Ozi-code.preview_click",
         toolLifecycleStatus: toolLifecycleStatus as WorkLogToolLifecycleStatus,
       }),
     ).toEqual({ displayName, icon: "browser" });
   });
 
   it("uses the summary's state only when the provider omitted a lifecycle status", () => {
-    const entry = { label: "T3-code.preview_click" };
+    const entry = { label: "Ozi-code.preview_click" };
     expect(resolveWorkEntryToolPresentation(entry, "inProgress")?.displayName).toBe(
       "Clicking in the preview browser",
     );
@@ -601,8 +601,8 @@ describe("resolveWorkEntryToolPresentation", () => {
       "Stopping recording the preview browser",
       "Stopped recording the preview browser",
     ],
-    ["t3_thread_read", "Reading a T3 thread", "Read a T3 thread"],
-    ["t3_thread_send", "Sending to a T3 thread", "Sent to a T3 thread"],
+    ["t3_thread_read", "Reading a Ozi thread", "Read a Ozi thread"],
+    ["t3_thread_send", "Sending to a Ozi thread", "Sent to a Ozi thread"],
     [
       "t3_worktree_handoff",
       "Handing off thread to a git worktree",
@@ -619,7 +619,7 @@ describe("resolveWorkEntryToolPresentation", () => {
     ).toBe(completed);
   });
 
-  it("keeps T3 branding for non-browser tools and falls back to the original tool label", () => {
+  it("keeps Ozi branding for non-browser tools and falls back to the original tool label", () => {
     expect(
       resolveWorkEntryToolPresentation({
         label: "mcp__t3_code__task_status",

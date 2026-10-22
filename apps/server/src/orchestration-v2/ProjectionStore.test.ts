@@ -179,7 +179,7 @@ const addRolledBackRecoveryCandidate = Effect.fn("addRolledBackRecoveryCandidate
 it.effect.each([
   ["memory", ProjectionStore.layerMemory],
   ["SQL", layerTest],
-] as const)("%s shells flag only an active turn blocked solely on T3 thread waits", ([, layer]) =>
+] as const)("%s shells flag only an active turn blocked solely on Ozi thread waits", ([, layer]) =>
   Effect.gen(function* () {
     const store = yield* ProjectionStore.ProjectionStoreV2;
     const threadId = yield* addRolledBackRecoveryCandidate("thread-wait");

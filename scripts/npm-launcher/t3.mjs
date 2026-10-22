@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // The `t3` npm package. Downloads this version's CLI archive from the GitHub
-// Release into <T3 home>/runtime/versions/<version> (the folder the install
+// Release into <Ozi home>/runtime/versions/<version> (the folder the install
 // scripts and `t3 update` use), verifies it against the release's SHA256SUMS,
 // then runs it. `dist/bin.mjs` re-enters here for background services
 // installed before 0.0.41, which start the npm package with Node and talk to
@@ -150,7 +150,7 @@ async function main() {
     process.argv.slice(2),
     {
       stdio: ipc ? ["inherit", "inherit", "inherit", "ipc"] : "inherit",
-      // The executable lives in the T3 home, so this is how it knows npm launched it.
+      // The executable lives in the Ozi home, so this is how it knows npm launched it.
       env: { ...process.env, T3CODE_NPM_LAUNCHER_PATH: import.meta.filename },
     },
   );

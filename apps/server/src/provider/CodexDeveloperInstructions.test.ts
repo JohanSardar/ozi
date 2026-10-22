@@ -124,7 +124,7 @@ describe("buildCodexDeveloperInstructions", () => {
   });
 });
 
-describe("T3 browser developer instructions", () => {
+describe("Ozi browser developer instructions", () => {
   const runtime = { model: "gpt-5.3-codex", reasoningEffort: "high" };
 
   it("prefers the product-native preview tools in both collaboration modes", () => {

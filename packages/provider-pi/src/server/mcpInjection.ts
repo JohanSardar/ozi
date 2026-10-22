@@ -304,7 +304,7 @@ export function buildPiRpcLaunch(input: {
     args.push("--extension", input.extensionPath);
   }
   const environment = { ...input.environment };
-  // These values belong to the current T3 session. Never let a Pi child reuse
+  // These values belong to the current Ozi session. Never let a Pi child reuse
   // credentials inherited from the server or a parent provider process.
   delete environment[T3_MCP_URL_ENV];
   delete environment[T3_MCP_BEARER_ENV];

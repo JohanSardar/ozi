@@ -55,7 +55,7 @@ const layerTest = layerHtmlRender();
 const PNG_BYTES = new Uint8Array([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 /**
- * A stand-in browser that reads T3's first command off its debugging pipe,
+ * A stand-in browser that reads Ozi's first command off its debugging pipe,
  * then runs `exit`. Reading it first keeps the pipe from resetting.
  */
 const exitingBrowser = (exit: string) =>

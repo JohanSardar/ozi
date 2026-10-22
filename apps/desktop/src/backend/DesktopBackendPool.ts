@@ -177,8 +177,8 @@ export const layer = Layer.effect(
       onStateDirOwned: () =>
         electronDialog
           .showErrorBox(
-            "This T3 home is unavailable",
-            "Another Ozi server, such as the background service, is using this data directory, or an older background service is set up for it. Stop that server or try `t3 update`. If the older launcher cannot update, run `t3 service uninstall` and optionally reinstall with `t3 service install` from a current CLI. Use `npx t3@latest` if `t3` is missing or outdated, and pass `--base-dir` with the service's T3 home to each command. Then reopen Ozi. You can also set a separate T3CODE_HOME and pair with the running server.",
+            "This Ozi home is unavailable",
+            "Another Ozi server is using this data directory. Stop that server, pair with it, or choose another home.",
           )
           .pipe(Effect.andThen(electronApp.quit)),
     });

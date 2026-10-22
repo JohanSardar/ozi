@@ -162,27 +162,27 @@ describe("DesktopLinuxUrlHandler", () => {
   it("renders a scheme-handler desktop entry with freedesktop Exec quoting", () => {
     const entry = DesktopLinuxUrlHandler.renderUrlHandlerDesktopEntry({
       displayName: "Ozi (Nightly)",
-      execTarget: '/home/al ice/Apps/T3 "100%" $HOME\\x.AppImage',
+      execTarget: '/home/al ice/Apps/Ozi "100%" $HOME\\x.AppImage',
       scheme: "ozi",
-      iconPath: "/home/al ice/icons/T3\\x.png",
+      iconPath: "/home/al ice/icons/Ozi\\x.png",
     });
 
     assert.include(entry, "[Desktop Entry]");
     assert.include(entry, "Name=Ozi (Nightly)");
     assert.include(
       entry,
-      'Exec="/home/al ice/Apps/T3 \\\\"100%%\\\\" \\\\$HOME\\\\\\\\x.AppImage" %U',
+      'Exec="/home/al ice/Apps/Ozi \\\\"100%%\\\\" \\\\$HOME\\\\\\\\x.AppImage" %U',
     );
     assert.include(entry, "NoDisplay=true");
     assert.notInclude(entry, "StartupWMClass=");
     assert.include(entry, "MimeType=x-scheme-handler/t3code;");
-    assert.include(entry, "Icon=/home/al ice/icons/T3\\\\x.png");
+    assert.include(entry, "Icon=/home/al ice/icons/Ozi\\\\x.png");
   });
 
   it.each([
     {
-      execTarget: "/opt/T3(beta)/t3code.AppImage",
-      execLine: 'Exec="/opt/T3(beta)/t3code.AppImage" %U',
+      execTarget: "/opt/Ozi(beta)/t3code.AppImage",
+      execLine: 'Exec="/opt/Ozi(beta)/t3code.AppImage" %U',
     },
     {
       execTarget: "/opt/t3%20code/t3code.AppImage",

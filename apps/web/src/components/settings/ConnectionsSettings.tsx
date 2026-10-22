@@ -3094,7 +3094,7 @@ export function ConnectionsSettings() {
                 <AlertDialogDescription>
                   {pendingDesktopServerExposureMode === "network-accessible"
                     ? "Let your other devices connect to Ozi over the network. Pair devices to give them access. Ozi will restart."
-                    : "Devices connected over your local network will disconnect. Existing tunnels, such as T3 Connect or Tailscale HTTPS, keep working. Ozi will restart."}
+                    : "Devices connected over your local network will disconnect. Tailscale HTTPS keeps working. Ozi will restart."}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>

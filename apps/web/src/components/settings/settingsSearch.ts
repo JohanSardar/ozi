@@ -11,7 +11,6 @@ const labels = {
   "provider-health-check-interval": "Health check interval",
   providers: "Providers",
   "remote-environments": "Environments",
-  "t3-connect": "T3 connect",
   "tailscale-https": "Tailscale HTTPS",
   "usage-providers": "Usage providers",
   "wsl-backend": "WSL backend",

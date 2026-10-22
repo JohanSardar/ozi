@@ -29,7 +29,7 @@ export type CliShimTarget =
 /**
  * Electron runs the server as plain Node with `ELECTRON_RUN_AS_NODE`, which
  * reads the entry from inside the asar archive. The launcher's own path and the
- * app's T3 home are written in, so the command the server shows is absolute and
+ * app's Ozi home are written in, so the command the server shows is absolute and
  * `sudo`, which clears the environment, still runs against this install's home.
  */
 export const renderCliShim = (input: {

@@ -53,7 +53,7 @@ describe("resolveUserMessagePresentation", () => {
   });
 
   it("attributes older server-sent restart continuations to Ozi, not another agent", () => {
-    const text = "Note: the T3 server restarted.";
+    const text = "Note: the Ozi server restarted.";
     expect(
       resolveUserMessagePresentation({
         role: "user",
