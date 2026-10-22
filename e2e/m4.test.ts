@@ -9,6 +9,7 @@ import type {
   OziTodos,
   ScheduledTask,
 } from "@t3tools/contracts";
+import * as Schema from "effect/Schema";
 import { afterEach, beforeEach, expect, it } from "vite-plus/test";
 import { startHarness, type Harness, type Rule, type Status } from "./harness.ts";
 
@@ -633,8 +634,21 @@ it("m4.removed rejects retired APIs and commands and removes their repository sl
     "SourceControlWritingStyleSettings",
     "BranchNamingMode",
     "AuthFilesystemWriteScope",
+    "OrchestrationV2ThreadLaunchWorkspaceStrategy",
+    "OrchestrationV2ThreadLaunchInput",
+    "OrchestrationV2ThreadLaunchResult",
+    "OrchestrationV2ThreadLaunchError",
   ])
     expect(contracts).not.toHaveProperty(name);
+  expect(contracts.ORCHESTRATION_V2_WS_METHODS).not.toHaveProperty("launchThread");
+  expect(
+    Schema.is(contracts.OrchestrationV2Command)({
+      type: "prepared-run.retry",
+      commandId: "removed",
+      threadId: "ozi-main",
+      runId: "removed",
+    }),
+  ).toBe(false);
   const status = await h.ozi<Status>("status");
   expect(status.server.settings).not.toHaveProperty("defaultThreadEnvMode");
   expect(status.server.auth).not.toHaveProperty("serverUpdateScope");
@@ -667,6 +681,8 @@ it("m4.removed rejects retired APIs and commands and removes their repository sl
     ),
   ).then((output) => output.split("\0"));
   for (const path of [
+    "packages/client-runtime/src/state/turnItemPresentation.ts",
+    "apps/server/scripts/migrate-dev-db.ts",
     "infra",
     "native/resource-monitor",
     "apps/server/src/cloud",

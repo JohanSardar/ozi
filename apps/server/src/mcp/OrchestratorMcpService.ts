@@ -242,14 +242,6 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function scheduledTaskWorkspaceStrategy(
-  boundToThread: boolean,
-): ScheduledTask["workspaceStrategy"] {
-  return boundToThread
-    ? { type: "root" }
-    : { type: "worktree", baseRef: "main", startFromOrigin: true };
-}
-
 function scheduledTaskSummary(task: ScheduledTask, mayRun: boolean): OrchestratorMcpScheduledTask {
   return {
     scheduledTaskId: task.id,
@@ -1646,7 +1638,7 @@ const make = Effect.gen(function* () {
         schedule: input.schedule,
         projectId,
         threadId: bindToCurrentThread && parent !== undefined ? parent.thread.id : null,
-        workspaceStrategy: scheduledTaskWorkspaceStrategy(bindToCurrentThread),
+        workspaceStrategy: { type: "root" as const },
         modelSelection,
         runtimeMode: limits.runtimeMode,
         interactionMode: limits.interactionMode,
@@ -1720,7 +1712,7 @@ const make = Effect.gen(function* () {
         const workspaceStrategy =
           input.bindToCurrentThread === undefined
             ? existing.workspaceStrategy
-            : scheduledTaskWorkspaceStrategy(input.bindToCurrentThread);
+            : { type: "root" as const };
         const upsertInput: ScheduledTaskUpsertInput = {
           id: existing.id,
           title: input.title ?? existing.title,

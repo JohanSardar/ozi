@@ -9,7 +9,6 @@
     "dev:server": "node scripts/dev-runner.ts dev:server",
     "dev:web": "node scripts/dev-runner.ts dev:web",
     "dev:desktop": "node scripts/dev-runner.ts dev:desktop",
-    "migrate-dev-db": "node apps/server/scripts/migrate-dev-db.ts",
     "start": "vp run --filter t3 start",
     "start:desktop": "vp run --filter @t3tools/desktop start",
     "icons:export": "node scripts/export-brand-icons.ts",

@@ -319,7 +319,6 @@ export class LinuxDesktopBuildPrerequisitesMissingError extends Schema.TaggedErr
         ? ["Add the requested Rust target with:", `  rustup target add ${this.rustTarget}`]
         : []),
       "",
-      "For other distributions, see docs/operations/development.md#linux-appimage-prerequisites.",
       "Then rerun `vp run dist:desktop:linux`.",
     ].join("\n");
   }
@@ -382,8 +381,7 @@ export class WindowsDesktopBuildPrerequisitesMissingError extends Schema.TaggedE
       "Windows desktop build prerequisites are missing:",
       details,
       "",
-      "Install Python 3 and the Visual Studio Build Tools components listed in",
-      "docs/operations/development.md#windows-installer-prerequisites.",
+      "Install Python 3 and the listed Visual Studio Build Tools components.",
       "",
       "Then rerun the desktop artifact command.",
     ].join("\n");

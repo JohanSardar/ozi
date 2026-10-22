@@ -13,7 +13,6 @@ import {
   usageLimitBlockedRun,
 } from "@t3tools/shared/orchestrationV2ThreadError";
 import {
-  ORCHESTRATION_V2_WORKSPACE_PREPARATION_FAILURE_CODE,
   type ChatAttachment,
   CommandId,
   OZI_MAIN_THREAD_ID,
@@ -450,10 +449,6 @@ function commandThreadId(command: OrchestrationV2ServerCommand): ThreadId {
     case "message.dispatch":
     case "completion.resume":
     case "notification.delivery.accept":
-    case "prepared-run.release":
-    case "prepared-run.progress":
-    case "prepared-run.fail":
-    case "prepared-run.retry":
     case "subagent.stop":
     case "run.interrupt":
     case "queued-message.promote-to-steer":
@@ -507,15 +502,6 @@ function pendingThreadTitleGenerationEffect(
     threadId,
     request: { type: "thread-title.generate", kind },
   };
-}
-
-const WORKSPACE_PREPARATION_INPUT = "Preparing workspace";
-
-function withoutPreparationResult(
-  item: Extract<OrchestrationV2TurnItem, { readonly type: "command_execution" }>,
-) {
-  const { output: _output, exitCode: _exitCode, outputIndicatesFailure: _failure, ...rest } = item;
-  return rest;
 }
 
 function isBlockingRun(run: OrchestrationV2Run): boolean {
@@ -1329,17 +1315,11 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       if (usageLimitHoldsQueue(projection, queuedRun.providerInstanceId)) {
         return;
       }
-      // A message queued behind a worktree that was cancelled or never created
-      // would run in the project checkout instead, so it waits for the user.
       const failedRun = latestExecutedRun(projection.runs);
       const failureClass =
         failedRun?.id === options?.failedRunId
           ? latestRootProviderFailure(failedRun, projection.turnItems)?.class
           : undefined;
-      const worktreeMissing =
-        failedRun?.id === options?.endedRunId &&
-        failedRun?.workspacePreparation?.type === "worktree" &&
-        projection.thread.worktreePath === null;
       const settings = yield* serverSettings.getSettings.pipe(Effect.orDie);
       const projectOverride =
         settings.projectSettingsOverrides[projection.thread.projectId]?.providerInstances?.[
@@ -1356,7 +1336,6 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           ? !projectOverride
           : machineInstance !== undefined && !resolveProviderInstanceEnabled(machineInstance);
       if (
-        worktreeMissing ||
         instanceDisabledForProject ||
         (failureClass !== undefined &&
           failureClass !== "validation_error" &&
@@ -2997,14 +2976,6 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           .filter((run) => run.status === "queued" || run.status === "preparing")
           .map((run) => run.id),
       );
-      const preparingRuns = projection.runs.filter((run) => run.status === "preparing");
-      const preparationItems =
-        preparingRuns.length === 0
-          ? []
-          : (yield* loadProjectionForCommand(command, ["turnItems"], {
-              turnItemTypes: ["command_execution"],
-              turnItemRunIds: preparingRuns.map((run) => run.id),
-            })).turnItems;
       for (const run of projection.runs.filter((candidate) => activeRunIds.has(candidate.id))) {
         yield* emitEvent({
           type: "run.updated",
@@ -3013,31 +2984,6 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           providerInstanceId: run.providerInstanceId,
           occurredAt: now,
           payload: { ...run, status: "cancelled", queuePosition: null, completedAt: now },
-        });
-      }
-      for (const run of preparingRuns) {
-        const preparationItem = preparationItems.find(
-          (item) =>
-            item.runId === run.id &&
-            item.type === "command_execution" &&
-            item.input === WORKSPACE_PREPARATION_INPUT &&
-            item.status === "running",
-        );
-        if (preparationItem === undefined) continue;
-        yield* emitEvent({
-          type: "turn-item.updated",
-          threadId: command.threadId,
-          runId: run.id,
-          nodeId: preparationItem.nodeId ?? undefined,
-          providerInstanceId: run.providerInstanceId,
-          occurredAt: now,
-          payload: {
-            ...preparationItem,
-            status: "cancelled",
-            title: "Workspace preparation cancelled",
-            completedAt: now,
-            updatedAt: now,
-          },
         });
       }
       for (const attempt of projection.attempts.filter(
@@ -4611,46 +4557,17 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       (candidate) => candidate.id === projection.thread.activeProviderThreadId,
     );
     const activeRun = projection.runs.find(isBlockingRun);
-    // A message queued during worktree setup can arrive after that setup failed
-    // without a worktree. It waits, held, like the messages queued before the
-    // failure, instead of starting in the project checkout.
-    const latestRun = latestExecutedRun(projection.runs);
-    const worktreeMissingRun =
-      activeRun === undefined &&
-      dispatchMode.type === "queue_after_active" &&
-      (latestRun?.status === "failed" || latestRun?.status === "interrupted") &&
-      latestRun.workspacePreparation?.type === "worktree" &&
-      projection.thread.worktreePath === null
-        ? latestRun
-        : undefined;
-    const queueBehindRun = activeRun ?? worktreeMissingRun;
+    const queueBehindRun = activeRun;
     const pendingMergeBackTransfers = pendingMergeBackTransfersForThread(projection);
     const startsOrQueuesRun =
-      dispatchMode.type === "defer_start" ||
-      dispatchMode.type === "start_immediately" ||
-      dispatchMode.type === "queue_after_active";
+      dispatchMode.type === "start_immediately" || dispatchMode.type === "queue_after_active";
     const shouldQueue = queueBehindRun !== undefined && startsOrQueuesRun;
-    // A message the user sends from a client means they are back, so the
-    // queue a stop or a restart held runs again, in its order, rather than
-    // waiting for a Resume.
-    // Continuations and scheduled tasks the server sends for them are not
-    // them coming back. Starting the queue still re-holds it for a failed
-    // provider or a usage limit; a queue held after worktree setup failed
-    // keeps its hold until a worktree exists, even once later messages have
-    // run, since its messages would start in the project checkout.
-    const worktreeSetupUnresolved =
-      projection.thread.worktreePath === null &&
-      projection.runs.some(
-        (run) =>
-          (run.status === "failed" || run.status === "interrupted") &&
-          run.workspacePreparation?.type === "worktree",
-      );
     const sentByUserFromClient =
       command.createdBy === "user" &&
       command.creationSource === "web" &&
       command.scheduledTaskId === undefined;
     const heldRunsToRelease =
-      sentByUserFromClient && startsOrQueuesRun && !worktreeSetupUnresolved
+      sentByUserFromClient && startsOrQueuesRun
         ? projection.runs.filter((run) => run.status === "queued" && run.queueHeld === true)
         : [];
     const releasedAt = yield* DateTime.now;
@@ -4748,11 +4665,10 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         rootNodeId,
         activeAttemptId: attemptId,
         status: "queued",
-        ...(worktreeMissingRun !== undefined ||
-        (heldRunsToRelease.length === 0 &&
-          projection.runs.some(
-            (candidate) => candidate.status === "queued" && candidate.queueHeld === true,
-          ))
+        ...(heldRunsToRelease.length === 0 &&
+        projection.runs.some(
+          (candidate) => candidate.status === "queued" && candidate.queueHeld === true,
+        )
           ? { queueHeld: true }
           : {}),
         queuePosition:
@@ -5051,7 +4967,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         userMessageId: command.messageId,
         rootNodeId,
         activeAttemptId: attemptId,
-        status: dispatchMode.type === "defer_start" ? "preparing" : "starting",
+        status: "starting",
         queuePosition: null,
         requestedAt: now,
         startedAt: null,
@@ -5061,9 +4977,6 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         ...(command.restartContinuationOfRunId === undefined
           ? {}
           : { restartContinuationOfRunId: command.restartContinuationOfRunId }),
-        ...(dispatchMode.type === "defer_start" && dispatchMode.workspaceStrategy !== undefined
-          ? { workspacePreparation: dispatchMode.workspaceStrategy }
-          : {}),
         ...(continuedTaskId === undefined ? {} : { delegatedTaskId: continuedTaskId }),
         ...wakeWorkStartedAt(projection.runs, command),
       };
@@ -5145,30 +5058,6 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         ...(command.context ? { context: command.context } : {}),
         attachments: command.attachments,
       };
-      const preparationTurnItem: OrchestrationV2TurnItem | null =
-        dispatchMode.type === "defer_start"
-          ? {
-              id: idAllocator.derive.turnItemFromProviderItem({
-                driver: adapter.driver,
-                nativeItemId: `workspace-preparation:${runId}`,
-              }),
-              threadId: command.threadId,
-              runId,
-              nodeId: rootNodeId,
-              providerThreadId,
-              providerTurnId: null,
-              nativeItemRef: null,
-              parentItemId: null,
-              ordinal: turnItem.ordinal + 1,
-              status: "running",
-              title: WORKSPACE_PREPARATION_INPUT,
-              startedAt: now,
-              completedAt: null,
-              updatedAt: now,
-              type: "command_execution",
-              input: WORKSPACE_PREPARATION_INPUT,
-            }
-          : null;
       const emitEvent = emit(events, command);
       yield* emitEvent({
         type: "provider-thread.updated",
@@ -5234,26 +5123,15 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         occurredAt: now,
         payload: notificationTurnItem(turnItem, message, projection.subagents),
       });
-      if (preparationTurnItem !== null) {
-        yield* emitEvent({
-          type: "turn-item.updated",
-          threadId: command.threadId,
-          runId,
-          nodeId: rootNodeId,
-          providerInstanceId: modelSelection.instanceId,
-          occurredAt: now,
-          payload: preparationTurnItem,
-        });
-      }
       const pendingEffect = {
         id: `effect:${command.commandId}:provider-turn.start:${runId}`,
         commandId: command.commandId,
         threadId: command.threadId,
         request: { type: "provider-turn.start", runId },
       } satisfies PendingOrchestrationEffectV2;
-      if (dispatchMode.type !== "defer_start") {
-        yield* Ref.update(effects, (existing) => [...existing, pendingEffect]);
-      }
+
+      yield* Ref.update(effects, (existing) => [...existing, pendingEffect]);
+
       return;
     }
     const sourceProjection =
@@ -6234,12 +6112,6 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         )
           retryLead = lead;
       }
-      if (command.workspaceStrategy !== undefined)
-        return yield* new OrchestratorDispatchError({
-          commandId: command.commandId,
-          commandType: command.type,
-          cause: "Workers run in the installation workspace.",
-        });
       if (
         parentNode === undefined ||
         parentNode.runId !== parentRun.id ||
@@ -6464,10 +6336,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         text: command.task,
         attachments: [],
         modelSelection: command.modelSelection,
-        dispatchMode:
-          command.workspaceStrategy === undefined
-            ? { type: "start_immediately" }
-            : { type: "defer_start", workspaceStrategy: command.workspaceStrategy },
+        dispatchMode: { type: "start_immediately" },
       } satisfies Extract<OrchestrationV2Command, { readonly type: "message.dispatch" }>;
       yield* dispatchMessage(childMessageCommand, events, effects);
 
@@ -7688,346 +7557,6 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         ),
       );
 
-  const preparedRunState = (
-    command: Extract<
-      OrchestrationV2Command,
-      {
-        readonly type:
-          | "prepared-run.release"
-          | "prepared-run.progress"
-          | "prepared-run.fail"
-          | "prepared-run.retry";
-      }
-    >,
-    projection: Pick<
-      OrchestrationV2ThreadProjection,
-      "runs" | "attempts" | "nodes" | "providerThreads" | "turnItems"
-    >,
-  ) => {
-    const run = projection.runs.find((candidate) => candidate.id === command.runId);
-    const attempt = projection.attempts.find((candidate) => candidate.id === run?.activeAttemptId);
-    const rootNode = projection.nodes.find((candidate) => candidate.id === run?.rootNodeId);
-    const providerThread = projection.providerThreads.find(
-      (candidate) => candidate.id === run?.providerThreadId,
-    );
-    const preparationItem = projection.turnItems.find(
-      (
-        candidate,
-      ): candidate is Extract<OrchestrationV2TurnItem, { readonly type: "command_execution" }> =>
-        candidate.runId === command.runId &&
-        candidate.type === "command_execution" &&
-        candidate.input === WORKSPACE_PREPARATION_INPUT,
-    );
-    if (
-      run?.status !== (command.type === "prepared-run.retry" ? "failed" : "preparing") ||
-      attempt === undefined ||
-      rootNode === undefined ||
-      providerThread === undefined ||
-      preparationItem === undefined
-    ) {
-      return null;
-    }
-    return { run, attempt, rootNode, providerThread, preparationItem } as const;
-  };
-
-  const dispatchPreparedRunProgress = Effect.fn("Orchestrator.dispatchPreparedRunProgress")(
-    function* (
-      command: Extract<OrchestrationV2Command, { readonly type: "prepared-run.progress" }>,
-      events: Ref.Ref<Array<OrchestrationV2DomainEvent>>,
-    ) {
-      const projection = yield* loadProjectionForCommand(
-        command,
-        ["runs", "attempts", "nodes", "providerThreads", "turnItems"],
-        { turnItemTypes: ["command_execution"], turnItemRunId: command.runId },
-      );
-      const state = preparedRunState(command, projection);
-      if (state === null) {
-        return yield* new OrchestratorDispatchError({
-          commandId: command.commandId,
-          commandType: command.type,
-          cause: `Run ${command.runId} is not awaiting workspace preparation.`,
-        });
-      }
-      const now = yield* DateTime.now;
-      yield* emit(
-        events,
-        command,
-      )({
-        type: "turn-item.updated",
-        threadId: command.threadId,
-        runId: state.run.id,
-        nodeId: state.rootNode.id,
-        providerInstanceId: state.run.providerInstanceId,
-        occurredAt: now,
-        payload: {
-          ...state.preparationItem,
-          title: command.phase === "worktree" ? "Preparing worktree" : "Starting setup script",
-          updatedAt: now,
-        },
-      });
-    },
-  );
-
-  const dispatchPreparedRunRelease = Effect.fn("Orchestrator.dispatchPreparedRunRelease")(
-    function* (
-      command: Extract<OrchestrationV2Command, { readonly type: "prepared-run.release" }>,
-      events: Ref.Ref<Array<OrchestrationV2DomainEvent>>,
-      effects: Ref.Ref<Array<PendingOrchestrationEffectV2>>,
-    ) {
-      const projection = yield* loadProjectionForCommand(
-        command,
-        ["runs", "attempts", "nodes", "providerThreads", "turnItems"],
-        { turnItemTypes: ["command_execution"], turnItemRunId: command.runId },
-      );
-      const state = preparedRunState(command, projection);
-      if (state === null) {
-        return yield* new OrchestratorDispatchError({
-          commandId: command.commandId,
-          commandType: command.type,
-          cause: `Run ${command.runId} is not awaiting workspace preparation.`,
-        });
-      }
-      const now = yield* DateTime.now;
-      yield* runtimePolicy
-        .resolve({ thread: projection.thread, modelSelection: state.run.modelSelection })
-        .pipe(mapDispatchError(command));
-      const emitEvent = emit(events, command);
-      yield* emitEvent({
-        type: "node.updated",
-        threadId: command.threadId,
-        runId: state.run.id,
-        nodeId: state.rootNode.id,
-        providerInstanceId: state.run.providerInstanceId,
-        occurredAt: now,
-        payload: { ...state.rootNode },
-      });
-      yield* emitEvent({
-        type: "turn-item.updated",
-        threadId: command.threadId,
-        runId: state.run.id,
-        nodeId: state.rootNode.id,
-        providerInstanceId: state.run.providerInstanceId,
-        occurredAt: now,
-        payload: {
-          ...state.preparationItem,
-          status: "completed",
-          title: "Workspace ready",
-          output: "Workspace preparation completed.",
-          exitCode: 0,
-          completedAt: now,
-          updatedAt: now,
-        },
-      });
-      yield* emitEvent({
-        type: "run.updated",
-        threadId: command.threadId,
-        runId: state.run.id,
-        nodeId: state.rootNode.id,
-        providerInstanceId: state.run.providerInstanceId,
-        occurredAt: now,
-        payload: { ...state.run, status: "starting" },
-      });
-      yield* Ref.update(effects, (existing) => [
-        ...existing,
-        {
-          id: `effect:${command.commandId}:provider-turn.start:${state.run.id}`,
-          commandId: command.commandId,
-          threadId: command.threadId,
-          request: { type: "provider-turn.start", runId: state.run.id },
-        } satisfies PendingOrchestrationEffectV2,
-      ]);
-    },
-  );
-
-  const dispatchPreparedRunFail = Effect.fn("Orchestrator.dispatchPreparedRunFail")(function* (
-    command: Extract<OrchestrationV2Command, { readonly type: "prepared-run.fail" }>,
-    events: Ref.Ref<Array<OrchestrationV2DomainEvent>>,
-  ) {
-    const projection = yield* loadProjectionForCommand(
-      command,
-      ["runs", "attempts", "nodes", "providerThreads", "turnItems"],
-      { turnItemTypes: ["command_execution"], turnItemRunId: command.runId },
-    );
-    const state = preparedRunState(command, projection);
-    if (state === null) {
-      return yield* new OrchestratorDispatchError({
-        commandId: command.commandId,
-        commandType: command.type,
-        cause: `Run ${command.runId} is not awaiting workspace preparation.`,
-      });
-    }
-    const now = yield* DateTime.now;
-    const emitEvent = emit(events, command);
-    yield* emitEvent({
-      type: "run-attempt.updated",
-      threadId: command.threadId,
-      runId: state.run.id,
-      nodeId: state.rootNode.id,
-      providerInstanceId: state.run.providerInstanceId,
-      occurredAt: now,
-      payload: { ...state.attempt, status: "failed", completedAt: now },
-    });
-    yield* emitEvent({
-      type: "node.updated",
-      threadId: command.threadId,
-      runId: state.run.id,
-      nodeId: state.rootNode.id,
-      providerInstanceId: state.run.providerInstanceId,
-      occurredAt: now,
-      payload: { ...state.rootNode, status: "failed", completedAt: now },
-    });
-    yield* emitEvent({
-      type: "turn-item.updated",
-      threadId: command.threadId,
-      runId: state.run.id,
-      nodeId: state.rootNode.id,
-      providerInstanceId: state.run.providerInstanceId,
-      occurredAt: now,
-      payload: {
-        ...state.preparationItem,
-        status: "failed",
-        title: "Workspace preparation failed",
-        output: command.failure.message,
-        exitCode: 1,
-        completedAt: now,
-        updatedAt: now,
-      },
-    });
-    yield* emitEvent({
-      type: "turn-item.updated",
-      threadId: command.threadId,
-      runId: state.run.id,
-      nodeId: state.rootNode.id,
-      providerInstanceId: state.run.providerInstanceId,
-      occurredAt: now,
-      payload: {
-        id: idAllocator.derive.turnItemFromProviderItem({
-          driver: state.providerThread.driver,
-          nativeItemId: `workspace-preparation-failure:${state.run.id}`,
-        }),
-        threadId: command.threadId,
-        runId: state.run.id,
-        nodeId: state.rootNode.id,
-        providerThreadId: state.providerThread.id,
-        providerTurnId: null,
-        nativeItemRef: null,
-        parentItemId: null,
-        ordinal: yield* nextTurnItemOrdinal(projection),
-        status: "failed",
-        title: "Workspace preparation failed",
-        startedAt: now,
-        completedAt: now,
-        updatedAt: now,
-        type: "error",
-        failure: {
-          ...command.failure,
-          code: ORCHESTRATION_V2_WORKSPACE_PREPARATION_FAILURE_CODE,
-        },
-      },
-    });
-    yield* emitEvent({
-      type: "run.updated",
-      threadId: command.threadId,
-      runId: state.run.id,
-      nodeId: state.rootNode.id,
-      providerInstanceId: state.run.providerInstanceId,
-      occurredAt: now,
-      payload: { ...state.run, status: "failed", completedAt: now },
-    });
-  });
-
-  const dispatchPreparedRunRetry = Effect.fn("Orchestrator.dispatchPreparedRunRetry")(function* (
-    command: Extract<OrchestrationV2Command, { readonly type: "prepared-run.retry" }>,
-    events: Ref.Ref<Array<OrchestrationV2DomainEvent>>,
-  ) {
-    const projection = yield* loadProjectionForCommand(
-      command,
-      ["runs", "attempts", "nodes", "providerThreads", "turnItems"],
-      { turnItemTypes: ["command_execution", "error"], turnItemRunId: command.runId },
-    );
-    const state = preparedRunState(command, projection);
-    const failureItem = projection.turnItems.find(
-      (candidate): candidate is Extract<OrchestrationV2TurnItem, { readonly type: "error" }> =>
-        candidate.type === "error" &&
-        candidate.status === "failed" &&
-        candidate.failure.code === ORCHESTRATION_V2_WORKSPACE_PREPARATION_FAILURE_CODE,
-    );
-    if (
-      state === null ||
-      state.run.workspacePreparation === undefined ||
-      failureItem === undefined ||
-      projection.thread.archivedAt !== null ||
-      projection.thread.deletedAt !== null
-    ) {
-      return yield* new OrchestratorDispatchError({
-        commandId: command.commandId,
-        commandType: command.type,
-        cause: `Run ${command.runId} has no failed workspace preparation to retry.`,
-      });
-    }
-    if (projection.runs.some((run) => run.id !== state.run.id && isBlockingRun(run))) {
-      return yield* new OrchestratorDispatchError({
-        commandId: command.commandId,
-        commandType: command.type,
-        cause: "Another run is active on this thread.",
-      });
-    }
-    const now = yield* DateTime.now;
-    const emitEvent = emit(events, command);
-    const scope = {
-      threadId: command.threadId,
-      runId: state.run.id,
-      nodeId: state.rootNode.id,
-      providerInstanceId: state.run.providerInstanceId,
-      occurredAt: now,
-    };
-    yield* emitEvent({
-      ...scope,
-      type: "turn-item.updated",
-      payload: { ...failureItem, status: "cancelled", updatedAt: now },
-    });
-    yield* emitEvent({
-      ...scope,
-      type: "turn-item.updated",
-      payload: {
-        ...withoutPreparationResult(state.preparationItem),
-        status: "running",
-        title: WORKSPACE_PREPARATION_INPUT,
-        completedAt: null,
-        updatedAt: now,
-      },
-    });
-    yield* emitEvent({
-      ...scope,
-      type: "run-attempt.updated",
-      payload: { ...state.attempt, status: "pending", completedAt: null },
-    });
-    yield* emitEvent({
-      ...scope,
-      type: "node.updated",
-      payload: { ...state.rootNode, status: "pending", completedAt: null },
-    });
-    yield* emitEvent({
-      ...scope,
-      type: "run.updated",
-      payload: { ...state.run, status: "preparing", completedAt: null },
-    });
-    // Messages held when this preparation failed follow the run again. A hold
-    // from a later run (a stop, say) is not this failure's to release.
-    const failureOwnsQueue = latestExecutedRun(projection.runs)?.id === state.run.id;
-    for (const run of projection.runs) {
-      if (!failureOwnsQueue || run.status !== "queued" || run.queueHeld !== true) continue;
-      yield* emitEvent({
-        type: "run.updated",
-        threadId: command.threadId,
-        runId: run.id,
-        providerInstanceId: run.providerInstanceId,
-        occurredAt: now,
-        payload: { ...run, queueHeld: false },
-      });
-    }
-  });
-
   const settleBackgroundWork = Effect.fn("Orchestrator.settleBackgroundWork")(function* (input: {
     readonly command: Extract<
       OrchestrationV2ServerCommand,
@@ -9028,33 +8557,6 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         occurredAt: now,
         payload: interruptResultItem,
       });
-      const preparationItem = projection.turnItems.find(
-        (
-          candidate,
-        ): candidate is Extract<OrchestrationV2TurnItem, { readonly type: "command_execution" }> =>
-          candidate.runId === run.id &&
-          candidate.type === "command_execution" &&
-          candidate.input === WORKSPACE_PREPARATION_INPUT &&
-          candidate.status === "running",
-      );
-      if (preparationItem !== undefined) {
-        yield* emitEvent({
-          type: "turn-item.updated",
-          threadId: command.threadId,
-          runId: run.id,
-          nodeId: rootNode.id,
-          providerInstanceId: run.providerInstanceId,
-          occurredAt: now,
-          payload: {
-            ...preparationItem,
-            status: "interrupted",
-            title: "Workspace preparation interrupted",
-            output: command.reason ?? "Interrupted before provider start",
-            completedAt: now,
-            updatedAt: now,
-          },
-        });
-      }
       yield* emitEvent({
         type: "run-attempt.updated",
         threadId: command.threadId,
@@ -10426,18 +9928,6 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       }
       case "notification.delivery.accept":
         yield* dispatchNotificationAccepted(command, events);
-        break;
-      case "prepared-run.release":
-        yield* dispatchPreparedRunRelease(command, events, effects);
-        break;
-      case "prepared-run.progress":
-        yield* dispatchPreparedRunProgress(command, events);
-        break;
-      case "prepared-run.fail":
-        yield* dispatchPreparedRunFail(command, events);
-        break;
-      case "prepared-run.retry":
-        yield* dispatchPreparedRunRetry(command, events);
         break;
       case "runtime-request.respond":
         yield* dispatchRuntimeRequestRespond(command, events, effects);
