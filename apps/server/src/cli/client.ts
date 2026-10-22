@@ -215,6 +215,7 @@ const resolveId = Effect.fn("ozi.resolveId")(function* <A extends string>(
   known: ReadonlyArray<A>,
   kind: string,
 ) {
+  if (known.includes(id)) return id;
   const matches = [...new Set(known)].filter((candidate) => candidate.includes(id));
   if (matches.length > 1)
     return yield* new ClientError({ operation: `found ambiguous ${kind} ID` });
