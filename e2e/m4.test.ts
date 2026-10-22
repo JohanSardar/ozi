@@ -532,6 +532,7 @@ it("m4.removed rejects retired APIs and commands and removes their repository sl
     "threadPullRequestLinking",
     "projectCloneTracking",
     "ignoredFileListing",
+    "usageLimitSources",
   ])
     expect(rpcs[0]?.result?.environment.capabilities).not.toHaveProperty(name);
   const routes = [
@@ -579,6 +580,12 @@ it("m4.removed rejects retired APIs and commands and removes their repository sl
     "infra",
     "native/resource-monitor",
     "apps/server/src/cloud",
+    "apps/server/src/usage/UsageLimitSources.ts",
+    "apps/server/src/usage/cliproxyApi.ts",
+    "apps/server/src/provider/ProviderUsageLimitsIngestion.ts",
+    "apps/web/src/components/settings/UsageProviderSettings.tsx",
+    "apps/web/src/components/settings/AddUsageLimitSourceDialog.tsx",
+    "packages/contracts/src/usageLimitSourceId.ts",
     "apps/server/src/relay",
     "apps/server/src/device",
     "apps/server/src/terminal",

@@ -2,7 +2,6 @@ import {
   ClaudeSettings,
   CodexSettings,
   type ServerSettings,
-  UsageLimitSourceConfig,
   secretSettingsFields,
 } from "@t3tools/contracts";
 import { piClient } from "@t3tools/provider-pi/client";
@@ -17,7 +16,6 @@ const providerSecretFields = new Map([
       [definition.driverKind, secretSettingsFields(definition.settingsSchema)] as const,
   ),
 ]);
-const usageLimitSecretFields = secretSettingsFields(UsageLimitSourceConfig);
 const encode = (value: string) => Buffer.from(value, "utf8").toString("base64url");
 
 export interface SettingsSecret {
@@ -105,22 +103,7 @@ export function mapSettingsSecrets(
     }),
   );
 
-  const usageLimitSources = Object.fromEntries(
-    Object.entries(settings.usageLimitSources).map(([id, source]) => [
-      id,
-      mapFields(
-        source,
-        usageLimitSecretFields,
-        (field, serverHost) =>
-          `usage-limit-source-${encode(id)}` +
-          (field === "managementKey" && serverHost === null
-            ? ""
-            : `-${encode(field)}${serverHost === null ? "" : `-${encode(serverHost)}`}`),
-      ),
-    ]),
-  ) as ServerSettings["usageLimitSources"];
-
-  return { ...settings, providerInstances, usageLimitSources };
+  return { ...settings, providerInstances };
 }
 
 function readSecretFieldValues(

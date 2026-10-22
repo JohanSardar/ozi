@@ -6,8 +6,7 @@ import {
   NonNegativeInt,
   TrimmedNonEmptyString,
 } from "./baseSchemas.ts";
-import { ProviderDriverKind, ProviderInstanceId } from "./providerInstance.ts";
-import { UsageLimitSourceId } from "./usageLimitSourceId.ts";
+import { ProviderInstanceId } from "./providerInstance.ts";
 
 /**
  * `id` is stable per provider (`five_hour`, `seven_day_opus`, `primary`) so a
@@ -66,51 +65,8 @@ export const ProviderUsageLimitsUpdate = Schema.Struct({
 });
 export type ProviderUsageLimitsUpdate = typeof ProviderUsageLimitsUpdate.Type;
 
-export const UsageLimitSourceAccount = Schema.Struct({
-  id: TrimmedNonEmptyString,
-  driver: ProviderDriverKind,
-  email: Schema.optional(TrimmedNonEmptyString),
-  plan: Schema.optional(TrimmedNonEmptyString),
-  workspaceId: Schema.optional(TrimmedNonEmptyString),
-  usageLimits: ServerProviderUsageLimits,
-});
-export type UsageLimitSourceAccount = typeof UsageLimitSourceAccount.Type;
-
-export const UsageLimitSourceSnapshot = Schema.Struct({
-  id: UsageLimitSourceId,
-  kind: Schema.Literal("cliproxy"),
-  label: TrimmedNonEmptyString,
-  checkedAt: IsoDateTime,
-  accounts: ForwardCompatibleArray(UsageLimitSourceAccount),
-  error: Schema.optional(TrimmedNonEmptyString),
-});
-export type UsageLimitSourceSnapshot = typeof UsageLimitSourceSnapshot.Type;
-
-export const UsageLimitSourceSnapshots = ForwardCompatibleArray(UsageLimitSourceSnapshot);
-export type UsageLimitSourceSnapshots = typeof UsageLimitSourceSnapshots.Type;
-
-export const UsageLimitSourceConsumeResetCreditInput = Schema.Struct({
-  sourceId: UsageLimitSourceId,
-  accountId: TrimmedNonEmptyString,
-  creditId: TrimmedNonEmptyString,
-});
-export type UsageLimitSourceConsumeResetCreditInput =
-  typeof UsageLimitSourceConsumeResetCreditInput.Type;
-
-export const ProviderConsumeResetCreditInput = Schema.Union([
-  Schema.Struct({ instanceId: ProviderInstanceId }),
-  UsageLimitSourceConsumeResetCreditInput,
-]);
+export const ProviderConsumeResetCreditInput = Schema.Struct({ instanceId: ProviderInstanceId });
 export type ProviderConsumeResetCreditInput = typeof ProviderConsumeResetCreditInput.Type;
-
-export class UsageLimitSourceError extends Schema.TaggedError<UsageLimitSourceError>()(
-  "UsageLimitSourceError",
-  { detail: Schema.String },
-) {
-  override get message(): string {
-    return this.detail;
-  }
-}
 
 export const ProviderConsumeResetCreditOutcome = Schema.Literals([
   "reset",
@@ -125,24 +81,3 @@ export const ProviderConsumeResetCreditResult = Schema.Struct({
   warning: Schema.optional(TrimmedNonEmptyString),
 });
 export type ProviderConsumeResetCreditResult = typeof ProviderConsumeResetCreditResult.Type;
-
-export const UsageLimitsReport = Schema.Struct({
-  createdAt: IsoDateTime,
-  accounts: Schema.Array(
-    Schema.Struct({
-      id: TrimmedNonEmptyString,
-      driver: ProviderDriverKind,
-      label: TrimmedNonEmptyString,
-      plan: Schema.optional(TrimmedNonEmptyString),
-      email: Schema.optional(TrimmedNonEmptyString),
-      sourceLabel: Schema.optional(TrimmedNonEmptyString),
-      instanceId: Schema.optional(ProviderInstanceId),
-      resetCreditInput: Schema.optional(ProviderConsumeResetCreditInput),
-      displayName: Schema.optional(Schema.String),
-      accentColor: Schema.optional(Schema.String),
-      limits: ServerProviderUsageLimits,
-    }),
-  ),
-  notices: Schema.Array(Schema.String),
-});
-export type UsageLimitsReport = typeof UsageLimitsReport.Type;

@@ -12,10 +12,10 @@ export interface ServerConfigProjection {
  * cache could restore a set the machine no longer reports.
  */
 export function withoutEnvironmentThemes(config: ServerConfig): ServerConfig {
-  if (config.environmentThemes === undefined && config.usageLimitSources === undefined) {
+  if (config.environmentThemes === undefined) {
     return config;
   }
-  const { environmentThemes: _themes, usageLimitSources: _sources, ...rest } = config;
+  const { environmentThemes: _themes, ...rest } = config;
   return rest;
 }
 
@@ -76,14 +76,9 @@ export function applyServerConfigProjection(
         capabilities.environmentThemes === true && Option.isSome(current)
           ? current.value.config.environmentThemes
           : undefined;
-      const carriedSources =
-        capabilities.usageLimitSources === true && Option.isSome(current)
-          ? current.value.config.usageLimitSources
-          : undefined;
       const config: ServerConfig = {
         ...event.config,
         ...(carriedThemes === undefined ? {} : { environmentThemes: carriedThemes }),
-        ...(carriedSources === undefined ? {} : { usageLimitSources: carriedSources }),
       };
       return Option.some({
         // Every reconnect re-sends the whole config, usually unchanged apart from timestamps.
@@ -125,15 +120,6 @@ export function applyServerConfigProjection(
         config: {
           ...projection.config,
           environmentThemes: event.payload.themes.length > 0 ? event.payload.themes : undefined,
-        },
-        latestEvent: event,
-        source: "live",
-      }));
-    case "usageLimitSourcesUpdated":
-      return Option.map(current, (projection) => ({
-        config: {
-          ...projection.config,
-          usageLimitSources: event.payload.sources.length > 0 ? event.payload.sources : undefined,
         },
         latestEvent: event,
         source: "live",

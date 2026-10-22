@@ -28,8 +28,6 @@ const layerProvidedClientConnection = layerSnapshotLoader.pipe(
   Layer.provideMerge(
     Connection.layerWithOptions({
       environmentThemes: true,
-      usageLimitSources: true,
-      usageLimitsCommand: true,
     }),
   ),
   Layer.provideMerge(Layer.mergeAll(Runtime.layer, layerProvidedConnectionPlatform)),
