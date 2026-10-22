@@ -257,6 +257,9 @@
   padding: 7px 9px;
   overflow-wrap: anywhere;
 }
+.ozi-report pre {
+  white-space: pre-wrap;
+}
 .ozi-app .ozi-primary {
   background: var(--primary);
   color: var(--primary-foreground);

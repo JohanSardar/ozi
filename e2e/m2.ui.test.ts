@@ -122,7 +122,7 @@ it("m2.drawer opens the lead conversation while the main composer stays usable",
     {
       match: "drawer-direct-message",
       role: "worker",
-      steps: [{ say: "The job received **your message**" }],
+      steps: [{ say: `The job received **your message**\n\n\`\`\`\n${"x".repeat(400)}\n\`\`\`` }],
     },
     {
       match: "Still usable with a job open",
@@ -179,6 +179,7 @@ it("m2.drawer opens the lead conversation while the main composer stays usable",
   await h.ozi("wait", "job", job.jobId, "ready", "--timeout", "20");
   await card.locator("strong", { hasText: "your message" }).waitFor();
   expect(await card.textContent()).not.toContain("**");
+  expect(await card.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
   await card.getByRole("button", { name: "Got it, close", exact: true }).click();
   await h.ozi("wait", "job", job.jobId, "done", "--timeout", "20");
   await page
