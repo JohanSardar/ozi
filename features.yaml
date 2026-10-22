@@ -222,4 +222,4 @@ features:
     cli: []
     milestone: 6
     scenarios: [m6.audit, m6.public-ready]
-    status: building
+    status: passing

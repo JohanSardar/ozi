@@ -114,7 +114,7 @@ Main's environment sets `ENABLE_TOOL_SEARCH=false` so Claude Code adds no deferr
 
 ## Desktop identity
 
-Ozi coexists with T3 Code. Desktop state and the bundled `ozi` shim live under `~/.ozi` or `OZI_HOME`; T3 environment variables and legacy profiles are never read or migrated. Electron uses `Ozi Beta`/`Ozi Dev`, profiles `ozi`/`ozi-dev`, app ID `com.ozi.app` (development `com.ozi.app.dev`) and schemes `ozi`/`ozi-dev`. Locks, safe storage, passkey groups, desktop entries, capture services, browser profiles, caches, update artifacts and WSL paths use Ozi's identity. Release channels use the Ozi app and configured Ozi update repository.
+Ozi coexists with T3 Code. Desktop state and the bundled `ozi` shim live under `~/.ozi` or `OZI_HOME`; T3 environment variables and legacy profiles are never read or migrated. Electron uses `Ozi Beta`/`Ozi Dev`, profiles `ozi`/`ozi-dev`, app ID `com.ozi.app` (development `com.ozi.app.dev`) and schemes `ozi`/`ozi-dev`. Locks, safe storage, passkey groups, desktop entries, capture services, browser profiles, caches and WSL paths use Ozi's identity.
 
 The bundled backend runs `ozi serve --bootstrap-fd 3`; WSL uses `serve --bootstrap-fd 0`. Bootstrap data travels through the descriptor. Settings → Connections accepts an Ozi server's pairing URL, including when the local environment is disabled.
 

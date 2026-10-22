@@ -118,8 +118,8 @@ overrides:
   yaml: ^2.9.0
 
 patchedDependencies:
-  app-builder-lib@26.16.1: a28c2dfcfc2b90d6c6247e199e6537391db9ecd941854c650910d607442512d3
-  dbus-next@0.10.2: cfff57561b0ee59b5addb3b2e6c6f20906e967507a530ab67e8db8108e520ba4
+  app-builder-lib@26.16.1: 45ef00176194de4d32fece2a030cc2d737b2a8a1caed24de81879bf437ecbae8
+  dbus-next@0.10.2: bc54129498b45bd29faf637523a09996a10a8461f032c4d9b09f9005716268d5
   micromark-extension-gfm-table@2.1.1: 9ad23a530e45d9f83cba1da8654fe16d5af8b59d5c73d5c7a7c91fd25b9be1d8
   pi-claude-bridge@0.9.3: a88f936a3ef7d70fab051442bac0b5abccf2599616f813e5199ca0f3387111d2
 
@@ -183,7 +183,7 @@ importers:
         version: link:../../packages/tailscale
       dbus-next:
         specifier: 0.10.2
-        version: 0.10.2(patch_hash=cfff57561b0ee59b5addb3b2e6c6f20906e967507a530ab67e8db8108e520ba4)
+        version: 0.10.2(patch_hash=bc54129498b45bd29faf637523a09996a10a8461f032c4d9b09f9005716268d5)
       effect:
         specifier: 4.0.5
         version: 4.0.5
@@ -10676,7 +10676,7 @@ snapshots:
 
   ansis@4.3.1: {}
 
-  app-builder-lib@26.16.1(patch_hash=a28c2dfcfc2b90d6c6247e199e6537391db9ecd941854c650910d607442512d3)(dmg-builder@26.16.1)(electron-builder-squirrel-windows@26.16.1):
+  app-builder-lib@26.16.1(patch_hash=45ef00176194de4d32fece2a030cc2d737b2a8a1caed24de81879bf437ecbae8)(dmg-builder@26.16.1)(electron-builder-squirrel-windows@26.16.1):
     dependencies:
       '@electron/asar': 3.4.1
       '@electron/fuses': 1.8.0
@@ -11152,7 +11152,7 @@ snapshots:
   date-fns@4.4.0:
     optional: true
 
-  dbus-next@0.10.2(patch_hash=cfff57561b0ee59b5addb3b2e6c6f20906e967507a530ab67e8db8108e520ba4):
+  dbus-next@0.10.2(patch_hash=bc54129498b45bd29faf637523a09996a10a8461f032c4d9b09f9005716268d5):
     dependencies:
       '@nornagon/put': 0.0.8
       event-stream: 3.3.4
@@ -11228,7 +11228,7 @@ snapshots:
 
   dmg-builder@26.16.1(electron-builder-squirrel-windows@26.16.1):
     dependencies:
-      app-builder-lib: 26.16.1(patch_hash=a28c2dfcfc2b90d6c6247e199e6537391db9ecd941854c650910d607442512d3)(dmg-builder@26.16.1)(electron-builder-squirrel-windows@26.16.1)
+      app-builder-lib: 26.16.1(patch_hash=45ef00176194de4d32fece2a030cc2d737b2a8a1caed24de81879bf437ecbae8)(dmg-builder@26.16.1)(electron-builder-squirrel-windows@26.16.1)
       builder-util: 26.16.0
       fs-extra: 10.1.0
       js-yaml: 4.3.2
@@ -11292,7 +11292,7 @@ snapshots:
 
   electron-builder-squirrel-windows@26.16.1(dmg-builder@26.16.1):
     dependencies:
-      app-builder-lib: 26.16.1(patch_hash=a28c2dfcfc2b90d6c6247e199e6537391db9ecd941854c650910d607442512d3)(dmg-builder@26.16.1)(electron-builder-squirrel-windows@26.16.1)
+      app-builder-lib: 26.16.1(patch_hash=45ef00176194de4d32fece2a030cc2d737b2a8a1caed24de81879bf437ecbae8)(dmg-builder@26.16.1)(electron-builder-squirrel-windows@26.16.1)
       builder-util: 26.16.0
       electron-winstaller: 5.4.0
     transitivePeerDependencies:
@@ -11301,7 +11301,7 @@ snapshots:
 
   electron-builder@26.16.1(electron-builder-squirrel-windows@26.16.1):
     dependencies:
-      app-builder-lib: 26.16.1(patch_hash=a28c2dfcfc2b90d6c6247e199e6537391db9ecd941854c650910d607442512d3)(dmg-builder@26.16.1)(electron-builder-squirrel-windows@26.16.1)
+      app-builder-lib: 26.16.1(patch_hash=45ef00176194de4d32fece2a030cc2d737b2a8a1caed24de81879bf437ecbae8)(dmg-builder@26.16.1)(electron-builder-squirrel-windows@26.16.1)
       builder-util: 26.16.0
       builder-util-runtime: 9.7.0
       chalk: 4.1.2

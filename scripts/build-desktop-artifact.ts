@@ -2462,10 +2462,6 @@ export const packWindowsServerAsar = Effect.fn("packWindowsServerAsar")(function
 }) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  // Native addons are unpacked only when they are Windows PE ("MZ") binaries.
-  // Signed builds Authenticode-sign every unpacked .node file, which fails on
-  // the darwin and linux prebuilds some packages (node-pty) ship alongside
-  // their win32 ones. The Windows primary never loads those, so they stay packed.
   const unpackGlobs: string[] = [...WINDOWS_SERVER_ASAR_UNPACK_GLOBS];
   for (const entry of yield* fs.readDirectory(input.sourceDir, { recursive: true })) {
     if (!entry.endsWith(".node")) continue;
