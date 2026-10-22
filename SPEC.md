@@ -43,6 +43,7 @@ New code lives in `apps/server/src/ozi/` and `apps/web/src/components/ozi/`. Eve
 - Checks use T3's native fork paths: Pi waits for `agent_settled` and starts an isolated `--fork` process; Claude and Codex use `ThreadForkService`/`ContextHandoffService`. The source is held only until its native fork exists, then queued input can start before checker inference. There is no checkpoint wait.
 - Checkers have an internal, runtime-owned role, the same provider/model and options with low effort, a fixed non-recursive prompt, and evidence-only tools. Options are checked against a refreshed native catalog. Unsupported options, missing native history, malformed JSON, provider failures and a 120-second deadline consume unsuccessful rounds and never pass.
 - Verdicts are `{"verdict":"done","useful":boolean}`, `{"verdict":"continue","missing":string,"evidence":string[],"useful":boolean}` or `{"verdict":"needs_user","reason":string,"useful":boolean}`. Done releases the report and deduplicated delivery; continue resumes its owner. Main continues by delegating missing work and owes coordination/reporting, including while background work remains. Human needs, questions, failures and login requests surface immediately.
+- Quiet-job checks include the originating scheduled or webhook request from main; useful means its reporting condition is met or the user is needed.
 - Three consecutive rounds without verified progress become Blocked in Needs you. Workspace content hashes and completed action receipts are verified independently; new evidence or fulfilled actions reset the count. Read-only tool calls, repeated receipts and rewording do not. Each round retains misses, evidence, verdict/error and input/output token cost, or null when unavailable.
 - Steering or Stop supersedes pending results. Late checks can record their evidence and cost, but cannot release old reports or resume cancelled work. Drawers mark pending text unchecked.
 - `ozi checks [threadId] --json` exposes records; `ozi wait check <id> <state> --json` subscribes to transitions. Each record contains `id`, `eventId`, `threadId`, `runId`, `requestEventId`, `reportItemId|null`, `report`, `state`, `sourceCaptured`, `unsuccessfulRounds`, `evidence`, `rounds`, and timestamps. Rounds contain their number, checker thread ID, verdict/error, misses, verified evidence, tokens and timestamps.
@@ -110,7 +111,7 @@ The bundled backend runs `ozi serve --bootstrap-fd 3`; WSL uses `serve --bootstr
 
 `ozi wait provider <instanceId> <status>` awaits provider discovery through the server configuration stream.
 
-One binary, `ozi`. Every command takes `--json`. Client commands find the server from `--home` (default `~/.ozi`) and authenticate with its owner session.
+One binary, `ozi`. Every command takes `--json`. Command failures exit nonzero with one line: `{"error":{"code":"StaleEvent","message":"The job has a newer event."}}` with `--json`, otherwise just the message. Client commands find the server from `--home` (default `~/.ozi`) and authenticate with its owner session.
 
 | Command                                                                         | Does                                                                                                   |
 | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
@@ -161,7 +162,7 @@ Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` 
 - `m1.steer-queue-stop`: steer main mid-turn; queue a follow-up; stop main; stop a worker.
 - `m1.read-skill`: main loads a data-root skill by name; unknown name errors.
 - `m1.remote-client`: web client pairs with the server over its network address and chats.
-- `m1.cli-json`: every implemented `ozi` command returns valid JSON with `--json`; native forks of Pi, Claude and Codex workers preserve the source conversation.
+- `m1.cli-json`: every implemented `ozi` command returns valid JSON with `--json`; errors have a code and one-line message, plain errors print only the message; native forks of Pi, Claude and Codex workers preserve the source conversation.
 
 ### M2 Jobs
 
@@ -191,7 +192,7 @@ Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` 
 - `m3.steer-supersedes`: steering during a check discards its verdict.
 - `m3.stop-unchecked`: stopped work is not checked.
 - `m3.needs-user`: `needs_user` moves the card to Needs you at once.
-- `m3.close-exact`: closing the shown report → Done; a stale event is rejected; a newer result reopens.
+- `m3.close-exact`: closing the shown report → Done; a stale event returns clean `StaleEvent` JSON or a plain message; a newer result reopens.
 - `m3.accept-closes`: clear user acceptance closes the card.
 - `m3.close-vs-stop`: Close hides without stopping; Stop shows Needs you / Stopped without checking or accepting; close → Done, a new request → Running.
 - `m3.recovery`: a crash before fork or delivery recovers without losing or duplicating the report.
@@ -200,7 +201,7 @@ Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` 
 
 - `m4.interval`: an interval schedule wakes main; nothing useful → no card.
 - `m4.time-of-day`: a fixed-time schedule fires at the faked time.
-- `m4.useful-card`: a scheduled run with a checked useful finding makes a card; unchecked or routine reports remain quiet across restart.
+- `m4.useful-card`: a scheduled run with a checked useful finding makes a card; the checker receives the originating request and respects its reporting condition; unchecked or routine reports remain quiet across restart.
 - `m4.webhook`: a signed POST wakes main; bad signature rejected; duplicate suppressed; filter applied.
 - `m4.base-url`: schedules report webhook URLs on the configured base URL.
 - `m4.todos`: external to-dos show labeled; offline/malformed source shows unavailable, not empty; no config hides them.

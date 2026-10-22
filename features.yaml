@@ -17,7 +17,7 @@ requirements:
   info-tools: Agents call tools on demand (MCP, CLI).
   schedules: Scheduled jobs by interval, time of day and webhook.
   watchers: Live watchers wake main.
-  quiet-cards: A scheduled run makes a card only if it needs the user or has something worth reading.
+  quiet-cards: A scheduled run makes a card only if it needs the user or meets the originating request's reporting condition.
   memory-plugin: Ozi doesn't depend on or write to memory.
   desktop-remote: Desktop app on the laptop; server on another machine.
   one-conversation: One main conversation; no thread list.
@@ -36,7 +36,7 @@ requirements:
 features:
   - id: cli
     reqs: [info-tools, for-everybody]
-    module: apps/server/src/cli/client.ts + e2e
+    module: apps/server/src/cli/client.ts + apps/server/src/cli/run.ts + e2e
     cli: [serve, service, pair, status, say, steer, stop, thread, wait]
     milestone: 1
     scenarios: [m1.cli-json]
@@ -148,7 +148,7 @@ features:
     status: passing
   - id: schedules
     reqs: [schedules, quiet-cards]
-    module: scheduledTasks/ScheduledTaskService.ts + ozi/Clock.ts + cli/client.ts + e2e/m4.test.ts
+    module: scheduledTasks/ScheduledTaskService.ts + ozi/Clock.ts + ozi/Completion.ts + cli/client.ts + e2e/m4.test.ts
     cli: [schedules, schedule]
     milestone: 4
     scenarios: [m4.interval, m4.time-of-day, m4.useful-card]

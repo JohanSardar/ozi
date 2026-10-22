@@ -450,6 +450,14 @@ it("m1.cli-json returns JSON and exercises each provider, attachments, waits and
   expect(await h.ozi("status")).toHaveProperty("main");
   expect(await h.ozi("thread", threadId)).toHaveProperty("runs");
   expect(await h.ozi("service", "status")).toHaveProperty("supported");
+  const invalid = ["schedule", "add", "--every", "1m", "--at", "09:00", "--prompt", "invalid"];
+  const message = "Ozi requires exactly one of --every, --at or --webhook.";
+  expect(await h.execOutput(...invalid, "--json")).toEqual({
+    code: 1,
+    stdout: `${JSON.stringify({ error: { code: "OziClientError", message } })}\n`,
+    stderr: "",
+  });
+  expect(await h.execOutput(...invalid)).toEqual({ code: 1, stdout: "", stderr: `${message}\n` });
   await expect(h.wait(threadId, "impossible", 0.1)).rejects.toThrow();
   await h.script([
     { match: "json-hold", steps: [{ wait: true }] },
