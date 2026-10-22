@@ -34,10 +34,10 @@ jobs:
       - uses: ./.github/actions/setup-ci-deps
       - name: Sandbox and browser
         run: |
-          sudo apt-get update && sudo apt-get install -y bubblewrap libsecret-1-dev
+          sudo apt-get update && sudo apt-get install -y bubblewrap libsecret-1-dev xvfb dbus gnome-keyring libglib2.0-bin
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           node e2e/node_modules/playwright/cli.js install --with-deps --only-shell chromium
-      - run: vp test run --root e2e --shard ${{ matrix.shard }}/3
+      - run: xvfb-run -a vp test run --root e2e --shard ${{ matrix.shard }}/3
         env:
           OZI_E2E_RESULTS: results-${{ matrix.shard }}.json
       - uses: actions/upload-artifact@v5
