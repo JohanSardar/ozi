@@ -55,7 +55,7 @@ export const isAcceptance = (text: string) =>
 const significant = (event: OrchestrationV2DomainEvent) => {
   switch (event.type) {
     case "completion.updated":
-      return event.payload.state !== "checking";
+      return event.payload.state !== "checking" && event.payload.state !== "superseded";
     case "thread.created":
     case "runtime-request.updated":
       return true;

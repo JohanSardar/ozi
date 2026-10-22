@@ -10763,7 +10763,6 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           payload: {
             ...run.completionCheck,
             state: "superseded",
-            sourceCaptured: true,
             updatedAt: DateTime.formatIso(now),
           },
         });
@@ -11297,7 +11296,12 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
 
   const handleRunUpdate = Effect.fn("Orchestrator.handleRunUpdate")(
     function* (stored: OrchestrationV2StoredEvent) {
-      if (stored.event.type !== "run.updated" && stored.event.type !== "completion.updated") return;
+      if (
+        stored.event.type !== "run.updated" &&
+        stored.event.type !== "completion.updated" &&
+        stored.event.type !== "completion.source-captured"
+      )
+        return;
       const threadId = stored.event.threadId;
       const runId =
         stored.event.type === "run.updated" ? stored.event.payload.id : stored.event.payload.runId;
@@ -11373,6 +11377,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
     Stream.filter(
       (stored) =>
         stored.event.type === "completion.updated" ||
+        stored.event.type === "completion.source-captured" ||
         (stored.event.type === "run.updated" &&
           !String(stored.commandId).startsWith("command:runtime-reconcile:") &&
           ((stored.event.payload.delegatedTaskId !== undefined &&

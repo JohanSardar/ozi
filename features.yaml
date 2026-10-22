@@ -116,7 +116,7 @@ features:
   - id: completion-check
     reqs: [end-of-turn-check]
     module: Completion
-    cli: [checks]
+    cli: [checks, wait]
     milestone: 3
     scenarios:
       [
@@ -131,21 +131,21 @@ features:
         m3.needs-user,
         m3.recovery,
       ]
-    status: planned
+    status: passing
   - id: blocked
     reqs: [blocked]
     module: Completion
     cli: [checks, jobs]
     milestone: 3
     scenarios: [m3.blocked, m3.progress-resets]
-    status: planned
+    status: passing
   - id: card-handling
     reqs: [card-leaves]
     module: Jobs
-    cli: [close, stop]
+    cli: [close, stop, answer]
     milestone: 3
     scenarios: [m3.close-exact, m3.accept-closes, m3.close-vs-stop]
-    status: planned
+    status: passing
   - id: schedules
     reqs: [schedules, quiet-cards]
     module: server

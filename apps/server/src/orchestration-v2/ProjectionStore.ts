@@ -702,6 +702,17 @@ export function applyToProjection(
           updatedAt: event.occurredAt,
         },
       };
+    case "completion.source-captured":
+      return {
+        ...base,
+        runs: base.runs.map((run) =>
+          run.id === event.payload.runId &&
+          run.completionCheck?.id === event.payload.checkId &&
+          run.completionCheck.state === "checking"
+            ? { ...run, completionCheck: { ...run.completionCheck, sourceCaptured: true } }
+            : run,
+        ),
+      };
     case "completion.updated":
       return {
         ...base,
@@ -996,6 +1007,7 @@ const encodeThreadPayload = Schema.encodeEffect(
 const encodeThreadUpdatedAt = Schema.encodeEffect(
   OrchestrationV2AppThreadJsonSchema.fields.updatedAt,
 );
+const encodeCheck = Schema.encodeEffect(Schema.fromJsonString(OziCheck));
 const encodeRunPayload = Schema.encodeEffect(Schema.fromJsonString(OrchestrationV2RunJsonSchema));
 const encodeRestartCancelledBackgroundWork = Schema.encodeEffect(
   Schema.fromJsonString(OrchestrationV2RunJsonSchema.fields.restartCancelledBackgroundWork),
@@ -1867,9 +1879,13 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
               yield* sql`UPDATE orchestration_v2_projection_threads SET updated_at = ${DateTime.formatIso(event.occurredAt)}, payload_json = json_set(payload_json, '$.handledEventId', ${event.payload.eventId}, '$.updatedAt', ${DateTime.formatIso(event.occurredAt)}) WHERE thread_id = ${event.threadId}`;
               break;
             }
+            case "completion.source-captured": {
+              yield* sql`UPDATE orchestration_v2_projection_runs SET payload_json = json_set(payload_json, '$.completionCheck.sourceCaptured', json('true')) WHERE run_id = ${event.payload.runId} AND thread_id = ${event.threadId} AND json_extract(payload_json, '$.completionCheck.id') = ${event.payload.checkId} AND json_extract(payload_json, '$.completionCheck.state') = 'checking'`;
+              break;
+            }
             case "completion.updated": {
               yield* sql`UPDATE orchestration_v2_projection_runs
-                SET payload_json = json_set(payload_json, '$.completionCheck', json(${yield* Schema.encodeEffect(Schema.fromJsonString(OziCheck))(event.payload)}))
+                SET payload_json = json_set(payload_json, '$.completionCheck', json(${yield* encodeCheck(event.payload)}))
                 WHERE run_id = ${event.payload.runId} AND thread_id = ${event.threadId}`;
               break;
             }

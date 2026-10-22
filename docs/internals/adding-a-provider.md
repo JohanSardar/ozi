@@ -26,27 +26,14 @@ capabilities, never the driver kind.
 
 ## Tests
 
-Prove adapter behavior with replay fixtures: a provider transcript replayed through the real
-orchestrator, adapter, and projections. See the [testing strategy](../orchestration-v2/testing-strategy.md).
-
-- Record transcripts from the real provider with a recorder script in
-  [`apps/server/scripts`](../../apps/server/scripts) (`record-*-replay-fixture.ts`). A new protocol
-  usually needs its own recorder.
-- Cover the shared scenarios under
-  [`testkit/fixtures`](../../apps/server/src/orchestration-v2/testkit/fixtures) that the provider
-  supports: `simple`, `multi_turn`, `queued_turn`, `turn_interrupt`, `message_steering`,
-  `provider_thread_resume`, and the `tool_call_*` approval cases. Add provider-specific fixtures
-  for behavior the shared ones do not reach.
-- Unit tests are for pure logic and for failures a real provider cannot produce on demand. A test
-  that drives the adapter with hand-written frames is a guess about the protocol; live testing
-  regularly finds what those guesses missed.
-- A gated live test against the real binary is welcome, but it does not replace replays, because
-  CI skips it.
+Prove behavior through the real server and `ozi --json` in [`e2e/`](../../e2e).
+Only provider transports, the clock and external MCP may be faked. Extend the native protocol
+fakes for the supported Pi, Claude and Codex providers. Await state with `ozi wait`.
+See [SPEC.md](../../SPEC.md) for scenario IDs and acceptance requirements.
 
 ## Traps several providers hit
 
-Each of these broke more than one adapter. A replay fixture for each case your provider can
-produce catches them.
+Each of these broke more than one adapter. E2E scenarios cover each case the provider can produce.
 
 - **Settings applied before the provider advertises them.** Agents often list config options after
   the session opens, in a later update, or only once a model runs (an effort option that exists

@@ -12,6 +12,7 @@ import {
   type TurnItemId,
 } from "@t3tools/contracts";
 import * as Context from "effect/Context";
+import * as Cause from "effect/Cause";
 import * as Crypto from "effect/Crypto";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
@@ -29,6 +30,8 @@ import * as RuntimePolicy from "../orchestration-v2/RuntimePolicy.ts";
 import * as ThreadCommandExecutor from "../orchestration-v2/ThreadCommandExecutor.ts";
 import type { PendingOrchestrationEffectV2 } from "../orchestration-v2/EffectOutbox.ts";
 import * as Evidence from "./Evidence.ts";
+
+const decodeVerdict = Schema.decodeUnknownEffect(Schema.fromJsonString(OziCheckVerdict));
 
 type Phase = "prepare" | "resolve" | "continue";
 export const storageFailure = (cause: unknown): boolean =>
@@ -269,7 +272,6 @@ const make = Effect.gen(function* () {
           {
             ...check,
             state,
-            sourceCaptured: true,
             unsuccessfulRounds,
             updatedAt: now,
             evidence: [...new Set([...check.evidence, ...verified])],
@@ -311,7 +313,6 @@ const make = Effect.gen(function* () {
         yield* save({
           ...check,
           state: "superseded",
-          sourceCaptured: true,
           updatedAt: DateTime.formatIso(yield* DateTime.now),
         });
         return;
@@ -356,7 +357,7 @@ const make = Effect.gen(function* () {
           (thread) =>
             thread.id === projection.runs.find((run) => run.id === runId)?.providerThreadId,
         );
-        const prepared = yield* Effect.result(
+        const prepared = yield* Effect.exit(
           Effect.gen(function* () {
             if (source?.nativeThreadRef?.strength !== "strong")
               return yield* new CompletionError({
@@ -386,8 +387,12 @@ const make = Effect.gen(function* () {
           }),
         );
         if (prepared._tag === "Failure") {
-          if (storageFailure(prepared.failure)) return yield* Effect.fail(prepared.failure);
-          yield* finish(check, null, failureText(prepared.failure), 0);
+          if (Cause.hasInterruptsOnly(prepared.cause))
+            return yield* Effect.failCause(prepared.cause);
+          const failure = Cause.squash(prepared.cause);
+          if (storageFailure(failure))
+            return yield* new CompletionError({ operation: "prepare", cause: failure });
+          yield* finish(check, null, failureText(failure), 0);
         }
         return;
       }
@@ -454,9 +459,8 @@ const make = Effect.gen(function* () {
               cause: "Checker failed, missed its deadline, or lost native history.",
             });
           const text =
-            checker.value.messages.filter((message) => message.role === "assistant").at(-1)?.text ??
-            "";
-          return yield* Schema.decodeUnknownEffect(Schema.fromJsonString(OziCheckVerdict))(text);
+            checker.value.messages.findLast((message) => message.role === "assistant")?.text ?? "";
+          return yield* decodeVerdict(text);
         }),
       );
       yield* finish(

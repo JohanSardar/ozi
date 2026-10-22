@@ -1548,6 +1548,11 @@ export const OrchestrationV2DomainEvent = Schema.Union([
   }),
   Schema.Struct({
     ...OrchestrationV2EventBase.fields,
+    type: Schema.Literal("completion.source-captured"),
+    payload: Schema.Struct({ runId: RunId, checkId: EventId }),
+  }),
+  Schema.Struct({
+    ...OrchestrationV2EventBase.fields,
     type: Schema.Literal("completion.updated"),
     payload: OziCheck,
   }),
@@ -2322,6 +2327,11 @@ export const OrchestrationV2DomainEventJson = Schema.Union([
     ...OrchestrationV2JsonEventBaseFields,
     type: Schema.Literal("job.handled"),
     payload: OziJobHandleInput,
+  }),
+  Schema.Struct({
+    ...OrchestrationV2JsonEventBaseFields,
+    type: Schema.Literal("completion.source-captured"),
+    payload: Schema.Struct({ runId: RunId, checkId: EventId }),
   }),
   Schema.Struct({
     ...OrchestrationV2JsonEventBaseFields,

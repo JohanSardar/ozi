@@ -992,16 +992,11 @@ export const layer: Layer.Layer<
           const eventId = yield* idAllocator.allocate.event({ threadId: check.threadId });
           events.push({
             id: eventId,
-            type: "completion.updated",
+            type: "completion.source-captured",
             threadId: check.threadId,
             runId: check.runId,
             occurredAt: now,
-            payload: {
-              ...check,
-              eventId,
-              sourceCaptured: true,
-              updatedAt: DateTime.formatIso(now),
-            },
+            payload: { runId: check.runId, checkId: check.id },
           });
         }
       }

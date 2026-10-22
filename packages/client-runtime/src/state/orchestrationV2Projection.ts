@@ -258,6 +258,17 @@ export function applyOrchestrationV2ProjectionEvent(
           updatedAt: event.occurredAt,
         },
       };
+    case "completion.source-captured":
+      return {
+        ...base,
+        runs: base.runs.map((run) =>
+          run.id === event.payload.runId &&
+          run.completionCheck?.id === event.payload.checkId &&
+          run.completionCheck.state === "checking"
+            ? { ...run, completionCheck: { ...run.completionCheck, sourceCaptured: true } }
+            : run,
+        ),
+      };
     case "completion.updated":
       return {
         ...base,

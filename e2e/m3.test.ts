@@ -34,7 +34,12 @@ const again = (missing = "Finish the remaining obligation.") => ({
   useful: true,
 });
 const start = async (
-  options: { steps?: Step[]; rules?: Rule[]; provider?: string; forkWait?: boolean } = {},
+  options: {
+    steps?: Step[];
+    rules?: Rule[];
+    provider?: "codex" | "pi" | "claudeAgent";
+    forkWait?: boolean;
+  } = {},
 ) => {
   const n = ++sequence;
   const provider = options.provider ?? "codex";
@@ -96,7 +101,7 @@ it("m3.worker-done checks worker outcomes and explicit completion without prose"
   const empty = await start({ steps: [] });
   await waitJob(empty, "ready");
   expect((await checks(empty)).at(-1)?.reportItemId).toBeNull();
-  for (const provider of ["pi", "claude"]) {
+  for (const provider of ["pi", "claudeAgent"] as const) {
     const other = await start({ provider });
     await waitJob(other, "ready");
     expect((await checks(other)).at(-1)?.rounds.at(-1)?.tokens).toBeGreaterThan(0);
@@ -220,7 +225,7 @@ it("m3.no-recursion keeps checkers internal and limits them to evidence tools", 
 });
 
 it("m3.fork-intact leaves all three native source sessions unchanged and usable", async () => {
-  for (const provider of ["codex", "pi", "claudeAgent"]) {
+  for (const provider of ["codex", "pi", "claudeAgent"] as const) {
     const id = await start({
       provider,
       rules: [
@@ -306,9 +311,12 @@ it("m3.steer-supersedes discards late verdicts and preserves the newer request",
   const child = row.rounds.at(-1)?.checkerThreadId ?? `${row.id}:round:1`;
   await h.wait(child, "text:checker paused");
   await h.ozi("steer", "new request", "--thread", id);
-  await h.ozi("steer", "release verdict", "--thread", child);
-  await waitCheck(row.id, "superseded");
   await waitJob(id, "ready");
+  const current = await job(id);
+  await h.ozi("steer", "release verdict", "--thread", child);
+  await h.wait(child, "completed");
+  await waitCheck(row.id, "superseded");
+  expect((await job(id)).eventId).toBe(current.eventId);
   expect((await job(id)).report?.text).toBe("new report");
   expect(
     (await h.thread("ozi-main")).messages.some((message) => message.text.includes("old report")),

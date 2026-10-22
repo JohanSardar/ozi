@@ -1528,6 +1528,7 @@ export const layerWsRpc = (
                   Stream.filter(
                     (stored) =>
                       (stored.event.type === "completion.updated" ||
+                        stored.event.type === "completion.source-captured" ||
                         stored.event.type === "run.updated") &&
                       (!input.threadId || stored.event.threadId === input.threadId),
                   ),
