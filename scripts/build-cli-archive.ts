@@ -279,10 +279,7 @@ const signMacArchiveContents = Effect.fn("signMacArchiveContents")(function* (in
   const libraries = (yield* fs.readDirectory(input.contentDir, { recursive: true }))
     .filter(
       (entry) =>
-        entry.endsWith(".node") ||
-        entry.endsWith(".dylib") ||
-        entry.endsWith("spawn-helper") ||
-        entry.endsWith("t3-resource-monitor"),
+        entry.endsWith(".node") || entry.endsWith(".dylib") || entry.endsWith("spawn-helper"),
     )
     .map((entry) => path.join(input.contentDir, entry));
 
@@ -428,7 +425,6 @@ const buildCliArchive = Effect.fn("buildCliArchive")(function* (input: {
   readonly arch: BuildArch;
   readonly version: string;
   readonly outputDir: string;
-  readonly resourceMonitorDir: Option.Option<string>;
 }) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -453,19 +449,12 @@ const buildCliArchive = Effect.fn("buildCliArchive")(function* (input: {
       ? path.join(serverDir, "dist-exe", executableName)
       : targetExecutable;
   const webClient = path.join(serverDir, "dist/client");
-  const resourceMonitorDir = Option.getOrElse(input.resourceMonitorDir, () =>
-    path.join(serverDir, "dist/resource-monitor"),
-  );
 
   yield* requireInput(
     builtExecutable,
     `Run \`node apps/server/scripts/cli.ts build-exe --target ${targetKey}\` first.`,
   );
   yield* requireInput(path.join(webClient, "index.html"), "Run `vp run --filter t3 build` first.");
-  yield* requireInput(
-    resourceMonitorDir,
-    "Build the resource monitor or pass --resource-monitor-dir.",
-  );
 
   const stem = cliArchiveStem(input.version, input.platform, input.arch);
   const stageRoot = yield* fs.makeTempDirectoryScoped({ prefix: "t3-cli-archive-" });
@@ -475,7 +464,6 @@ const buildCliArchive = Effect.fn("buildCliArchive")(function* (input: {
   yield* Effect.log(`[cli-archive] Staging ${stem}...`);
   yield* fs.copyFile(builtExecutable, path.join(contentDir, executableName));
   yield* stageWebClient(webClient, path.join(contentDir, "client"));
-  yield* fs.copy(resourceMonitorDir, path.join(contentDir, "resource-monitor"));
   yield* stageRuntimeExternals({
     repoRoot,
     stageDir: contentDir,
@@ -547,12 +535,6 @@ const command = Command.make(
       Flag.withDescription("Release version for the archive name."),
     ),
     outputDir: Flag.String("output-dir").pipe(Flag.withDefault("release-cli")),
-    resourceMonitorDir: Flag.String("resource-monitor-dir").pipe(
-      Flag.withDescription(
-        "Directory laid out like dist/resource-monitor (defaults to apps/server/dist/resource-monitor).",
-      ),
-      Flag.optional,
-    ),
   },
   (input) => buildCliArchive(input).pipe(Effect.scoped),
 ).pipe(Command.withDescription("Package the t3 single-executable into a per-platform archive."));

@@ -51,15 +51,12 @@ describe("requestLatencyState", () => {
     expect(getSlowRpcAckRequests()).toEqual([]);
   });
 
-  it.each([WS_METHODS.serverGetUsageSummary, WS_METHODS.serverReportClientActivity])(
-    "ignores background request %s",
-    (method) => {
-      trackRpcRequestSent("1", method);
-      vi.advanceTimersByTime(SLOW_RPC_ACK_THRESHOLD_MS * 2);
+  it.each([WS_METHODS.serverGetUsageSummary])("ignores background request %s", (method) => {
+    trackRpcRequestSent("1", method);
+    vi.advanceTimersByTime(SLOW_RPC_ACK_THRESHOLD_MS * 2);
 
-      expect(getSlowRpcAckRequests()).toEqual([]);
-    },
-  );
+    expect(getSlowRpcAckRequests()).toEqual([]);
+  });
 
   it("keeps ignoring untracked methods when a display tag is supplied", () => {
     trackRpcRequestSent(

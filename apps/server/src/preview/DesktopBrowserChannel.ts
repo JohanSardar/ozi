@@ -28,7 +28,7 @@ import * as NodeCrypto from "node:crypto";
 import * as NodeNet from "node:net";
 
 import * as ServerConfig from "../config.ts";
-import { writeAllToFileDescriptor } from "../resourceTelemetry/DesktopTelemetryReceiver.ts";
+import * as NodeFS from "node:fs";
 
 const decodeEvent = Schema.decodeUnknownEffect(DesktopBrowserEvent);
 const encodeCommand = Schema.encodeEffect(Schema.fromJsonString(DesktopBrowserCommand));
@@ -220,3 +220,78 @@ const make = Effect.gen(function* () {
 });
 
 export const layer = Layer.effect(DesktopBrowserChannel, make);
+
+export class PipeWriteError extends Schema.TaggedError<PipeWriteError>()("PipeWriteError", {
+  fd: Schema.Number,
+  operation: Schema.String,
+  cause: Schema.Defect(),
+}) {
+  override get message(): string {
+    return `Pipe write '${this.operation}' failed on fd ${this.fd}.`;
+  }
+}
+
+export class PipeWriteStalled extends Schema.TaggedError<PipeWriteStalled>()("PipeWriteStalled", {
+  fd: Schema.Number,
+  remainingBytes: Schema.Number,
+}) {
+  override get message(): string {
+    return `Pipe write stalled on fd ${this.fd} with ${this.remainingBytes} bytes remaining.`;
+  }
+}
+
+export const writeAllToFileDescriptor = Effect.fn("writeAllToFileDescriptor")(function* (
+  fd: number,
+  payload: Buffer,
+) {
+  let offset = 0;
+  while (offset < payload.byteLength) {
+    const written = yield* Effect.callback<number, PipeWriteError>((resume, signal) => {
+      if (signal.aborted) return;
+      try {
+        NodeFS.write(
+          fd,
+          payload,
+          offset,
+          payload.byteLength - offset,
+          null,
+          (error, bytesWritten) => {
+            if (error) {
+              resume(
+                Effect.fail(
+                  new PipeWriteError({
+                    fd,
+                    operation: "write",
+                    cause: error,
+                  }),
+                ),
+              );
+              return;
+            }
+            resume(Effect.succeed(bytesWritten));
+          },
+        );
+      } catch (cause) {
+        resume(
+          Effect.fail(
+            new PipeWriteError({
+              fd,
+              operation: "write",
+              cause,
+            }),
+          ),
+        );
+      }
+    });
+    yield* requireWriteProgress(fd, payload.byteLength - offset, written);
+    offset += written;
+  }
+});
+
+export function requireWriteProgress(
+  fd: number,
+  remainingBytes: number,
+  written: number,
+): Effect.Effect<void, PipeWriteStalled> {
+  return written > 0 ? Effect.void : Effect.fail(new PipeWriteStalled({ fd, remainingBytes }));
+}

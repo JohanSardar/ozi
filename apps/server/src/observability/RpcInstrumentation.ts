@@ -62,18 +62,9 @@ const RPC_AGGREGATES = {
   [WS_METHODS.serverGetSettings]: "server",
   [WS_METHODS.serverUpdateSettings]: "server",
   [WS_METHODS.serverGetTraceDiagnostics]: "server",
-  [WS_METHODS.serverGetProcessDiagnostics]: "server",
-  [WS_METHODS.serverGetHostResources]: "server",
-  [WS_METHODS.serverGetProcessResourceHistory]: "server",
-  [WS_METHODS.serverGetResourceTelemetryHistory]: "server",
-  [WS_METHODS.serverRetryResourceTelemetry]: "server",
   [WS_METHODS.serverCheckOtlpEndpoint]: "server",
   [WS_METHODS.serverGetUsageSummary]: "server",
   [WS_METHODS.serverRefreshUsageRates]: "server",
-  [WS_METHODS.serverSignalProcess]: "server",
-  [WS_METHODS.serverReportClientActivity]: "server",
-  [WS_METHODS.serverReportHostPowerState]: "server",
-  [WS_METHODS.serverGetBackgroundPolicy]: "server",
   [WS_METHODS.scheduledTasksList]: "scheduledTasks",
   [WS_METHODS.scheduledTasksSubscribe]: "scheduledTasks",
   [WS_METHODS.scheduledTasksUpsert]: "scheduledTasks",
@@ -96,7 +87,6 @@ const RPC_AGGREGATES = {
   [WS_METHODS.mcpAppsToolInfo]: "provider",
   [WS_METHODS.mcpAppsUpdateModelContext]: "provider",
   [WS_METHODS.mcpAppsReadResource]: "provider",
-  [WS_METHODS.subscribeResourceTelemetry]: "server",
   [WS_METHODS.previewOpen]: "preview",
   [WS_METHODS.previewNavigate]: "preview",
   [WS_METHODS.previewResize]: "preview",
@@ -112,7 +102,6 @@ const RPC_AGGREGATES = {
   [WS_METHODS.subscribeServerConfig]: "server",
   [WS_METHODS.subscribeServerLifecycle]: "server",
   [WS_METHODS.subscribeAuthAccess]: "auth",
-  [WS_METHODS.subscribeBackgroundPolicy]: "server",
   "ozi.checks.list": "orchestrationV2",
   "ozi.checks.subscribe": "orchestrationV2",
 } as const satisfies Readonly<Record<WsRpcMethod, string>>;
@@ -124,9 +113,6 @@ const DEFAULT_RPC_SPAN_ATTRIBUTES = {
 } as const;
 const RPC_METHODS_WITH_TRACING_DISABLED: ReadonlySet<string> = new Set([
   WS_METHODS.serverGetTraceDiagnostics,
-  WS_METHODS.serverGetProcessDiagnostics,
-  WS_METHODS.serverGetProcessResourceHistory,
-  WS_METHODS.serverSignalProcess,
 ]);
 
 /**

@@ -12,7 +12,6 @@ import * as Stream from "effect/Stream";
 export interface TestProviderHostOptions {
   readonly cwd?: string;
   readonly settings?: ServerSettings;
-  readonly runBackgroundWork?: boolean;
 }
 
 export class TestProviderHostSettings extends Context.Service<
@@ -56,7 +55,6 @@ export const layer = (
           changes: Stream.empty,
           subscribe: Effect.succeed(Stream.empty),
         },
-        shouldRunBackgroundWork: () => Effect.succeed(options.runBackgroundWork ?? true),
         resolveAttachmentPath: (attachment) => path.join(attachmentsDir, attachment.id),
         credentials: (namespace, bindingId) =>
           Effect.sync(() => {

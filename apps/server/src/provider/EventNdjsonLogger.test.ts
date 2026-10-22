@@ -15,8 +15,6 @@ import * as Fiber from "effect/Fiber";
 import * as Logger from "effect/Logger";
 import * as Schema from "effect/Schema";
 import * as TestClock from "effect/testing/TestClock";
-
-import * as ResourceAttribution from "../resourceTelemetry/ResourceAttribution.ts";
 import {
   makeEventNdjsonLogger,
   makeEventNdjsonLogStore,
@@ -837,7 +835,6 @@ it.layer(NodeServices.layer)("EventNdjsonLogger", (it) => {
         },
         records,
         5,
-        (written) => attributed.push(...written),
       ).pipe(Effect.result);
       assert.equal(result._tag, "Failure");
       assert.deepEqual(attributed, [records[0]]);
@@ -893,37 +890,5 @@ it.layer(NodeServices.layer)("EventNdjsonLogger", (it) => {
           NodeFS.rmSync(tempDir, { recursive: true, force: true });
         }
       }),
-  );
-
-  it.effect("reports logical provider log writes to resource attribution", () =>
-    Effect.gen(function* () {
-      const tempDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "t3-provider-log-"));
-      const basePath = NodePath.join(tempDir, "provider-native.ndjson");
-
-      try {
-        const attribution = yield* ResourceAttribution.make();
-        const logger = yield* makeEventNdjsonLogger(basePath, {
-          stream: "native",
-          batchWindowMs: 0,
-          attribution,
-        });
-        assert.notEqual(logger, undefined);
-        if (!logger) {
-          return;
-        }
-
-        yield* logger.write({ id: "attributed-event" }, ThreadId.make("thread-attribution"));
-        yield* logger.close();
-
-        const snapshot = yield* attribution.snapshot;
-        assert.equal(snapshot.entries.length, 1);
-        assert.equal(snapshot.entries[0]?.component, "provider-event-log");
-        assert.equal(snapshot.entries[0]?.operation, "native.append");
-        assert.equal(snapshot.entries[0]?.count, 1);
-        assert.isAbove(snapshot.entries[0]?.logicalWriteBytes ?? 0, 0);
-      } finally {
-        NodeFS.rmSync(tempDir, { recursive: true, force: true });
-      }
-    }),
   );
 });

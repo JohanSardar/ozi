@@ -1,6 +1,4 @@
 import {
-  AuthEnvironmentMaintainScope,
-  AuthDiagnosticsReadScope,
   AuthFilesystemReadScope,
   AuthProvidersManageScope,
   AuthSettingsWriteScope,
@@ -32,21 +30,6 @@ describe("RPC authorization scopes", () => {
   it("requires operate access to stop a workflow", () => {
     expect(requiredScopeForRpcMethod(ORCHESTRATION_V2_WS_METHODS.stopWorkflow)).toBe(
       AuthOrchestrationOperateScope,
-    );
-  });
-
-  it("authorizes background policy reporting and observation deliberately", () => {
-    expect(requiredScopeForRpcMethod(WS_METHODS.serverReportClientActivity)).toBe(
-      AuthOrchestrationReadScope,
-    );
-    expect(requiredScopeForRpcMethod(WS_METHODS.serverReportHostPowerState)).toBe(
-      AuthEnvironmentMaintainScope,
-    );
-    expect(requiredScopeForRpcMethod(WS_METHODS.serverGetBackgroundPolicy)).toBe(
-      AuthOrchestrationReadScope,
-    );
-    expect(requiredScopeForRpcMethod(WS_METHODS.subscribeBackgroundPolicy)).toBe(
-      AuthOrchestrationReadScope,
     );
   });
 
@@ -106,69 +89,12 @@ describe("RPC authorization scopes", () => {
 });
 
 describe("RPC scope middleware", () => {
-  const tested = [WS_METHODS.serverProbe, WS_METHODS.serverRetryResourceTelemetry] as const;
+  const tested = [WS_METHODS.serverProbe] as const;
   const group = WsRpcGroup.omit(
     ...[...WsRpcGroup.requests.keys()].filter(
       (tag): tag is Exclude<keyof typeof RPC_REQUIRED_SCOPES, (typeof tested)[number]> =>
         !(tested as ReadonlyArray<string>).includes(tag),
     ),
-  );
-
-  it.effect.each([
-    { scopes: [AuthOrchestrationReadScope], missing: AuthEnvironmentMaintainScope },
-    {
-      scopes: [AuthOrchestrationReadScope, AuthEnvironmentMaintainScope],
-      missing: AuthDiagnosticsReadScope,
-    },
-    {
-      scopes: [AuthOrchestrationReadScope, AuthDiagnosticsReadScope],
-      missing: AuthEnvironmentMaintainScope,
-    },
-  ])("rejects telemetry retry without $missing before its handler runs", ({ scopes, missing }) =>
-    Effect.gen(function* () {
-      const handled: Array<string> = [];
-      const client = yield* RpcTest.makeClient(group).pipe(
-        Effect.provide(
-          Layer.mergeAll(
-            group.toLayerHandler(WS_METHODS.serverProbe, () => Effect.succeed({})),
-            group.toLayerHandler(WS_METHODS.serverRetryResourceTelemetry, () =>
-              Effect.sync(() => handled.push("retry")).pipe(Effect.andThen(Effect.never)),
-            ),
-            RpcAuthorization.layer(scopes),
-          ),
-        ),
-      );
-
-      expect(yield* client[WS_METHODS.serverProbe]({})).toEqual({});
-      expect(
-        yield* client[WS_METHODS.serverRetryResourceTelemetry]({}).pipe(Effect.flip),
-      ).toMatchObject({
-        _tag: "EnvironmentAuthorizationError",
-        requiredPermission: missing,
-      });
-      expect(handled).toEqual([]);
-    }).pipe(Effect.scoped),
-  );
-
-  it.effect("reports only authorized requests that succeed", () =>
-    Effect.gen(function* () {
-      const observed: Array<string> = [];
-      const client = yield* RpcTest.makeClient(group).pipe(
-        Effect.provide(
-          Layer.mergeAll(
-            group.toLayerHandler(WS_METHODS.serverProbe, () => Effect.succeed({})),
-            group.toLayerHandler(WS_METHODS.serverRetryResourceTelemetry, () => Effect.never),
-            RpcAuthorization.layer([AuthOrchestrationReadScope], (method) =>
-              Effect.sync(() => void observed.push(method)),
-            ),
-          ),
-        ),
-      );
-
-      yield* client[WS_METHODS.serverProbe]({});
-      yield* client[WS_METHODS.serverRetryResourceTelemetry]({}).pipe(Effect.flip);
-      expect(observed).toEqual([WS_METHODS.serverProbe]);
-    }).pipe(Effect.scoped),
   );
 });
 

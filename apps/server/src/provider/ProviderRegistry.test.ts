@@ -48,7 +48,6 @@ import { ClaudeDriver } from "./Drivers/ClaudeDriver.ts";
 import { ClaudeAgentSdkQueryRunner } from "../orchestration-v2/Adapters/ClaudeAdapterV2.ts";
 import * as IdAllocator from "@t3tools/provider-core/server/IdAllocator";
 import * as TestProviderHost from "@t3tools/provider-testing/TestProviderHost";
-import * as BackgroundPolicy from "../background/BackgroundPolicy.ts";
 import * as ModelManifest from "./ModelManifest.ts";
 import * as ProviderMaintenanceRunner from "./providerMaintenanceRunner.ts";
 import * as HostProcess from "@t3tools/shared/HostProcess";
@@ -106,7 +105,6 @@ const disabledCodexSettings: CodexSettings = Schema.decodeSync(CodexSettings)({
 process.env.T3CODE_CURSOR_ENABLED = "1";
 
 const encoder = new TextEncoder();
-const TEST_EPOCH = DateTime.makeUnsafe("1970-01-01T00:00:00.000Z");
 const withBundledCompatibility = (snapshot: ServerProvider) =>
   applyProviderCompatibility(
     snapshot,
@@ -120,35 +118,6 @@ const layerTestHttpClient = Layer.succeed(
     Effect.succeed(HttpClientResponse.fromWeb(request, Response.json({ version: "0.0.0" }))),
   ),
 ).pipe(Layer.provideMerge(ModelManifest.layerTest));
-
-const layerBackgroundPolicyAlwaysRun = Layer.mock(BackgroundPolicy.BackgroundPolicy)({
-  reportClientActivity: () => Effect.void,
-  removeRpcClient: () => Effect.void,
-  reportHostPowerState: () => Effect.void,
-  snapshot: Effect.succeed({
-    hostPower: {
-      source: "unknown",
-      idle: "unknown",
-      idleSeconds: null,
-      locked: "unknown",
-      suspended: false,
-      onBattery: "unknown",
-      lowPowerMode: "unknown",
-      thermalState: "unknown",
-      stale: true,
-      updatedAt: TEST_EPOCH,
-    },
-    leases: [],
-    activeForegroundLeaseCount: 0,
-    activeScopeKeys: [],
-    shouldRunOpportunisticWork: true,
-    updatedAt: TEST_EPOCH,
-  }),
-  streamChanges: Stream.empty,
-  hasDemand: () => Effect.succeed(true),
-  shouldRunScopeWork: () => Effect.succeed(true),
-  shouldRunOpportunisticWork: Effect.succeed(true),
-});
 
 function selectDescriptor(
   id: string,
@@ -2309,7 +2278,6 @@ it.layer(
                 prefix: "t3-provider-registry-merged-persist-",
               }),
             ),
-            Layer.provideMerge(layerBackgroundPolicyAlwaysRun),
             Layer.provideMerge(NodeServices.layer),
           ),
         ).pipe(Scope.provide(scope));
@@ -2406,7 +2374,6 @@ it.layer(
                 prefix: "t3-provider-registry-refresh-failure-",
               }),
             ),
-            Layer.provideMerge(layerBackgroundPolicyAlwaysRun),
             Layer.provideMerge(NodeServices.layer),
           ),
         ).pipe(Scope.provide(scope));
@@ -2522,7 +2489,6 @@ it.layer(
                 prefix: "t3-provider-registry-sync-failure-",
               }),
             ),
-            Layer.provideMerge(layerBackgroundPolicyAlwaysRun),
             Layer.provideMerge(NodeServices.layer),
           ),
         ).pipe(Scope.provide(scope));
@@ -2627,7 +2593,6 @@ it.layer(
           Layer.provideMerge(ProviderLatestVersions.layer),
           Layer.provideMerge(McpProviderSessions.layer),
           Layer.provideMerge(ResetCreditCoordinator.layerTest),
-          Layer.provideMerge(layerBackgroundPolicyAlwaysRun),
         ),
       );
       readSeed = false;
@@ -2775,7 +2740,7 @@ it.layer(
       }).pipe(
         Effect.provide(
           Layer.mergeAll(
-            TestProviderHost.layer({ runBackgroundWork: false }),
+            TestProviderHost.layer({}),
             ServerConfig.layerTest(process.cwd(), { prefix: "t3-claude-usage-cache-" }),
             IdAllocator.layer,
             McpProviderSessions.layer,

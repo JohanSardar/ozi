@@ -1,6 +1,7 @@
 import { SettingsGroup } from "./SettingsGroup";
 import { RefreshIcon } from "~/components/ui/refresh-icon";
 import {
+  DEFAULT_PROVIDER_HEALTH_REFRESH_INTERVAL,
   AuthSettingsWriteScope,
   AuthProvidersManageScope,
   AuthOrchestrationReadScope,
@@ -25,10 +26,6 @@ import {
   resolveProviderInstanceEnabled,
 } from "@t3tools/contracts";
 import { DEFAULT_UNIFIED_SETTINGS, type UnifiedSettings } from "@t3tools/contracts/settings";
-import {
-  getBackgroundActivityPresetSettings,
-  resolveServerBackgroundActivitySettings,
-} from "@t3tools/shared/backgroundActivitySettings";
 import * as Arr from "effect/Array";
 import * as Duration from "effect/Duration";
 import * as Result from "effect/Result";
@@ -97,7 +94,6 @@ import { readCodexSetupMode } from "./CodexSetupSection.logic";
 import { providerClients } from "./providerDriverMeta";
 import { searchableSetting } from "./settingsSearch";
 import {
-  backgroundActivityOverrideSettings,
   buildProviderInstanceUpdatePatch,
   durationToSeconds,
   normalizeIntervalSeconds,
@@ -543,14 +539,12 @@ export function EnvironmentProviderSettings({
   const updatingInstanceIdsRef = useRef<Set<ProviderInstanceId>>(new Set());
 
   const visibleProviderSettings = PROVIDER_SETTINGS;
-  const resolvedBackgroundActivity = resolveServerBackgroundActivitySettings(settings);
-  const providerHealthPreset = getBackgroundActivityPresetSettings(
-    resolvedBackgroundActivity.profile,
-  ).providerHealthRefreshInterval;
   const providerHealthRefreshIntervalSeconds = durationToSeconds(
-    resolvedBackgroundActivity.providerHealthRefreshInterval,
+    settings.providerHealthRefreshInterval,
   );
-  const defaultProviderHealthRefreshIntervalSeconds = durationToSeconds(providerHealthPreset);
+  const defaultProviderHealthRefreshIntervalSeconds = durationToSeconds(
+    DEFAULT_PROVIDER_HEALTH_REFRESH_INTERVAL,
+  );
 
   const refreshProviders = () => {
     if (refreshingRef.current || !readEnvironmentScope(environmentId, AuthOrchestrationReadScope))
@@ -966,13 +960,9 @@ export function EnvironmentProviderSettings({
                 <SettingResetButton
                   label="provider health check interval"
                   onClick={() =>
-                    updateSettings(
-                      backgroundActivityOverrideSettings(
-                        settings.backgroundActivity,
-                        resolvedBackgroundActivity,
-                        { providerHealthRefreshInterval: undefined },
-                      ),
-                    )
+                    updateSettings({
+                      providerHealthRefreshInterval: DEFAULT_PROVIDER_HEALTH_REFRESH_INTERVAL,
+                    })
                   }
                 />
               </span>
@@ -994,17 +984,11 @@ export function EnvironmentProviderSettings({
                 size="sm"
                 className="w-32"
                 onValueChange={(value) =>
-                  updateSettings(
-                    backgroundActivityOverrideSettings(
-                      settings.backgroundActivity,
-                      resolvedBackgroundActivity,
-                      {
-                        providerHealthRefreshInterval: Duration.seconds(
-                          normalizeIntervalSeconds(value),
-                        ),
-                      },
+                  updateSettings({
+                    providerHealthRefreshInterval: Duration.seconds(
+                      normalizeIntervalSeconds(value),
                     ),
-                  )
+                  })
                 }
               >
                 <NumberFieldGroup>

@@ -20,12 +20,6 @@ import * as Schema from "effect/Schema";
 import { deepMerge } from "./Struct.ts";
 import { fromLenientJson } from "./schemaJson.ts";
 import { createModelSelection, readCustomModelEntries } from "./model.ts";
-import {
-  getBackgroundActivityBaseProfile,
-  normalizeBackgroundActivitySettings,
-  normalizeServerBackgroundActivitySettings,
-  resolveBackgroundActivitySettings,
-} from "./backgroundActivitySettings.ts";
 
 const ServerSettingsJson = fromLenientJson(ServerSettings);
 const decodeServerSettingsJson = Schema.decodeUnknownOption(ServerSettingsJson);
@@ -276,10 +270,7 @@ export function applyServerSettingsPatch(
     setModelsHidden,
     setProviderModelOrder,
     providerModelPreferences,
-    automaticGitFetchInterval,
     providerHealthRefreshInterval,
-    backgroundActivityProfile,
-    backgroundActivity,
     // Merged per entry below; its `null` removals must not reach deepMerge.
     usageLimitSources: usageLimitSourcesPatch,
     usagePriceOverrides: usagePriceOverridesPatch,
@@ -291,41 +282,6 @@ export function applyServerSettingsPatch(
     ...patchForMerge
   } = patch;
   if (externalTodos !== undefined) current = { ...current, externalTodos };
-  const currentBackgroundActivity = normalizeServerBackgroundActivitySettings(current);
-  const backgroundActivityPatch =
-    backgroundActivityProfile !== undefined
-      ? {
-          schemaVersion: 1 as const,
-          profile:
-            automaticGitFetchInterval !== undefined || providerHealthRefreshInterval !== undefined
-              ? ("custom" as const)
-              : backgroundActivityProfile,
-          ...(automaticGitFetchInterval !== undefined || providerHealthRefreshInterval !== undefined
-            ? { baseProfile: backgroundActivityProfile }
-            : {}),
-          overrides: {
-            ...(automaticGitFetchInterval !== undefined ? { automaticGitFetchInterval } : {}),
-            ...(providerHealthRefreshInterval !== undefined
-              ? { providerHealthRefreshInterval }
-              : {}),
-          },
-        }
-      : automaticGitFetchInterval !== undefined || providerHealthRefreshInterval !== undefined
-        ? {
-            schemaVersion: 1 as const,
-            profile: "custom" as const,
-            baseProfile: getBackgroundActivityBaseProfile(currentBackgroundActivity),
-            overrides: {
-              ...(currentBackgroundActivity.profile === "custom"
-                ? currentBackgroundActivity.overrides
-                : {}),
-              ...(automaticGitFetchInterval !== undefined ? { automaticGitFetchInterval } : {}),
-              ...(providerHealthRefreshInterval !== undefined
-                ? { providerHealthRefreshInterval }
-                : {}),
-            },
-          }
-        : undefined;
   const initialFavorites =
     patch.favorites ?? current.favorites ?? migrateModelPreferences?.favorites ?? null;
   const favorites =
@@ -377,19 +333,6 @@ export function applyServerSettingsPatch(
     ...next,
     favorites,
     providerModelPreferences: nextModelPreferences,
-    ...(backgroundActivity !== undefined
-      ? {
-          backgroundActivity: {
-            ...deepMerge(currentBackgroundActivity, backgroundActivity),
-            ...(backgroundActivity.overrides !== undefined
-              ? { overrides: backgroundActivity.overrides }
-              : {}),
-          },
-        }
-      : { backgroundActivity: currentBackgroundActivity }),
-    ...(backgroundActivity === undefined && backgroundActivityPatch !== undefined
-      ? { backgroundActivity: backgroundActivityPatch }
-      : {}),
     ...(patch.providerInstances !== undefined
       ? { providerInstances: patch.providerInstances }
       : {}),
@@ -432,22 +375,11 @@ export function applyServerSettingsPatch(
           ),
         }
       : {}),
-    ...(automaticGitFetchInterval !== undefined ? { automaticGitFetchInterval } : {}),
     ...(providerHealthRefreshInterval !== undefined ? { providerHealthRefreshInterval } : {}),
   };
-  const normalizedBackgroundActivity = normalizeBackgroundActivitySettings(
-    nextWithReplacementsBase.backgroundActivity,
-  );
-  const resolvedBackgroundActivity = resolveBackgroundActivitySettings(
-    normalizedBackgroundActivity,
-  );
   const nextWithReplacements = {
     ...nextWithReplacementsBase,
     ...deriveLegacyProjectOverrides(nextWithReplacementsBase),
-    backgroundActivity: normalizedBackgroundActivity,
-    automaticGitFetchInterval: resolvedBackgroundActivity.automaticGitFetchInterval,
-    providerHealthRefreshInterval: resolvedBackgroundActivity.providerHealthRefreshInterval,
-    backgroundActivityProfile: resolvedBackgroundActivity.profile,
   };
   if (!selectionPatch) {
     return nextWithReplacements;

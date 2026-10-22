@@ -2,12 +2,10 @@ import { describe, expect, it } from "@effect/vitest";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
-import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as TestClock from "effect/testing/TestClock";
 
 import { EnvironmentAuthInvalidError } from "@t3tools/contracts";
-import { hashTelemetryId } from "@t3tools/shared/telemetryId";
 import {
   appendClientConnectionParams,
   bootstrapRemoteBearerSession,
@@ -15,10 +13,8 @@ import {
   issueRemoteWebSocketTicket,
   RemoteEnvironmentAuthInvalidJsonError,
   RemoteEnvironmentAuthTimeoutError,
-  resolveRemoteWebSocketConnectionUrl,
 } from "./remote.ts";
 import { fetchRemoteEnvironmentDescriptor } from "../environment/descriptor.ts";
-import * as ClientCapabilities from "../platform/capabilities.ts";
 import * as RpcHttp from "../rpc/http.ts";
 
 const isEnvironmentAuthInvalidError = Schema.is(EnvironmentAuthInvalidError);
@@ -369,39 +365,6 @@ describe("remote environment authorization", () => {
       expect(error.message).toBe(
         "Remote environment endpoint returned an invalid response from https://remote.example.com/oauth/token.",
       );
-    }),
-  );
-
-  it.effect("names the signed-in Connect account and this device by hash only", () =>
-    Effect.gen(function* () {
-      const fetch = recordedFetch(
-        Response.json({ ticket: "ws-ticket", expiresAt: "2026-05-01T12:05:00.000Z" }),
-      );
-
-      const url = new URL(
-        yield* resolveRemoteWebSocketConnectionUrl({
-          wsBaseUrl: "wss://remote.example.com/",
-          httpBaseUrl: "https://remote.example.com/",
-          bearerToken: "bearer-token",
-        }).pipe(
-          provideRemoteHttp(fetch.fetchFn),
-          Effect.provideService(
-            ClientCapabilities.CloudSession,
-            ClientCapabilities.CloudSession.of({
-              identity: Effect.succeed(Option.some({ accountId: "user_connect" })),
-              clerkToken: Effect.succeed("clerk-token"),
-            }),
-          ),
-          Effect.provideService(ClientCapabilities.AnalyticsDevice, {
-            id: Effect.succeed(Option.some("device-1")),
-          }),
-        ),
-      );
-
-      expect(url.searchParams.get("clientOwner")).toBe(hashTelemetryId("user_connect"));
-      expect(url.searchParams.get("clientDevice")).toBe(hashTelemetryId("device-1"));
-      expect(url.toString()).not.toContain("user_connect");
-      expect(url.toString()).not.toContain("device-1");
     }),
   );
 });
