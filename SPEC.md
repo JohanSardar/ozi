@@ -79,7 +79,7 @@ Cases freeze the original message, native prefix, attachment bytes, expectation 
 
 ## Retained surface
 
-Device and simulator support is removed, including its RPC methods, MCP tools, settings, models and tool downloads. Shared browser streaming remains. Terminal sessions, their RPC streams, project setup terminals and sign-in terminal rendering are removed.
+Device and simulator support is removed, including its RPC methods, MCP tools, settings, models and tool downloads. Shared browser streaming remains. Terminal sessions, their RPC streams, project setup terminals and sign-in terminal rendering are removed. Desktop and server self-update RPCs, update feeds, IPC and controls are removed.
 
 Only Pi, Claude and Codex providers and desktop and web clients ship. Provider registration, models, settings, usage, packaging and relay APIs follow this boundary.
 

@@ -9,7 +9,6 @@ import * as PlatformError from "effect/PlatformError";
 import * as Schema from "effect/Schema";
 
 import { DEFAULT_SIGNAL_EXPORT } from "@t3tools/shared/observability";
-import * as HostProcess from "@t3tools/shared/HostProcess";
 import * as OtelEnvironment from "@t3tools/shared/otelEnvironment";
 
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
@@ -69,54 +68,6 @@ const makeServerConfig = Effect.fn(function* (baseDir: string) {
 });
 
 it.layer(NodeServices.layer)("ServerEnvironmentLive", (it) => {
-  it.effect("publishes proven install ownership only for manually updated servers", () =>
-    Effect.gen(function* () {
-      const fs = yield* FileSystem.FileSystem;
-      const baseDir = yield* fs.makeTempDirectoryScoped();
-      const prefix = `${baseDir}/node`;
-      const entry = `${prefix}/lib/node_modules/t3/dist/bin.mjs`;
-      yield* fs.makeDirectory(`${prefix}/lib/node_modules/t3/dist`, { recursive: true });
-      yield* fs.makeDirectory(`${prefix}/bin`, { recursive: true });
-      yield* fs.writeFileString(entry, "");
-      yield* fs.writeFileString(
-        `${prefix}/lib/node_modules/t3/package.json`,
-        '{"name":"t3","version":"0.0.45","bin":{"t3":"./dist/bin.mjs"}}',
-      );
-      yield* fs.symlink(entry, `${prefix}/bin/t3`);
-      const config = yield* makeServerConfig(baseDir);
-      yield* fs.makeDirectory(config.stateDir, { recursive: true });
-      for (const mode of ["web", "desktop"] as const) {
-        const descriptor = yield* Effect.gen(function* () {
-          const environment = yield* ServerEnvironment.ServerEnvironment;
-          return yield* environment.getDescriptor;
-        }).pipe(
-          Effect.provide(
-            ServerEnvironment.layer.pipe(
-              Layer.provide(layerEmptySecretStore),
-              Layer.provide(ServerConfig.layer({ ...config, mode })),
-            ),
-          ),
-          Effect.provideService(HostProcess.Arguments, ["node", entry]),
-          Effect.provideService(HostProcess.IsExecutable, false),
-          Effect.provideService(HostProcess.Platform, "linux"),
-          Effect.provideService(HostProcess.Environment, {}),
-        );
-        expect(descriptor.capabilities.serverInstallation).toEqual(
-          mode === "web" ? { kind: "npm-global", prefix } : undefined,
-        );
-        expect(descriptor.capabilities.serverSelfUpdate).toBe(
-          mode === "web" ? undefined : "desktop-managed",
-        );
-        expect(descriptor.capabilities).toMatchObject({
-          settledWorktreeCleanup: true,
-          storageCleanupRun: true,
-          projectWorktreeCleanup: true,
-          worktreesDirectory: true,
-          threadAutoSettlementScope: true,
-        });
-      }
-    }),
-  );
   it.effect.each([
     { name: "missing", content: undefined },
     { name: "empty", content: "" },
@@ -185,45 +136,6 @@ it.layer(NodeServices.layer)("ServerEnvironmentLive", (it) => {
 
       expect(first).toBe(second);
       expect(persisted.trim()).toBe(first);
-    }),
-  );
-
-  it.effect("advertises desktopAppUpdate only with desktop mode and the control fd", () =>
-    Effect.gen(function* () {
-      const fileSystem = yield* FileSystem.FileSystem;
-      const baseDir = yield* fileSystem.makeTempDirectoryScoped({
-        prefix: "t3-server-environment-desktop-update-test-",
-      });
-      const serverConfig = yield* makeServerConfig(baseDir);
-      yield* fileSystem.makeDirectory(serverConfig.stateDir, { recursive: true });
-
-      const describeWith = (overrides: Partial<ServerConfig.ServerConfig["Service"]>) =>
-        Effect.gen(function* () {
-          const serverEnvironment = yield* ServerEnvironment.ServerEnvironment;
-          return yield* serverEnvironment.getDescriptor;
-        }).pipe(
-          Effect.provide(
-            ServerEnvironment.layer.pipe(
-              Layer.provide(ServerSecretStore.layer),
-              Layer.provide(ServerConfig.layer({ ...serverConfig, ...overrides })),
-            ),
-          ),
-        );
-
-      const withFd = yield* describeWith({ mode: "desktop", desktopTelemetryControlFd: 5 });
-      expect(withFd.capabilities.serverSelfUpdate).toBe("desktop-managed");
-      expect(withFd.capabilities.desktopAppUpdate).toBe(true);
-      expect(withFd.capabilities.serverSelfUpdateProgress).toBe(true);
-      expect(withFd.capabilities.serverUpdateThreadContinuation).toBeUndefined();
-
-      const withoutFd = yield* describeWith({ mode: "desktop" });
-      expect(withoutFd.capabilities.serverSelfUpdate).toBe("desktop-managed");
-      expect(withoutFd.capabilities.desktopAppUpdate).toBeUndefined();
-      expect(withoutFd.capabilities.serverSelfUpdateProgress).toBeUndefined();
-      expect(withoutFd.capabilities.serverUpdateThreadContinuation).toBeUndefined();
-
-      const web = yield* describeWith({ mode: "web", desktopTelemetryControlFd: 5 });
-      expect(web.capabilities.desktopAppUpdate).toBeUndefined();
     }),
   );
 

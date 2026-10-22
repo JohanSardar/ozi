@@ -13,7 +13,6 @@ import * as FileSystem from "effect/FileSystem";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as PlatformError from "effect/PlatformError";
-import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Sink from "effect/Sink";
 import * as Schema from "effect/Schema";
@@ -37,8 +36,6 @@ import {
   LINUX_BROWSER_SECRET_EXTRA_RESOURCES,
   InvalidMacPasskeyRpDomainError,
   InvalidMacPasskeyPublishableKeyError,
-  InvalidMockUpdateServerPortError,
-  UnsupportedDesktopBuildArchitectureError,
   isMacPasskeySigningConfigurationError,
   LinuxIconResizeError,
   LinuxDesktopBuildPrerequisitesMissingError,
@@ -56,16 +53,12 @@ import {
   resolveDesktopRuntimeDependencies,
   resolveMergedStageDependencies,
   resolveFffNativeDependencies,
-  resolveBuildOptions,
   resolveDesktopBuildIconAssets,
   resolveDesktopProductName,
-  resolveDesktopUpdateChannel,
+  resolveDesktopBrandChannel,
   resolveDesktopWebAssetBrand,
   resolveResourceMonitorRustTargets,
   resourceMonitorExecutableName,
-  resolveGitHubPublishConfig,
-  resolveMockUpdateServerPort,
-  resolveMockUpdateServerUrl,
   resolvePackageManagerUserAgent,
   stageLinuxIconSize,
   stageDesktopDmgBackground,
@@ -535,8 +528,8 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
   );
 
   it("resolves the dedicated nightly updater channel from nightly versions", () => {
-    assert.equal(resolveDesktopUpdateChannel("0.0.17-nightly.20260413.42"), "nightly");
-    assert.equal(resolveDesktopUpdateChannel("0.0.17"), "latest");
+    assert.equal(resolveDesktopBrandChannel("0.0.17-nightly.20260413.42"), "nightly");
+    assert.equal(resolveDesktopBrandChannel("0.0.17"), "latest");
   });
 
   it("switches desktop packaging product names to nightly for nightly builds", () => {
@@ -563,75 +556,16 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
     assert.equal(resolveDesktopWebAssetBrand("0.0.17-nightly.20260413.42"), "nightly");
   });
 
-  it.effect("resolves GitHub desktop publish config from Effect config", () =>
-    Effect.gen(function* () {
-      const latestConfig = yield* resolveGitHubPublishConfig("latest").pipe(
-        Effect.provide(
-          ConfigProvider.layer(
-            ConfigProvider.fromEnv({
-              env: {
-                T3CODE_DESKTOP_UPDATE_REPOSITORY: "pingdotgg/t3code",
-              },
-            }),
-          ),
-        ),
-      );
-      const nightlyConfig = yield* resolveGitHubPublishConfig("nightly").pipe(
-        Effect.provide(
-          ConfigProvider.layer(
-            ConfigProvider.fromEnv({
-              env: {
-                GITHUB_REPOSITORY: "pingdotgg/t3code",
-              },
-            }),
-          ),
-        ),
-      );
-
-      assert.deepStrictEqual(latestConfig, {
-        provider: "github",
-        owner: "pingdotgg",
-        repo: "t3code",
-        releaseType: "release",
-      });
-      assert.deepStrictEqual(nightlyConfig, {
-        provider: "github",
-        owner: "pingdotgg",
-        repo: "t3code",
-        releaseType: "prerelease",
-        channel: "nightly",
-      });
-    }),
-  );
-
   it.effect("omits update feeds for pull request preview builds", () =>
     Effect.gen(function* () {
-      const preview = yield* createBuildConfig(
-        "mac",
-        "dmg",
-        "0.0.33-pr.8182.1",
-        false,
-        false,
-        undefined,
-        undefined,
-      );
-      const release = yield* createBuildConfig(
-        "mac",
-        "dmg",
-        "0.0.33",
-        false,
-        false,
-        undefined,
-        undefined,
-      );
+      const preview = yield* createBuildConfig("mac", "dmg", "0.0.33-pr.8182.1", false, undefined);
+      const release = yield* createBuildConfig("mac", "dmg", "0.0.33", false, undefined);
 
       const previewChannel = yield* createBuildConfig(
         "mac",
         "dmg",
         "0.0.41-preview.20260912.1589",
         false,
-        false,
-        undefined,
         undefined,
       );
 
@@ -656,15 +590,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
 
   it.effect("disables electron-builder publish detection for local builds", () =>
     Effect.gen(function* () {
-      const local = yield* createBuildConfig(
-        "mac",
-        "dmg",
-        "0.0.33",
-        false,
-        false,
-        undefined,
-        undefined,
-      );
+      const local = yield* createBuildConfig("mac", "dmg", "0.0.33", false, undefined);
 
       assert.isNull(local.publish);
     }).pipe(Effect.provide(ConfigProvider.layer(ConfigProvider.fromEnv({ env: {} })))),
@@ -2201,7 +2127,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
 
   it.effect("adds passkey entitlements and both renderer protocols to signed macOS builds", () =>
     Effect.gen(function* () {
-      const config = yield* createBuildConfig("mac", "dmg", "1.2.3", true, false, undefined, {
+      const config = yield* createBuildConfig("mac", "dmg", "1.2.3", true, {
         entitlementsPath: "/tmp/entitlements.mac.plist",
         provisioningProfilePath: "/tmp/t3code.provisionprofile",
       });
@@ -2225,8 +2151,6 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
         "dmg",
         "1.2.3-nightly.20260815.1",
         false,
-        false,
-        undefined,
         undefined,
       );
 
@@ -2239,15 +2163,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
 
   it.effect("configures Windows executable metadata and native signing extensions", () =>
     Effect.gen(function* () {
-      const config = yield* createBuildConfig(
-        "win",
-        "nsis",
-        "1.2.3",
-        false,
-        false,
-        undefined,
-        undefined,
-      );
+      const config = yield* createBuildConfig("win", "nsis", "1.2.3", false, undefined);
 
       const win = config.win as Record<string, unknown>;
       assert.equal(win.icon, "icon.ico");
@@ -2260,7 +2176,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
   it.effect("signs Windows builds with signtool on Windows and the jsign hook elsewhere", () =>
     Effect.gen(function* () {
       const signedWinConfig = (hostPlatform: string) =>
-        createBuildConfig("win", "nsis", "1.2.3", true, false, undefined, undefined).pipe(
+        createBuildConfig("win", "nsis", "1.2.3", true, undefined).pipe(
           Effect.map((config) => config.win as Record<string, unknown>),
           Effect.provideService(HostProcess.Platform, hostPlatform),
         );
@@ -2423,159 +2339,11 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
     assert.deepStrictEqual(resolveClerkPasskeyNativeArtifacts("linux", "x64"), []);
   });
 
-  it("falls back to the default mock update port when the configured port is blank", () => {
-    assert.equal(resolveMockUpdateServerUrl(undefined), "http://localhost:3000");
-    assert.equal(resolveMockUpdateServerUrl(4123), "http://localhost:4123");
-  });
-
   it("derives the electron-builder package manager user agent from packageManager", () => {
     assert.equal(resolvePackageManagerUserAgent("pnpm@11.10.0"), "pnpm/11.10.0");
     assert.equal(resolvePackageManagerUserAgent(" yarn@4.9.2 "), "yarn/4.9.2");
     assert.equal(resolvePackageManagerUserAgent("pnpm"), "pnpm");
   });
-
-  it.effect("normalizes mock update server ports from env-style strings", () =>
-    Effect.gen(function* () {
-      assert.equal(yield* resolveMockUpdateServerPort(undefined), undefined);
-      assert.equal(yield* resolveMockUpdateServerPort(""), undefined);
-      assert.equal(yield* resolveMockUpdateServerPort("   "), undefined);
-      assert.equal(yield* resolveMockUpdateServerPort("4123"), 4123);
-    }),
-  );
-
-  it.effect("rejects non-numeric or out-of-range mock update ports", () =>
-    Effect.gen(function* () {
-      const invalidPorts = ["abc", "12.5", "0", "65536"];
-      for (const port of invalidPorts) {
-        const exit = yield* Effect.exit(resolveMockUpdateServerPort(port));
-        assert.equal(exit._tag, "Failure");
-      }
-    }),
-  );
-
-  it("classifies invalid configured ports with the decoder's number grammar", () => {
-    const cause = new Error("invalid configured port");
-
-    assert.equal(
-      InvalidMockUpdateServerPortError.fromConfigValue("0x10", cause).reason,
-      "not-numeric",
-    );
-    assert.equal(
-      InvalidMockUpdateServerPortError.fromConfigValue("12.5", cause).reason,
-      "not-integer",
-    );
-    assert.equal(
-      InvalidMockUpdateServerPortError.fromConfigValue("65536", cause).reason,
-      "out-of-range",
-    );
-    assert.strictEqual(
-      InvalidMockUpdateServerPortError.fromConfigValue("0x10", cause).cause,
-      cause,
-    );
-  });
-
-  it.effect("resolves default platform and architecture from host references", () =>
-    Effect.gen(function* () {
-      const resolved = yield* resolveBuildOptions({
-        platform: Option.none(),
-        target: Option.none(),
-        arch: Option.none(),
-        buildVersion: Option.none(),
-        outputDir: Option.none(),
-        skipBuild: Option.none(),
-        keepStage: Option.none(),
-        signed: Option.none(),
-        verbose: Option.none(),
-        mockUpdates: Option.none(),
-        mockUpdateServerPort: Option.none(),
-        wslRuntime: Option.none(),
-      }).pipe(
-        Effect.provide(
-          Layer.mergeAll(
-            Layer.succeed(HostProcess.Platform, "win32"),
-            Layer.succeed(HostProcess.Architecture, "x64"),
-            ConfigProvider.layer(
-              ConfigProvider.fromEnv({
-                env: {
-                  PROCESSOR_ARCHITECTURE: "AMD64",
-                  PROCESSOR_ARCHITEW6432: "ARM64",
-                },
-              }),
-            ),
-          ),
-        ),
-      );
-
-      assert.equal(resolved.platform, "win");
-      assert.equal(resolved.target, "nsis");
-      assert.equal(resolved.arch, "arm64");
-    }),
-  );
-
-  it.effect("rejects universal builds on Linux and Windows before staging binaries", () =>
-    Effect.gen(function* () {
-      for (const platform of ["linux", "win"] as const) {
-        const error = yield* Effect.flip(
-          resolveBuildOptions({
-            platform: Option.some(platform),
-            target: Option.none(),
-            arch: Option.some("universal"),
-            buildVersion: Option.none(),
-            outputDir: Option.none(),
-            skipBuild: Option.none(),
-            keepStage: Option.none(),
-            signed: Option.none(),
-            verbose: Option.none(),
-            mockUpdates: Option.none(),
-            mockUpdateServerPort: Option.none(),
-            wslRuntime: Option.none(),
-          }),
-        );
-
-        assert.instanceOf(error, UnsupportedDesktopBuildArchitectureError);
-        assert.deepStrictEqual(error.supportedArchitectures, ["x64", "arm64"]);
-      }
-    }),
-  );
-
-  it.effect("preserves explicit false boolean flags over true env defaults", () =>
-    Effect.gen(function* () {
-      const resolved = yield* resolveBuildOptions({
-        platform: Option.some("mac"),
-        target: Option.none(),
-        arch: Option.some("arm64"),
-        buildVersion: Option.none(),
-        outputDir: Option.some("release-test"),
-        skipBuild: Option.some(false),
-        keepStage: Option.some(false),
-        signed: Option.some(false),
-        verbose: Option.some(false),
-        mockUpdates: Option.some(false),
-        mockUpdateServerPort: Option.none(),
-        wslRuntime: Option.none(),
-      }).pipe(
-        Effect.provide(
-          ConfigProvider.layer(
-            ConfigProvider.fromEnv({
-              env: {
-                T3CODE_DESKTOP_SKIP_BUILD: "true",
-                T3CODE_DESKTOP_KEEP_STAGE: "true",
-                T3CODE_DESKTOP_SIGNED: "true",
-                T3CODE_DESKTOP_VERBOSE: "true",
-                T3CODE_DESKTOP_MOCK_UPDATES: "true",
-              },
-            }),
-          ),
-        ),
-      );
-
-      assert.equal(resolved.skipBuild, false);
-      assert.equal(resolved.keepStage, false);
-      assert.equal(resolved.signed, false);
-      assert.equal(resolved.verbose, false);
-      assert.equal(resolved.mockUpdates, false);
-    }),
-  );
 });
 
 it("lists ancestor node_modules, nearest first, excluding the start directory", () => {

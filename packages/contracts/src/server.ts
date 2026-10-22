@@ -1,10 +1,6 @@
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
-import {
-  type EnvironmentMachineKind,
-  ExecutionEnvironmentDescriptor,
-  ServerSelfUpdateMethod,
-} from "./environment.ts";
+import { type EnvironmentMachineKind, ExecutionEnvironmentDescriptor } from "./environment.ts";
 import { ServerAuthDescriptor } from "./auth.ts";
 import {
   ForwardCompatibleArray,
@@ -762,19 +758,9 @@ export const ServerConfigStreamEvent = Schema.Union([
 ]);
 export type ServerConfigStreamEvent = typeof ServerConfigStreamEvent.Type;
 
-export const ServerSelfUpdateOutcome = Schema.Struct({
-  id: TrimmedNonEmptyString,
-  fromVersion: TrimmedNonEmptyString,
-  targetVersion: TrimmedNonEmptyString,
-  status: Schema.Literals(["committed", "rolled-back", "failed"]),
-  reason: Schema.optionalKey(TrimmedNonEmptyString),
-});
-export type ServerSelfUpdateOutcome = typeof ServerSelfUpdateOutcome.Type;
-
 export const ServerLifecycleReadyPayload = Schema.Struct({
   at: IsoDateTime,
   environment: ExecutionEnvironmentDescriptor,
-  updateOutcome: Schema.optionalKey(ServerSelfUpdateOutcome),
 });
 export type ServerLifecycleReadyPayload = typeof ServerLifecycleReadyPayload.Type;
 
@@ -851,53 +837,5 @@ export class ServerProviderUpdateError extends Schema.TaggedError<ServerProvider
 ) {
   override get message(): string {
     return `Provider update failed for ${this.provider}: ${this.reason}`;
-  }
-}
-
-export const ServerSelfUpdateInput = Schema.Struct({
-  /** Exact npm version of the `t3` package to install (never a dist-tag, so
-      the server and the acknowledging client agree on what was requested). */
-  targetVersion: TrimmedNonEmptyString,
-  continueRunningThreads: Schema.optionalKey(Schema.Boolean),
-});
-export type ServerSelfUpdateInput = typeof ServerSelfUpdateInput.Type;
-
-export const ServerSelfUpdateResult = Schema.Struct({
-  targetVersion: TrimmedNonEmptyString,
-  method: ServerSelfUpdateMethod,
-  updateId: Schema.optionalKey(TrimmedNonEmptyString),
-  desktopUpdateToken: Schema.optionalKey(TrimmedNonEmptyString),
-});
-export type ServerSelfUpdateResult = typeof ServerSelfUpdateResult.Type;
-
-export const DesktopUpdateCommitInput = Schema.Struct({
-  requestId: TrimmedNonEmptyString,
-});
-export type DesktopUpdateCommitInput = typeof DesktopUpdateCommitInput.Type;
-
-export const ServerSelfUpdateProgressStage = Schema.Literals(["downloading", "installing"]);
-export type ServerSelfUpdateProgressStage = typeof ServerSelfUpdateProgressStage.Type;
-
-export const ServerSelfUpdateProgressEvent = Schema.Union([
-  Schema.Struct({
-    type: Schema.Literal("progress"),
-    stage: ServerSelfUpdateProgressStage,
-  }),
-  Schema.Struct({
-    type: Schema.Literal("complete"),
-    result: ServerSelfUpdateResult,
-  }),
-]);
-export type ServerSelfUpdateProgressEvent = typeof ServerSelfUpdateProgressEvent.Type;
-
-export class ServerSelfUpdateError extends Schema.TaggedError<ServerSelfUpdateError>()(
-  "ServerSelfUpdateError",
-  {
-    reason: TrimmedNonEmptyString,
-    cause: Schema.optional(Schema.Defect()),
-  },
-) {
-  override get message(): string {
-    return `Server update failed: ${this.reason}`;
   }
 }

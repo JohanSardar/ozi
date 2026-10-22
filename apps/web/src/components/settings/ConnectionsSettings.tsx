@@ -74,7 +74,6 @@ import {
   isQrShareableEndpoint,
   isWslSettingsRowVisible,
   missingTailscaleEndpointDescription,
-  resolveLocalVersionStatusLabel,
   selectQrEndpointOption,
   togglePairingScopeSelection,
 } from "./ConnectionsSettings.logic";
@@ -160,12 +159,7 @@ import {
 } from "~/environments/primary";
 import { isDesktopLocalConnectionTarget } from "~/connection/desktopLocal";
 import { useUiStateStore } from "~/uiStateStore";
-import {
-  resolveServerConfigVersionMismatch,
-  resolveServerSelfUpdateCapability,
-  supportsDesktopAppUpdate,
-  supportsServerUpdateThreadContinuation,
-} from "~/versionSkew";
+import { resolveServerConfigVersionMismatch } from "~/versionSkew";
 import { hasCloudPublicConfig } from "~/cloud/publicConfig";
 import { RemoveT3ConnectEnvironmentDialog } from "../clerk/RemoveT3ConnectEnvironmentDialog";
 import { useCloudLinkController } from "~/cloud/useCloudLinkController";
@@ -183,7 +177,6 @@ import {
 } from "~/state/desktopNetworkAccess";
 import { desktopSshHostsStateAtom, filterDiscoveredSshHosts } from "~/state/desktopSshHosts";
 import { desktopWslStateAtom, refreshDesktopWslState } from "~/state/desktopWslState";
-import { useDesktopUpdateState } from "~/state/desktopUpdate";
 import {
   type EnvironmentPresentation,
   useEnvironments,
@@ -191,23 +184,10 @@ import {
   useRelayEnvironmentDiscovery,
   usePrimaryEnvironmentId,
 } from "~/state/environments";
-import { APP_VERSION } from "~/branding";
 import { requestConfirmDialog } from "~/confirmDialog";
 import { useAtomCommand } from "../../state/use-atom-command";
-import { environmentIdsKey } from "~/state/environmentAtomList";
-import {
-  environmentUpdateStatesAtom,
-  primaryServerKeybindingsAtom,
-  serverEnvironment,
-} from "~/state/server";
+import { primaryServerKeybindingsAtom } from "~/state/server";
 import { ConnectionStatusDot } from "../ConnectionStatusDot";
-import {
-  OutdatedServerUpdateAction,
-  ServerUpdateAction,
-  ServerUpdateProgress,
-  ServerUpdatesAction,
-  type ServerUpdateTarget,
-} from "../ServerUpdateAction";
 import { CloudEnvironmentConnectRows } from "../cloud/CloudEnvironmentConnectList";
 import { ITEM_ROW_CLASSNAME, ITEM_ROW_INNER_CLASSNAME } from "./itemRows";
 import {
@@ -1523,9 +1503,6 @@ function SavedBackendListRow({
     },
   });
   const versionMismatch = resolveServerConfigVersionMismatch(environment.serverConfig);
-  const serverUpdateState = useAtomValue(serverEnvironment.updateStateAtom(environmentId));
-  const resumingServerUpdate =
-    serverUpdateState.status === "running" && serverUpdateState.stage === "resuming";
   const status = savedBackendStatus(environment);
   const serverVersion = environment.serverConfig?.environment.serverVersion ?? null;
   // Discovery empties its map on every refresh, so hold the last descriptor
@@ -1553,7 +1530,7 @@ function SavedBackendListRow({
     state: connectionState,
     relayOnly,
   } = useConnectionDiagnosis(environment);
-  const diagnosis = resumingServerUpdate ? null : currentDiagnosis;
+  const diagnosis = currentDiagnosis;
   const prepared = usePreparedConnection(environmentId);
   const connectedTarget = isConnected && prepared._tag === "Some" ? prepared.value.target : null;
   const mcpUrl = environmentMcpUrl({
@@ -1569,17 +1546,11 @@ function SavedBackendListRow({
   const subtitleText = [
     environmentTransportLabel(environment, connectedTarget),
     // The headline below names the failure in full.
-    diagnosis ? null : resumingServerUpdate ? "Restarting" : status.text,
+    diagnosis ? null : status.text,
     enabled && versionMismatch ? serverVersion : null,
   ]
     .filter((value): value is string => value !== null)
     .join(" · ");
-
-  const showUpdateAction =
-    enabled &&
-    isConnected &&
-    versionMismatch !== null &&
-    (serverUpdateState.status === "idle" || serverUpdateState.status === "failed");
 
   const statusTooltip = `${
     unsupported
@@ -1609,11 +1580,7 @@ function SavedBackendListRow({
                 <span
                   className={cn(
                     "min-w-0 truncate",
-                    enabled &&
-                      status.tone === "error" &&
-                      !resumingServerUpdate &&
-                      !diagnosis &&
-                      "text-destructive",
+                    enabled && status.tone === "error" && !diagnosis && "text-destructive",
                   )}
                 />
               }
@@ -1674,11 +1641,6 @@ function SavedBackendListRow({
               onToggle={() => setDiagnosisOpen((open) => !open)}
             />
           ) : null}
-          {serverUpdateState.status !== "idle" ? (
-            <div className="mt-1 max-w-md">
-              <ServerUpdateProgress state={serverUpdateState} />
-            </div>
-          ) : null}
         </>
       }
       detail={
@@ -1712,30 +1674,6 @@ function SavedBackendListRow({
         </>
       }
     >
-      {unsupported &&
-      environment.entry.serverUpdateRequired === true &&
-      serverUpdateState.status !== "running" ? (
-        <OutdatedServerUpdateAction
-          environmentId={environmentId}
-          serverLabel={`${environment.label} server`}
-          fromVersion={lastDescriptor?.serverVersion}
-          targetVersion={APP_VERSION}
-          label={serverUpdateState.status === "failed" ? "Retry update" : "Update"}
-        />
-      ) : null}
-      {showUpdateAction ? (
-        <ServerUpdateAction
-          environmentId={environmentId}
-          serverLabel={`${environment.label} server`}
-          selfUpdate={resolveServerSelfUpdateCapability(environment.serverConfig)}
-          installation={environment.serverConfig?.environment.capabilities.serverInstallation}
-          desktopAppUpdate={supportsDesktopAppUpdate(environment.serverConfig)}
-          threadContinuation={supportsServerUpdateThreadContinuation(environment.serverConfig)}
-          targetVersion={versionMismatch.clientVersion}
-          label={serverUpdateState.status === "failed" ? "Retry update" : "Update"}
-          appearance="icon"
-        />
-      ) : null}
       <Tooltip>
         <TooltipTrigger
           render={
@@ -2023,16 +1961,6 @@ function CloudRemoteEnvironmentRows({
   ) : null;
 }
 
-// Subscribes on its own so desktop download progress does not re-render the page.
-function LocalVersionStatusLabel() {
-  const updateState = useDesktopUpdateState();
-  return (
-    <span className="text-xs text-muted-foreground">
-      {resolveLocalVersionStatusLabel(updateState)}
-    </span>
-  );
-}
-
 export function ConnectionsSettings() {
   const desktopBridge = window.desktopBridge;
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
@@ -2061,46 +1989,6 @@ export function ConnectionsSettings() {
   );
   const listedEnvironments = savedEnvironments.filter(
     (environment) => !isDesktopLocalConnectionTarget(environment.entry.target),
-  );
-  const savedUpdateStates = useAtomValue(
-    environmentUpdateStatesAtom(
-      environmentIdsKey(savedEnvironments.map(({ environmentId }) => environmentId)),
-    ),
-  );
-  const savedServerUpdateStates = savedEnvironments.map((environment, index) => ({
-    environment,
-    updateStatus: savedUpdateStates[index]!.status,
-  }));
-  const savedServerUpdateTargets = savedServerUpdateStates.flatMap(
-    ({ environment, updateStatus }): ServerUpdateTarget[] => {
-      const mismatch = resolveServerConfigVersionMismatch(environment.serverConfig);
-      const selfUpdate = resolveServerSelfUpdateCapability(environment.serverConfig);
-      const desktopAppUpdate = supportsDesktopAppUpdate(environment.serverConfig);
-      if (
-        !mismatch ||
-        updateStatus === "running" ||
-        !environment.entry.enabled ||
-        environment.connection.phase !== "connected" ||
-        isDesktopLocalConnectionTarget(environment.entry.target) ||
-        selfUpdate === null ||
-        (selfUpdate === "desktop-managed" && !desktopAppUpdate)
-      ) {
-        return [];
-      }
-      return [
-        {
-          environmentId: environment.environmentId,
-          serverLabel: environment.label,
-          selfUpdate,
-          installation: environment.serverConfig?.environment.capabilities.serverInstallation,
-          desktopAppUpdate,
-          threadContinuation: supportsServerUpdateThreadContinuation(environment.serverConfig),
-          continueThreadsAfterServerUpdate:
-            environment.serverConfig?.settings.continueThreadsAfterServerUpdate ?? false,
-          targetVersion: mismatch.clientVersion,
-        },
-      ];
-    },
   );
   const savedDesktopSshEnvironmentKeys = (() => {
     const keys = new Set<string>();
@@ -2174,10 +2062,6 @@ export function ConnectionsSettings() {
     DesktopServerExposureState["mode"] | null
   >(null);
   const primaryServerConfig = primaryEnvironment?.serverConfig ?? null;
-  const primaryVersionMismatch = resolveServerConfigVersionMismatch(primaryServerConfig);
-  const primaryServerUpdateState = useAtomValue(
-    serverEnvironment.updateStateAtom(primaryEnvironmentId),
-  );
   const [isAdvertisedEndpointListExpanded, setIsAdvertisedEndpointListExpanded] = useState(false);
   const defaultAdvertisedEndpointKey = useUiStateStore(
     (state) => state.defaultAdvertisedEndpointKey,
@@ -3455,52 +3339,7 @@ export function ConnectionsSettings() {
             }
           >
             <LocalEnvironmentSetting />
-            {canManageLocalBackend ? (
-              <SettingsRow
-                title="Version"
-                description={
-                  primaryServerUpdateState.status !== "idle" ? (
-                    <ServerUpdateProgress state={primaryServerUpdateState} />
-                  ) : (
-                    [
-                      primaryServerConfig?.environment.serverVersion ?? null,
-                      primaryEnvironment?.displayUrl ?? null,
-                    ]
-                      .filter((value): value is string => value !== null)
-                      .join(" · ") || "Loading…"
-                  )
-                }
-                control={
-                  primaryVersionMismatch &&
-                  primaryEnvironmentId !== null &&
-                  primaryServerUpdateState.status !== "running" ? (
-                    <ServerUpdateAction
-                      size="sm"
-                      environmentId={primaryEnvironmentId}
-                      serverLabel={
-                        primaryEnvironment ? `${primaryEnvironment.label} server` : "server"
-                      }
-                      selfUpdate={resolveServerSelfUpdateCapability(primaryServerConfig)}
-                      installation={
-                        primaryServerConfig?.environment.capabilities.serverInstallation
-                      }
-                      desktopAppUpdate={supportsDesktopAppUpdate(primaryServerConfig)}
-                      threadContinuation={supportsServerUpdateThreadContinuation(
-                        primaryServerConfig,
-                      )}
-                      targetVersion={primaryVersionMismatch.clientVersion}
-                      label={
-                        primaryServerUpdateState.status === "failed"
-                          ? "Retry update"
-                          : `Update to ${primaryVersionMismatch.clientVersion}`
-                      }
-                    />
-                  ) : primaryServerUpdateState.status === "idle" && primaryServerConfig ? (
-                    <LocalVersionStatusLabel />
-                  ) : undefined
-                }
-              />
-            ) : null}
+            {canManageLocalBackend ? <SettingsRow title="Version" /> : null}
             {canManageLocalBackend && desktopBridge ? (
               <>
                 {renderNetworkAccessRow()}
@@ -3871,9 +3710,6 @@ export function ConnectionsSettings() {
         title="Environments"
         headerAction={
           <div className="flex items-center gap-1">
-            {savedServerUpdateTargets.length > 0 ? (
-              <ServerUpdatesAction targets={savedServerUpdateTargets} variant="ghost-muted" />
-            ) : null}
             <Dialog
               open={addBackendDialogOpen}
               onOpenChange={(open) => {

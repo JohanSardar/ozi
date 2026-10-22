@@ -471,48 +471,6 @@ it.effect("classifies a remote non-editable target without collapsing it to exec
 });
 
 it.effect.each([
-  "PreviewAutomationRecordingTransferError",
-  "PreviewAutomationRecordingDesktopUpdateRequiredError",
-  "PreviewAutomationRecordingTooLargeError",
-  "PreviewAutomationRecordingDeadlineExpiredError",
-] as const)("preserves recording failure %s", (tag) =>
-  Effect.scoped(
-    Effect.gen(function* () {
-      const broker = yield* makeBroker;
-      const remoteError = {
-        _tag: tag,
-        message: "remote recording details",
-        detail: { reason: "untrusted-reason", threadId: "untrusted-thread" },
-      };
-      const requests = requestsFrom(yield* broker.connect(makeHost()));
-      yield* Stream.runForEach(requests, (request) =>
-        broker.respond({
-          clientId: "client-1",
-          connectionId: request.connectionId,
-          requestId: request.requestId,
-          ok: false,
-          error: remoteError,
-        }),
-      ).pipe(Effect.forkScoped);
-      yield* Effect.yieldNow;
-      const error = yield* broker
-        .invoke<void>({
-          scope,
-          operation: "recordingStop",
-          input: {},
-        })
-        .pipe(Effect.flip);
-      expect(error).toMatchObject({
-        _tag: tag,
-        threadId: scope.thread.threadId,
-      });
-      expect(error.cause).toBe(remoteError);
-      expect(error.message).not.toContain("remote recording details");
-    }),
-  ),
-);
-
-it.effect.each([
   { clientId: SERVER_BROWSER_AUTOMATION_CLIENT_ID, shown: true },
   { clientId: "client-1", shown: false },
 ])("tells the agent why its own server browser failed ($clientId)", ({ clientId, shown }) =>

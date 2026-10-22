@@ -2,7 +2,6 @@ import * as Schema from "effect/Schema";
 
 import { NonNegativeInt, PositiveInt, TrimmedNonEmptyString } from "./baseSchemas.ts";
 import { HostPowerSnapshot } from "./background.ts";
-import { DesktopUpdateStateSchema } from "./ipc.ts";
 
 export const RESOURCE_MONITOR_PROTOCOL_VERSION = 3 as const;
 
@@ -278,27 +277,9 @@ export const DesktopHostTelemetryHello = Schema.Struct({
 });
 export type DesktopHostTelemetryHello = typeof DesktopHostTelemetryHello.Type;
 
-export const DesktopUpdateRemoteOutcome = Schema.Literals([
-  "ready-to-install",
-  "up-to-date",
-  "failed",
-]);
-export type DesktopUpdateRemoteOutcome = typeof DesktopUpdateRemoteOutcome.Type;
-
-export const DesktopUpdateStatusReport = Schema.Struct({
-  version: Schema.Literal(1),
-  type: Schema.Literal("desktopUpdateStatus"),
-  requestId: Schema.optionalKey(TrimmedNonEmptyString),
-  outcome: Schema.optionalKey(DesktopUpdateRemoteOutcome),
-  reason: Schema.optionalKey(TrimmedNonEmptyString),
-  state: DesktopUpdateStateSchema,
-});
-export type DesktopUpdateStatusReport = typeof DesktopUpdateStatusReport.Type;
-
 export const DesktopHostTelemetryMessage = Schema.Union([
   DesktopHostTelemetryHello,
   DesktopHostTelemetrySnapshot,
-  DesktopUpdateStatusReport,
 ]);
 export type DesktopHostTelemetryMessage = typeof DesktopHostTelemetryMessage.Type;
 
@@ -318,38 +299,9 @@ export const DesktopTelemetrySetHostPowerIntervals = Schema.Struct({
 export type DesktopTelemetrySetHostPowerIntervals =
   typeof DesktopTelemetrySetHostPowerIntervals.Type;
 
-/**
- * Server -> desktop main: run the app's own update flow now (check ->
- * download -> quit-and-install) with no local confirmation. The remote click
- * on the machine that sent the RPC is the consent.
- */
-export const DesktopTelemetryRequestDesktopUpdate = Schema.Struct({
-  version: Schema.Literal(1),
-  type: Schema.Literal("requestDesktopUpdate"),
-  requestId: TrimmedNonEmptyString,
-});
-export type DesktopTelemetryRequestDesktopUpdate = typeof DesktopTelemetryRequestDesktopUpdate.Type;
-
-export const DesktopTelemetryCommitDesktopUpdate = Schema.Struct({
-  version: Schema.Literal(1),
-  type: Schema.Literal("commitDesktopUpdate"),
-  requestId: TrimmedNonEmptyString,
-});
-export type DesktopTelemetryCommitDesktopUpdate = typeof DesktopTelemetryCommitDesktopUpdate.Type;
-
-export const DesktopTelemetryCancelDesktopUpdate = Schema.Struct({
-  version: Schema.Literal(1),
-  type: Schema.Literal("cancelDesktopUpdate"),
-  requestId: TrimmedNonEmptyString,
-});
-export type DesktopTelemetryCancelDesktopUpdate = typeof DesktopTelemetryCancelDesktopUpdate.Type;
-
 export const DesktopTelemetryControlMessage = Schema.Union([
   DesktopTelemetrySetDiagnosticsDemand,
   DesktopTelemetrySetHostPowerIntervals,
-  DesktopTelemetryRequestDesktopUpdate,
-  DesktopTelemetryCommitDesktopUpdate,
-  DesktopTelemetryCancelDesktopUpdate,
 ]);
 export type DesktopTelemetryControlMessage = typeof DesktopTelemetryControlMessage.Type;
 
