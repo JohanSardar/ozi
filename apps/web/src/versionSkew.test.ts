@@ -102,9 +102,7 @@ describe("versionSkew", () => {
             arch: "arm64",
           },
           serverVersion: "0.0.33",
-          capabilities: {
-            repositoryIdentity: true,
-          },
+          capabilities: {},
         },
       }),
     ).toMatchObject({

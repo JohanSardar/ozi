@@ -63,22 +63,6 @@ export const serverEventLoopDelayMax = Metric.gauge("t3_server_event_loop_delay_
   attributes: { unit: "ms" },
 });
 
-export const gitCommandsTotal = Metric.counter("t3_git_commands_total", {
-  description: "Total git commands executed by the server runtime.",
-});
-
-export const gitCommandDuration = Metric.timer("t3_git_command_duration", {
-  description: "Git command execution duration.",
-});
-
-export const terminalSessionsTotal = Metric.counter("t3_terminal_sessions_total", {
-  description: "Total terminal sessions started.",
-});
-
-export const terminalRestartsTotal = Metric.counter("t3_terminal_restarts_total", {
-  description: "Total terminal restart requests handled.",
-});
-
 export const webhookDeliveriesTotal = Metric.counter("t3_webhook_deliveries_total", {
   description: "Webhook requests handled, by outcome and source.",
 });

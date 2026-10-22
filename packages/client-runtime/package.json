@@ -159,17 +159,9 @@
       "types": "./src/state/preview.ts",
       "default": "./src/state/preview.ts"
     },
-    "./state/projects": {
-      "types": "./src/state/projects.ts",
-      "default": "./src/state/projects.ts"
-    },
     "./state/provider-instance-display": {
       "types": "./src/state/providerInstanceDisplay.ts",
       "default": "./src/state/providerInstanceDisplay.ts"
-    },
-    "./state/project-grouping": {
-      "types": "./src/state/projectGrouping.ts",
-      "default": "./src/state/projectGrouping.ts"
     },
     "./state/runtime": {
       "types": "./src/state/runtime.ts",
@@ -302,6 +294,10 @@
     "./state/file-access": {
       "types": "./src/state/fileAccess.ts",
       "default": "./src/state/fileAccess.ts"
+    },
+    "./state/projects": {
+      "types": "./src/state/projects.ts",
+      "default": "./src/state/projects.ts"
     }
   },
   "scripts": {

@@ -23,9 +23,7 @@ const BASE_ENVIRONMENT = {
     arch: "arm64",
   },
   serverVersion: "0.0.0-test",
-  capabilities: {
-    repositoryIdentity: true,
-  },
+  capabilities: {},
 } satisfies ExecutionEnvironmentDescriptor;
 
 let disposeHttpTest: (() => Promise<void>) | undefined;
@@ -88,9 +86,7 @@ describe("environmentBootstrap", () => {
         arch: "arm64",
       },
       serverVersion: "0.0.0-test",
-      capabilities: {
-        repositoryIdentity: true,
-      },
+      capabilities: {},
     });
 
     expect(getPrimaryKnownEnvironment()).toEqual({

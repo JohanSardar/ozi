@@ -1,16 +1,11 @@
 import {
   OrchestrationV2ThreadShell,
-  RepositoryIdentity,
-  type OrchestrationProjectShell,
   type OrchestrationV2ShellSnapshot,
   type OrchestrationV2ShellStreamItem,
 } from "@t3tools/contracts";
 import * as Schema from "effect/Schema";
 
 const sameThreadShell = Schema.toEquivalence(OrchestrationV2ThreadShell);
-const sameRepositoryIdentity = Schema.toEquivalence(
-  Schema.UndefinedOr(Schema.NullOr(RepositoryIdentity)),
-);
 
 /**
  * Links are compared apart from the rest of the row because a deferred snapshot arrives without
@@ -43,79 +38,6 @@ function upsertById<T extends { readonly id: unknown }>(
   return items.map((candidate, candidateIndex) => (candidateIndex === index ? item : candidate));
 }
 
-function retainRepositoryIdentity(
-  previous: OrchestrationProjectShell | undefined,
-  next: OrchestrationProjectShell,
-): OrchestrationProjectShell {
-  if (
-    next.repositoryIdentity == null &&
-    previous?.repositoryIdentity != null &&
-    previous.workspaceRoot === next.workspaceRoot
-  ) {
-    return { ...next, repositoryIdentity: previous.repositoryIdentity };
-  }
-  return next;
-}
-
-export interface MergeShellSnapshotOptions {
-  /**
-   * Metadata-only enrichment refresh: structure and sequence never change;
-   * listed roots accept identity exactly (including null).
-   * Omit this options object for authoritative HTTP/initial WebSocket snapshots.
-   */
-  readonly resolvedRepositoryIdentityRoots: ReadonlyArray<string>;
-}
-
-export function mergeShellSnapshotProjects(
-  previous: OrchestrationV2ShellSnapshot | null | undefined,
-  next: OrchestrationV2ShellSnapshot,
-  options?: MergeShellSnapshotOptions,
-): OrchestrationV2ShellSnapshot {
-  if (previous === null || previous === undefined) {
-    return next;
-  }
-
-  const isEnrichment = options !== undefined;
-  const resolvedRootSet = isEnrichment ? new Set(options.resolvedRepositoryIdentityRoots) : null;
-
-  if (isEnrichment) {
-    const nextById = new Map(next.projects.map((project) => [project.id, project] as const));
-    return {
-      ...previous,
-      projects: previous.projects.map((project) => {
-        const candidate = nextById.get(project.id);
-        if (candidate === undefined || candidate.workspaceRoot !== project.workspaceRoot) {
-          return project;
-        }
-        if (resolvedRootSet?.has(project.workspaceRoot) === true) {
-          // Refreshes re-resolve every root; an unchanged identity keeps the project's identity
-          // so every subscriber (each pull request row, the sidebar) skips re-rendering.
-          if (sameRepositoryIdentity(project.repositoryIdentity, candidate.repositoryIdentity)) {
-            return project;
-          }
-          return { ...project, repositoryIdentity: candidate.repositoryIdentity };
-        }
-        if (project.repositoryIdentity == null && candidate.repositoryIdentity != null) {
-          return { ...project, repositoryIdentity: candidate.repositoryIdentity };
-        }
-        return project;
-      }),
-    };
-  }
-
-  const previousById = new Map(previous.projects.map((project) => [project.id, project] as const));
-  return {
-    ...next,
-    projects: next.projects.map((project) => {
-      const prior = previousById.get(project.id);
-      if (resolvedRootSet?.has(project.workspaceRoot) === true) {
-        return project;
-      }
-      return retainRepositoryIdentity(prior, project);
-    }),
-  };
-}
-
 export function applyShellStreamEvent(
   snapshot: OrchestrationV2ShellSnapshot,
   event: Exclude<
@@ -127,12 +49,7 @@ export function applyShellStreamEvent(
 
   switch (event.kind) {
     case "project.updated": {
-      // Enrichment is async. A project mutation can land with null
-      // repositoryIdentity while an earlier snapshot already resolved it.
-      // Keep the prior identity for the same workspace root so multi-env
-      // grouping does not split until a full snapshot refresh arrives.
-      const previous = snapshot.projects.find((project) => project.id === event.project.id);
-      const project = retainRepositoryIdentity(previous, event.project);
+      const project = event.project;
       return {
         ...snapshot,
         projects: upsertById(snapshot.projects, project),

@@ -10,33 +10,10 @@ const descriptor = {
   label: "Local",
   platform: { os: "darwin", arch: "arm64" },
   serverVersion: "0.0.32",
-  capabilities: { repositoryIdentity: true },
+  capabilities: {},
 } as const;
 
 describe("ExecutionEnvironmentDescriptor", () => {
-  it("keeps settled cleanup optional alongside current worktree capabilities", () => {
-    expect(decodeDescriptor(descriptor).capabilities.settledWorktreeCleanup).toBeUndefined();
-    const capabilities = {
-      settledWorktreeCleanup: true,
-      storageCleanupRun: true,
-      projectWorktreeCleanup: true,
-      worktreesDirectory: true,
-      threadAutoSettlementScope: true,
-    };
-    expect(decodeDescriptor({ ...descriptor, capabilities }).capabilities).toMatchObject(
-      capabilities,
-    );
-  });
-  it("requires an advertised required-worktree bootstrap capability", () => {
-    expect(decodeDescriptor(descriptor).capabilities.requiredWorktreeBootstrap).toBeUndefined();
-    expect(
-      decodeDescriptor({
-        ...descriptor,
-        capabilities: { ...descriptor.capabilities, requiredWorktreeBootstrap: true },
-      }).capabilities.requiredWorktreeBootstrap,
-    ).toBe(true);
-  });
-
   it("treats a missing attachment upload capability as unsupported", () => {
     expect(decodeDescriptor(descriptor).capabilities.attachmentUploads).toBeUndefined();
   });

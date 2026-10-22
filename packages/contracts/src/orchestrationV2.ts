@@ -1786,7 +1786,6 @@ export const OrchestrationV2ShellStreamItem = Schema.Union([
   Schema.Struct({
     kind: Schema.Literal("snapshot"),
     snapshot: OrchestrationV2ShellSnapshot,
-    resolvedRepositoryIdentityRoots: Schema.optionalKey(Schema.Array(Schema.String)),
   }),
   Schema.Struct({
     kind: Schema.Literal("project.updated"),

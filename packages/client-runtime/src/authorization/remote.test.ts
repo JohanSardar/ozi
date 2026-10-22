@@ -206,9 +206,7 @@ describe("remote environment authorization", () => {
               arch: "x64",
             },
             serverVersion: "0.0.0-test",
-            capabilities: {
-              repositoryIdentity: true,
-            },
+            capabilities: {},
           },
           { status: 200 },
         ),

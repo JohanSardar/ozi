@@ -85,7 +85,7 @@ Only Pi, Claude and Codex providers and desktop and web clients ship. Provider r
 
 ## Main agent
 
-- Startup creates the sole main thread, `ozi-main`, rooted at `<home>/workspace`. Workers share a per-job scratch directory under `<home>/workspace/jobs/`; execution does not select a project or worktree. One internal workspace record remains for thread persistence and scheduling. Project management, worktree launch, source control, pull requests and review APIs are removed.
+- Startup creates the sole main thread, `ozi-main`, rooted at `<home>/workspace`. Workers share a per-job scratch directory under `<home>/workspace/jobs/`; execution does not select a project or worktree. One internal workspace record remains for thread persistence and scheduling. Project management, worktree launch, source control, pull requests and review APIs are removed. Repository grouping and asynchronous git metadata enrichment are removed from shell projections.
 - Thread projections and shells expose `role: "main" | "main-fork" | "worker"` and `effectiveLoadout: {provider, model, options: [{id, value}], toolNames, systemPromptSha256}`. Tool names describe the injected MCP catalog; the hash covers the server-owned prompt. Main forks retain the restricted loadout with role `main-fork`.
 - Main selections are fixed on launch, resume and fork: Pi `anthropic/claude-opus-5-5`, `thinking: high`, `fastMode: false`. Unavailable selections fail. Main cannot change workspace, provider or model, or archive/delete itself.
 - Pi main disables built-in tools, extension/skill/context/prompt-template discovery, and loads only the injected MCP bridge. The server checks the role allowlist on tool calls and limits thread targets to main's own descendants.

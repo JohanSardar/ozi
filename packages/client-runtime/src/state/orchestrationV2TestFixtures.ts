@@ -18,7 +18,6 @@ export const v2Project: OrchestrationProjectShell = {
   id: v2ProjectId,
   title: "Project",
   workspaceRoot: "/workspace/project",
-  repositoryIdentity: null,
   defaultModelSelection: null,
   scripts: [],
   createdAt: "2026-06-20T00:00:00.000Z",
