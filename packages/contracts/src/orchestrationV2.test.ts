@@ -6,7 +6,6 @@ import {
   NodeId,
   NonNegativeInt,
   ProviderInstanceId,
-  ProviderReplayTranscript,
   RunAttemptId,
   RunId,
   ThreadId,
@@ -89,7 +88,6 @@ const decodeOrchestrationV2Command = Schema.decodeUnknownSync(OrchestrationV2Com
 const decodeOrchestrationV2TurnItem = Schema.decodeUnknownSync(OrchestrationV2TurnItem);
 const decodeOrchestrationV2TurnItemJson = Schema.decodeUnknownSync(OrchestrationV2TurnItemJson);
 const encodeOrchestrationV2TurnItemJson = Schema.encodeSync(OrchestrationV2TurnItemJson);
-const decodeProviderReplayTranscript = Schema.decodeUnknownSync(ProviderReplayTranscript);
 const decodeOrchestrationV2Subagent = Schema.decodeUnknownSync(OrchestrationV2Subagent);
 const encodeOrchestrationV2SubagentJson = Schema.encodeSync(OrchestrationV2SubagentJson);
 const decodeOrchestrationV2ProviderThreadJson = Schema.decodeUnknownSync(
@@ -384,37 +382,6 @@ describe("orchestration V2 contracts", () => {
       throw new Error("expected thread_created");
     }
     expect(item.targetRunId).toBe(RunId.make("run-child-1"));
-  });
-
-  it("decodes provider-neutral replay transcripts", () => {
-    const transcript = decodeProviderReplayTranscript({
-      provider: "codex",
-      protocol: "codex.app-server",
-      version: "0.120.0",
-      scenario: "simple",
-      metadata: {
-        source: "real-probe",
-      },
-      entries: [
-        {
-          type: "expect_outbound",
-          label: "initialize",
-          frame: { id: 1, method: "initialize" },
-        },
-        {
-          type: "emit_inbound",
-          label: "initialize-result",
-          frame: { id: 1, result: { ok: true } },
-        },
-        {
-          type: "runtime_exit",
-          status: "success",
-        },
-      ],
-    });
-
-    expect(transcript.entries).toHaveLength(3);
-    expect(transcript.protocol).toBe("codex.app-server");
   });
 
   it("decodes strictly typed turn items for known tools and dynamic fallback tools", () => {

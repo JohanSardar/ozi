@@ -742,8 +742,6 @@ describe("ClientSettings composer collapse", () => {
   });
 });
 
-describe("ServerSettings thread settlement", () => {});
-
 describe("ClientSettings pull request merge methods", () => {
   it("defaults to no project overrides and accepts supported methods", () => {
     expect(decodeClientSettings({}).pullRequestMergeMethodOverrides).toEqual({});
