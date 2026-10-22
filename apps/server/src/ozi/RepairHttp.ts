@@ -1,4 +1,4 @@
-import { AuthOrchestrationReadScope } from "@t3tools/contracts";
+import { AuthOrchestrationReadScope, AuthOrchestrationOperateScope } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
@@ -7,9 +7,9 @@ import * as EnvironmentAuth from "../auth/EnvironmentAuth.ts";
 import * as Repair from "./Repair.ts";
 
 const Query = Schema.Struct({
-  kind: Schema.Literals(["mistakes", "replays", "events", "wait"]),
+  kind: Schema.Literals(["mistakes", "replays", "fixes", "undo", "events", "wait"]),
   id: Schema.optional(Schema.String),
-  entity: Schema.optional(Schema.Literals(["mistake", "replay"])),
+  entity: Schema.optional(Schema.Literals(["mistake", "replay", "fix"])),
 });
 
 const decodeQuery = Schema.decodeUnknownEffect(Query);
@@ -26,6 +26,12 @@ export const layer = HttpRouter.add(
       return HttpServerResponse.empty({ status: 403 });
     const query = yield* request.json.pipe(Effect.flatMap(decodeQuery));
     const repair = yield* Repair.Repair;
+    if (query.kind === "undo") {
+      if (!session.scopes.includes(AuthOrchestrationOperateScope))
+        return HttpServerResponse.empty({ status: 403 });
+      return HttpServerResponse.jsonUnsafe(yield* repair.undo(query.id ?? ""));
+    }
+    if (query.kind === "fixes") return HttpServerResponse.jsonUnsafe(yield* repair.fixes());
     if (query.kind === "events")
       return HttpServerResponse.jsonUnsafe(yield* repair.events(query.id ?? "ozi-main"));
     if (query.kind === "replays") return HttpServerResponse.jsonUnsafe(yield* repair.replays());

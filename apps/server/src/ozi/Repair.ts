@@ -20,7 +20,6 @@ import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 import type { PlatformError } from "effect/PlatformError";
 import * as Queue from "effect/Queue";
-import * as PubSub from "effect/PubSub";
 import * as Semaphore from "effect/Semaphore";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
@@ -34,7 +33,15 @@ import * as Events from "../persistence/OrchestrationEventStore.ts";
 import * as ProcessRunner from "../processRunner.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import { resolveAttachmentPath } from "../attachmentStore.ts";
-import { type LogMistake, type Mistake, type Replay, RepairError } from "./RepairModel.ts";
+import {
+  type Fix,
+  type LogMistake,
+  type Mistake,
+  type Replay,
+  RepairError,
+} from "./RepairModel.ts";
+import * as Publisher from "./Publisher.ts";
+import { dataRootPermit } from "./DataRoot.ts";
 import * as RepairSandbox from "./RepairSandbox.ts";
 import { mcpTools } from "./McpTools.ts";
 import { OZI_WORKER_ROLE } from "@t3tools/provider-core/server/orchestrationInstructions";
@@ -109,10 +116,12 @@ export class Repair extends Context.Service<
     ) => Effect.Effect<{ id: string; status: Mistake["status"] }, RepairError>;
     readonly mistakes: (id?: string) => Effect.Effect<ReadonlyArray<Mistake>, RepairError>;
     readonly replays: () => Effect.Effect<ReadonlyArray<Replay>, RepairError>;
+    readonly fixes: () => Effect.Effect<ReadonlyArray<Fix>, RepairError>;
+    readonly undo: (id: string) => Effect.Effect<Fix, RepairError>;
     readonly subscribe: (
-      entity: "mistake" | "replay",
+      entity: "mistake" | "replay" | "fix",
       id: string,
-    ) => Stream.Stream<Mistake | Replay | null, RepairError>;
+    ) => Stream.Stream<Mistake | Replay | Fix | null, RepairError>;
     readonly events: (
       threadId: string,
     ) => Effect.Effect<ReadonlyArray<OrchestrationV2StoredEvent>, RepairError>;
@@ -148,13 +157,13 @@ const make = Effect.gen(function* () {
   const settings = yield* ServerSettings.ServerSettingsService;
   const sandbox = yield* RepairSandbox.RepairSandbox;
   const repairTasks = yield* RepairTasks.RepairTasks;
+  const publisher = yield* Publisher.Publisher;
   const allocator = yield* IdAllocator.IdAllocatorV2;
   const runner = yield* ProcessRunner.ProcessRunner;
   const environment = yield* HostProcess.Environment;
   const hostHome = yield* HostProcess.HomeDirectory;
   const queue = yield* Queue.unbounded<string>();
-  const changes = yield* Effect.acquireRelease(PubSub.sliding<void>(1), PubSub.shutdown);
-  const publish = PubSub.publish(changes, undefined);
+  const publish = publisher.notify;
   const logPermit = Semaphore.makeUnsafe(1);
   const root = path.join(config.stateDir, "repair");
   const readPrompt = (dataRoot: string) =>
@@ -459,9 +468,47 @@ const make = Effect.gen(function* () {
     return { frozen, session };
   });
 
+  const blocker = Effect.fn("Repair.undoBlocker")(function* (fix: Fix) {
+    if (!fix.conflict || fix.state !== "undone") return;
+    const current = yield* projection(OZI_MAIN_THREAD_ID);
+    const parentRun = current.runs.findLast((run) => run.rootNodeId !== null);
+    if (!parentRun?.rootNodeId) return yield* fail("missing-blocker-boundary");
+    yield* threads.dispatch({
+      type: "delegated_task.request",
+      commandId: CommandId.make(`ozi-undo-blocker:${fix.id}`),
+      parentThreadId: current.thread.id,
+      parentRunId: parentRun.id,
+      parentNodeId: parentRun.rootNodeId,
+      task: `Resolve undo conflict for fix ${fix.id}. The pre-fix build is active. The user version is preserved at refs/ozi/user-builds/${fix.id}.`,
+      title: "Fix undo conflict",
+      modelSelection: current.thread.modelSelection,
+      runtimeMode: current.thread.runtimeMode,
+      interactionMode: "default",
+      createdBy: "system",
+      creationSource: "server",
+      launchFailure: `Undo conflict for fix ${fix.id}. The pre-fix build is active. Recover the user version from refs/ozi/user-builds/${fix.id}.`,
+    });
+  });
+  const undo = Effect.fn("Repair.undo")((id: string) =>
+    normalized(
+      Effect.gen(function* () {
+        const fix = yield* publisher.undo(id);
+        yield* blocker(fix);
+        return fix;
+      }),
+    ),
+  );
+
   const run = Effect.fn("Repair.run")(function* (id: string) {
     const row = (yield* mistakes(id))[0];
     if (!row || row.status !== "logged") return;
+    const fixed =
+      yield* sql<Fix>`SELECT f.* FROM ozi_fixes f JOIN ozi_mistakes m ON m.id = f.id WHERE m.fingerprint = ${row.fingerprint} AND f.state IN ('shipped', 'undone') ORDER BY f.at DESC LIMIT 1`;
+    if (fixed[0]) {
+      if (fixed[0].state === "shipped") yield* undo(fixed[0].id);
+      yield* sql`UPDATE ozi_mistakes SET trigger_event_id = NULL WHERE id = ${id}`;
+      return;
+    }
     const at = DateTime.formatIso(yield* DateTime.now);
     yield* sql
       .withTransaction(
@@ -490,7 +537,7 @@ const make = Effect.gen(function* () {
       const baseline = path.join(directory, "baseline");
       const candidate = path.join(directory, "candidate");
       phase = "snapshot";
-      yield* copyTree(config.dataRoot, baseline);
+      yield* copyTree(config.dataRoot, baseline).pipe(dataRootPermit.withPermits(1));
       yield* copyTree(baseline, candidate);
       const original = yield* tree(baseline);
       let authored = original;
@@ -656,18 +703,39 @@ const make = Effect.gen(function* () {
         verdict,
         changed,
         diff: diff.stdout,
-        publication: "disabled",
+        publication: "local",
       };
-      yield* sql`UPDATE ozi_replays SET state = 'passed', evidence_json = ${yield* encodeJson(evidence)} WHERE id = ${id}`.pipe(
+      yield* sql`UPDATE ozi_replays SET state = 'passed', evidence_json = ${yield* encodeJson(evidence)} WHERE id = ${id} AND state = 'running'`.pipe(
         Effect.andThen(publish),
       );
+      phase = "publication";
+      yield* publisher.publish({
+        id,
+        candidate,
+        paths: changed,
+        validate: (snapshot) =>
+          normalized(
+            Effect.gen(function* () {
+              const live = path.join(directory, "publication-baseline");
+              const saved = path.join(directory, "publication-snapshot");
+              yield* copyTree(config.dataRoot, live);
+              yield* copyTree(snapshot, saved);
+              if (
+                !sameTree(original, yield* tree(live)) ||
+                !sameTree(original, yield* tree(saved)) ||
+                !sameTree(authored, yield* tree(candidate))
+              )
+                return yield* fail("publisher-build-changed");
+            }),
+          ),
+      });
     });
     yield* test.pipe(
       Effect.catchCause((cause) =>
         sql
           .withTransaction(
             Effect.gen(function* () {
-              yield* sql`UPDATE ozi_mistakes SET status = 'failed' WHERE id = ${id}`;
+              yield* sql`UPDATE ozi_mistakes SET status = 'failed' WHERE id = ${id} AND id NOT IN (SELECT id FROM ozi_fixes WHERE state IN ('publishing', 'shipped', 'undoing', 'undone'))`;
               const error =
                 cause.reasons.find(
                   (reason) =>
@@ -687,7 +755,7 @@ const make = Effect.gen(function* () {
                     ? `${phase}-defect`
                     : "interrupted";
               const failure = yield* encodeJson({ stage: phase, cause: Cause.pretty(cause) });
-              yield* sql`UPDATE ozi_replays SET state = 'failed', reason = ${reason}, evidence_json = json_set(COALESCE(evidence_json, '{}'), '$.failure', json(${failure})) WHERE id = ${id}`;
+              yield* sql`UPDATE ozi_replays SET state = 'failed', reason = ${reason}, evidence_json = json_set(COALESCE(evidence_json, '{}'), '$.failure', json(${failure})) WHERE id = ${id} AND state = 'running'`;
             }),
           )
           .pipe(Effect.andThen(publish)),
@@ -845,11 +913,12 @@ const make = Effect.gen(function* () {
           );
         return { changed: true as const };
       }),
-    ),
+    ).pipe(dataRootPermit.withPermits(1)),
   );
 
-  yield* sql`UPDATE ozi_mistakes SET status = 'failed' WHERE id IN (SELECT mistake_id FROM ozi_replays WHERE state = 'running')`;
+  yield* sql`UPDATE ozi_mistakes SET status = 'failed' WHERE id IN (SELECT mistake_id FROM ozi_replays WHERE state = 'running') AND id NOT IN (SELECT id FROM ozi_fixes WHERE state IN ('publishing', 'shipped', 'undoing', 'undone'))`;
   yield* sql`UPDATE ozi_replays SET state = 'failed', reason = 'interrupted', evidence_json = json_set(COALESCE(evidence_json, '{}'), '$.failure', json(${yield* encodeJson({ stage: "recovery", cause: "Server stopped before replay completed." })})) WHERE state = 'running'`;
+  for (const fix of yield* publisher.fixes()) yield* blocker(fix);
   for (const row of yield* sql<Mistake>`SELECT * FROM ozi_mistakes WHERE status = 'logged' AND trigger_event_id IS NOT NULL`)
     yield* Queue.offer(queue, row.id);
   yield* Stream.fromQueue(queue).pipe(
@@ -911,14 +980,18 @@ const make = Effect.gen(function* () {
     changeProtectedRule,
     mistakes,
     replays,
+    fixes: publisher.fixes,
+    undo,
     subscribe: (entity, id) =>
       Stream.unwrap(
         Effect.gen(function* () {
-          const subscription = yield* PubSub.subscribe(changes);
-          const read: Effect.Effect<ReadonlyArray<Mistake | Replay>, RepairError> = entity ===
+          const subscription = yield* publisher.subscribeChanges();
+          const read: Effect.Effect<ReadonlyArray<Mistake | Replay | Fix>, RepairError> = entity ===
           "mistake"
             ? mistakes(id)
-            : normalized(sql<Replay>`SELECT * FROM ozi_replays WHERE id = ${id}`);
+            : entity === "fix"
+              ? normalized(sql<Fix>`SELECT * FROM ozi_fixes WHERE id = ${id}`)
+              : normalized(sql<Replay>`SELECT * FROM ozi_replays WHERE id = ${id}`);
           return Stream.concat(
             Stream.fromEffect(read),
             Stream.fromSubscription(subscription).pipe(Stream.mapEffect(() => read)),
@@ -929,4 +1002,7 @@ const make = Effect.gen(function* () {
   });
 });
 
-export const layer = Layer.effect(Repair, make).pipe(Layer.provide(RepairSandbox.layer));
+export const layer = Layer.effect(Repair, make).pipe(
+  Layer.provide(RepairSandbox.layer),
+  Layer.provide(Publisher.layer),
+);

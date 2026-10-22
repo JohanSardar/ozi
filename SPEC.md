@@ -56,11 +56,15 @@ New code lives in `apps/server/src/ozi/` and `apps/web/src/components/ozi/`. Eve
 - Authoring and both replays run in bwrap: candidate data root writable, `protected/` read-only, no credentials or effect endpoints. Publisher checks the real diff; protected changes only on the user's own message.
 - Pass → one data-root commit, activated. Repeat after a fix → revert; conflict with a user edit → keep the pre-fix build and post a blocker.
 
-M5 stops at replay: a pass leaves the mistake `testing` and its replay `passed`; publication, activation and undo arrive in M6. Logging acknowledges only the SQLite write. Eligible cases run serially as internal delegated tasks; they never create cards or wake main with repair output. Interrupted cases fail on restart, and reserved repair threads cannot resume outside confinement.
+Logging acknowledges only the SQLite write. Eligible cases run serially as internal delegated tasks; they never create cards or wake main with repair output. Interrupted replays fail on restart, and reserved repair threads cannot resume outside confinement.
+
+A passed replay publishes one local fix commit in the data-root repository. The publisher rechecks the live baseline and allowed paths, preserves the predecessor under `refs/ozi/predecessors/<fixId>`, and journals activation in SQLite before changing files. Prompt, skill and protected-rule access shares the activation lock. Startup completes pending publication or undo before accepting turns; `shipped` and `undone` follow confirmed activation. Repair changes only prompt, ADHD and skill files; server automation and protected authority cannot be changed by a fix. Nothing pushes.
+
+Recurrence logs a new occurrence and undoes the shipped fix without starting another replay. Undo runs a targeted `git revert` in an isolated data-root worktree, preserving later edits. Conflicts restore the affected predecessor files, preserve the user's build under `refs/ozi/user-builds/<fixId>`, and post one Needs you card. Server-owned conflict cards require no active main turn and never start provider work. Manual `undo` retries return the confirmed result. `fixes` includes publication and rollback state, commit, predecessor and conflict information. A crash before journaling leaves the old build; a journaled operation recovers the complete target, with readers excluded while files change. Activation failure restores the saved build before recording failure.
 
 Replay waits for the source turn to settle before freezing native history; an in-progress session write is never parsed. A source that remains active past the deadline fails with `source-settlement-timeout`. `ozi wait replay <id> finished` returns either terminal replay state, including its failure evidence.
 
-Mistake and replay waits subscribe before reading SQLite, then stream committed changes. The CLI owns the requested deadline; waiting never becomes an HTTP 400. M5 tests await unique turn acknowledgements and allow two minutes for serialized replay stages. Pi's fake transport can hold native history incomplete with `{"history":"partial"}` until the turn settles.
+Mistake, replay and fix waits subscribe before reading SQLite, then stream committed changes, including publication and undo checkpoints. The CLI owns the requested deadline; waiting never becomes an HTTP 400. M5 tests await unique turn acknowledgements and allow two minutes for serialized replay stages. Pi's fake transport can hold native history incomplete with `{"history":"partial"}` until the turn settles.
 
 Failed replays retain a specific reason and `evidence_json.failure` with the stage and underlying cause, exposed by `ozi replays --json`; sandbox, stage and settlement timeouts have distinct reasons. Author exit validates the candidate before settlement, prompt reads or git diff. Link inspection never resolves the target: relative, absolute, dangling and looping symlinks are `symlink-denied`, including when authoring fails.
 
@@ -133,7 +137,7 @@ One binary, `ozi`. Every command takes `--json`. Command failures exit nonzero w
 | `ozi fixes` / `ozi undo <fixId>`                                                | Shipped fixes; manual undo.                                                                            |
 | `ozi schedules` / `ozi schedule add\|rm\|run`                                   | Interval, time-of-day and webhook schedules bound to main.                                             |
 | `ozi todos`                                                                     | External to-dos with source and freshness.                                                             |
-| `ozi wait <job\|thread\|check\|mistake\|replay> <id> <state> [--timeout]`       | Block until the state holds; non-zero on timeout.                                                      |
+| `ozi wait <job\|thread\|check\|mistake\|replay\|fix> <id> <state> [--timeout]`  | Block until the state holds; non-zero on timeout.                                                      |
 | `ozi events <threadId>`                                                         | Stored source events for diagnostics and mistake logging.                                              |
 
 M1 implements `serve`, `service`, `pair`, `status`, `say`, `steer`, `stop`, `thread`, and `wait`. M2 adds `jobs`, `job`, `answer`, `close`, and `wait job`. M3 adds `checks [threadId]` and `wait check`. Other commands arrive with their owning milestones. `--home`/`OZI_HOME` selects server state; `--data-root`/`OZI_DATA_ROOT` selects the data repository. Desktop launchers may use the `--base-dir` alias.
@@ -224,6 +228,6 @@ Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` 
 - `m6.publish`: a passed fix is one data-root commit, active in the next turn and after restart.
 - `m6.recurrence-undo`: the mistake recurring after a fix reverts it → `undone`.
 - `m6.edit-conflict`: a revert conflicting with a user edit keeps the pre-fix build and posts a blocker.
-- `m6.crash-publish`: a crash mid-publish leaves either the old or the new build active.
+- `m6.crash-publish`: real server crashes before journaling and at journal, file, git-head and confirmed-state boundaries of publish and undo recover a complete build with matching status; conflict recovery posts its blocker and retries create no duplicate activation.
 - `m6.audit`: no excluded T3 product paths, exports or dependencies remain. The desktop audit scans tracked desktop runtime and packaging source, shared desktop identity boundaries, and all source environment variables; notices, vendored references, tests and documentation are allowed. It builds the desktop bundle, checks local and WSL launch argv, starts the bundled server with isolated state beside a T3 sentinel, and pairs another server through Settings → Connections.
 - `m6.public-ready`: MIT notices for T3, Pi and Firstmate present; no personal data in the tree.

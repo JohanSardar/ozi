@@ -88,6 +88,7 @@ export async function startHarness(
     testClock?: string;
     publicUrl?: string;
     publicUrlEnv?: string;
+    repairPause?: string;
     desktopArgv?: string[];
     bundled?: boolean;
     pi?: { binaryPath: string; env: NodeJS.ProcessEnv };
@@ -148,6 +149,7 @@ export async function startHarness(
     OZI_FAKE_SCRIPT: script,
     OZI_FAKE_LOG: log,
     ...(options.testClock === undefined ? {} : { OZI_TEST_CLOCK: options.testClock }),
+    ...(options.repairPause === undefined ? {} : { OZI_TEST_REPAIR_PAUSE: options.repairPause }),
     ...(options.publicUrlEnv === undefined ? {} : { OZI_PUBLIC_URL: options.publicUrlEnv }),
     TZ: "UTC",
     CODEX_HOME: NodePath.join(root, "codex"),
@@ -342,6 +344,12 @@ export async function startHarness(
     dataRoot,
     port,
     ozi,
+    git: (...args: string[]) =>
+      new Promise<string>((resolve, reject) => {
+        NodeChildProcess.execFile("git", args, { cwd: dataRoot, env }, (error, stdout, stderr) =>
+          error ? reject(new Error(stderr || error.message)) : resolve(stdout.trim()),
+        );
+      }),
     status: () => ozi<Status>("status"),
     execOutput,
     exec: async (...args: string[]) => (await execOutput(...args)).code,
@@ -373,6 +381,7 @@ export async function startHarness(
       const exited = new Promise<void>((resolve) => server.once("exit", () => resolve()));
       server.kill("SIGKILL");
       await exited;
+      delete env.OZI_TEST_REPAIR_PAUSE;
       spawnServer();
       await ready();
     },
