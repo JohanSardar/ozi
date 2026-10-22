@@ -1,5 +1,4 @@
 import { setActivePreviewTab } from "~/previewStateStore";
-("use client");
 
 import { scopeThreadRef, scopedThreadKey } from "@t3tools/client-runtime/environment";
 import { settlePromise } from "@t3tools/client-runtime/state/runtime";
