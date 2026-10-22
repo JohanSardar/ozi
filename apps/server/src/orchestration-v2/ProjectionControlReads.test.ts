@@ -110,7 +110,6 @@ function fixtureEvents(now: DateTime.Utc): ReadonlyArray<OrchestrationV2DomainEv
         requestedAt: now,
         startedAt: now,
         completedAt: null,
-        checkpointId: null,
         contextHandoffId: null,
       },
     },

@@ -71,6 +71,7 @@ import Migration0065 from "./Migrations/065_CodexUsageNativeTurnIndex.ts";
 import Migration0066 from "./Migrations/066_RepairClientSettlementTimestamps.ts";
 import Migration0067 from "./Migrations/067_WebhookDedupe.ts";
 import Migration0075 from "./Migrations/075_OziRepair.ts";
+import Migration0076 from "./Migrations/076_OziCompletion.ts";
 import Migration0080 from "./Migrations/080_OziFixes.ts";
 
 export const migrationEntries = [
@@ -143,6 +144,7 @@ export const migrationEntries = [
   [66, "RepairClientSettlementTimestamps", Migration0066],
   [67, "WebhookDedupe", Migration0067],
   [75, "OziRepair", Migration0075],
+  [76, "OziCompletion", Migration0076],
   [80, "OziFixes", Migration0080],
 ] as const;
 

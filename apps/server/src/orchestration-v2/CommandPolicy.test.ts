@@ -576,30 +576,6 @@ layer("CommandPolicyV2", (it) => {
     }),
   );
 
-  it.effect("guards rollback behind provider rollback snapshot support", () =>
-    Effect.gen(function* () {
-      const policy = yield* CommandPolicy.CommandPolicyV2;
-
-      const error = yield* policy
-        .ensureRollback({
-          commandId,
-          threadId,
-          providerInstanceId: ProviderInstanceId.make("codex"),
-          capabilities: capabilities((current) => ({
-            ...current,
-            checkpointing: {
-              ...current.checkpointing,
-              providerRollbackReturnsSnapshot: false,
-            },
-          })),
-        })
-        .pipe(Effect.flip);
-
-      assert.instanceOf(error, CommandPolicy.CommandPolicyCapabilityUnsupportedError);
-      assert.equal(error.capability, "rollback_snapshot");
-    }),
-  );
-
   it.effect("guards fork-delta handoff behind context handoff capabilities", () =>
     Effect.gen(function* () {
       const policy = yield* CommandPolicy.CommandPolicyV2;

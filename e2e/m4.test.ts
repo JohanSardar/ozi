@@ -2,7 +2,13 @@ import * as NodeChildProcess from "node:child_process";
 import * as NodeCrypto from "node:crypto";
 import * as NodeFSP from "node:fs/promises";
 import * as NodeURL from "node:url";
-import type { OziJobCard, OziTodoSettings, OziTodos, ScheduledTask } from "@t3tools/contracts";
+import type {
+  OziCheck,
+  OziJobCard,
+  OziTodoSettings,
+  OziTodos,
+  ScheduledTask,
+} from "@t3tools/contracts";
 import { afterEach, beforeEach, expect, it } from "vite-plus/test";
 import { startHarness, type Harness, type Rule } from "./harness.ts";
 
@@ -24,6 +30,12 @@ const delegate = (task: string): Rule["steps"][number] => ({
 const scripts = (rules: Rule[]) =>
   h.script([
     ...rules,
+    {
+      match: ".*",
+      role: "checker",
+      steps: [{ say: JSON.stringify({ verdict: "done", useful: false }) }],
+      repeat: true,
+    },
     { match: ".*", role: "main", steps: [{ say: "Received routine result" }], repeat: true },
   ]);
 const add = (...args: string[]) => h.ozi<Task>("schedule", "add", ...args);
@@ -49,7 +61,15 @@ it("m4.interval queues main and persists quiet jobs without routine cards", asyn
   const worker = (await h.status()).snapshot.threads.find((thread) => thread.jobId === thread.id)!;
   expect(worker).toBeTruthy();
   await h.wait(worker.id, "text:Nothing useful found");
-  await h.wait(worker.id, "completed");
+  const completed = await h.wait(worker.id, "completed");
+  await h.ozi(
+    "wait",
+    "check",
+    completed.runs.at(-1)!.completionCheck!.id,
+    "checked",
+    "--timeout",
+    "40",
+  );
   expect((await h.thread(worker.id)).thread.visibility).toBe("quiet");
   expect(await h.ozi("jobs")).toEqual([]);
   await h.restart();
@@ -82,6 +102,53 @@ it("m4.time-of-day fires only at the selected local time and weekday", async () 
   expect((await schedules())[0]?.runCount).toBe(2);
   await expect(add("--at", "25:00", "--prompt", "invalid-time")).rejects.toThrow();
   await expect(add("--at", "09:00", "--days", "7", "--prompt", "invalid-days")).rejects.toThrow();
+});
+
+it("m4.useful-card reveals only checked useful findings and binds scheduled requests", async () => {
+  await scripts([
+    {
+      match: "^finding-wake$",
+      role: "main",
+      steps: [delegate("finding-worker"), { say: "Finding delegated" }],
+    },
+    { match: "^finding-worker$", role: "worker", steps: [{ say: "Useful finding" }] },
+    {
+      match: "Claim: Useful finding$",
+      role: "checker",
+      steps: [{ say: "Finding check pending" }, { wait: true }],
+    },
+    {
+      match: "release finding",
+      role: "checker",
+      steps: [{ say: JSON.stringify({ verdict: "done", useful: true }) }],
+    },
+  ]);
+  const task = await add("--every", "1m", "--prompt", "finding-wake");
+  await h.ozi("schedule", "run", task.id);
+  await h.wait("ozi-main", "text:Finding delegated");
+  const worker = (await h.status()).snapshot.threads.find(
+    (thread) => thread.title === "finding-worker",
+  )!;
+  const completed = await h.wait(worker.id, "completed");
+  const checkId = completed.runs.at(-1)!.completionCheck!.id;
+  const checkerId = `${checkId}:round:1`;
+  await h.wait(checkerId, "text:Finding check pending");
+  expect(await h.ozi("jobs")).toEqual([]);
+  await h.ozi("steer", "release finding", "--thread", checkerId);
+  const card = await h.ozi<Card>("wait", "job", worker.id, "ready", "--timeout", "40");
+  expect(card.report).toMatchObject({ text: "Useful finding", useful: true });
+  const source = (await h.thread("ozi-main")).messages.find(
+    (message) => message.scheduledTaskId === task.id,
+  )!;
+  const checked = (await h.ozi<OziCheck[]>("checks", "ozi-main")).find(
+    (check) => check.runId === source.runId,
+  )!;
+  expect(checked.requestEventId).toBe(card.requestEventId);
+  await h.ozi("wait", "check", checked.id, "checked", "--timeout", "40");
+  await h.restart();
+  expect(await h.ozi<{ card: Card }>("job", worker.id)).toMatchObject({
+    card: { column: "ready", report: { useful: true, text: "Useful finding" } },
+  });
 });
 
 it("m4.webhook verifies raw bytes, suppresses replays, filters and coalesces real POSTs", async () => {

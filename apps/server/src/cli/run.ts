@@ -2,6 +2,7 @@ import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as NetService from "@t3tools/shared/Net";
 import * as Console from "effect/Console";
+import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import type * as Scope from "effect/Scope";
@@ -27,11 +28,11 @@ export function runCommand<Name extends string, Input, ContextInput, E>(
   extendConnectionAttemptTimeout();
   keepOutboundFetchOnHttp1();
   Command.run(command, { version: packageJson.version }).pipe(
-    Effect.tapError((error) =>
+    Effect.tapCause((cause) =>
       process.argv.includes("--json")
         ? Console.log(
             encodeError({
-              error: { message: error instanceof Error ? error.message : String(error) },
+              error: { message: Cause.pretty(cause) },
             }),
           )
         : Effect.void,

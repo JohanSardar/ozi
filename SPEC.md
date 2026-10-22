@@ -28,19 +28,25 @@ New code lives in `apps/server/src/ozi/` and `apps/web/src/components/ozi/`. Eve
 ### Jobs (`ozi/Jobs.ts`)
 
 - `cards(mainThreadId) → JobCard[]` via authenticated `ozi.jobs.get` and `ozi.jobs.subscribe` (empty payload, stream of card arrays). `ozi.jobs.handle` returns the existing command receipt sequence.
-- Cards expose `jobId`, current `eventId`, title, column, agent, short status, `checking`, `requestEventId`, report, requests with owner thread IDs, `handledEventId`, and `updatedAt`. Secret values never enter cards. M2 reports are null; completed leads stay Running/checking until M3.
+- Cards expose `jobId`, current `eventId`, title, column, agent, short status, `checking`, `checkState`, `requestEventId`, report, requests with owner thread IDs, `handledEventId`, and `updatedAt`. Secret values never enter cards. Reports contain their checked event ID, text and useful-finding flag.
 - `handle({commandId, jobId, eventId, evidence}) → CommandReceipt`. Errors: `UnknownJob`, `WrongJob`, `StaleEvent`, `InvalidEvidence`, no mutation.
 - Thread fields only: `jobId`, `visibility`, `handledEventId`. No job tables.
 - Column: any unresolved question/approval/secret/login/Blocked in the job → Needs you; else unresolved or unchecked work → Running; checked lead report for current request → Ready; handled → Done. Newer request, actionable event or result reopens.
-- M2 accepts close evidence against the exact current `eventId`; accepted/verified evidence requires M3. `ozi close --command-id` retries the same command without closing a newer event. Close leaves active work and requests alone.
+- Close records `job.handled` against the exact displayed event. Automatic acceptance requires an unambiguous user message after that report; verified handling requires its successful check event. Both reject unresolved or newer obligations. Viewing, silence and answers never accept a report. Main reads exact events with `job_cards` and calls `handle_job`; a plain acknowledgement addressed to a Ready lead records acceptance atomically without another agent turn. `ozi close --command-id` retries the same command without closing a newer event. Close leaves active work and requests alone.
 - Main alone may pass `jobId` to delegation. Helpers inherit it; related follow-ups use the lead's existing send/queue path. An unavailable worker leaves a lead with its blocker and no agent run. Scheduled jobs inherit quiet visibility; internal threads do not appear in cards.
 - The current request follows its source event through lead sends, steering and queued follow-ups; event order, not the clock, identifies it.
 
 ### Completion (`ozi/Completion.ts`)
 
 - `claim({threadId, runId, requestEventId, reportItemId|null}) → CommandReceipt`; states `checking | continued | checked | needs_user | blocked | superseded`.
-- Every claim is checked (main included), except checker runs and stopped work. Check = isolated native fork (Pi `--fork` after `agent_settled`; Claude/Codex native fork), same provider/model, low effort, evidence access only.
-- `continue` resumes the original thread. Malformed verdict, missing fork, provider error, deadline → unsuccessful round. Steering supersedes a pending verdict.
+- Scheduled and webhook system messages count as requests. Request order follows the conversation even when clock timestamps are equal. Every settled completion creates a candidate automatically, including main, text-only responses, final responses and completion without prose. Checker, interrupted and stopped runs are excluded. The terminal event, candidate and check outbox effect commit atomically before successful delivery or Ready. Recovery uses the same capture path; storage failures retry.
+- Checks use T3's native fork paths: Pi waits for `agent_settled` and starts an isolated `--fork` process; Claude and Codex use `ThreadForkService`/`ContextHandoffService`. The source is held only until its native fork exists, then queued input can start before checker inference. There is no checkpoint wait.
+- Checkers have an internal, runtime-owned role, the same provider/model and options with low effort, a fixed non-recursive prompt, and evidence-only tools. Options are checked against a refreshed native catalog. Unsupported options, missing native history, malformed JSON, provider failures and a 120-second deadline consume unsuccessful rounds and never pass.
+- Verdicts are `{"verdict":"done","useful":boolean}`, `{"verdict":"continue","missing":string,"evidence":string[],"useful":boolean}` or `{"verdict":"needs_user","reason":string,"useful":boolean}`. Done releases the report and deduplicated delivery; continue resumes its owner. Main continues by delegating missing work and owes coordination/reporting, including while background work remains. Human needs, questions, failures and login requests surface immediately.
+- Three consecutive rounds without verified progress become Blocked in Needs you. Workspace content hashes and completed action receipts are verified independently; new evidence or fulfilled actions reset the count. Read-only tool calls, repeated receipts and rewording do not. Each round retains misses, evidence, verdict/error and input/output token cost, or null when unavailable.
+- Steering or Stop supersedes pending results. Late checks can record their evidence and cost, but cannot release old reports or resume cancelled work. Drawers mark pending text unchecked.
+- `ozi checks [threadId] --json` exposes records; `ozi wait check <id> <state> --json` subscribes to transitions. Each record contains `id`, `eventId`, `threadId`, `runId`, `requestEventId`, `reportItemId|null`, `report`, `state`, `sourceCaptured`, `unsuccessfulRounds`, `evidence`, `rounds`, and timestamps. Rounds contain their number, checker thread ID, verdict/error, misses, verified evidence, tokens and timestamps.
+- Retired: `RunFinalizationService`, `ThreadSettlementService`, inactivity/PR auto-settle, checkpoint storage/services, diff capture, rollback commands and their contracts, client state, UI and replay fixtures. SQLite WAL maintenance is retained. Repair uses git directly.
 
 ### Repair (`ozi/Repair.ts`)
 
@@ -117,9 +123,9 @@ One binary, `ozi`. Every command takes `--json`. Client commands find the server
 | `ozi wait <job\|thread\|check\|mistake\|replay\|fix> <id> <state> [--timeout]`  | Block until the state holds; non-zero on timeout.                                                      |
 | `ozi events <threadId>`                                                         | Stored source events for diagnostics and mistake logging.                                              |
 
-M1 implements `serve`, `service`, `pair`, `status`, `say`, `steer`, `stop`, `thread`, and `wait`. M2 adds `jobs`, `job`, `answer`, `close`, and `wait job`. Other commands arrive with their owning milestones. `--home`/`OZI_HOME` selects server state; `--data-root`/`OZI_DATA_ROOT` selects the data repository. Desktop launchers may use the `--base-dir` alias.
+M1 implements `serve`, `service`, `pair`, `status`, `say`, `steer`, `stop`, `thread`, and `wait`. M2 adds `jobs`, `job`, `answer`, `close`, and `wait job`. M3 adds `checks [threadId]` and `wait check`. Other commands arrive with their owning milestones. `--home`/`OZI_HOME` selects server state; `--data-root`/`OZI_DATA_ROOT` selects the data repository. Desktop launchers may use the `--base-dir` alias.
 
-The CLI resolves main by its fixed `ozi-main` ID; worker and fork activity never changes the default target. `status` returns server configuration, the shell snapshot and the complete main projection with its effective loadout; `thread` returns the complete thread projection. `--fork` creates a child from the latest stable run; other thread flags then address the child. Main and main-fork model changes fail. `job` returns `{card, lead}`; `jobs` returns a card array. `answer` routes questions, allow/deny approvals and secret entry to the request's owning thread. `wait thread <id> text:<substring>` waits for transcript text; `wait job` uses `needs_you`, `running`, `ready`, or `done`. JSON errors retain a non-zero exit code. Uploaded text files include their name, saved path and UTF-8 content in main's prompt so main can delegate a complete brief without file tools.
+The CLI resolves main by its fixed `ozi-main` ID; worker and fork activity never changes the default target. `status` returns server configuration, the shell snapshot and the complete main projection with its effective loadout; `thread` returns the complete thread projection. `--fork` creates a child from the latest stable run; other thread flags then address the child. Main and main-fork model changes fail. `job` returns `{card, lead}`; `jobs` returns a card array. `answer` routes questions, allow/deny approvals, secret entry and checker blockers to the request's owning thread. `wait thread <id> text:<substring>` waits for transcript text; `wait job` uses `needs_you`, `running`, `ready`, or `done`. JSON errors retain a non-zero exit code. Uploaded text files include their name, saved path and UTF-8 content in main's prompt so main can delegate a complete brief without file tools.
 
 ## E2E
 
@@ -182,7 +188,7 @@ Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` 
 
 - `m4.interval`: an interval schedule wakes main; nothing useful → no card.
 - `m4.time-of-day`: a fixed-time schedule fires at the faked time.
-- `m4.useful-card`: a scheduled run with a useful finding makes a card.
+- `m4.useful-card`: a scheduled run with a checked useful finding makes a card; unchecked or routine reports remain quiet across restart.
 - `m4.webhook`: a signed POST wakes main; bad signature rejected; duplicate suppressed; filter applied.
 - `m4.base-url`: schedules report webhook URLs on the configured base URL.
 - `m4.todos`: external to-dos show labeled; offline/malformed source shows unavailable, not empty; no config hides them.

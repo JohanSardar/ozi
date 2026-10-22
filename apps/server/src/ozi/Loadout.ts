@@ -1,6 +1,7 @@
 import {
   isOziMain,
   OZI_MAIN_TOOL_NAMES,
+  OZI_CHECK_TOOL_NAMES,
   type ModelSelection,
   type OziEffectiveLoadout,
   type OrchestrationV2AppThread,
@@ -59,7 +60,12 @@ export const prepareLoadout = Effect.fn("Ozi.prepareLoadout")(function* (
   workerTools: ReadonlyArray<string>,
 ) {
   const main = isOziMain(thread);
-  const systemPrompt = main ? yield* readMainPrompt(config) : OZI_WORKER_ROLE;
+  const checker = thread.role === "checker";
+  const systemPrompt = checker
+    ? "You are a runtime completion checker. Inspect evidence only. Never modify, delegate or complete work. Return the requested verdict JSON."
+    : main
+      ? yield* readMainPrompt(config)
+      : OZI_WORKER_ROLE;
   let mainPromptPath: string | undefined;
   if (main) {
     const fs = yield* FileSystem.FileSystem;
@@ -71,11 +77,23 @@ export const prepareLoadout = Effect.fn("Ozi.prepareLoadout")(function* (
   }
   return {
     mainPromptPath,
+    systemPrompt,
     effectiveLoadout: yield* effectiveLoadout({
       provider,
       selection,
-      toolNames: main ? OZI_MAIN_TOOL_NAMES : workerTools,
+      toolNames: checker ? OZI_CHECK_TOOL_NAMES : main ? OZI_MAIN_TOOL_NAMES : workerTools,
       systemPrompt,
     }),
   };
 });
+
+export const checkerSelection = (selection: ModelSelection, driver: string): ModelSelection => {
+  const id = driver === "pi" ? "thinking" : driver === "codex" ? "reasoningEffort" : "effort";
+  return {
+    ...selection,
+    options: [
+      ...(selection.options ?? []).filter((option) => option.id !== id),
+      { id, value: "low" },
+    ],
+  };
+};

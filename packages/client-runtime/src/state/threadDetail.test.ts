@@ -1,16 +1,10 @@
 import {
-  CheckpointId,
-  CheckpointRef,
-  CheckpointScopeId,
   EnvironmentId,
   NodeId,
-  ProviderDriverKind,
   RuntimeRequestId,
   TurnItemId,
   type OrchestrationV2ThreadProjection,
   ThreadId,
-  RunId,
-  MessageId,
   type ScopedThreadRef,
 } from "@t3tools/contracts";
 import * as Option from "effect/Option";
@@ -111,140 +105,6 @@ describe("createEnvironmentThreadDetailAtoms", () => {
   });
 });
 
-it("does not notify queue consumers for streaming text or execution nodes", () => {
-  const projection = {
-    ...v2Projection,
-    runs: [
-      {
-        id: RunId.make("queued-run"),
-        threadId: v2Projection.thread.id,
-        ordinal: 1,
-        providerInstanceId: v2Projection.thread.providerInstanceId,
-        modelSelection: v2Projection.thread.modelSelection,
-        providerThreadId: null,
-        userMessageId: MessageId.make("queued-message"),
-        rootNodeId: null,
-        activeAttemptId: null,
-        status: "queued" as const,
-        requestedAt: v2Now,
-        startedAt: null,
-        completedAt: null,
-        checkpointId: null,
-        contextHandoffId: null,
-      },
-    ],
-  };
-  const source = Atom.make(
-    AsyncResult.success(
-      threadState({ data: Option.some(projection), status: "live", error: Option.none() }),
-    ),
-  );
-  const details = createEnvironmentThreadDetailAtoms(() => source);
-  const registry = AtomRegistry.make();
-  const dispose = registry.mount(details.queueWorkflowAtom(ref));
-  const before = registry.get(details.queueWorkflowAtom(ref));
-  const disposeCount = registry.mount(details.queuedCountAtom(ref));
-  expect(registry.get(details.queuedCountAtom(ref))).toBe(1);
-  registry.set(
-    source,
-    AsyncResult.success(
-      threadState({
-        data: Option.some({
-          ...projection,
-          nodes: [...v2Projection.nodes],
-          turnItems: [...v2Projection.turnItems],
-        }),
-        status: "live",
-        error: Option.none(),
-      }),
-    ),
-  );
-  expect(registry.get(details.queueWorkflowAtom(ref))).toBe(before);
-  expect(registry.get(details.queuedCountAtom(ref))).toBe(1);
-  registry.set(
-    source,
-    AsyncResult.success(
-      threadState({ data: Option.none(), status: "deleted", error: Option.none() }),
-    ),
-  );
-  expect(registry.get(details.queueWorkflowAtom(ref))).toBeNull();
-  expect(registry.get(details.queuedCountAtom(ref))).toBe(0);
-  disposeCount();
-  dispose();
-  registry.dispose();
-});
-
-it("does not notify the agents pill for unrelated projection updates", () => {
-  const projection: OrchestrationV2ThreadProjection = {
-    ...v2Projection,
-    runs: [
-      {
-        id: RunId.make("active-run"),
-        threadId: v2Projection.thread.id,
-        ordinal: 1,
-        providerInstanceId: v2Projection.thread.providerInstanceId,
-        modelSelection: v2Projection.thread.modelSelection,
-        providerThreadId: null,
-        userMessageId: MessageId.make("message"),
-        rootNodeId: null,
-        activeAttemptId: null,
-        status: "running" as const,
-        requestedAt: v2Now,
-        startedAt: v2Now,
-        completedAt: null,
-        checkpointId: null,
-        contextHandoffId: null,
-      },
-    ],
-    subagents: [
-      {
-        id: NodeId.make("subagent-1"),
-        threadId: v2Projection.thread.id,
-        runId: RunId.make("active-run"),
-        parentNodeId: NodeId.make("root"),
-        origin: "app_owned",
-        createdBy: "agent",
-        driver: ProviderDriverKind.make("codex"),
-        providerInstanceId: v2Projection.thread.providerInstanceId,
-        providerThreadId: null,
-        childThreadId: ThreadId.make("thread-child"),
-        nativeTaskRef: null,
-        prompt: "Do the thing",
-        title: "Worker",
-        model: null,
-        status: "running",
-        result: null,
-        startedAt: v2Now,
-        completedAt: null,
-        updatedAt: v2Now,
-      },
-    ],
-  };
-  const source = Atom.make(
-    AsyncResult.success(
-      threadState({ data: Option.some(projection), status: "live", error: Option.none() }),
-    ),
-  );
-  const details = createEnvironmentThreadDetailAtoms(() => source);
-  const registry = AtomRegistry.make();
-  const dispose = registry.mount(details.turnSubagentsAtom(ref));
-  const before = registry.get(details.turnSubagentsAtom(ref));
-  expect(before?.liveCount).toBe(1);
-  registry.set(
-    source,
-    AsyncResult.success(
-      threadState({
-        data: Option.some({ ...projection, turnItems: [...v2Projection.turnItems] }),
-        status: "live",
-        error: Option.none(),
-      }),
-    ),
-  );
-  expect(registry.get(details.turnSubagentsAtom(ref))).toBe(before);
-  dispose();
-  registry.dispose();
-});
-
 it("keeps worktree and pending requests stable during output updates, then reflects resolution", () => {
   const projection: OrchestrationV2ThreadProjection = {
     ...v2Projection,
@@ -326,49 +186,6 @@ it("keeps worktree and pending requests stable during output updates, then refle
   );
   expect(registry.get(details.pendingRequestsAtom(ref))?.approvals).toEqual([]);
   expect(registry.get(details.worktreePathAtom(ref))).toBe("/workspace/moved");
-  dispose();
-  registry.dispose();
-});
-
-it("rebuilds checkpoint summaries only when checkpoints or messages change", () => {
-  const checkpoint: OrchestrationV2ThreadProjection["checkpoints"][number] = {
-    id: CheckpointId.make("checkpoint-1"),
-    threadId: v2Projection.thread.id,
-    scopeId: CheckpointScopeId.make("scope-1"),
-    runId: RunId.make("run-1"),
-    nodeId: NodeId.make("node-1"),
-    parentCheckpointId: null,
-    ordinalWithinScope: 1,
-    appRunOrdinal: 1,
-    ref: CheckpointRef.make("ref-1"),
-    status: "ready",
-    files: [],
-    capturedAt: v2Now,
-  };
-  const projection: OrchestrationV2ThreadProjection = {
-    ...v2Projection,
-    checkpoints: [checkpoint],
-  };
-  const live = (data: OrchestrationV2ThreadProjection | null) =>
-    AsyncResult.success(
-      threadState({ data: Option.fromNullishOr(data), status: "live", error: Option.none() }),
-    );
-  const sourceAtom = Atom.make(live(projection));
-  const details = createEnvironmentThreadDetailAtoms(() => sourceAtom);
-  const registry = AtomRegistry.make();
-  const dispose = registry.mount(details.checkpointSummariesAtom(ref));
-
-  const summaries = registry.get(details.checkpointSummariesAtom(ref));
-  expect(summaries.map((summary) => summary.runId)).toEqual(["run-1"]);
-
-  registry.set(sourceAtom, live({ ...projection, runs: [] }));
-  expect(registry.get(details.checkpointSummariesAtom(ref))).toBe(summaries);
-
-  registry.set(sourceAtom, live({ ...projection, checkpoints: [] }));
-  expect(registry.get(details.checkpointSummariesAtom(ref))).toEqual([]);
-
-  registry.set(sourceAtom, live(null));
-  expect(registry.get(details.checkpointSummariesAtom(ref))).toEqual([]);
   dispose();
   registry.dispose();
 });

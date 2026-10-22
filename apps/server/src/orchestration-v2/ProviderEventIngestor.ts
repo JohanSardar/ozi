@@ -7,7 +7,6 @@ import {
   type OrchestrationV2Run,
   type OrchestrationV2ProviderTurn,
   type OrchestrationV2Subagent,
-  type OrchestrationV2ThreadProjection,
   type ModelSelection,
   type RuntimeMode,
   type ProviderInteractionMode,
@@ -200,50 +199,6 @@ function withPlanStepDurations(
       };
     }),
   };
-}
-
-const CONVERSATION_RUN_STATUSES = new Set<OrchestrationV2Run["status"]>([
-  "completed",
-  "interrupted",
-  "failed",
-]);
-
-function runsOffNativeBranch(input: {
-  readonly projection: Pick<OrchestrationV2ThreadProjection, "runs" | "attempts" | "providerTurns">;
-  readonly providerThreadId: ProviderThreadId;
-  readonly retainedNativeTurnIds: ReadonlySet<string>;
-  readonly reportingRunId: RunId | undefined;
-}): ReadonlyArray<OrchestrationV2Run> {
-  const { attempts, providerTurns, runs } = input.projection;
-  const nativeTurnId = (run: OrchestrationV2Run) => {
-    const attempt = attempts.find((candidate) => candidate.id === run.activeAttemptId);
-    if (attempt === undefined) return null;
-    const ref = providerTurns.find(
-      (turn) => turn.id === attempt.providerTurnId || turn.runAttemptId === attempt.id,
-    )?.nativeTurnRef;
-    return ref?.strength === "strong" ? ref.nativeId : null;
-  };
-  const settled = runs.flatMap((run) =>
-    run.providerThreadId === input.providerThreadId &&
-    run.id !== input.reportingRunId &&
-    CONVERSATION_RUN_STATUSES.has(run.status)
-      ? [{ run, nativeTurnId: nativeTurnId(run) }]
-      : [],
-  );
-  const lastRetainedOrdinal = settled.reduce(
-    (last, { run, nativeTurnId }) =>
-      nativeTurnId !== null && input.retainedNativeTurnIds.has(nativeTurnId)
-        ? Math.max(last, run.ordinal)
-        : last,
-    0,
-  );
-  return settled
-    .filter(({ run, nativeTurnId }) =>
-      nativeTurnId === null
-        ? run.ordinal > lastRetainedOrdinal
-        : !input.retainedNativeTurnIds.has(nativeTurnId),
-    )
-    .map(({ run }) => run);
 }
 
 export interface ProviderEventIngestInput {
@@ -440,84 +395,6 @@ export const layer: Layer.Layer<
       },
     );
 
-    /**
-     * Retire the runs that fell off its active branch with the same run,
-     * root-node, and checkpoint updates CheckpointRollbackService writes for a
-     * T3 revert. The run reporting the rewind performed it and stays, so it
-     * keeps lastRunOrdinal.
-     */
-    const rollBackRewoundRuns = Effect.fn("ProviderEventIngestor.rollBackRewoundRuns")(function* (
-      input: ProviderEventIngestInput,
-      rewind: {
-        readonly threadId: ThreadId;
-        readonly providerThreadId: ProviderThreadId;
-        readonly retainedNativeTurnIds: ReadonlySet<string>;
-      },
-    ) {
-      const projection = yield* projections.getThreadRecords(rewind.threadId, [
-        "runs",
-        "attempts",
-        "providerTurns",
-        "nodes",
-        "checkpoints",
-      ]);
-      const runs = runsOffNativeBranch({
-        projection,
-        providerThreadId: rewind.providerThreadId,
-        retainedNativeTurnIds: rewind.retainedNativeTurnIds,
-        reportingRunId: input.runId,
-      });
-      if (runs.length === 0) return [];
-      const now = yield* DateTime.now;
-      const eventId = () =>
-        idAllocator.allocate.event({
-          threadId: rewind.threadId,
-          providerSessionId: input.providerSessionId,
-        });
-      const runIds = new Set(runs.map((run) => run.id));
-      const events: Array<OrchestrationV2DomainEvent> = [];
-      for (const checkpoint of projection.checkpoints) {
-        if (checkpoint.status !== "ready" || checkpoint.runId === null) continue;
-        if (!runIds.has(checkpoint.runId)) continue;
-        events.push({
-          id: yield* eventId(),
-          type: "checkpoint.captured",
-          threadId: rewind.threadId,
-          runId: checkpoint.runId,
-          nodeId: checkpoint.nodeId,
-          providerInstanceId: input.providerInstanceId,
-          occurredAt: now,
-          payload: { ...checkpoint, status: "stale" },
-        });
-      }
-      for (const run of runs) {
-        const rootNode = projection.nodes.find((node) => node.id === run.rootNodeId);
-        events.push({
-          id: yield* eventId(),
-          type: "run.updated",
-          threadId: rewind.threadId,
-          runId: run.id,
-          ...(rootNode === undefined ? {} : { nodeId: rootNode.id }),
-          providerInstanceId: run.providerInstanceId,
-          occurredAt: now,
-          payload: { ...run, status: "rolled_back", completedAt: now },
-        });
-        if (rootNode !== undefined) {
-          events.push({
-            id: yield* eventId(),
-            type: "node.updated",
-            threadId: rewind.threadId,
-            runId: run.id,
-            nodeId: rootNode.id,
-            providerInstanceId: run.providerInstanceId,
-            occurredAt: now,
-            payload: { ...rootNode, status: "rolled_back", completedAt: now },
-          });
-        }
-      }
-      return events;
-    });
-
     const normalize: ProviderEventIngestorV2Shape["normalize"] =
       /* This helper runs for individual orchestration events; the enclosing operation owns the span. */
       Effect.fnUntraced(
@@ -569,16 +446,7 @@ export const layer: Layer.Layer<
                 threadId,
                 payload: input.event.providerThread,
               });
-              return input.event.retainedNativeTurnIds === undefined
-                ? [updated]
-                : [
-                    updated,
-                    ...(yield* rollBackRewoundRuns(input, {
-                      threadId,
-                      providerThreadId: input.event.providerThread.id,
-                      retainedNativeTurnIds: new Set(input.event.retainedNativeTurnIds),
-                    })),
-                  ];
+              return [updated];
             }
             case "provider_turn.updated":
               return [

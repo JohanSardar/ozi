@@ -46,10 +46,6 @@ const CAPABILITY_REJECTION_MESSAGES: Record<string, (provider: string) => string
   interrupt: (p) => `${p} cannot stop a run once it has started.`,
   native_fork: (p) => `${p} cannot fork this thread natively.`,
   fork_from_turn: (p) => `${p} cannot fork from an earlier point in this thread.`,
-  rollback: (p) =>
-    `${p} cannot rewind its conversation, so this checkpoint cannot be restored on this thread.`,
-  rollback_snapshot: (p) =>
-    `${p} did not report its rewound conversation state, so the checkpoint was not restored.`,
   context_handoff: (p) => `${p} cannot receive the context handoff needed for this switch.`,
   strong_terminal_status: (p) =>
     `${p} cannot confirm when its runs finish reliably enough for this.`,

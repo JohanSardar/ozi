@@ -1,5 +1,14 @@
 import * as NodeFS from "node:fs";
-import { id, interpreter, launch, lines, sessionFile, write } from "./agent.mjs";
+import {
+  id,
+  interpreter,
+  launch,
+  lines,
+  sessionFile,
+  write,
+  settled,
+  forkBarrier,
+} from "./agent.mjs";
 
 if (launch("codex")) {
   const sessions = new Map();
@@ -41,6 +50,28 @@ if (launch("codex")) {
       turn.error = error;
       turn.completedAt = Math.floor(Date.now() / 1000);
       save();
+      const usage = {
+        totalTokens: 2,
+        inputTokens: 1,
+        cachedInputTokens: 0,
+        outputTokens: 1,
+        reasoningOutputTokens: 0,
+      };
+      notify("thread/tokenUsage/updated", {
+        threadId: thread.id,
+        turnId: turn.id,
+        tokenUsage: {
+          last: usage,
+          total: {
+            ...usage,
+            totalTokens: thread.turns.length * 2,
+            inputTokens: thread.turns.length,
+            outputTokens: thread.turns.length,
+          },
+          modelContextWindow: 200000,
+        },
+      });
+      settled("codex", thread.id, sessionFile("codex", thread.id));
       notify("turn/completed", { threadId: thread.id, turn });
     };
     const engine = interpreter("codex", {
@@ -230,6 +261,7 @@ if (launch("codex")) {
       case "thread/fork": {
         let thread = read(params.threadId).thread;
         if (method === "thread/fork") {
+          await forkBarrier("codex");
           const sourceId = thread.id;
           thread = structuredClone(thread);
           thread.id = id();

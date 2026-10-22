@@ -450,7 +450,6 @@ const makeProviderAdapter = Effect.fnUntraced(function* (
             ),
           respondToRuntimeRequest: () => Effect.void,
           readThreadSnapshot: () => unimplemented("readThreadSnapshot unused in test"),
-          rollbackThread: () => unimplemented("rollbackThread unused in test"),
           forkThread: () => unimplemented("forkThread unused in test"),
         } satisfies ProviderAdapter.ProviderAdapterV2SessionRuntime;
       }),
@@ -722,7 +721,6 @@ function makePendingRuntimeRequestEvents(input: {
       providerTurnId: null,
       nativeItemRef: null,
       runtimeRequestId: requestId,
-      checkpointScopeId: null,
       startedAt: input.now,
       completedAt: null,
     };

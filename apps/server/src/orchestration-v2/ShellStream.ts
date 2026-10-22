@@ -362,7 +362,7 @@ export function shellStreamItemFromThreadShell(input: {
   { readonly kind: "thread.updated" | "thread.removed" }
 > {
   if (input.shell !== null) {
-    if (input.shell.archivedAt !== null) {
+    if (input.shell.archivedAt !== null || input.shell.visibility === "internal") {
       return {
         kind: "thread.removed",
         sequence: input.stored.sequence,
@@ -390,7 +390,11 @@ export function archivedShellStreamItemFromThreadShell(input: {
   readonly stored: OrchestrationV2StoredEvent;
   readonly shell: OrchestrationV2ThreadShell | null;
 }): Exclude<OrchestrationV2ArchivedShellStreamItem, { readonly kind: "snapshot" }> | null {
-  if (input.shell !== null && input.shell.archivedAt !== null) {
+  if (
+    input.shell !== null &&
+    input.shell.archivedAt !== null &&
+    input.shell.visibility !== "internal"
+  ) {
     return {
       kind: "thread.updated",
       sequence: input.stored.sequence,

@@ -163,7 +163,6 @@ function taskFixture() {
     requestedAt: parentCreatedAt,
     startedAt: parentCreatedAt,
     completedAt: childCreatedAt,
-    checkpointId: null,
     contextHandoffId: null,
   };
   return { projection: { ...projection, runs: [run] }, run };

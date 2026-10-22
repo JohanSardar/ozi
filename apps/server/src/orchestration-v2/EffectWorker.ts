@@ -16,10 +16,9 @@ import {
   orchestrationEffectClaimsTotal,
   orchestrationEffectQueueWait,
 } from "../observability/Metrics.ts";
-import * as RunFinalizationService from "./RunFinalizationService.ts";
+import * as Completion from "../ozi/Completion.ts";
 import * as ResourceCleanupService from "./ResourceCleanupService.ts";
 import * as EffectOutbox from "./EffectOutbox.ts";
-import * as CheckpointRollbackService from "./CheckpointRollbackService.ts";
 import * as ProviderSessionManager from "./ProviderSessionManager.ts";
 import * as ProviderTurnControlService from "./ProviderTurnControlService.ts";
 import * as ProviderTurnStartService from "./ProviderTurnStartService.ts";
@@ -75,8 +74,7 @@ export const layerExecutor: Layer.Layer<
   OrchestrationEffectExecutorV2,
   never,
   | ProviderSessionManager.ProviderSessionManagerV2
-  | RunFinalizationService.RunFinalizationService
-  | CheckpointRollbackService.CheckpointRollbackServiceV2
+  | Completion.Completion
   | ProviderTurnControlService.ProviderTurnControlServiceV2
   | ProviderTurnStartService.ProviderTurnStartServiceV2
   | RuntimeRequestService.RuntimeRequestServiceV2
@@ -86,9 +84,8 @@ export const layerExecutor: Layer.Layer<
 > = Layer.effect(
   OrchestrationEffectExecutorV2,
   Effect.gen(function* () {
-    const runFinalization = yield* RunFinalizationService.RunFinalizationService;
+    const completion = yield* Completion.Completion;
     const resourceCleanup = yield* ResourceCleanupService.ResourceCleanupService;
-    const checkpointRollback = yield* CheckpointRollbackService.CheckpointRollbackServiceV2;
     const providerSessions = yield* ProviderSessionManager.ProviderSessionManagerV2;
     const providerTurnControl = yield* ProviderTurnControlService.ProviderTurnControlServiceV2;
     const providerTurnStart = yield* ProviderTurnStartService.ProviderTurnStartServiceV2;
@@ -401,57 +398,14 @@ export const layerExecutor: Layer.Layer<
                     }),
                 ),
               );
-          case "provider-thread.rollback":
-            return checkpointRollback
-              .execute({
-                threadId: effect.threadId,
-                providerThreadId: effect.request.providerThreadId,
-                checkpointId: effect.request.checkpointId,
-                scopeId: effect.request.scopeId,
-                ...(effect.request.restoreFiles === undefined
-                  ? {}
-                  : { restoreFiles: effect.request.restoreFiles }),
-              })
-              .pipe(
-                Effect.tapCause((cause) =>
-                  willRetry || Cause.hasInterruptsOnly(cause)
-                    ? Effect.void
-                    : threads
-                        .dispatch({
-                          type: "checkpoint.rollback.fail",
-                          commandId: CommandId.make(`${effect.commandId}:rollback-failed`),
-                          threadId: effect.threadId,
-                          requestId: effect.commandId,
-                          message: Option.match(Cause.findErrorOption(cause), {
-                            onNone: () => CheckpointRollbackService.ROLLBACK_FAILED_MESSAGE,
-                            onSome: CheckpointRollbackService.rollbackFailureClientMessage,
-                          }),
-                        })
-                        .pipe(
-                          Effect.catchCause((recordCause) =>
-                            Effect.logWarning("Failed to record rollback failure", {
-                              effectId: effect.id,
-                              cause: recordCause,
-                            }),
-                          ),
-                        ),
-                ),
-                Effect.mapError(
-                  (cause) =>
-                    new OrchestrationEffectExecutionError({
-                      effectId: effect.id,
-                      effectType: effect.request.type,
-                      cause,
-                    }),
-                ),
-              );
-          case "checkpoint.capture":
-            return runFinalization
-              .finalize({
-                threadId: effect.threadId,
-                runId: effect.request.runId,
-                scopeId: effect.request.scopeId,
-              })
+          case "completion.check":
+            return completion
+              .execute(
+                effect.request.threadId,
+                effect.request.runId,
+                effect.request.phase,
+                effect.request.round,
+              )
               .pipe(
                 Effect.mapError(
                   (cause) =>
@@ -772,7 +726,7 @@ export const layerWithOptions = (
             ? yield* outbox
                 .succeed({ effectId: effect.id, workerId })
                 .pipe(Effect.onError((cause) => terminalizeClaim(effect, cause)))
-            : effect.attemptCount >= maxAttempts
+            : effect.request.type !== "completion.check" && effect.attemptCount >= maxAttempts
               ? yield* outbox
                   .fail({ effectId: effect.id, workerId, error })
                   .pipe(Effect.onError((cause) => terminalizeClaim(effect, cause)))
@@ -910,7 +864,3 @@ export const runDaemonWithOptions = (options: OrchestrationEffectDaemonOptions =
   );
 
 export const runDaemon = runDaemonWithOptions();
-
-const layerDaemon: Layer.Layer<never, never, OrchestrationEffectWorkerV2> = Layer.effectDiscard(
-  runDaemon.pipe(Effect.forkScoped),
-);
