@@ -134,7 +134,7 @@ A milestone passes when its scenarios pass here and its real-agent run passes: r
 
 Scenario scripts are JSON arrays at `OZI_FAKE_SCRIPT`. Rules match prompt regular expressions, optionally `provider` (`pi`, `codex`, `claude`) and `role` (`main`, `worker`). Matching rules run once in order unless `repeat` is true. Steps are `{"say":"text"}`, `{"tool":{"name":"read_skill","arguments":{"name":"demo"}}}`, `{"ask":"question"}`, `{"approval":"command"}`, `{"wait":true}` or `{"fail":"reason"}`. Tools use the real authenticated MCP endpoint. `$prompt`, `$result` and `$result.field` interpolate the prompt or last tool result. `OZI_FAKE_LOG` records launches, received protocol frames, prompts, tools and results with credentials redacted.
 
-Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` before the first E2E run. The setup builds the web client when its bundle is missing. The harness uses isolated provider homes and kills only its own server process. `OZI_E2E_KEEP=1` preserves temporary artifacts after teardown.
+Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` before the first E2E run. The setup builds the web client before each E2E run. The harness uses isolated provider homes and kills only its own server process. `OZI_E2E_KEEP=1` preserves temporary artifacts after teardown.
 
 ### M1 Connection
 

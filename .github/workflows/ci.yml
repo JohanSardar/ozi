@@ -27,4 +27,4 @@ jobs:
       - run: vp run typecheck
       - run: vp lint
       - run: vp test run --root e2e
-      - run: node scripts/features.ts check 0
+      - run: node scripts/features.ts check 4

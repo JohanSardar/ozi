@@ -173,7 +173,7 @@ features:
     cli: [request]
     milestone: 4
     scenarios: [m4.removed]
-    status: planned
+    status: passing
   - id: mistake-log
     reqs: [mistake-log]
     module: apps/server/src/ozi/Repair.ts
