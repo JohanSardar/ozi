@@ -1,6 +1,6 @@
 import * as Schema from "effect/Schema";
 import * as SchemaTransformation from "effect/SchemaTransformation";
-import { RepositoryIdentity, ThreadEnvMode } from "./environment.ts";
+import { ThreadEnvMode } from "./environment.ts";
 import { ModelSelection } from "./modelSelection.ts";
 import {
   CommandId,
@@ -152,7 +152,6 @@ export const Project = Schema.Struct({
   id: ProjectId,
   title: TrimmedNonEmptyString,
   workspaceRoot: TrimmedNonEmptyString,
-  repositoryIdentity: Schema.optional(Schema.NullOr(RepositoryIdentity)),
   faviconPath: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
   projectIcon: Schema.optional(Schema.NullOr(ReceivedProjectIcon)),
   defaultModelSelection: Schema.NullOr(ModelSelection),

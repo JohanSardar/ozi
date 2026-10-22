@@ -16,7 +16,7 @@ const descriptor = (orchestrationProtocolVersion?: number): ExecutionEnvironment
   platform: { os: "darwin", arch: "arm64" },
   serverVersion: "9.0.0",
   ...(orchestrationProtocolVersion === undefined ? {} : { orchestrationProtocolVersion }),
-  capabilities: { repositoryIdentity: true },
+  capabilities: {},
 });
 
 describe("orchestration protocol compatibility", () => {

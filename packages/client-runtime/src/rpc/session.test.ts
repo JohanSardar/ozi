@@ -125,7 +125,6 @@ const SERVER_CONFIG: ServerConfigType = {
     },
     serverVersion: "0.0.0-test",
     capabilities: {
-      repositoryIdentity: true,
       connectionProbe: true,
     },
   },
@@ -201,9 +200,7 @@ const LEGACY_SERVER_CONFIG = {
   ...ENCODED_SERVER_CONFIG,
   environment: {
     ...ENCODED_SERVER_CONFIG.environment,
-    capabilities: {
-      repositoryIdentity: true,
-    },
+    capabilities: {},
   },
 };
 

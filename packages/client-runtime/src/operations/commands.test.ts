@@ -102,7 +102,6 @@ const makeSupervisor = Effect.fn("TestEnvironmentCommands.makeSupervisor")(funct
     initialConfig: Effect.succeed({
       environment: {
         capabilities: {
-          repositoryIdentity: true,
           ...(input.advertiseThreadStop === true ? { threadStop: true } : {}),
           ...(input.advertiseServerResolvedCommandContext === false
             ? {}

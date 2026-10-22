@@ -57,7 +57,6 @@ function toShell(row: ProjectRow): OrchestrationProjectShell {
     id: row.projectId,
     title: row.title,
     workspaceRoot: row.workspaceRoot,
-    repositoryIdentity: null,
     defaultModelSelection: row.defaultModelSelection,
     defaultThreadEnvMode: row.defaultThreadEnvMode,
     autoPull: row.autoPull,

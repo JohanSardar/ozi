@@ -1,4 +1,3 @@
-import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
 import {
@@ -56,7 +55,6 @@ export type WorktreeSubmodules = typeof WorktreeSubmodules.Type;
 export type ExecutionEnvironmentPlatform = typeof ExecutionEnvironmentPlatform.Type;
 
 export const ExecutionEnvironmentCapabilities = Schema.Struct({
-  repositoryIdentity: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   connectionProbe: Schema.optionalKey(Schema.Boolean),
   attachmentUploads: Schema.optionalKey(Schema.Boolean),
   questionAttachments: Schema.optionalKey(Schema.Boolean),
@@ -68,16 +66,10 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
   /** Absent on servers from before inline context shipped, which drop the records and forward
       the links as literal text -- so a client must serialize context the legacy way for them. */
   inlineMessageContext: Schema.optionalKey(Schema.Boolean),
-  requiredWorktreeBootstrap: Schema.optionalKey(Schema.Boolean),
-  storageCleanup: Schema.optionalKey(Schema.Boolean),
-  storageCleanupRun: Schema.optionalKey(Schema.Boolean),
   /** Server streams database size and reclaimable space for the Storage settings notice. */
   databaseStorage: Schema.optionalKey(Schema.Boolean),
   /** Server checks OTLP endpoints for the telemetry export settings. */
   otlpEndpointCheck: Schema.optionalKey(Schema.Boolean),
-  projectWorktreeCleanup: Schema.optionalKey(Schema.Boolean),
-  settledWorktreeCleanup: Schema.optionalKey(Schema.Boolean),
-  threadSettlement: Schema.optionalKey(Schema.Boolean),
   threadRestartContinuation: Schema.optionalKey(Schema.Boolean),
   projectSettingsOverrides: Schema.optionalKey(Schema.Boolean),
   /**
@@ -101,14 +93,8 @@ export const ExecutionEnvironmentCapabilities = Schema.Struct({
   threadActiveReorder: Schema.optionalKey(Schema.Boolean),
   threadTitleRegeneration: Schema.optionalKey(Schema.Boolean),
   threadVisitedTracking: Schema.optionalKey(Schema.Boolean),
-  threadPullRequestLinking: Schema.optionalKey(Schema.Boolean),
   serverResolvedCommandContext: Schema.optionalKey(Schema.Boolean),
   threadStop: Schema.optionalKey(Schema.Boolean),
-  threadPullRequests: Schema.optionalKey(Schema.Boolean),
-  threadPullRequestWatch: Schema.optionalKey(Schema.Boolean),
-  projectCloneTracking: Schema.optionalKey(Schema.Boolean),
-  /** Server answers projects.listIgnoredFiles. */
-  ignoredFileListing: Schema.optionalKey(Schema.Boolean),
   environmentIcon: Schema.optionalKey(Schema.Boolean),
   /** Server answers orchestration.subscribeCommandOutput. Absent on older servers,
       which never send command output, so clients must not subscribe. */
@@ -129,43 +115,6 @@ export const ExecutionEnvironmentDescriptor = Schema.Struct({
   capabilities: ExecutionEnvironmentCapabilities,
 });
 export type ExecutionEnvironmentDescriptor = typeof ExecutionEnvironmentDescriptor.Type;
-
-export const RepositoryIdentityLocator = Schema.Struct({
-  source: Schema.Literal("git-remote"),
-  remoteName: TrimmedNonEmptyString,
-  remoteUrl: TrimmedNonEmptyString,
-});
-export type RepositoryIdentityLocator = typeof RepositoryIdentityLocator.Type;
-
-export const RepositoryOrigin = Schema.Struct({
-  canonicalKey: TrimmedNonEmptyString,
-  displayName: Schema.optionalKey(TrimmedNonEmptyString),
-});
-export type RepositoryOrigin = typeof RepositoryOrigin.Type;
-
-export const RepositoryIdentity = Schema.Struct({
-  canonicalKey: TrimmedNonEmptyString,
-  locator: RepositoryIdentityLocator,
-  webUrl: Schema.optionalKey(TrimmedNonEmptyString),
-  /** Work tree root, or the git dir for a bare repository. */
-  rootPath: Schema.optionalKey(TrimmedNonEmptyString),
-  displayName: Schema.optionalKey(TrimmedNonEmptyString),
-  provider: Schema.optionalKey(TrimmedNonEmptyString),
-  owner: Schema.optionalKey(TrimmedNonEmptyString),
-  name: Schema.optionalKey(TrimmedNonEmptyString),
-  origin: Schema.optionalKey(RepositoryOrigin),
-});
-export type RepositoryIdentity = typeof RepositoryIdentity.Type;
-
-export function repositoryGroupingKeyOf(identity: RepositoryIdentity): string {
-  return identity.origin?.canonicalKey ?? identity.canonicalKey;
-}
-
-export function repositoryGroupingDisplayNameOf(identity: RepositoryIdentity): string | undefined {
-  return identity.origin
-    ? (identity.origin.displayName ?? identity.origin.canonicalKey)
-    : identity.displayName;
-}
 
 export const ScopedProjectRef = Schema.Struct({
   environmentId: EnvironmentId,

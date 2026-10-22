@@ -83,7 +83,6 @@ function layerPairingHttp(
           serverVersion: "0.0.0-test",
           orchestrationProtocolVersion: options?.protocolVersion ?? ORCHESTRATION_PROTOCOL_VERSION,
           capabilities: {
-            repositoryIdentity: true,
             ...(options?.selfUpdate === true ? {} : {}),
           },
         }),

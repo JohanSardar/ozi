@@ -27,11 +27,7 @@ import { runCachePersistence } from "./cachePersistence.ts";
 import { subscribeDynamic } from "../rpc/client.ts";
 import type { RpcSession } from "../rpc/session.ts";
 import * as ShellSnapshotLoader from "./shellSnapshotHttp.ts";
-import {
-  applyShellStreamEvent,
-  mergeShellSnapshotProjects,
-  reuseUnchangedThreadShells,
-} from "./shellReducer.ts";
+import { applyShellStreamEvent, reuseUnchangedThreadShells } from "./shellReducer.ts";
 import { type EnvironmentCatalogState, enabledEnvironmentIds } from "./connections.ts";
 import { followStreamInEnvironment } from "./runtime.ts";
 
@@ -186,15 +182,7 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
       }
       const nextSnapshot =
         item.kind === "snapshot"
-          ? mergeShellSnapshotProjects(
-              Option.getOrNull(next.snapshot),
-              item.snapshot,
-              item.resolvedRepositoryIdentityRoots === undefined
-                ? undefined
-                : {
-                    resolvedRepositoryIdentityRoots: item.resolvedRepositoryIdentityRoots,
-                  },
-            )
+          ? item.snapshot
           : Option.match(next.snapshot, {
               onNone: () => null,
               onSome: (snapshot) =>

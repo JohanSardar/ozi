@@ -81,16 +81,12 @@ import {
   bufferShellLiveStream,
   coalesceShellApplicationEvents,
   coalesceStoredThreadEvents,
-  dedupeShellEnrichment,
   loadShellSnapshotParts,
   shellStreamItemFromThreadShell,
-  shellStreamItemsFromInitialSnapshot,
-  shellStreamItemsFromResumeSnapshot,
   skipUnchangedThreadShells,
   toShellApplicationEvent,
   type ShellApplicationEvent,
 } from "./orchestration-v2/ShellStream.ts";
-import { ORCHESTRATION_V2_PROJECTION_SCHEMA_VERSION } from "./orchestration-v2/ProjectionStore.ts";
 import { bufferLiveStream } from "./orchestration-v2/LiveStreamBudget.ts";
 import { coalesceThreadLiveStream } from "./orchestration-v2/ThreadLiveEventCoalescer.ts";
 import {
@@ -649,21 +645,6 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
     const applicationEvents = yield* OrchestrationEventStore.OrchestrationEventStore;
     const projects = yield* ProjectStore.ProjectStoreV2;
     const projectService = yield* ProjectService.ProjectService;
-    const loadProjectMetadataSnapshot = Effect.fn("ws.orchestrationV2.loadProjectMetadataSnapshot")(
-      function* (snapshotSequence: number) {
-        const projectShells = yield* projects.listShells();
-        return {
-          snapshot: {
-            schemaVersion: ORCHESTRATION_V2_PROJECTION_SCHEMA_VERSION,
-            snapshotSequence,
-            projects: projectShells,
-            threads: [],
-            archivedThreads: [],
-          } as OrchestrationV2ShellSnapshot,
-          resolvedRepositoryIdentityRoots: [],
-        };
-      },
-    );
     const loadSnapshot = Effect.fn("ws.orchestrationV2.loadShellSnapshot")(function* () {
       const base = buildActiveShellSnapshot(
         yield* loadShellSnapshotParts({
@@ -676,7 +657,6 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
 
       return {
         snapshot: base,
-        resolvedRepositoryIdentityRoots: [],
       };
     });
     const projectItem = Effect.fn("ws.orchestrationV2.projectShellItem")(function* (
@@ -738,39 +718,12 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
           }),
         ),
       );
-
-    // Always attach the enrichment subscription before the first load so
-    // completions that race HTTP snapshot fetch still push a refresh. We still
-    // emit one compact metadata refresh up front: getAvailable may have been
-    // cold on the HTTP path (null identity), and enrichment PubSub events
-    // published before this subscribe attached are dropped.
     const completionMarker =
       input.requestCompletionMarker === true
         ? Stream.make({ kind: "synchronized" as const })
         : Stream.empty;
-    const initialSnapshotItems = (loaded: {
-      readonly snapshot: OrchestrationV2ShellSnapshot;
-      readonly resolvedRepositoryIdentityRoots: ReadonlyArray<string>;
-    }) =>
-      rpcInitialItems(
-        shellStreamItemsFromInitialSnapshot({
-          snapshot: loaded.snapshot,
-          resolvedRepositoryIdentityRoots: loaded.resolvedRepositoryIdentityRoots,
-        }),
-      );
-    const initialEnrichmentItems = (loaded: {
-      readonly snapshot: OrchestrationV2ShellSnapshot;
-      readonly resolvedRepositoryIdentityRoots: ReadonlyArray<string>;
-    }) =>
-      rpcInitialItems(
-        shellStreamItemsFromResumeSnapshot({
-          snapshot: loaded.snapshot,
-          resolvedRepositoryIdentityRoots: loaded.resolvedRepositoryIdentityRoots,
-        }),
-      );
-    // Initial unmarked (+ optional same-load marked) always drains first.
-    // Enrichment merges only with the post-prefix tail so a ready marked
-    // refresh cannot interleave before the authoritative initial frame.
+    const initialSnapshotItems = (loaded: { readonly snapshot: OrchestrationV2ShellSnapshot }) =>
+      rpcInitialItems([{ kind: "snapshot" as const, snapshot: loaded.snapshot }]);
     const completionThenLive = (afterSequence: number) =>
       Stream.concat(completionMarker, liveFrom(afterSequence));
 
@@ -791,8 +744,6 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
           completionThenLive(loaded.snapshot.snapshotSequence),
         );
       }
-
-      const loaded = yield* loadProjectMetadataSnapshot(highWater);
       const replay = toShellStream(
         applicationEvents.readApplicationEvents({
           afterSequence: input.afterSequence,
@@ -803,10 +754,7 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
           skipUnknownEventTypes: true,
         }),
       );
-      return Stream.concat(
-        initialEnrichmentItems(loaded),
-        Stream.concat(Stream.concat(replay, completionMarker), liveFrom(highWater)),
-      );
+      return Stream.concat(Stream.concat(replay, completionMarker), liveFrom(highWater));
     }).pipe(
       Effect.mapError(
         (cause) =>
@@ -818,7 +766,6 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
     );
 
     return stream.pipe(
-      dedupeShellEnrichment,
       Stream.mapError(
         (cause) =>
           new OrchestrationV2GetShellSnapshotError({
