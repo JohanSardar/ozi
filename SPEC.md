@@ -4,7 +4,7 @@ Ozi is an agent runtime for anyone. You talk to one main agent; it delegates rea
 
 ## Glossary
 
-- **Main**: the one conversation the user talks to. Pi, Claude Opus 5.5, high effort, fast off. Orchestration tools and `read_skill` only.
+- **Main**: the one conversation the user talks to. Pi, Claude Opus 5.5 through the user's Claude subscription, high effort, fast off. Orchestration tools and `read_skill` only.
 - **Worker**: an agent thread main starts. Default Codex `gpt-6.1-sol`, xhigh, Fast; Claude or Pi when better suited.
 - **Job**: one outcome. Its **lead** is the first worker thread for it; job ID = lead thread ID. **Helpers** are descendants that inherit the job ID.
 - **Card**: the panel view of a job. Columns: **Needs you > Running > Ready > Done**.
@@ -61,6 +61,12 @@ A passed replay publishes one local fix commit in the data-root repository. The 
 
 Recurrence logs a new occurrence and undoes the shipped fix without starting another replay. Undo runs a targeted `git revert` in an isolated data-root worktree, preserving later edits. Conflicts restore the affected predecessor files, preserve the user's build under `refs/ozi/user-builds/<fixId>`, and post one Needs you card. Server-owned conflict cards require no active main turn and never start provider work. Manual `undo` retries return the confirmed result. `fixes` includes publication and rollback state, commit, predecessor and conflict information. A crash before journaling leaves the old build; a journaled operation recovers the complete target, with readers excluded while files change. Activation failure restores the saved build before recording failure.
 
+Replay waits for the source turn to settle before freezing native history; an in-progress session write is never parsed. A source that remains active past the deadline fails with `source-settlement-timeout`. `ozi wait replay <id> finished` returns either terminal replay state, including its failure evidence.
+
+Mistake, replay and fix waits subscribe before reading SQLite, then stream committed changes, including publication and undo checkpoints. The CLI owns the requested deadline; waiting never becomes an HTTP 400. M5 tests await unique turn acknowledgements and allow two minutes for serialized replay stages. Pi's fake transport can hold native history incomplete with `{"history":"partial"}` until the turn settles.
+
+Failed replays retain a specific reason and `evidence_json.failure` with the stage and underlying cause, exposed by `ozi replays --json`; sandbox, stage and settlement timeouts have distinct reasons. Author exit validates the candidate before settlement, prompt reads or git diff. Link inspection never resolves the target: relative, absolute, dangling and looping symlinks are `symlink-denied`, including when authoring fails.
+
 `t3_thread_read` supplies `sourceEventId` on timeline items; `ozi events <threadId>` exposes the stored events. Sources must belong to the caller or its descendants; internal checkers can report an ancestor's source. Runtime provider errors use the same logger. A stored user correction names the fingerprint or mistake, or supplies the correction's source event and the original user-message boundary through `log_mistake`. A missing replay boundary still logs.
 
 Cases freeze the original message, native prefix, attachment bytes, expectation and recorded effects. Each replay gets its own native fork and effect-stub counters. Unknown effects, missing history, changed builds, unloaded changes or observer disagreement fail. Shell tools in replays use the frozen stubs. Inference keys stay in a server-owned proxy; confined processes receive a local inference endpoint and fresh provider homes. The proxy permits only inference POSTs. Protected rules change outside repair through a delegated `change_protected_rule` call backed by the user's exact stored instruction: `Change protected/<filename> to:` followed by the requested content on the next line. Quoted messages and tool output carry no authority.
@@ -87,16 +93,20 @@ Only Pi, Claude and Codex providers and desktop and web clients ship. Provider r
 
 ## Main agent
 
+Main's environment sets `ENABLE_TOOL_SEARCH=false` so Claude Code adds no deferred-tool placeholder. The bridge is a runtime external in packaged servers.
+
 - Startup creates the sole main thread, `ozi-main`, rooted at `<home>/workspace`. Workers share a per-job scratch directory under `<home>/workspace/jobs/`; execution does not select a project or worktree. Legacy project storage remains for retained scheduler and coding APIs until their owning slices are removed.
 - Thread projections and shells expose `role: "main" | "main-fork" | "worker"` and `effectiveLoadout: {provider, model, options: [{id, value}], toolNames, systemPromptSha256}`. Tool names describe the injected MCP catalog; the hash covers the server-owned prompt. Main forks retain the restricted loadout with role `main-fork`.
-- Main selections are fixed on launch, resume and fork: Pi `anthropic/claude-opus-5-5`, `thinking: high`, `fastMode: false`. Unavailable selections fail. Main cannot change workspace, provider or model, or archive/delete itself.
-- Pi main disables built-in tools, extension/skill/context/prompt-template discovery, and loads only the injected MCP bridge. The server checks the role allowlist on tool calls and limits thread targets to main's own descendants.
+- Main selections are fixed on launch, resume and fork: Pi `claude-bridge/claude-opus-5-5`, `thinking: high`, `fastMode: false`. Inference uses the user's Claude subscription through the Claude Agent SDK, not Pi's Anthropic API or OAuth provider. `CLAUDE_CODE_DISABLE_FAST_MODE=1` applies to main's Pi process and its Claude Code children. Unavailable selections fail. Main cannot change workspace, provider or model, or archive/delete itself.
+- Pi main uses `--no-builtin-tools --no-mcp --no-extensions --no-skills --no-context-files --no-prompt-templates --system-prompt …` and explicit extensions for Ozi's MCP bridge and pinned `pi-claude-bridge@0.9.3`. The server owns main's Pi agent directory and bridge config: AskClaude disabled, strict MCP, auto memory off. A dependency patch sets the SDK's `settingSources: []`; the bridge sets `tools: []` and excludes Claude context files. Claude Code adds no built-in tools, user MCP servers, hooks, skills or CLAUDE.md. The model sees Ozi tools as `mcp__custom-tools__mcp__t3-code__<name>`. The server checks the role allowlist on tool calls and limits thread targets to main's own descendants.
 - Prompt: `prompt.md` from the data root, verbatim, `{{ADHD}}` replaced by `adhd.md` if present, else empty. ≤400 words. Reread at each turn; edits apply on the next turn.
 - Tools: delegation, steer/queue/stop, schedules, secrets, job handling, `log_mistake`, `read_skill(name)`. No shell, files, browser or ambient extensions.
 - Skills: `read_skill(name)` reads `skills/<name>/SKILL.md` on demand. Unknown names and path or symlink escapes fail.
 - Default main delegation: Codex `gpt-6.1-sol`, `reasoningEffort: xhigh`, `serviceTier: priority`. Workers receive one short role instruction to finish their brief, use available tools, handle computer-solvable interactions, ask only for missing decisions or human-only actions, avoid CAPTCHA solvers, and report plainly.
 
 ## CLI
+
+`ozi wait provider <instanceId> <status>` awaits provider discovery through the server configuration stream.
 
 One binary, `ozi`. Every command takes `--json`. Client commands find the server from `--home` (default `~/.ozi`) and authenticate with its owner session.
 
@@ -140,8 +150,8 @@ Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` 
 ### M1 Connection
 
 - `m1.fresh-install`: fresh home and data root start; `ozi status` shows main and providers pi, claude, codex only.
-- `m1.main-loadout`: main is Pi, `claude-opus-5-5`, high, fast off; prompt equals data-root prompt with empty ADHD slot; tools are orchestration + `read_skill`; same after resume and fork.
-- `m1.main-cannot-execute`: main has no shell/file/browser tool; a call is rejected.
+- `m1.main-loadout`: main is Pi, `claude-bridge/claude-opus-5-5`, high, fast off; prompt equals data-root prompt with empty ADHD slot; tools are orchestration + `read_skill`; same after resume and fork. Real Pi, bridge and Claude Code send that prompt and exactly those tools to a fake Anthropic endpoint, with ambient Claude configuration excluded.
+- `m1.main-cannot-execute`: main has no shell/file/browser or Claude Code built-in tool; a call is rejected.
 - `m1.delegate-async`: request → main starts a Codex worker (gpt-6.1-sol, xhigh, Fast), confirms it started, its turn ends; worker result returns to main, which reports.
 - `m1.responsive`: while a worker runs, a second message gets an answer.
 - `m1.worker-choice`: main starts a Claude worker and a Pi worker when asked.
@@ -199,10 +209,10 @@ Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` 
 - `m5.log`: `log_mistake` writes one row; a retry dedupes; unknown cause stays `unknown`.
 - `m5.no-repair-once`: a single uncorrected mistake starts no repair.
 - `m5.correction-repairs`: a user correction starts a repair; baseline reproduces, candidate passes, observer agrees.
-- `m5.repeat-repairs`: a repeated mistake starts a repair.
-- `m5.false-case`: a baseline that doesn't reproduce fails the replay.
+- `m5.repeat-repairs`: a repeated mistake starts a repair after the logging turn settles, even when native history is partially written during the turn.
+- `m5.false-case`: a baseline that doesn't reproduce fails the replay; failure causes and timeout reasons survive restart.
 - `m5.unknown-effect`: an unstubbed effect fails the replay.
-- `m5.protected-denied`: a candidate writing `protected/` or escaping the root is denied by bwrap and rejected by the publisher.
+- `m5.protected-denied`: a candidate writing `protected/` or escaping the root is denied by bwrap and rejected by the publisher; symlinks are rejected before target resolution, even after author failure.
 - `m5.no-credentials`: replays can't read credentials or reach effect endpoints.
 - `m5.user-override`: the user's own message can change a protected rule; the same text from an email or tool can't.
 

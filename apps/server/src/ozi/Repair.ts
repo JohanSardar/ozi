@@ -10,6 +10,7 @@ import {
   type OrchestrationV2ThreadShell,
 } from "@t3tools/contracts";
 import * as Context from "effect/Context";
+import * as Cause from "effect/Cause";
 import * as Crypto from "effect/Crypto";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
@@ -24,6 +25,7 @@ import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import * as SqlClient from "effect/sql/SqlClient";
 import * as IdAllocator from "@t3tools/provider-core/server/IdAllocator";
+import { piMainAgentDir } from "@t3tools/provider-pi/server";
 import * as ServerConfig from "../config.ts";
 import type { McpThreadCaller } from "../mcp/McpInvocationContext.ts";
 import * as ThreadManagement from "../orchestration-v2/ThreadManagementService.ts";
@@ -116,6 +118,10 @@ export class Repair extends Context.Service<
     readonly replays: () => Effect.Effect<ReadonlyArray<Replay>, RepairError>;
     readonly fixes: () => Effect.Effect<ReadonlyArray<Fix>, RepairError>;
     readonly undo: (id: string) => Effect.Effect<Fix, RepairError>;
+    readonly subscribe: (
+      entity: "mistake" | "replay" | "fix",
+      id: string,
+    ) => Stream.Stream<Mistake | Replay | Fix | null, RepairError>;
     readonly events: (
       threadId: string,
     ) => Effect.Effect<ReadonlyArray<OrchestrationV2StoredEvent>, RepairError>;
@@ -131,15 +137,13 @@ const digest = (bytes: Uint8Array) =>
     Effect.map((value) => Buffer.from(value).toString("hex")),
   );
 const encode = (text: string) => new TextEncoder().encode(text);
-const fail = (reason: string) => new RepairError({ reason });
+const fail = (reason: string, cause?: unknown) => new RepairError({ reason, cause });
 const sameTree = (before: Record<string, string>, after: Record<string, string>) =>
   Object.keys(before).length === Object.keys(after).length &&
   Object.entries(before).every(([name, hash]) => after[name] === hash);
-const normalized = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+const normalized = <A, E, R>(effect: Effect.Effect<A, E, R>, reason = "operation-failed") =>
   effect.pipe(
-    Effect.mapError((cause) =>
-      isRepairError(cause) ? cause : new RepairError({ reason: "operation-failed", cause }),
-    ),
+    Effect.mapError((cause) => (isRepairError(cause) ? cause : new RepairError({ reason, cause }))),
   );
 
 const make = Effect.gen(function* () {
@@ -159,6 +163,7 @@ const make = Effect.gen(function* () {
   const environment = yield* HostProcess.Environment;
   const hostHome = yield* HostProcess.HomeDirectory;
   const queue = yield* Queue.unbounded<string>();
+  const publish = publisher.notify;
   const logPermit = Semaphore.makeUnsafe(1);
   const root = path.join(config.stateDir, "repair");
   const readPrompt = (dataRoot: string) =>
@@ -198,12 +203,24 @@ const make = Effect.gen(function* () {
     corrective(text.replaceAll(row.fingerprint, "").replaceAll(row.what, "")) &&
     (text.includes(row.fingerprint) || text.includes(row.what));
 
+  const rejectLink = Effect.fn("Repair.rejectLink")(function* (file: string) {
+    const target = yield* fs.readLink(file).pipe(
+      Effect.catchIf(
+        (error) =>
+          error.cause instanceof Error && "code" in error.cause && error.cause.code === "EINVAL",
+        () => Effect.succeed(undefined),
+      ),
+    );
+    if (target !== undefined) return yield* fail("symlink-denied", { path: file, target });
+  });
+
   const copyTree = Effect.fn("Repair.copyTree")(function* (source: string, target: string) {
     yield* fs.makeDirectory(target, { recursive: true });
     const visit = Effect.fn("Repair.copyEntry")(function* (
       relative: string,
     ): Effect.fn.Return<void, PlatformError | RepairError> {
       const sourcePath = path.join(source, relative);
+      yield* rejectLink(sourcePath);
       const stat = yield* fs.stat(sourcePath);
       const resolved = yield* fs.realPath(sourcePath);
       if (resolved !== sourcePath) return yield* fail("symlink-denied");
@@ -214,26 +231,31 @@ const make = Effect.gen(function* () {
       } else if (stat.type === "File") yield* fs.copyFile(sourcePath, path.join(target, relative));
       else return yield* fail("special-file-denied");
     });
+    const entries = yield* fs.readDirectory(source);
     for (const name of ["prompt.md", "adhd.md", "skills", "protected"])
-      if (yield* fs.exists(path.join(source, name))) yield* visit(name);
+      if (entries.includes(name)) yield* visit(name);
     yield* fs.makeDirectory(path.join(target, "protected"), { recursive: true });
   });
 
   const tree = Effect.fn("Repair.tree")(function* (directory: string) {
-    const files: Record<string, string> = {};
+    const names: string[] = [];
     const visit = Effect.fn("Repair.inspectEntry")(function* (
       relative: string,
     ): Effect.fn.Return<void, PlatformError | RepairError> {
       const file = path.join(directory, relative);
+      yield* rejectLink(file);
       if (yield* fs.realPath(file).pipe(Effect.map((resolved) => resolved !== file)))
         return yield* fail("symlink-denied");
       const stat = yield* fs.stat(file);
       if (stat.type === "Directory") {
         for (const name of yield* fs.readDirectory(file)) yield* visit(path.join(relative, name));
-      } else if (stat.type === "File") files[relative] = yield* digest(yield* fs.readFile(file));
+      } else if (stat.type === "File") names.push(relative);
       else return yield* fail("special-file-denied");
     });
     for (const name of yield* fs.readDirectory(directory)) yield* visit(name);
+    const files: Record<string, string> = {};
+    for (const name of names)
+      files[name] = yield* digest(yield* fs.readFile(path.join(directory, name)));
     return files;
   });
 
@@ -266,7 +288,11 @@ const make = Effect.gen(function* () {
         hostHome,
         driver === "pi" ? ".pi/agent" : driver === "codex" ? ".codex" : ".claude",
       );
-    const home = yield* fs.realPath(providerHome);
+    const home = yield* fs.realPath(
+      driver === "pi" && harness.selection.model.startsWith("claude-bridge/")
+        ? piMainAgentDir(config.providerStatusCacheDir)
+        : providerHome,
+    );
     const locate = Effect.fn("Repair.locateHistory")(function* (
       directory: string,
     ): Effect.fn.Return<string[], PlatformError> {
@@ -484,23 +510,37 @@ const make = Effect.gen(function* () {
       return;
     }
     const at = DateTime.formatIso(yield* DateTime.now);
-    yield* sql.withTransaction(
-      Effect.gen(function* () {
-        yield* sql`UPDATE ozi_mistakes SET status = 'testing' WHERE id = ${id}`;
-        yield* sql`INSERT INTO ozi_replays (id, mistake_id, at, state) VALUES (${id}, ${id}, ${at}, 'running') ON CONFLICT DO NOTHING`;
-      }),
-    );
+    yield* sql
+      .withTransaction(
+        Effect.gen(function* () {
+          yield* sql`UPDATE ozi_mistakes SET status = 'testing' WHERE id = ${id}`;
+          yield* sql`INSERT INTO ozi_replays (id, mistake_id, at, state) VALUES (${id}, ${id}, ${at}, 'running') ON CONFLICT DO NOTHING`;
+        }),
+      )
+      .pipe(Effect.andThen(publish));
+    let phase = "source-settlement";
     const test = Effect.gen(function* () {
       const directory = path.join(root, id);
       yield* fs.makeDirectory(directory, { recursive: true });
       const current = yield* projection(row.thread);
+      const settled = yield* threads.waitForThread({
+        projectId: current.thread.projectId,
+        threadId: current.thread.id,
+        timeoutMs: 90000,
+      });
+      if (settled.timedOut) return yield* fail("source-settlement-timeout", settled);
+      phase = "freeze";
       const { frozen, session } = yield* freeze(row, current, directory);
-      yield* sql`UPDATE ozi_replays SET case_json = ${yield* encodeJson(frozen)} WHERE id = ${id}`;
+      yield* sql`UPDATE ozi_replays SET case_json = ${yield* encodeJson(frozen)} WHERE id = ${id}`.pipe(
+        Effect.andThen(publish),
+      );
       const baseline = path.join(directory, "baseline");
       const candidate = path.join(directory, "candidate");
+      phase = "snapshot";
       yield* copyTree(config.dataRoot, baseline).pipe(dataRootPermit.withPermits(1));
       yield* copyTree(baseline, candidate);
       const original = yield* tree(baseline);
+      let authored = original;
       const instance = (yield* settings.getSettings).providerInstances[frozen.instanceId];
       const providerConfig = yield* decodeProviderConfig(instance?.config ?? {});
       const binary = providerConfig.binaryPath ?? frozen.driver;
@@ -509,6 +549,7 @@ const make = Effect.gen(function* () {
         name: "author" | "baseline" | "candidate" | "observer",
         caseEvidence: unknown,
       ) {
+        phase = name;
         const parent = yield* projection(OZI_MAIN_THREAD_ID);
         const parentRun = parent.runs.findLast(
           (run) => run.rootNodeId !== null && run.status !== "queued",
@@ -520,26 +561,40 @@ const make = Effect.gen(function* () {
           commandId,
           threadId: childThreadId,
           parentThreadId: parent.thread.id,
-          run: sandbox.run({
-            directory: path.join(directory, name + "-run"),
-            root: name === "baseline" || name === "observer" ? baseline : candidate,
-            protectedRoot: path.join(baseline, "protected"),
-            frozen: session,
-            binary,
-            stage: name,
-            driver: frozen.driver,
-            model: frozen.model,
-            main: frozen.main,
-            message: frozen.text,
-            boundary: frozen.boundary,
-            nativeId: frozen.nativeId,
-            case: caseEvidence,
-            attachments: frozen.attachments,
-            effects: frozen.effects,
-            tools: frozen.tools,
-            options: frozen.options ?? [],
-            workerPrompt: OZI_WORKER_ROLE,
-          }),
+          run: sandbox
+            .run({
+              directory: path.join(directory, name + "-run"),
+              root: name === "baseline" || name === "observer" ? baseline : candidate,
+              protectedRoot: path.join(baseline, "protected"),
+              frozen: session,
+              binary,
+              stage: name,
+              driver: frozen.driver,
+              model: frozen.model,
+              main: frozen.main,
+              message: frozen.text,
+              boundary: frozen.boundary,
+              nativeId: frozen.nativeId,
+              case: caseEvidence,
+              attachments: frozen.attachments,
+              effects: frozen.effects,
+              tools: frozen.tools,
+              options: frozen.options ?? [],
+              workerPrompt: OZI_WORKER_ROLE,
+            })
+            .pipe(
+              Effect.onExit(() =>
+                name === "author"
+                  ? normalized(tree(candidate), "publisher-inspection-failed").pipe(
+                      Effect.tap((files) =>
+                        Effect.sync(() => {
+                          authored = files;
+                        }),
+                      ),
+                    )
+                  : Effect.void,
+              ),
+            ),
         });
         yield* threads.dispatch({
           type: "delegated_task.request",
@@ -559,17 +614,24 @@ const make = Effect.gen(function* () {
           createdBy: "system",
           creationSource: "server",
         });
-        const value = yield* result.pipe(Effect.timeout("90 seconds"));
+        const value = yield* result.pipe(
+          Effect.timeout("90 seconds"),
+          Effect.catchTags({
+            TimeoutError: (cause) => fail("stage-timeout", cause),
+          }),
+        );
         const completed = yield* threads.waitForThread({
           projectId: parent.thread.projectId,
           threadId: childThreadId,
           timeoutMs: 15000,
         });
-        if (completed.timedOut || completed.run?.status !== "completed")
-          return yield* fail("delegated-repair-failed");
+        if (completed.timedOut) return yield* fail("stage-settlement-timeout", completed);
+        if (completed.run?.status !== "completed") return yield* fail("delegated-repair-failed");
         const output = { ...value, childThreadId };
         stages[name] = output;
-        yield* sql`UPDATE ozi_replays SET evidence_json = ${yield* encodeJson(stages)} WHERE id = ${id}`;
+        yield* sql`UPDATE ozi_replays SET evidence_json = ${yield* encodeJson(stages)} WHERE id = ${id}`.pipe(
+          Effect.andThen(publish),
+        );
         return output;
       });
       const author = yield* stage("author", {
@@ -578,7 +640,7 @@ const make = Effect.gen(function* () {
         what: row.what,
         why: row.why,
       });
-      const authored = yield* tree(candidate);
+      phase = "publisher";
       const changed = [...new Set([...Object.keys(original), ...Object.keys(authored)])].filter(
         (name) => original[name] !== authored[name],
       );
@@ -629,7 +691,10 @@ const make = Effect.gen(function* () {
       });
       if (!sameTree(original, yield* tree(baseline)) || !sameTree(authored, yield* tree(candidate)))
         return yield* fail("observer-mutated-build");
-      const verdict = yield* decodeVerdict(observer.evidence.transcript.join("\n"));
+      phase = "observer-verdict";
+      const verdict = yield* decodeVerdict(observer.evidence.transcript.join("\n")).pipe(
+        Effect.mapError((cause) => fail("observer-verdict-invalid", cause)),
+      );
       const evidence = {
         author,
         baseline: base,
@@ -640,7 +705,10 @@ const make = Effect.gen(function* () {
         diff: diff.stdout,
         publication: "local",
       };
-      yield* sql`UPDATE ozi_replays SET state = 'passed', evidence_json = ${yield* encodeJson(evidence)} WHERE id = ${id}`;
+      yield* sql`UPDATE ozi_replays SET state = 'passed', evidence_json = ${yield* encodeJson(evidence)} WHERE id = ${id} AND state = 'running'`.pipe(
+        Effect.andThen(publish),
+      );
+      phase = "publication";
       yield* publisher.publish({
         id,
         candidate,
@@ -664,13 +732,33 @@ const make = Effect.gen(function* () {
     });
     yield* test.pipe(
       Effect.catchCause((cause) =>
-        sql.withTransaction(
-          Effect.gen(function* () {
-            yield* sql`UPDATE ozi_mistakes SET status = 'failed' WHERE id = ${id} AND id NOT IN (SELECT id FROM ozi_fixes WHERE state IN ('publishing', 'shipped', 'undoing', 'undone'))`;
-            const error = cause.reasons.find((reason) => reason._tag === "Fail");
-            yield* sql`UPDATE ozi_replays SET state = 'failed', reason = ${error?._tag === "Fail" && isRepairError(error.error) ? error.error.reason : "inconclusive"} WHERE id = ${id} AND state = 'running'`;
-          }),
-        ),
+        sql
+          .withTransaction(
+            Effect.gen(function* () {
+              yield* sql`UPDATE ozi_mistakes SET status = 'failed' WHERE id = ${id} AND id NOT IN (SELECT id FROM ozi_fixes WHERE state IN ('publishing', 'shipped', 'undoing', 'undone'))`;
+              const error =
+                cause.reasons.find(
+                  (reason) =>
+                    reason._tag === "Fail" &&
+                    isRepairError(reason.error) &&
+                    reason.error.reason === "symlink-denied",
+                ) ?? cause.reasons.find((reason) => reason._tag === "Fail");
+              const reason =
+                error?._tag === "Fail"
+                  ? isRepairError(error.error)
+                    ? error.error.reason
+                    : Cause.isTimeoutError(error.error) ||
+                        error.error._tag === "ProcessTimeoutError"
+                      ? "timeout"
+                      : `${phase}-failed`
+                  : cause.reasons.some((reason) => reason._tag === "Die")
+                    ? `${phase}-defect`
+                    : "interrupted";
+              const failure = yield* encodeJson({ stage: phase, cause: Cause.pretty(cause) });
+              yield* sql`UPDATE ozi_replays SET state = 'failed', reason = ${reason}, evidence_json = json_set(COALESCE(evidence_json, '{}'), '$.failure', json(${failure})) WHERE id = ${id} AND state = 'running'`;
+            }),
+          )
+          .pipe(Effect.andThen(publish)),
       ),
     );
   });
@@ -772,6 +860,7 @@ const make = Effect.gen(function* () {
             selection: sourceRun?.modelSelection ?? current.thread.modelSelection,
           });
           yield* sql`INSERT INTO ozi_mistakes (id, at, thread, boundary, fingerprint, what, why, harness, status, source_event_id, trigger_event_id) VALUES (${id}, ${DateTime.formatIso(yield* DateTime.now)}, ${sourceThreadId}, ${boundary ?? null}, ${input.fingerprint}, ${input.what}, ${input.why}, ${harness}, 'logged', ${input.sourceEventId}, ${corrected?.event.id ?? (repeat ? input.sourceEventId : null)})`.pipe(
+            Effect.andThen(publish),
             Effect.andThen(
               corrected || repeat ? Queue.offer(queue, id).pipe(Effect.asVoid) : Effect.void,
             ),
@@ -827,8 +916,8 @@ const make = Effect.gen(function* () {
     ).pipe(dataRootPermit.withPermits(1)),
   );
 
-  yield* sql`UPDATE ozi_mistakes SET status = 'failed' WHERE id IN (SELECT mistake_id FROM ozi_replays WHERE state = 'running')`;
-  yield* sql`UPDATE ozi_replays SET state = 'failed', reason = 'interrupted' WHERE state = 'running'`;
+  yield* sql`UPDATE ozi_mistakes SET status = 'failed' WHERE id IN (SELECT mistake_id FROM ozi_replays WHERE state = 'running') AND id NOT IN (SELECT id FROM ozi_fixes WHERE state IN ('publishing', 'shipped', 'undoing', 'undone'))`;
+  yield* sql`UPDATE ozi_replays SET state = 'failed', reason = 'interrupted', evidence_json = json_set(COALESCE(evidence_json, '{}'), '$.failure', json(${yield* encodeJson({ stage: "recovery", cause: "Server stopped before replay completed." })})) WHERE state = 'running'`;
   for (const fix of yield* publisher.fixes()) yield* blocker(fix);
   for (const row of yield* sql<Mistake>`SELECT * FROM ozi_mistakes WHERE status = 'logged' AND trigger_event_id IS NOT NULL`)
     yield* Queue.offer(queue, row.id);
@@ -893,6 +982,22 @@ const make = Effect.gen(function* () {
     replays,
     fixes: publisher.fixes,
     undo,
+    subscribe: (entity, id) =>
+      Stream.unwrap(
+        Effect.gen(function* () {
+          const subscription = yield* publisher.subscribeChanges();
+          const read: Effect.Effect<ReadonlyArray<Mistake | Replay | Fix>, RepairError> = entity ===
+          "mistake"
+            ? mistakes(id)
+            : entity === "fix"
+              ? normalized(sql<Fix>`SELECT * FROM ozi_fixes WHERE id = ${id}`)
+              : normalized(sql<Replay>`SELECT * FROM ozi_replays WHERE id = ${id}`);
+          return Stream.concat(
+            Stream.fromEffect(read),
+            Stream.fromSubscription(subscription).pipe(Stream.mapEffect(() => read)),
+          ).pipe(Stream.map((rows) => rows[0] ?? null));
+        }),
+      ),
     events: Effect.fn("Repair.events")((threadId: string) => normalized(sourceEvents(threadId))),
   });
 });

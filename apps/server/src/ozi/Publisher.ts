@@ -5,7 +5,9 @@ import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
+import * as PubSub from "effect/PubSub";
 import * as Schema from "effect/Schema";
+import type * as Scope from "effect/Scope";
 import * as SqlClient from "effect/sql/SqlClient";
 import * as ServerConfig from "../config.ts";
 import * as ProcessRunner from "../processRunner.ts";
@@ -15,6 +17,8 @@ import { type Fix, RepairError } from "./RepairModel.ts";
 export class Publisher extends Context.Service<
   Publisher,
   {
+    readonly notify: Effect.Effect<boolean>;
+    readonly subscribeChanges: () => Effect.Effect<PubSub.Subscription<void>, never, Scope.Scope>;
     readonly fixes: () => Effect.Effect<ReadonlyArray<Fix>, RepairError>;
     readonly publish: (input: {
       id: string;
@@ -46,6 +50,8 @@ const make = Effect.gen(function* () {
   const config = yield* ServerConfig.ServerConfig;
   const runner = yield* ProcessRunner.ProcessRunner;
   const environment = yield* HostProcess.Environment;
+  const changes = yield* Effect.acquireRelease(PubSub.sliding<void>(1), PubSub.shutdown);
+  const notify = PubSub.publish(changes, undefined);
   const root = config.dataRoot;
   const directory = path.join(config.stateDir, "publications");
   yield* fs.makeDirectory(directory, { recursive: true, mode: 0o700 });
@@ -90,7 +96,9 @@ const make = Effect.gen(function* () {
       .pipe(Effect.map((result) => (result.code === 0 ? result.stdout.trim() : null)));
   const checkpoint = Effect.fn("Publisher.checkpoint")(function* (fix: Fix, point: string) {
     const value = `${fix.state === "publishing" ? "publish" : "undo"}:${point}`;
-    yield* sql`UPDATE ozi_fixes SET checkpoint = ${value} WHERE id = ${fix.id}`;
+    yield* sql`UPDATE ozi_fixes SET checkpoint = ${value} WHERE id = ${fix.id}`.pipe(
+      Effect.andThen(notify),
+    );
     if (environment.OZI_TEST_REPAIR_PAUSE === value) return yield* Effect.never;
   });
   const safe = Effect.fn("Publisher.safePath")(function* (base: string, name: string) {
@@ -227,7 +235,9 @@ const make = Effect.gen(function* () {
         const existing = (yield* fixes()).find((fix) => fix.id === input.id);
         if (existing) return existing;
         if (environment.OZI_TEST_REPAIR_PAUSE === "publish:prepared") {
-          yield* sql`UPDATE ozi_replays SET reason = 'at:prepared' WHERE id = ${input.id}`;
+          yield* sql`UPDATE ozi_replays SET reason = 'at:prepared' WHERE id = ${input.id}`.pipe(
+            Effect.andThen(notify),
+          );
           return yield* Effect.never;
         }
         if (!input.paths.length || input.paths.some((name) => !permitted(name)))
@@ -258,7 +268,7 @@ const make = Effect.gen(function* () {
         yield* checkpoint(fix, "journal");
         return yield* activate(fix, backup);
       }),
-    ).pipe(dataRootPermit.withPermits(1), Effect.uninterruptible),
+    ).pipe(dataRootPermit.withPermits(1), Effect.ensuring(notify), Effect.uninterruptible),
   );
   const undo: Publisher["Service"]["undo"] = Effect.fn("Publisher.undo")((id) =>
     normalized(
@@ -321,7 +331,7 @@ const make = Effect.gen(function* () {
         yield* checkpoint(pending, "journal");
         return yield* activate(pending, backup);
       }),
-    ).pipe(dataRootPermit.withPermits(1), Effect.uninterruptible),
+    ).pipe(dataRootPermit.withPermits(1), Effect.ensuring(notify), Effect.uninterruptible),
   );
   yield* normalized(
     Effect.gen(function* () {
@@ -336,7 +346,13 @@ const make = Effect.gen(function* () {
       yield* sql`UPDATE ozi_mistakes SET status = 'failed' WHERE status = 'testing' AND id IN (SELECT mistake_id FROM ozi_replays WHERE state = 'passed') AND id NOT IN (SELECT id FROM ozi_fixes)`;
     }),
   ).pipe(dataRootPermit.withPermits(1));
-  return Publisher.of({ fixes, publish, undo });
+  return Publisher.of({
+    fixes,
+    publish,
+    undo,
+    notify,
+    subscribeChanges: () => PubSub.subscribe(changes),
+  });
 });
 
 export const layer = Layer.effect(Publisher, make);

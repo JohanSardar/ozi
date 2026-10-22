@@ -1,21 +1,19 @@
 import { AuthOrchestrationReadScope, AuthOrchestrationOperateScope } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
-import * as Schedule from "effect/Schedule";
+import * as Stream from "effect/Stream";
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
 import * as EnvironmentAuth from "../auth/EnvironmentAuth.ts";
 import * as Repair from "./Repair.ts";
-import type { Fix, Mistake, Replay, RepairError } from "./RepairModel.ts";
 
 const Query = Schema.Struct({
   kind: Schema.Literals(["mistakes", "replays", "fixes", "undo", "events", "wait"]),
   id: Schema.optional(Schema.String),
-  state: Schema.optional(Schema.String),
-  timeout: Schema.optional(Schema.Number),
   entity: Schema.optional(Schema.Literals(["mistake", "replay", "fix"])),
 });
 
 const decodeQuery = Schema.decodeUnknownEffect(Query);
+const encodeJson = Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown));
 
 export const layer = HttpRouter.add(
   "POST",
@@ -39,26 +37,13 @@ export const layer = HttpRouter.add(
     if (query.kind === "replays") return HttpServerResponse.jsonUnsafe(yield* repair.replays());
     if (query.kind === "mistakes")
       return HttpServerResponse.jsonUnsafe(yield* repair.mistakes(query.id));
-    const rows: Effect.Effect<ReadonlyArray<Mistake | Replay | Fix>, RepairError> = query.entity ===
-    "mistake"
-      ? repair.mistakes(query.id)
-      : query.entity === "fix"
-        ? repair.fixes()
-        : repair.replays();
-    const result = yield* rows.pipe(
-      Effect.repeat({
-        schedule: Schedule.spaced("50 millis"),
-        until: (values) =>
-          values.some(
-            (row) =>
-              row.id === query.id &&
-              (("status" in row ? row.status : row.state) === query.state ||
-                ("checkpoint" in row && `at:${row.checkpoint}` === query.state) ||
-                ("reason" in row && row.reason === query.state)),
-          ),
-      }),
-      Effect.timeout(`${Math.min(120, Math.max(1, query.timeout ?? 30))} seconds`),
+    return HttpServerResponse.stream(
+      repair.subscribe(query.entity ?? "replay", query.id ?? "").pipe(
+        Stream.mapEffect((row) => encodeJson(row)),
+        Stream.map((row) => row + "\n"),
+        Stream.encodeText,
+      ),
+      { contentType: "application/x-ndjson", headers: { "Cache-Control": "no-store" } },
     );
-    return HttpServerResponse.jsonUnsafe(result.find((row) => row.id === query.id));
   }).pipe(Effect.catch(() => Effect.succeed(HttpServerResponse.empty({ status: 400 })))),
 );

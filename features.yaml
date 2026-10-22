@@ -1,5 +1,5 @@
 requirements:
-  main-pi: Main runs on Pi with Claude Opus 5.5, high effort, fast off.
+  main-pi: Main runs on Pi claude-bridge/claude-opus-5-5 through the Claude subscription, high effort, fast off, with only Ozi tools.
   main-delegates: Main never does the work; answers only from what it knows; always responsive.
   firstmate: One contact; full briefs; confirm start; relay changes; supervise; report outcomes; surface findings, blockers, logins, risks at once; batch routine.
   one-job-per-outcome: One job per outcome; related work together, unrelated apart.
@@ -50,7 +50,7 @@ features:
     status: passing
   - id: main-loadout
     reqs: [main-pi, prompt, main-delegates, does-it-itself]
-    module: ozi/Loadout.ts
+    module: ozi/Loadout.ts + packages/provider-pi/src/server + e2e/m1.real-pi.test.ts
     cli: [status, thread]
     milestone: 1
     scenarios: [m1.main-loadout, m1.main-cannot-execute]
@@ -183,21 +183,21 @@ features:
     status: passing
   - id: replay
     reqs: [repair-trigger, replay]
-    module: apps/server/src/ozi/Repair.ts + RepairSandbox.ts + RepairTasks.ts
+    module: apps/server/src/ozi/Repair.ts + RepairHttp.ts + RepairSandbox.ts + RepairTasks.ts + cli/client.ts + e2e/m5.test.ts
     cli: [replays]
     milestone: 5
     scenarios: [m5.correction-repairs, m5.repeat-repairs, m5.false-case, m5.unknown-effect]
     status: passing
   - id: confinement
     reqs: [protected, user-override]
-    module: apps/server/src/ozi/RepairSandbox.ts + RepairProgram.ts
+    module: apps/server/src/ozi/Repair.ts + RepairSandbox.ts + RepairProgram.ts + e2e/m5.test.ts
     cli: [replays]
     milestone: 5
     scenarios: [m5.protected-denied, m5.no-credentials, m5.user-override]
     status: passing
   - id: publish-undo
     reqs: [replay]
-    module: apps/server/src/ozi/Publisher.ts + Repair.ts + e2e/m6.test.ts
+    module: apps/server/src/ozi/Publisher.ts + Repair.ts + RepairHttp.ts + apps/server/src/cli/client.ts + e2e/m6.test.ts
     cli: [fixes, undo, wait]
     milestone: 6
     scenarios: [m6.publish, m6.recurrence-undo, m6.edit-conflict, m6.crash-publish]
