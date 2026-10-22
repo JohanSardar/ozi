@@ -875,7 +875,6 @@ interface StagePackageJson {
   readonly packageManager: string;
   readonly description: string;
   readonly license: string;
-  readonly homepage: string;
   readonly author: string;
   readonly main: string;
   readonly build: Record<string, unknown>;
@@ -2315,13 +2314,11 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
         // macOS 26 offers Messages/Mail codes in every text field unless opted out.
         NSAutoFillRequiresTextContentTypeForOneTimeCodeOnMac: true,
         NSLocalNetworkUsageDescription:
-          "Ozi connects to devices on your local network for remote environments and commands run by terminals and coding agents.",
+          "Ozi connects to environments and shared browsers on your local network.",
         NSScreenCaptureUsageDescription:
           "Ozi captures the active window when you use the window capture shortcut.",
-        NSCameraUsageDescription:
-          "Ozi lets commands run by terminals and coding agents use the camera.",
-        NSMicrophoneUsageDescription:
-          "Ozi lets commands run by terminals and coding agents use the microphone.",
+        NSCameraUsageDescription: "Ozi lets agents use the camera.",
+        NSMicrophoneUsageDescription: "Ozi lets agents use the microphone.",
         // macOS lists an app under Default web browser only when it opens web
         // pages as documents as well as http and https links (see protocols).
         CFBundleDocumentTypes: [
@@ -2389,7 +2386,7 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
       icon: "icons",
       category: "Development",
       synopsis: "Desktop GUI for coding agents",
-      maintainer: "Ozi",
+      maintainer: "Ozi contributors",
       protocols: [
         {
           name: "Ozi",
@@ -3313,10 +3310,10 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
     private: true,
     packageManager: rootPackageJson.packageManager,
     description:
-      "Ozi is an open-source desktop app for coding agents. Work with your existing agent subscriptions, review code changes, and run commands in your projects. Connect from desktop or web to continue working remotely.",
+      "Ozi is an agent runtime. Talk to one main agent, delegate work, and handle every job on a card.",
     license: "MIT",
-    homepage: "https://t3.codes",
-    author: "Ozi",
+
+    author: "Ozi contributors",
     main: "apps/desktop/dist-electron/boot.cjs",
     build: yield* createBuildConfig(
       options.platform,

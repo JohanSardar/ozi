@@ -607,7 +607,7 @@ it.effect(
           "state",
         ]);
         assert.strictEqual(first.searchParams.get("client_id"), "dynamic_agent_client");
-        assert.strictEqual(first.searchParams.get("agent_name_hint"), "T3 Code");
+        assert.strictEqual(first.searchParams.get("agent_name_hint"), "Ozi");
         assert.strictEqual(first.searchParams.get("response_type"), "code");
         assert.strictEqual(
           first.searchParams.get("scope"),
@@ -988,16 +988,16 @@ it.effect("returns successful desktop sign-in to the original Welcome step", () 
   provision(
     Effect.gen(function* () {
       const h = yield* makeHarness;
-      h.setReturnUrl("t3code-dev://app/welcome#agents:test-environment");
+      h.setReturnUrl("ozi-dev://app/welcome#agents:test-environment");
       yield* h.signIn;
       yield* h.phase("succeeded");
       assert.include(
         h.callbackResponses[0]!.body,
-        'content="1;url=t3code-dev://app/welcome#agents:test-environment"',
+        'content="1;url=ozi-dev://app/welcome#agents:test-environment"',
       );
       assert.include(
         h.callbackResponses[0]!.body,
-        'href="t3code-dev://app/welcome#agents:test-environment"',
+        'href="ozi-dev://app/welcome#agents:test-environment"',
       );
     }),
   ),

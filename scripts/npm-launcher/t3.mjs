@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // The `t3` npm package. Downloads this version's CLI archive from the GitHub
-// Release into <T3 home>/runtime/versions/<version> (the folder the install
+// Release into <Ozi home>/runtime/versions/<version> (the folder the install
 // scripts and `t3 update` use), verifies it against the release's SHA256SUMS,
 // then runs it. `dist/bin.mjs` re-enters here for background services
 // installed before 0.0.41, which start the npm package with Node and talk to
@@ -56,7 +56,7 @@ async function download(url, file) {
         shown = step;
         const percent = total ? ` ${step}%` : "";
         process.stderr.write(
-          `\r\x1b[2Kt3: downloading T3 Code ${version}${percent} (${(received / 1048576).toFixed(1)} MB)`,
+          `\r\x1b[2Kt3: downloading Ozi ${version}${percent} (${(received / 1048576).toFixed(1)} MB)`,
         );
       }
     }
@@ -134,7 +134,7 @@ async function main() {
   const key = `${process.platform}-${process.arch}`;
   if (!SUPPORTED.includes(key)) {
     throw new Error(
-      `no T3 Code CLI build is available for ${key} (supported: ${SUPPORTED.join(", ")}).\n` +
+      `no Ozi CLI build is available for ${key} (supported: ${SUPPORTED.join(", ")}).\n` +
         "The desktop app is at https://github.com/pingdotgg/t3code/releases",
     );
   }

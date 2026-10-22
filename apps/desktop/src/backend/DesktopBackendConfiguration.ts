@@ -93,7 +93,7 @@ const WSL_FORWARDED_ENV_NAMES = [
   "OZI_OTLP_HEADERS",
   "OZI_OTLP_PROTOCOL",
   // Forwarded without a WSLENV flag, so the values arrive untranslated. The
-  // server prefers an OTEL endpoint over the bootstrap envelope, so the T3 URLs
+  // server prefers an OTEL endpoint over the bootstrap envelope, so the Ozi URLs
   // travel as variables to keep winning inside the distro as they do on Windows.
   "OZI_OTLP_TRACES_URL",
   "OZI_OTLP_METRICS_URL",

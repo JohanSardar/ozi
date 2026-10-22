@@ -7,10 +7,10 @@ import {
   t3OrchestrationSystemPrompt,
 } from "./orchestrationInstructions.ts";
 
-describe("T3 orchestration provider instructions", () => {
+describe("Ozi orchestration provider instructions", () => {
   it("distinguishes delegated subagents from ordinary top-level threads", () => {
     assert.include(T3_CODE_ORCHESTRATION_INSTRUCTIONS, "Use `delegate_task`");
-    assert.include(T3_CODE_ORCHESTRATION_INSTRUCTIONS, "ordinary top-level T3 conversations");
+    assert.include(T3_CODE_ORCHESTRATION_INSTRUCTIONS, "ordinary top-level Ozi conversations");
     assert.include(T3_CODE_ORCHESTRATION_INSTRUCTIONS, "Never use them merely");
     assert.include(T3_CODE_ORCHESTRATION_INSTRUCTIONS, "cross-provider");
     assert.include(T3_CODE_ORCHESTRATION_INSTRUCTIONS, "call `delegate_task` again");
@@ -46,7 +46,7 @@ describe("T3 orchestration provider instructions", () => {
     );
   });
 
-  it("only exposes the system prompt when the T3 MCP server is attached", () => {
+  it("only exposes the system prompt when the Ozi MCP server is attached", () => {
     assert.equal(t3OrchestrationSystemPrompt(false), undefined);
     assert.equal(t3OrchestrationSystemPrompt(true), T3_CODE_ORCHESTRATION_INSTRUCTIONS);
   });
@@ -57,9 +57,9 @@ describe("T3 orchestration provider instructions", () => {
       state: { interactionMode: "default", hasT3Mcp: true },
     });
 
-    assert.include(injected, "T3 Code interaction mode: Default");
-    assert.include(injected, "T3 Code collaborative browser");
-    assert.include(injected, "T3 Code orchestration");
+    assert.include(injected, "Ozi interaction mode: Default");
+    assert.include(injected, "Ozi collaborative browser");
+    assert.include(injected, "Ozi orchestration");
     assert.include(injected, "<user_request>\nInspect the repository.\n</user_request>");
   });
 
@@ -77,14 +77,14 @@ describe("T3 orchestration provider instructions", () => {
         state: { ...defaultState, interactionMode: "plan" },
         previousState: defaultState,
       }),
-      "T3 Code interaction mode: Plan",
+      "Ozi interaction mode: Plan",
     );
     const withoutMcp = t3AcpPromptWithInstructions({
       prompt,
       state: { interactionMode: "default", hasT3Mcp: false },
     });
-    assert.include(withoutMcp, "T3 Code interaction mode: Default");
-    assert.notInclude(withoutMcp, "T3 Code collaborative browser");
-    assert.notInclude(withoutMcp, "T3 Code orchestration");
+    assert.include(withoutMcp, "Ozi interaction mode: Default");
+    assert.notInclude(withoutMcp, "Ozi collaborative browser");
+    assert.notInclude(withoutMcp, "Ozi orchestration");
   });
 });

@@ -86,7 +86,7 @@ const STREAM_FLUSH_MS = 50;
 const PI_REQUEST_TIMEOUT_MS = 15_000;
 const PI_SESSION_TIMEOUT_MS = 60_000;
 const PI_UNSOLICITED_ACTIVITY_ERROR =
-  "Pi started agent work outside an active T3 turn. The session was stopped to prevent invisible tool execution.";
+  "Pi started agent work outside an active Ozi turn. The session was stopped to prevent invisible tool execution.";
 const SETTLE_PROBE_MAX_ATTEMPTS = 3;
 const SETTLE_PROBE_RETRY_DELAY = Duration.millis(100);
 
@@ -2453,7 +2453,7 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
             // Resolved before the turn is installed: a failure here (an
             // unreadable attachment) must not leave `activeTurn` set, which
             // would reject every later turn as already active.
-            // Orchestration instructions reach pi through the T3 MCP
+            // Orchestration instructions reach pi through the Ozi MCP
             // extension's before_agent_start system-prompt hook, never by
             // wrapping the user text: a wrapped first message would no
             // longer start with "/" and slash commands would stop expanding.
@@ -3114,7 +3114,7 @@ function piForkEntry<E>(
 }
 
 /**
- * Pi shares the server clock. An adopted wake can precede its T3 turn, so search from the target
+ * Pi shares the server clock. An adopted wake can precede its Ozi turn, so search from the target
  * turn's end through the boundary turn's end. At thread start, use the earlier of thread creation
  * and turn start to include adopted wakes while preserving inherited session history.
  */

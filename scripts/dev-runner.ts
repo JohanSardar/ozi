@@ -313,7 +313,7 @@ export const createDevRunnerEnv = Effect.fn("dev-runner.createDevRunnerEnv")(fun
 
   // A dev-runner server is never launcher-managed. When the shell that runs
   // this script was itself spawned by the machine's managed t3 service (an
-  // agent working inside T3 Code), these leak through and the child server
+  // agent working inside Ozi), these leak through and the child server
   // fails startup with "The service launcher started a different t3 version"
   // (serviceLauncherClient.ts resolveStartup).
   delete output.T3_SERVICE_LAUNCHER_CONTEXT;
@@ -774,7 +774,7 @@ const devRunnerCli = Command.make("dev-runner", {
   ),
   oziHome: Flag.String("home-dir").pipe(
     Flag.withDescription(
-      "Explicit T3 Code data directory; runtime state is stored under userdata (equivalent to OZI_HOME). Inside a git worktree this defaults to that worktree's own .ozi so dev state stays off the shared home.",
+      "Explicit Ozi data directory; runtime state is stored under userdata (equivalent to OZI_HOME). Inside a git worktree this defaults to that worktree's own .ozi so dev state stays off the shared home.",
     ),
     Flag.optional,
     Flag.map(Option.getOrUndefined),

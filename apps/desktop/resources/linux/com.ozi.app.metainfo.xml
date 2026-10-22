@@ -4,26 +4,10 @@
   <metadata_license>CC0-1.0</metadata_license>
   <project_license>MIT</project_license>
   <name>Ozi</name>
-  <summary>Desktop GUI for coding agents</summary>
-  <developer id="com.ozi">
-    <name>Ozi</name>
-  </developer>
-  <description>
-    <p>
-      Ozi is an open-source desktop app for coding agents. Work with your
-      existing agent subscriptions, review code changes, and run commands in
-      your projects.
-    </p>
-    <p>
-      Connect from desktop, web, or mobile to continue working remotely.
-    </p>
-  </description>
-  <launchable type="desktop-id">ozi.desktop</launchable>
+  <summary>Agent runtime with jobs</summary>
+  <description><p>Talk to one main agent, delegate work, and handle every job on a card.</p></description>
+  <launchable type="desktop-id">app.ozi.Ozi.desktop</launchable>
   <icon type="stock">ozi</icon>
-  <provides>
-    <binary>ozi</binary>
-  </provides>
-  <categories>
-    <category>Development</category>
-  </categories>
+  <provides><binary>ozi</binary></provides>
+  <categories><category>Utility</category></categories>
 </component>

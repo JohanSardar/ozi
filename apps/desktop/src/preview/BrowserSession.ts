@@ -36,13 +36,13 @@ const ALLOWED_PREVIEW_PERMISSIONS: ReadonlySet<string> = new Set([
   "geolocation",
   // `DesktopWindow` disables HTML fullscreen window resizing for the app window
   // and every preview guest, so a page that goes fullscreen fills its own
-  // webview instead of taking over the whole T3 window.
+  // webview instead of taking over the whole Ozi window.
   "fullscreen",
   // Deliberately NOT local-fonts: preview sessions run untrusted web content,
   // and silently granting it would hand every page the user's installed-font
   // fingerprint (and font file bytes via FontData.blob()).
   // Deliberately NOT notifications: a page could post OS notifications branded
-  // as Ozi. T3's own come from the app window on the default session.
+  // as Ozi. Ozi's own come from the app window on the default session.
 ]);
 
 const NEVER_EXTERNAL_PROTOCOLS: ReadonlySet<string> = new Set([
