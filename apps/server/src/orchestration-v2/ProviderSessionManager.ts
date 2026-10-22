@@ -294,7 +294,7 @@ function providerThreadLoadKey(input: {
   });
 }
 
-export const layerWithOptions = (
+const layerWithOptions = (
   options: ProviderSessionManagerV2LayerOptions = {},
 ): Layer.Layer<
   ProviderSessionManagerV2,

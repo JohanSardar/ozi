@@ -6,11 +6,8 @@
     "typecheck": "tsc-rs --noEmit"
   },
   "dependencies": {
-    "@effect/platform-node": "catalog:",
     "@oxlint/plugins": "^1.63.0",
     "effect": "catalog:"
   },
-  "devDependencies": {
-    "vite-plus": "catalog:"
-  }
+  "devDependencies": {}
 }

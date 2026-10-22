@@ -40,7 +40,7 @@ interface PreviewMiniPlayerStoreState {
   readonly removeThread: (ref: ScopedThreadRef) => void;
 }
 
-export function previewMiniPlayerSourceKey(source: PreviewMiniPlayerSource): string {
+function previewMiniPlayerSourceKey(source: PreviewMiniPlayerSource): string {
   return `browser:${source.tabId}`;
 }
 
@@ -132,7 +132,7 @@ export const usePreviewMiniPlayerStore = create<PreviewMiniPlayerStoreState>()((
     }),
 }));
 
-export function selectThreadPreviewMiniPlayer(
+function selectThreadPreviewMiniPlayer(
   byThreadKey: Record<string, PreviewMiniPlayerState>,
   ref: ScopedThreadRef | null | undefined,
 ): PreviewMiniPlayerState | null {

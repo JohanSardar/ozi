@@ -122,7 +122,7 @@ function codexAccountAuthLabel(account: CodexSchema.V2GetAccountResponse["accoun
   return codexPlanLabel(account.planType);
 }
 
-export function codexPlanLabel(planType: string | null | undefined): string | undefined {
+function codexPlanLabel(planType: string | null | undefined): string | undefined {
   switch (planType) {
     case "free":
       return "ChatGPT Free Subscription";
@@ -167,7 +167,7 @@ export function codexDefaultReasoningEffortOverride(model: string): "medium" | u
   return codexModelFamily(model) === "gpt-6-astra" ? "medium" : undefined;
 }
 
-export function mapCodexModelCapabilities(
+function mapCodexModelCapabilities(
   model: CodexSchema.V2ModelListResponse__Model,
 ): ModelCapabilities {
   const reasoningOptions = model.supportedReasoningEfforts.map(({ reasoningEffort }) =>
@@ -251,7 +251,7 @@ function parseCodexModelListResponse(
   }));
 }
 
-export function applyPreferredCodexDefaultModel(
+function applyPreferredCodexDefaultModel(
   models: ReadonlyArray<ServerProviderModel>,
 ): ReadonlyArray<ServerProviderModel> {
   const preferredSlug = PREFERRED_DEFAULT_CODEX_MODELS.flatMap((slug) =>

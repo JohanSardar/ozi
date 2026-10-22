@@ -144,7 +144,7 @@ const writeGithubOutput = Effect.fn("writeGithubOutput")(function* (changed: boo
   );
 });
 
-export const updateReleasePackageVersionsCommand = Command.make(
+const updateReleasePackageVersionsCommand = Command.make(
   "update-release-package-versions",
   {
     version: Argument.String("version").pipe(

@@ -40,7 +40,7 @@ function stableToolCallIdentity(input: ThreadLiveEvent): string | null {
   return input.event.type === "turn-item.updated" ? input.event.payload.id : null;
 }
 
-export function coalesceLiveToolUpdatedEvents(
+function coalesceLiveToolUpdatedEvents(
   events: ReadonlyArray<ThreadLiveEvent>,
 ): ReadonlyArray<ThreadLiveEvent> {
   const survivors: Array<ThreadLiveEvent> = [];
@@ -80,7 +80,7 @@ export function coalesceLiveToolUpdatedEvents(
   return survivors;
 }
 
-export const makeThreadLiveEventCoalescer = Effect.fn(
+const makeThreadLiveEventCoalescer = Effect.fn(
   "ThreadLiveEventCoalescer.makeThreadLiveEventCoalescer",
 )(function* <E = never>(options?: {
   readonly coalesceWindow?: Duration.Input;

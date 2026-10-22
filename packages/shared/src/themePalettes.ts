@@ -1,8 +1,8 @@
-export const BUILT_IN_THEME_IDS = ["t3-chat", "grove", "ocean", "ember", "iris"] as const;
+const BUILT_IN_THEME_IDS = ["t3-chat", "grove", "ocean", "ember", "iris"] as const;
 
-export const MOBILE_DEFAULT_THEME_ID = "t3-code";
+const MOBILE_DEFAULT_THEME_ID = "t3-code";
 
-export const MOBILE_THEME_IDS = [MOBILE_DEFAULT_THEME_ID, ...BUILT_IN_THEME_IDS] as const;
+const MOBILE_THEME_IDS = [MOBILE_DEFAULT_THEME_ID, ...BUILT_IN_THEME_IDS] as const;
 
 /**
  * Ids a theme may not take: the appearance keywords a stored preference uses,
@@ -348,7 +348,7 @@ export const T3_CHAT_THEME: ThemeDefinition = {
   sidebarArtwork: true,
 };
 
-export const GROVE_THEME: ThemeDefinition = {
+const GROVE_THEME: ThemeDefinition = {
   id: "grove",
   label: "Grove",
   appearance: "light",
@@ -471,7 +471,7 @@ export const GROVE_THEME: ThemeDefinition = {
   sidebarArtwork: true,
 };
 
-export const OCEAN_THEME: ThemeDefinition = {
+const OCEAN_THEME: ThemeDefinition = {
   id: "ocean",
   label: "Ocean",
   appearance: "light",
@@ -594,7 +594,7 @@ export const OCEAN_THEME: ThemeDefinition = {
   sidebarArtwork: true,
 };
 
-export const EMBER_THEME: ThemeDefinition = {
+const EMBER_THEME: ThemeDefinition = {
   id: "ember",
   label: "Ember",
   appearance: "light",
@@ -717,7 +717,7 @@ export const EMBER_THEME: ThemeDefinition = {
   sidebarArtwork: true,
 };
 
-export const IRIS_THEME: ThemeDefinition = {
+const IRIS_THEME: ThemeDefinition = {
   id: "iris",
   label: "Iris",
   appearance: "light",
@@ -847,11 +847,3 @@ export const BUILT_IN_THEMES: ReadonlyArray<ThemeDefinition> = [
   EMBER_THEME,
   IRIS_THEME,
 ];
-
-export function getThemeColorsForAppearance(
-  theme: ThemeDefinition,
-  appearance: ThemeAppearance,
-): ThemeColors | null {
-  if (theme.appearance === appearance) return theme.colors;
-  return theme.variants?.[appearance] ?? null;
-}

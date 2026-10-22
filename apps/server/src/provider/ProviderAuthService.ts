@@ -64,7 +64,7 @@ export class ProviderAuthService extends Context.Service<
   }
 >()("t3/provider/ProviderAuthService") {}
 
-export const makeProviderAuthService = Effect.gen(function* () {
+const makeProviderAuthService = Effect.gen(function* () {
   const registry = yield* ProviderInstanceRegistry.ProviderInstanceRegistry;
   const projections = yield* ProjectionStore.ProjectionStoreV2;
   const providerSessions = yield* ProviderSessionManager.ProviderSessionManagerV2;

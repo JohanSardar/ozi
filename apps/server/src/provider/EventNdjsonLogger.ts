@@ -336,7 +336,7 @@ export function boundProviderEventForLogging(event: unknown): unknown {
   return summarizeProviderEvent(event);
 }
 
-export const writeBatchedMessages = Effect.fnUntraced(function* (
+const writeBatchedMessages = Effect.fnUntraced(function* (
   sink: AsyncFileSink,
   records: ReadonlyArray<PendingRecord>,
   maxBytes: number,
@@ -724,23 +724,4 @@ export const makeEventNdjsonLogStore = Effect.fnUntraced(function* (
   };
 
   return { filePath, logger, close } satisfies EventNdjsonLogStore;
-});
-
-export const makeEventNdjsonLogger = Effect.fnUntraced(function* (
-  filePath: string,
-  options: EventNdjsonLoggerOptions,
-): Effect.fn.Return<
-  ProviderEventLoggers.EventNdjsonLogger | undefined,
-  never,
-  FileSystem.FileSystem | Path.Path
-> {
-  const store = yield* makeEventNdjsonLogStore(filePath, options).pipe(
-    Effect.catch((error) =>
-      logWarning(error.message, { error }).pipe(
-        Effect.as<EventNdjsonLogStore | undefined>(undefined),
-      ),
-    ),
-  );
-  if (!store) return undefined;
-  return { ...store.logger(options.stream), close: store.close };
 });

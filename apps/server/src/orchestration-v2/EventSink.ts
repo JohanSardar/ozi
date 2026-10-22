@@ -995,18 +995,3 @@ const layerBase: Layer.Layer<
  * are in-memory wakeups backed by the durable SQL queue.
  */
 export const layerFromStores = layerBase;
-
-export const layer: Layer.Layer<
-  EventSinkV2,
-  never,
-  EventStore.EventStoreV2 | ProjectionStore.ProjectionStoreV2 | SqlClient.SqlClient
-> = layerBase.pipe(
-  Layer.provide(
-    Layer.mergeAll(
-      CommandReceiptStore.layer,
-      EffectOutbox.layer,
-      ProjectStore.layer,
-      TurnItemPositionStore.layer,
-    ),
-  ),
-);

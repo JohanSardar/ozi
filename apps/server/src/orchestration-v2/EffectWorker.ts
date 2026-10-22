@@ -43,10 +43,7 @@ export class OrchestrationEffectExecutionError extends Schema.TaggedError<Orches
  * "is not active" would drop the outbox item without ever starting the
  * replacement turn.
  */
-export function isNonRetryableProviderTurnControlFailure(
-  effectType: string,
-  errorText: string,
-): boolean {
+function isNonRetryableProviderTurnControlFailure(effectType: string, errorText: string): boolean {
   if (effectType !== "provider-turn.interrupt") {
     return false;
   }
@@ -522,7 +519,7 @@ export interface OrchestrationEffectWorkerOptions {
   readonly maxAttempts?: number;
 }
 
-export const layerWithOptions = (
+const layerWithOptions = (
   options: OrchestrationEffectWorkerOptions = {},
 ): Layer.Layer<
   OrchestrationEffectWorkerV2,
@@ -781,7 +778,7 @@ export interface OrchestrationEffectDaemonOptions {
 const DEFAULT_EFFECT_WORKER_CONCURRENCY = 4;
 const DEFAULT_EFFECT_WORKER_LIVENESS_POLL_INTERVAL_MS = 30_000;
 
-export const runDaemonWithOptions = (options: OrchestrationEffectDaemonOptions = {}) =>
+const runDaemonWithOptions = (options: OrchestrationEffectDaemonOptions = {}) =>
   Effect.scoped(
     Effect.gen(function* () {
       const worker = yield* OrchestrationEffectWorkerV2;

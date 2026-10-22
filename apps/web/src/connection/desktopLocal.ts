@@ -25,16 +25,6 @@ export function isDesktopLocalConnectionTarget(
   );
 }
 
-export function desktopLocalBackendId(target: ConnectionTarget): string | null {
-  return isDesktopLocalConnectionTarget(target)
-    ? target.connectionId.slice(DESKTOP_LOCAL_CONNECTION_ID_PREFIX.length)
-    : null;
-}
-
-export function isWslConnectionTarget(target: ConnectionTarget): boolean {
-  return desktopLocalBackendId(target)?.startsWith("wsl:") === true;
-}
-
 export type DesktopSecondaryBootstrapsRead =
   | {
       readonly _tag: "Success";
@@ -54,7 +44,7 @@ export interface DesktopSecondaryBootstrapsReader {
  * A successful empty read is authoritative; a thrown read preserves the previous snapshot so UI
  * consumers cannot temporarily disagree with the platform's retained registrations.
  */
-export function createDesktopSecondaryBootstrapsReader(
+function createDesktopSecondaryBootstrapsReader(
   resolveBridge: () => Pick<DesktopBridge, "getLocalEnvironmentBootstraps"> | undefined,
 ): DesktopSecondaryBootstrapsReader {
   let snapshot: ReadonlyArray<DesktopEnvironmentBootstrap> = [];
@@ -107,8 +97,4 @@ const desktopSecondaryBootstrapsReader = createDesktopSecondaryBootstrapsReader(
 
 export function readDesktopSecondaryBootstrapsResult(): DesktopSecondaryBootstrapsRead {
   return desktopSecondaryBootstrapsReader.readResult();
-}
-
-export function readDesktopSecondaryBootstraps(): ReadonlyArray<DesktopEnvironmentBootstrap> {
-  return desktopSecondaryBootstrapsReader.readSnapshot();
 }

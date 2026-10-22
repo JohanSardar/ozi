@@ -19,8 +19,6 @@ const Delivery = Schema.Struct({
 });
 
 const encodeHandoff = Schema.encodeSync(Schema.fromJsonString(CodexAuthHandoff));
-const decodeHandoff = Schema.decodeUnknownSync(Schema.fromJsonString(CodexAuthHandoff));
-const encodeDelivery = Schema.encodeSync(Schema.fromJsonString(Delivery));
 const decodeDelivery = Schema.decodeUnknownSync(Schema.fromJsonString(Delivery));
 
 export function codexAuthorizationRequest(value: string) {
@@ -85,47 +83,6 @@ export function codexCallbackUrl(value: string, redirectUri: string, state: stri
 export function codexAuthHandoffUrl(input: CodexAuthHandoff, development = false) {
   const url = new URL(`${development ? "ozi-dev" : "ozi"}://auth/codex`);
   url.searchParams.set("request", encodeHandoff(input));
-  return url.toString();
-}
-
-export function readCodexAuthHandoff(value: string, development: boolean) {
-  try {
-    const url = new URL(value);
-    if (
-      value.length > 32_768 ||
-      url.protocol !== (development ? "ozi-dev:" : "ozi:") ||
-      url.host !== "auth" ||
-      url.pathname !== "/codex" ||
-      url.username ||
-      url.password ||
-      url.hash ||
-      url.searchParams.getAll("request").length !== 1
-    )
-      return undefined;
-    const input = decodeHandoff(url.searchParams.get("request"));
-    codexAuthorizationRequest(input.authorizationUrl);
-    if (!providerAuthReturnUrl(input.returnUrl)) return undefined;
-    return input;
-  } catch {
-    return undefined;
-  }
-}
-
-/** Codes travel in a fragment, never in hosted web requests or a token store on the helper. */
-export function codexAuthDeliveryUrl(input: CodexAuthHandoff, callbackUrl: string) {
-  const request = codexAuthorizationRequest(input.authorizationUrl);
-  codexCallbackUrl(callbackUrl, request.redirectUri, request.state);
-  const destination = providerAuthReturnUrl(input.returnUrl);
-  if (!destination) throw new Error("Invalid Ozi return address.");
-  const url = new URL(destination);
-  const delivery = {
-    environmentId: input.environmentId,
-    instanceId: input.instanceId,
-    flowId: input.flowId,
-    callbackUrl,
-    returnHash: url.hash,
-  };
-  url.hash = `codex-auth=${encodeURIComponent(encodeDelivery(delivery))}`;
   return url.toString();
 }
 

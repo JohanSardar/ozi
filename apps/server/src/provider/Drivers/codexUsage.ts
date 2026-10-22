@@ -81,7 +81,7 @@ export const CodexScanState = Schema.Struct({
 });
 export type CodexScanState = typeof CodexScanState.Type;
 
-export function initialCodexScanState(): CodexScanState {
+function initialCodexScanState(): CodexScanState {
   return {
     model: "",
     speed: "standard",
@@ -121,7 +121,7 @@ function isForkedSessionMeta(payload: Record<string, unknown>): boolean {
  * Cumulative counters validate request deltas. Older events without cumulative counters use
  * normalized consecutive-request deduplication.
  */
-export function parseCodexLine(line: string, state: CodexScanState): UsageRecord | null {
+function parseCodexLine(line: string, state: CodexScanState): UsageRecord | null {
   let parsed: unknown;
   try {
     parsed = JSON.parse(line);
@@ -311,7 +311,7 @@ function codexSpeed(serviceTier: unknown): UsageSpeed {
 const orEmpty = (record: UsageRecord | null): readonly UsageRecord[] =>
   record === null ? [] : [record];
 
-export const codexUsageFormat: TranscriptUsageFormat<CodexScanState> = {
+const codexUsageFormat: TranscriptUsageFormat<CodexScanState> = {
   selectFields: {
     type: true,
     timestamp: true,

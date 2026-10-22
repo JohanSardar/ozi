@@ -13,15 +13,6 @@ function policyInstruction(instruction: string | undefined): ReadonlyArray<strin
   return trimmed ? ["", "Additional instructions:", limitSection(trimmed, 20_000)] : [];
 }
 
-interface PromptFromMessageInput {
-  instruction: string;
-  responseShape: string;
-  rules: ReadonlyArray<string>;
-  message: string;
-  attachments?: ReadonlyArray<ChatAttachment> | undefined;
-  additionalInstructions?: string | undefined;
-}
-
 export interface ThreadTitlePromptInput {
   linkedContext?: string | undefined;
   message: string;

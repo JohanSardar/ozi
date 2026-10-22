@@ -197,6 +197,4 @@ const layerBase: Layer.Layer<
   }),
 );
 
-export const layer = layerBase.pipe(Layer.provide(OrchestrationCommandReceipts.layer));
-
 export const layerFromApplicationReceipts = layerBase;

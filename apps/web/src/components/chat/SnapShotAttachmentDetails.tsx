@@ -10,9 +10,6 @@ import { Popover, PopoverPopup, PopoverTitle, PopoverTrigger } from "../ui/popov
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { HighlightedTokens } from "./HighlightedTokens";
 
-export const SNAP_SHOT_ATTACHMENT_FRAME_CLASS =
-  "relative h-28 w-52 max-w-full overflow-hidden rounded-lg border border-border/80";
-
 export interface SnapShotAccessibilityDetails {
   content: string;
   format: "json" | "text";
@@ -67,7 +64,7 @@ export function snapShotAccessibilityDetails(
   return text ? { content: text, format: "text" } : undefined;
 }
 
-export function snapShotIncludesAccessibility(source: SnapShotSource): boolean {
+function snapShotIncludesAccessibility(source: SnapShotSource): boolean {
   return Boolean(source.accessibility || source.accessibleText?.trim());
 }
 
@@ -130,39 +127,5 @@ export function SnapShotContentsButton({
         </div>
       </PopoverPopup>
     </Popover>
-  );
-}
-
-export function SnapShotAttachmentDetails({
-  source,
-  className,
-}: {
-  source: SnapShotSource;
-  className?: string;
-}) {
-  return (
-    <div
-      className={cn(
-        "pointer-events-none absolute inset-x-0 bottom-0 flex min-w-0 items-center gap-1.5 bg-linear-to-t from-black/85 via-black/55 to-transparent px-2.5 pb-2 pt-6",
-        className,
-      )}
-    >
-      {source.appIconDataUrl ? (
-        <img src={source.appIconDataUrl} alt="" className="size-7 shrink-0 rounded-md" />
-      ) : (
-        <div className="flex size-7 shrink-0 items-center justify-center rounded-md bg-white/20 text-3xs font-medium text-white uppercase">
-          {source.appName.slice(0, 1)}
-        </div>
-      )}
-      <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-center gap-1.5 text-2xs font-medium leading-3.5 text-white">
-          <span className="truncate">{source.appName}</span>
-          <SnapShotContentsButton source={source} className="pointer-events-auto" />
-        </div>
-        <div className="truncate text-3xs leading-3.5 text-white/70">
-          {source.windowTitle || "Captured window"}
-        </div>
-      </div>
-    </div>
   );
 }

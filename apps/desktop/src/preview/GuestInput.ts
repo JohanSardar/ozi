@@ -86,7 +86,7 @@ const keyCodeFor = (key: string) => {
  * derives key, code, and a char's text from `keyCode`, so typed text travels
  * as `char` events of its own.
  */
-export const toKeyboardInputEvents = (
+const toKeyboardInputEvents = (
   params: Record<string, unknown>,
 ): Array<Electron.KeyboardInputEvent> => {
   const bits = typeof params["modifiers"] === "number" ? params["modifiers"] : 0;

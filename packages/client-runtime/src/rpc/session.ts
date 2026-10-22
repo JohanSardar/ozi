@@ -153,9 +153,8 @@ export const make = Effect.fn("RpcSessionFactory.make")(function* (
   options: RpcSessionOptions = {},
 ) {
   const webSocketConstructor = yield* Socket.WebSocketConstructor;
-  const serverConfigInput: ServerConfigSubscriptionInput = {
-    ...(options.environmentThemes === true ? { environmentThemes: true } : {}),
-  };
+  const serverConfigInput: ServerConfigSubscriptionInput =
+    options.environmentThemes === true ? { environmentThemes: true } : {};
 
   const connect = Effect.fnUntraced(function* (connection: PreparedConnection) {
     const via = "direct" as const;

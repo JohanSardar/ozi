@@ -56,57 +56,6 @@ const HTML_RENDER_SHORTCUT_COMMANDS: ReadonlySet<KeybindingCommand> = new Set([
   ...MODEL_PICKER_JUMP_KEYBINDING_COMMANDS,
 ]);
 
-export const isPdfPreviewFile = (path: string): boolean =>
-  /\.pdf$/i.test(path.split(/[?#]/, 1)[0] ?? "");
-
-/**
- * HTML runs in a sandboxed frame with an opaque origin, so a page cannot reach
- * the app's session or storage. PDFs use the browser's native viewer.
- */
-export function BrowserDocumentFrame(props: {
-  readonly src: string;
-  readonly title: string;
-  readonly pdf: boolean;
-  readonly htmlRender?: boolean;
-  readonly threadRef?: ScopedThreadRef | undefined;
-  /** Stable resource identity and revision; defaults to src for callers that reload on URL changes. */
-  readonly documentKey?: string | undefined;
-}) {
-  const key = props.documentKey ?? props.src;
-  return props.pdf ? (
-    <embed
-      key={props.src}
-      src={props.src}
-      type="application/pdf"
-      title={props.title}
-      className="min-h-0 w-full flex-1 border-0"
-    />
-  ) : props.htmlRender ? (
-    <HtmlRenderDocument
-      key={key}
-      src={props.src}
-      title={props.title}
-      threadRef={props.threadRef}
-      className="min-h-0 flex-1"
-    />
-  ) : (
-    <FileDocument key={key} src={props.src} title={props.title} />
-  );
-}
-
-// URL renewals must not discard form input or scroll; a new key mounts a fresh document.
-function FileDocument(props: { readonly src: string; readonly title: string }) {
-  const [src] = useState(props.src);
-  return (
-    <iframe
-      src={src}
-      title={props.title}
-      className="min-h-0 flex-1 border-0 bg-white"
-      sandbox="allow-scripts allow-forms allow-popups allow-downloads"
-    />
-  );
-}
-
 /**
  * The first URL is kept for the frame's lifetime: signed asset URLs re-mint
  * while it stays mounted, and a new src would reload the page.

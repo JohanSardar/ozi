@@ -498,7 +498,7 @@ function AccessGatedProviderSettings({
 
 const NO_FAVORITES: UnifiedSettings["favorites"] = [];
 
-export function EnvironmentProviderSettings({
+function EnvironmentProviderSettings({
   environmentId,
   environmentLabel,
   readOnly = false,

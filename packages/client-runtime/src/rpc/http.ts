@@ -20,14 +20,12 @@ import * as HttpApiClient from "effect/http-api/HttpApiClient";
 
 const isEnvironmentHttpCommonError = Schema.is(EnvironmentHttpCommonError);
 
-export class RemoteEnvironmentAuthFetchError extends Data.TaggedError(
-  "RemoteEnvironmentAuthFetchError",
-)<{
+class RemoteEnvironmentAuthFetchError extends Data.TaggedError("RemoteEnvironmentAuthFetchError")<{
   readonly message: string;
   readonly cause: unknown;
 }> {}
 
-export class RemoteEnvironmentAuthInvalidJsonError extends Data.TaggedError(
+class RemoteEnvironmentAuthInvalidJsonError extends Data.TaggedError(
   "RemoteEnvironmentAuthInvalidJsonError",
 )<{
   readonly message: string;
@@ -50,7 +48,7 @@ export class RemoteEnvironmentAuthUndeclaredStatusError extends Data.TaggedError
   }
 }
 
-export class RemoteEnvironmentAuthTimeoutError extends Data.TaggedError(
+class RemoteEnvironmentAuthTimeoutError extends Data.TaggedError(
   "RemoteEnvironmentAuthTimeoutError",
 )<{
   readonly message: string;

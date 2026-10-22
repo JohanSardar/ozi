@@ -4,9 +4,7 @@ import {
   type ComposerContextKind,
   type ComposerContextRecord,
   type ElementContextDetails,
-  type EnvironmentId,
   type KnownComposerContextRecord,
-  type ThreadContextRecord,
 } from "@t3tools/contracts";
 
 const CONTEXT_PROTOCOL = "t3-context:";
@@ -18,43 +16,6 @@ const CONTEXT_LINK = new RegExp(
   String.raw`(!?)\[([^\]\n]{0,${MAX_LINK_LABEL_LENGTH}})\]\((${COMPOSER_CONTEXT_HREF_PREFIX}[^\s)]{1,200})\)`,
   "g",
 );
-
-/**
- * 64 bits of digest, because the slug in front of it is truncated: two long producer
- * ids that agree on their first 48 characters are told apart by this alone.
- */
-function fnv1a64(value: string): string {
-  let forward = 0x811c9dc5;
-  let reverse = 0x9dc5811c;
-  for (let index = 0; index < value.length; index += 1) {
-    forward ^= value.charCodeAt(index);
-    forward = Math.imul(forward, 0x01000193) >>> 0;
-    reverse ^= value.charCodeAt(value.length - 1 - index);
-    reverse = Math.imul(reverse, 0x01000193) >>> 0;
-  }
-  return `${forward.toString(16).padStart(8, "0")}${reverse.toString(16).padStart(8, "0")}`;
-}
-
-export function toComposerContextId(producerId: string): ComposerContextId {
-  if (CONTEXT_ID_PATTERN.test(producerId)) return producerId as ComposerContextId;
-  const slug = producerId
-    .replace(/[^a-z0-9_-]+/gi, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48);
-  return `${slug || "ctx"}-${fnv1a64(producerId)}` as ComposerContextId;
-}
-
-export function toKindScopedComposerContextId(
-  kind: ComposerContextKind,
-  producerId: string,
-): ComposerContextId {
-  const prefix = `${kind}_`;
-  return toComposerContextId(`${prefix}${producerId}`);
-}
-
-export function formatComposerContextHref(kind: ComposerContextKind, contextId: ComposerContextId) {
-  return `${COMPOSER_CONTEXT_HREF_PREFIX}${kind}/${contextId}`;
-}
 
 export function parseComposerContextHref(
   href: string,
@@ -68,23 +29,13 @@ export function parseComposerContextHref(
   return { kind, contextId: contextId as ComposerContextId };
 }
 
-export function sanitizeComposerContextLabel(label: string, kind: ComposerContextKind): string {
+function sanitizeComposerContextLabel(label: string, kind: ComposerContextKind): string {
   const cleaned = label
     .replace(/[[\]\\\r\n]/g, " ")
     .replace(/\s+/g, " ")
     .trim()
     .slice(0, COMPOSER_CONTEXT_LABEL_MAX_CHARS);
   return cleaned.length > 0 ? cleaned : kind;
-}
-
-export function formatComposerContextReference(reference: {
-  kind: ComposerContextKind;
-  contextId: ComposerContextId;
-  label: string;
-}): string {
-  const label = sanitizeComposerContextLabel(reference.label, reference.kind);
-  const href = formatComposerContextHref(reference.kind, reference.contextId);
-  return `${reference.kind === "image" ? "!" : ""}[${label}](${href})`;
 }
 
 export interface ComposerContextReferenceOccurrence {
@@ -97,9 +48,7 @@ export interface ComposerContextReferenceOccurrence {
   end: number;
 }
 
-export function collectComposerContextReferences(
-  text: string,
-): ComposerContextReferenceOccurrence[] {
+function collectComposerContextReferences(text: string): ComposerContextReferenceOccurrence[] {
   const occurrences: ComposerContextReferenceOccurrence[] = [];
   if (!text.includes("](t3-context:")) return occurrences;
   for (const match of text.matchAll(CONTEXT_LINK)) {
@@ -117,19 +66,7 @@ export function collectComposerContextReferences(
   return occurrences;
 }
 
-export const ATTACHMENT_ONLY_BOOTSTRAP_PROMPT =
-  "[User attached one or more files without additional text. Respond using the conversation context and the attached files.]";
-
-export function isImageReferencesOnly(text: string): boolean {
-  const references = collectComposerContextReferences(text);
-  return (
-    references.length > 0 &&
-    references.every((reference) => reference.kind === "image") &&
-    replaceComposerContextReferences(text, () => "").trim() === ""
-  );
-}
-
-export function replaceComposerContextReferences(
+function replaceComposerContextReferences(
   text: string,
   replace: (occurrence: ComposerContextReferenceOccurrence) => string,
 ): string {
@@ -150,7 +87,7 @@ function kindDisplayName(kind: ComposerContextKind): string {
   return spaced.charAt(0).toUpperCase() + spaced.slice(1);
 }
 
-export function formatComposerContextProviderMarker(
+function formatComposerContextProviderMarker(
   kind: ComposerContextKind,
   label: string,
   contextId: ComposerContextId,
@@ -301,24 +238,6 @@ export function projectComposerContextForProvider(input: {
   }
   if (entries.length === 0) return body;
   return `${body}\n\n<${CONTEXT_ENVELOPE_TAG} version="1">\n${entries.join("\n")}\n</${CONTEXT_ENVELOPE_TAG}>`;
-}
-
-// Thread reads are environment-local even when a draft moves between machines.
-export function threadContextsOutsideEnvironment(input: {
-  text: string;
-  records: ReadonlyArray<ComposerContextRecord>;
-  environmentId: EnvironmentId;
-}): ThreadContextRecord[] {
-  const referenced = new Set(
-    collectComposerContextReferences(input.text).map((occurrence) => occurrence.contextId),
-  );
-  return input.records.filter(
-    (record): record is ThreadContextRecord =>
-      record.kind === "thread" &&
-      "threadId" in record &&
-      referenced.has(record.contextId) &&
-      record.environmentId !== input.environmentId,
-  );
 }
 
 export function remapComposerContextAttachments(

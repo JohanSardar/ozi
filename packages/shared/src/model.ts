@@ -52,7 +52,7 @@ function getProviderOptionSelectionValue(
   return getRawSelectionValueById(selections, id);
 }
 
-export function getProviderOptionStringSelectionValue(
+function getProviderOptionStringSelectionValue(
   selections: ReadonlyArray<ProviderOptionSelection> | null | undefined,
   id: string,
 ): string | undefined {
@@ -60,7 +60,7 @@ export function getProviderOptionStringSelectionValue(
   return typeof value === "string" ? value : undefined;
 }
 
-export function getProviderOptionBooleanSelectionValue(
+function getProviderOptionBooleanSelectionValue(
   selections: ReadonlyArray<ProviderOptionSelection> | null | undefined,
   id: string,
 ): boolean | undefined {
@@ -114,20 +114,6 @@ export function modelSelectionsEqual(left: ModelSelection, right: ModelSelection
       ([id, value], index) => id === rightOptions[index]?.[0] && value === rightOptions[index]?.[1],
     )
   );
-}
-
-/**
- * Whether a composer's draft model pick is what the thread already runs. Web sends
- * `fastMode: false` for models with a fast toggle while mobile omits it, so off counts as unset.
- */
-export function draftModelPickMatchesThread(pick: ModelSelection, thread: ModelSelection): boolean {
-  const withoutFastModeOff = (selection: ModelSelection) =>
-    createModelSelection(
-      selection.instanceId,
-      selection.model,
-      selection.options?.filter((option) => option.id !== "fastMode" || option.value !== false),
-    );
-  return modelSelectionsEqual(withoutFastModeOff(pick), withoutFastModeOff(thread));
 }
 
 function resolveDescriptorChoiceValue(
@@ -227,17 +213,6 @@ function getReportedOptionValue(
   return getRawSelectionValueById(reportedSelection.options, id);
 }
 
-export function getProviderOptionStatedValue(
-  id: string,
-  selection?: ModelSelection | null,
-  reportedSelection?: ModelSelection | null,
-) {
-  return (
-    getRawSelectionValueById(selection?.options, id) ??
-    getReportedOptionValue(id, selection, reportedSelection)
-  );
-}
-
 export function getProviderOptionCurrentValue(
   descriptor: ProviderOptionDescriptor | null | undefined,
   selection?: ModelSelection | null,
@@ -260,33 +235,7 @@ export function getProviderOptionCurrentValue(
   return descriptor.options.find((option) => option.isDefault)?.id;
 }
 
-export function getProviderOptionCurrentLabel(
-  descriptor: ProviderOptionDescriptor | null | undefined,
-  selection?: ModelSelection | null,
-  reportedSelection?: ModelSelection | null,
-): string | undefined {
-  if (!descriptor) {
-    return undefined;
-  }
-  if (descriptor.type === "boolean") {
-    return typeof descriptor.currentValue === "boolean"
-      ? descriptor.currentValue
-        ? "On"
-        : "Off"
-      : undefined;
-  }
-  const currentValue = getProviderOptionCurrentValue(descriptor, selection, reportedSelection);
-  return (
-    descriptor.options.find((option) => option.id === currentValue)?.label ??
-    (getReportedOptionValue(descriptor.id, selection, reportedSelection) === "default"
-      ? "Default"
-      : descriptor.id === "variant"
-        ? "Unknown"
-        : undefined)
-  );
-}
-
-export function buildProviderOptionSelectionsFromDescriptors(
+function buildProviderOptionSelectionsFromDescriptors(
   descriptors: ReadonlyArray<ProviderOptionDescriptor> | null | undefined,
 ): Array<ProviderOptionSelection> | undefined {
   if (!descriptors || descriptors.length === 0) {
@@ -319,10 +268,6 @@ export function buildExplicitProviderOptionSelectionsFromDescriptors(
   return normalized && normalized.length > 0 ? normalized : undefined;
 }
 
-export function isClaudeUltrathinkPrompt(text: string | null | undefined): boolean {
-  return typeof text === "string" && /\bultrathink\b/i.test(text);
-}
-
 export function codexModelFamily(slug: string): string {
   return slug.startsWith("openai.gpt-") ? slug.slice("openai.".length) : slug;
 }
@@ -331,23 +276,7 @@ export function formatCodexModelName(name: string): string {
   return name.replace(/^gpt/i, "GPT").replace(/-([a-z])/g, (_, c) => "-" + c.toUpperCase());
 }
 
-export function formatModelSlugName(slug: string): string {
-  const separator = slug.lastIndexOf("/") + 1;
-  const prefix = slug.slice(0, separator);
-  const name = slug.slice(separator);
-  if (/^gpt-\d/i.test(name)) return prefix + formatCodexModelName(name);
-  if (!/^(claude-(opus|sonnet|haiku|fable)|gemini)-\d/i.test(name)) return slug;
-  return (
-    prefix +
-    name
-      .replace(/^(claude-[a-z]+-\d+)-(\d{1,2})(?=-|\[|$)/i, "$1.$2")
-      .split("-")
-      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
-      .join(" ")
-  );
-}
-
-export function normalizeModelSlug(
+function normalizeModelSlug(
   model: string | null | undefined,
   provider: ProviderDriverKind = DEFAULT_PROVIDER_DRIVER_KIND,
 ): string | null {

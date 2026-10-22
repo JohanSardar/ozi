@@ -258,7 +258,7 @@ const WSL_RUNTIME_SELECTION_GRACE_MINUTES = 5;
 
 const sanitizeWslRuntimeId = (value: string): string => value.replace(/[^A-Za-z0-9._-]/g, "_");
 
-export const buildWslRuntimeInstallScript = (
+const buildWslRuntimeInstallScript = (
   linuxArchivePath: string,
   runtimeId: string,
   archiveSha256: string,
@@ -359,7 +359,7 @@ export const buildWslRuntimeInstallScript = (
 // far past any live install while still bounding how long an orphan survives.
 const ORPHANED_RUNTIME_SCRATCH_MAX_AGE_MINUTES = 120;
 
-export const buildWslRuntimePruneScript = (runtimeId: string): string => {
+const buildWslRuntimePruneScript = (runtimeId: string): string => {
   const safeRuntimeId = sanitizeWslRuntimeId(runtimeId);
   return [
     "set -eu",
@@ -416,7 +416,7 @@ export const buildWslRuntimePruneScript = (runtimeId: string): string => {
 // there but fails the launch-time probe (a distro whose glibc the executable
 // needs, a tree copied from another machine) would stay ready forever and fail
 // on every launch.
-export const buildWslRuntimeInvalidateScript = (runtimeId: string): string => {
+const buildWslRuntimeInvalidateScript = (runtimeId: string): string => {
   const safeRuntimeId = sanitizeWslRuntimeId(runtimeId);
   return [
     "set -eu",
@@ -424,7 +424,7 @@ export const buildWslRuntimeInvalidateScript = (runtimeId: string): string => {
   ].join("\n");
 };
 
-export const parseWslRuntimeRoot = (stdout: string): string | null => {
+const parseWslRuntimeRoot = (stdout: string): string | null => {
   const prefix = "runtimeRoot:";
   const line = stdout.split("\n").find((candidate) => candidate.startsWith(prefix));
   if (line === undefined) return null;
@@ -442,7 +442,7 @@ ${RESOLVED_PATH_LINE}`;
 
 // Provider CLIs may still need version-managed Node, so resolve it before
 // capturing PATH without requiring it for runtime readiness.
-export const buildWslRuntimeProbeScript = (linuxAppRoot: string) =>
+const buildWslRuntimeProbeScript = (linuxAppRoot: string) =>
   [
     `bash -lc ${shellQuote(`${buildWslNodeEnvPreamble()}${RESOLVED_PATH_LINE}`)} 2>/dev/null || ${RESOLVED_PATH_LINE}`,
     `${shellQuote(`${linuxAppRoot}/t3`)} --version >/dev/null 2>&1`,
@@ -453,22 +453,7 @@ export interface ToolchainReport {
   readonly nodeVersion: string | null;
 }
 
-export const parseToolchainReport = (stdout: string): ToolchainReport => {
-  const lines = stdout
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.length > 0);
-  const missingTools = lines
-    .filter((line) => line.startsWith("missing:"))
-    .map((line) => line.slice("missing:".length));
-  const nodeVersionLine = lines.find((line) => line.startsWith("nodeVersion:"));
-  const nodeVersion = nodeVersionLine
-    ? nodeVersionLine.slice("nodeVersion:".length).trim() || null
-    : null;
-  return { missingTools, nodeVersion };
-};
-
-export const parseNodePath = (stdout: string): string | null => {
+const parseNodePath = (stdout: string): string | null => {
   const path = stdout
     .split("\n")
     .map((line) => line.trim())
@@ -478,7 +463,7 @@ export const parseNodePath = (stdout: string): string | null => {
   return path ?? null;
 };
 
-export const parseNodeVersion = (stdout: string): string | null => {
+const parseNodeVersion = (stdout: string): string | null => {
   const version = stdout
     .split("\n")
     .map((line) => line.trim())
@@ -490,53 +475,12 @@ export const parseNodeVersion = (stdout: string): string | null => {
 
 // Preserve the value byte-for-byte apart from a Windows-style CR so paths
 // containing spaces or apostrophes can be forwarded as one env argv.
-export const parseResolvedPath = (stdout: string): string | null => {
+const parseResolvedPath = (stdout: string): string | null => {
   const prefix = "resolvedPath:";
   const line = stdout.split("\n").find((candidate) => candidate.startsWith(prefix));
   if (line === undefined) return null;
   const resolvedPath = line.slice(prefix.length).replace(/\r$/, "");
   return resolvedPath.length > 0 ? resolvedPath : null;
-};
-
-export const formatMissingToolsReason = (
-  report: ToolchainReport,
-  requiredRange: string | null,
-): string | null => {
-  const nodeMissing = report.missingTools.includes("node");
-  const nodeOutOfRange =
-    !nodeMissing &&
-    requiredRange !== null &&
-    report.nodeVersion !== null &&
-    !satisfiesSemverRange(report.nodeVersion, requiredRange);
-  const buildToolsMissing = report.missingTools.filter((tool) => tool !== "node");
-
-  if (!nodeMissing && !nodeOutOfRange && buildToolsMissing.length === 0) {
-    return null;
-  }
-
-  const issues: string[] = [];
-  const remediations: string[] = [];
-
-  if (nodeMissing) {
-    issues.push("node");
-    remediations.push(
-      `Node.js${requiredRange ? ` satisfying \`${requiredRange}\`` : " 18+"} (e.g. via nvm)`,
-    );
-  } else if (nodeOutOfRange) {
-    issues.push(`node ${report.nodeVersion} (requires ${requiredRange})`);
-    remediations.push(
-      `a newer Node.js satisfying \`${requiredRange}\` (e.g. \`nvm install 24 && nvm alias default 24\`)`,
-    );
-  }
-
-  if (buildToolsMissing.length > 0) {
-    issues.push(...buildToolsMissing);
-    remediations.push(
-      "the build toolchain (e.g. `sudo apt install -y build-essential python3` on Ubuntu/Debian)",
-    );
-  }
-
-  return `WSL distro is missing required tools: ${issues.join(", ")}. Install ${remediations.join(" and ")}, then retry.`;
 };
 
 const probeWslRuntimeImpl = Effect.fn("DesktopWslEnvironment.probeWslRuntimeImpl")(function* (
@@ -692,7 +636,7 @@ const invalidateWslRuntimeImpl = Effect.fn("desktop.wsl.invalidateRuntimeImpl")(
   });
 });
 
-export const probeWslDistros: Effect.Effect<
+const probeWslDistros: Effect.Effect<
   readonly WslDistro[],
   DesktopWslDistroListError,
   ChildProcessSpawner.ChildProcessSpawner
@@ -892,46 +836,6 @@ export interface DesktopWslEnvironmentTestStub {
     options?: ResolveWslNodeOptions,
   ) => ResolveWslNodeResult;
 }
-
-export const layerTest = (stub: DesktopWslEnvironmentTestStub = {}) => {
-  const probeDistros: Effect.Effect<readonly WslDistro[], DesktopWslDistroListError> =
-    stub.distroListError ? Effect.fail(stub.distroListError) : Effect.succeed(stub.distros ?? []);
-  return Layer.succeed(
-    DesktopWslEnvironment,
-    DesktopWslEnvironment.of({
-      isAvailable: Effect.succeed(stub.isAvailable ?? false),
-      listDistros: probeDistros.pipe(Effect.orElseSucceed(() => [])),
-      probeDistros,
-      preWarm: () => Effect.void,
-      windowsToWslPath: (distro, windowsPath) =>
-        Effect.succeed(stub.windowsToWslPath?.(distro, windowsPath) ?? Option.none()),
-      getUserHome: (distro) => Effect.succeed(stub.getUserHome?.(distro) ?? Option.none<string>()),
-      getDistroIp: (distro) => Effect.succeed(stub.getDistroIp?.(distro) ?? Option.none<string>()),
-      prepareRuntime: (distro, archive) =>
-        Effect.succeed(
-          stub.prepareRuntime?.(distro, archive) ?? {
-            ok: false,
-            reason: "prepareRuntime stub not configured",
-          },
-        ),
-      pruneRuntimes: (distro, runtimeId) => stub.pruneRuntimes?.(distro, runtimeId) ?? Effect.void,
-      invalidateRuntime: (distro, runtimeId) =>
-        stub.invalidateRuntime?.(distro, runtimeId) ?? Effect.void,
-      probeRuntime: (distro, linuxAppRoot) =>
-        Effect.succeed(
-          stub.probeRuntime?.(distro, linuxAppRoot) ?? { ok: true, resolvedPath: "/usr/bin:/bin" },
-        ),
-      resolveNode: (distro, linuxAppRoot, options) =>
-        Effect.succeed(
-          stub.resolveNode?.(distro, linuxAppRoot, options) ?? {
-            ok: false,
-            reason: "resolveNode stub not configured",
-            fatal: true,
-          },
-        ),
-    }),
-  );
-};
 
 export const layer = Layer.effect(
   DesktopWslEnvironment,

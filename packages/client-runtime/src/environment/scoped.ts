@@ -1,6 +1,5 @@
 import {
   EnvironmentId,
-  ProjectId,
   ThreadId,
   type EnvironmentId as EnvironmentIdType,
   type ProjectId as ProjectIdType,
@@ -43,17 +42,6 @@ function parseScopedKey(key: string): { environmentId: EnvironmentIdType; localI
   return {
     environmentId: EnvironmentId.make(key.slice(0, separatorIndex)),
     localId: key.slice(separatorIndex + 1),
-  };
-}
-
-export function parseScopedProjectKey(key: string): ScopedProjectRef | null {
-  const parsed = parseScopedKey(key);
-  if (!parsed) {
-    return null;
-  }
-  return {
-    environmentId: parsed.environmentId,
-    projectId: ProjectId.make(parsed.localId),
   };
 }
 

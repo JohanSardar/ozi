@@ -47,7 +47,7 @@ export class Jobs extends Context.Service<
   }
 >()("t3/ozi/Jobs") {}
 
-export const isAcceptance = (text: string) =>
+const isAcceptance = (text: string) =>
   /^(?:I accept (?:this|the|that) result|accepted|looks good(?:,? thanks)?|that works|approved)[.!\s]*$/i.test(
     text.trim(),
   );

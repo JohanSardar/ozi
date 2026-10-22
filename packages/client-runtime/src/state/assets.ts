@@ -39,7 +39,7 @@ const decodeAssetCollectionKey = Schema.decodeUnknownSync(
   Schema.Tuple([EnvironmentId, Schema.Array(AssetResource)]),
 );
 
-export function parseAssetCollectionKey(
+function parseAssetCollectionKey(
   key: string,
 ): readonly [EnvironmentId, ReadonlyArray<AssetResource>] {
   try {
@@ -73,9 +73,6 @@ export type AssetUrlState =
       readonly expiresAt: number;
       readonly imageDimensions?: AssetImageDimensions;
     };
-
-export const MISSING_FILE_ACCESS_MESSAGE =
-  "This connection cannot read host files. Pair again with a new link to view it.";
 
 export function blockedAssetUrlState(
   resource: AssetResource | null,

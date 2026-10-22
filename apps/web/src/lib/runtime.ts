@@ -48,7 +48,7 @@ export const runPrimaryHttp = <A, E>(
   effect: Effect.Effect<A, E, PrimaryEnvironmentHttpClient.PrimaryEnvironmentHttpClient>,
 ) => primaryHttpRunner(effect);
 
-export function __setPrimaryHttpRunnerForTests(runner?: PrimaryHttpEffectRunner): void {
+function __setPrimaryHttpRunnerForTests(runner?: PrimaryHttpEffectRunner): void {
   primaryHttpRunner = runner ?? livePrimaryHttpRunner;
 }
 
@@ -59,7 +59,7 @@ const layerRuntime = Layer.mergeAll(
   ClientTracer.layer,
 );
 
-export const runtime: ManagedRuntime.ManagedRuntime<
+const runtime: ManagedRuntime.ManagedRuntime<
   Layer.Success<RuntimeLayerSource>,
   Layer.Error<RuntimeLayerSource>
 > = ManagedRuntime.make(layerRuntime);

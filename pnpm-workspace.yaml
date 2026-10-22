@@ -97,7 +97,6 @@ overrides:
   "@effect/atom-react": "catalog:"
   "@effect/platform-node": "catalog:"
   "@effect/platform-node-shared": "catalog:"
-  remark-math>micromark-extension-math: npm:micromark-extension-llm-math@3.1.0
   micromark-extension-gfm-table: 2.1.1
   "@tailwindcss/node": "catalog:"
   "@tailwindcss/oxide": "catalog:"
@@ -116,10 +115,7 @@ overrides:
   vite-plus: "catalog:"
   yaml: "catalog:"
 patchedDependencies:
-  mdast-util-math@3.0.0: patches/mdast-util-math@3.0.0.patch
-  micromark-extension-llm-math@3.1.0: patches/micromark-extension-llm-math@3.1.0.patch
   micromark-extension-gfm-table@2.1.1: patches/micromark-extension-gfm-table@2.1.1.patch
-  "@ff-labs/fff-node@0.11.0": patches/@ff-labs__fff-node@0.11.0.patch
   dbus-next@0.10.2: patches/dbus-next@0.10.2.patch
   app-builder-lib@26.16.1: patches/app-builder-lib@26.16.1.patch
   pi-claude-bridge@0.9.3: patches/pi-claude-bridge@0.9.3.patch

@@ -8,7 +8,7 @@ import * as McpToolAccess from "../../McpToolAccess.ts";
 import { readCaller, unavailable } from "../../threadAccess.ts";
 import { EnvironmentToolkit } from "./tools.ts";
 
-export function preferences(settings: ServerSettings) {
+function preferences(settings: ServerSettings) {
   const { enableProviderUpdateChecks } = settings;
   return {
     enableProviderUpdateChecks,

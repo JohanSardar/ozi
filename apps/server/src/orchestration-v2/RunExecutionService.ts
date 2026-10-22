@@ -318,13 +318,13 @@ export const cascadeTerminalizeRunOwnedSubagents = Effect.fn(
   return events;
 });
 
-export function finalProviderThreadStatus(
+function finalProviderThreadStatus(
   disposition: ProviderTerminalEvent["threadDisposition"],
 ): OrchestrationV2ProviderThread["status"] {
   return disposition === "broken" ? "error" : "idle";
 }
 
-export function makeProviderEventRoutingState(input: {
+function makeProviderEventRoutingState(input: {
   readonly identity: ProviderEventRouteIdentity;
   readonly inheritedBackgroundTurnItems?: ReadonlyArray<InheritedBackgroundTurnItemRoute>;
   readonly providerTurnId: ProviderTurnId | null;
@@ -350,7 +350,7 @@ export function makeProviderEventRoutingState(input: {
   };
 }
 
-export function routeProviderEvent(
+function routeProviderEvent(
   event: ProviderAdapter.ProviderAdapterV2Event,
   input: ProviderEventRouteIdentity,
   state: ProviderEventRoutingState,

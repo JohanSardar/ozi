@@ -18,26 +18,6 @@ const PROVIDER_ICON_BY_PROVIDER: Partial<Record<ProviderDriverKind, Icon>> = {
   [ProviderDriverKind.make("claudeAgent")]: ClaudeAI,
 };
 
-const PROVIDER_TEXT_COLOR_BY_PROVIDER: Partial<Record<ProviderDriverKind, string>> = {
-  [ProviderDriverKind.make("codex")]: "text-black dark:text-white",
-  [ProviderDriverKind.make("claudeAgent")]: "text-[#d97757]",
-};
-
-export function providerTextColor(driverKind: ProviderDriverKind): {
-  readonly className?: string;
-  readonly style?: CSSProperties;
-} {
-  const icon = providerClients.get(driverKind)?.icon;
-  if (icon) {
-    return {
-      className: "text-(--icon-light) dark:text-(--icon-dark)",
-      style: { "--icon-light": icon.fill.light, "--icon-dark": icon.fill.dark } as CSSProperties,
-    };
-  }
-  const className = PROVIDER_TEXT_COLOR_BY_PROVIDER[driverKind];
-  return className ? { className } : {};
-}
-
 export const ProviderInstanceIcon = memo(function ProviderInstanceIcon(props: {
   driverKind: ProviderDriverKind;
   displayName: string;

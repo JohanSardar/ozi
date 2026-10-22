@@ -69,7 +69,7 @@ export const ScheduledTaskWebhookSignature = Schema.Struct(
 ).annotate({ description: "Optional HMAC-SHA256 signature check over the raw request body." });
 export type ScheduledTaskWebhookSignature = typeof ScheduledTaskWebhookSignature.Type;
 
-export function isWebhookDedupeTemplate(template: string): boolean {
+function isWebhookDedupeTemplate(template: string): boolean {
   const placeholders = /\{\{\s*(?:(?:body|headers|query)(?:\.[^{}.\s]+)*|request)\s*\}\}/g;
   const matches = [...template.matchAll(placeholders)];
   const remainder = template.replace(placeholders, "");
@@ -89,7 +89,7 @@ const ScheduledTaskWebhookDedupe = Schema.Struct({
     "Replay key template (7 days), coalesce key template, and fixed window in seconds (default 120).",
 });
 
-export const MAX_WEBHOOK_FILTERS = 16;
+const MAX_WEBHOOK_FILTERS = 16;
 
 const WebhookFilterPath = TrimmedNonEmptyString.check(
   Schema.isPattern(/^(body|headers|query)(\.|$)/),

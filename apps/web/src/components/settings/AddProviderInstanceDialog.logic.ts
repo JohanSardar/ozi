@@ -12,30 +12,6 @@ export interface ProviderIdentityDraft {
   readonly instanceIdOverride: string | null;
 }
 
-const EMPTY_PROVIDER_IDENTITY_DRAFT: ProviderIdentityDraft = {
-  label: "",
-  accentColor: "",
-  instanceIdOverride: null,
-};
-
-export function getProviderIdentityDraft(
-  drafts: Readonly<Record<string, ProviderIdentityDraft>>,
-  driver: string,
-): ProviderIdentityDraft {
-  return drafts[driver] ?? EMPTY_PROVIDER_IDENTITY_DRAFT;
-}
-
-export function updateProviderIdentityDraft(
-  drafts: Readonly<Record<string, ProviderIdentityDraft>>,
-  driver: string,
-  update: Partial<ProviderIdentityDraft>,
-): Record<string, ProviderIdentityDraft> {
-  return {
-    ...drafts,
-    [driver]: { ...getProviderIdentityDraft(drafts, driver), ...update },
-  };
-}
-
 export function deriveAvailableInstanceId(
   derive: (label: string) => string,
   label: string,

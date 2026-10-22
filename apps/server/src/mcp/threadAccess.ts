@@ -2,7 +2,6 @@ import type { ProjectionRecordField } from "../orchestration-v2/ProjectionStore.
 import {
   CommandId,
   OrchestratorMcpFailure,
-  type ProjectId,
   type ProviderInteractionMode,
   type RuntimeMode,
   type ThreadId,
@@ -124,18 +123,6 @@ export const assertFullAccess = (context: Caller, message: string) =>
   context.limits.runtimeMode === "full-access" && context.limits.interactionMode === "default"
     ? Effect.void
     : Effect.fail(new OrchestratorMcpFailure({ code: "capability_denied", message }));
-
-export const resolveProjectId = (context: Caller, projectId: ProjectId | undefined) =>
-  projectId !== undefined
-    ? Effect.succeed(projectId)
-    : context.caller !== undefined
-      ? Effect.succeed(context.caller.projectId)
-      : Effect.fail(
-          new OrchestratorMcpFailure({
-            code: "target_required",
-            message: "Pass projectId: this MCP client is not running inside a Ozi thread.",
-          }),
-        );
 
 const resolveThreadId = (context: Caller, threadId: ThreadId | undefined) =>
   threadId !== undefined

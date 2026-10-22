@@ -132,7 +132,7 @@ export const ServerProviderWorkspaceSnapshot = Schema.Struct({
 });
 export type ServerProviderWorkspaceSnapshot = typeof ServerProviderWorkspaceSnapshot.Type;
 
-export const PROVIDER_WORKSPACE_SNAPSHOT_TTL_MS = 5 * 60_000;
+const PROVIDER_WORKSPACE_SNAPSHOT_TTL_MS = 5 * 60_000;
 
 export function isProviderWorkspaceSnapshotCurrent(
   snapshot: Pick<ServerProviderWorkspaceSnapshot, "checkedAt">,
@@ -267,14 +267,6 @@ export type ServerProviders = typeof ServerProviders.Type;
 
 export const isProviderAvailable = (snapshot: ServerProvider): boolean =>
   snapshot.availability !== "unavailable";
-
-/**
- * Treat an absent `supportsTextGeneration` as supported so legacy
- * producers, which all support application text generation, keep working
- * without resending the field.
- */
-export const isProviderTextGenerationCapable = (snapshot: ServerProvider): boolean =>
-  snapshot.supportsTextGeneration !== false;
 
 export const ServerObservability = Schema.Struct({
   logsDirectoryPath: TrimmedNonEmptyString,

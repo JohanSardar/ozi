@@ -1,6 +1,5 @@
-import type { KeybindingCommand, ResolvedKeybindingsConfig } from "@t3tools/contracts";
+import type { KeybindingCommand } from "@t3tools/contracts";
 import type { UsageChartMetric } from "./UsageProviderChart";
-import { resolveShortcutCommand, type ShortcutEventLike } from "../../keybindings";
 
 export type UsageMetric = UsageChartMetric | "limits";
 export const METRIC_OPTIONS = [
@@ -15,24 +14,3 @@ export const WINDOW_OPTIONS = [
   { days: 30, label: "30 days", command: "usage.period.month" },
   { days: 90, label: "90 days", command: "usage.period.quarter" },
 ] as const;
-
-export function resolveUsageShortcut(
-  event: ShortcutEventLike & { target: EventTarget | null },
-  keybindings: ResolvedKeybindingsConfig,
-) {
-  const target = event.target;
-  if (
-    target instanceof HTMLElement &&
-    (target.tagName === "INPUT" ||
-      target.tagName === "TEXTAREA" ||
-      target.tagName === "SELECT" ||
-      target.isContentEditable ||
-      target.closest('[role="dialog"], [aria-modal="true"], [data-slot$="popup"]'))
-  ) {
-    return null;
-  }
-
-  return resolveShortcutCommand(event, keybindings, {
-    context: { usagePageOpen: true },
-  });
-}

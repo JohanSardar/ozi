@@ -6,7 +6,7 @@ import {
 } from "@t3tools/contracts";
 import { piClient } from "@t3tools/provider-pi/client";
 
-export const SECRET_REDACTED = "\u2022\u2022\u2022\u2022\u2022\u2022";
+const SECRET_REDACTED = "\u2022\u2022\u2022\u2022\u2022\u2022";
 
 const providerSecretFields = new Map([
   ["codex", secretSettingsFields(CodexSettings)],

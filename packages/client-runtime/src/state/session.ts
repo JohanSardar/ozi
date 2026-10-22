@@ -34,17 +34,17 @@ function initialConfigOption<E>(
 
 const DEFAULT_SESSION_STATE_TIMEOUT_MS = 6_000;
 
-export const fetchEnvironmentSessionState = Effect.fn(
-  "clientRuntime.state.fetchEnvironmentSessionState",
-)(function* (input: { readonly prepared: PreparedConnection; readonly timeoutMs?: number }) {
-  return yield* executeAuthenticatedEnvironmentHttpRequest({
-    ...input,
-    group: "auth",
-    url: (urls) => urls.session(),
-    timeoutMs: input.timeoutMs ?? DEFAULT_SESSION_STATE_TIMEOUT_MS,
-    request: ({ client, headers }) => client.session({ headers }),
-  });
-});
+const fetchEnvironmentSessionState = Effect.fn("clientRuntime.state.fetchEnvironmentSessionState")(
+  function* (input: { readonly prepared: PreparedConnection; readonly timeoutMs?: number }) {
+    return yield* executeAuthenticatedEnvironmentHttpRequest({
+      ...input,
+      group: "auth",
+      url: (urls) => urls.session(),
+      timeoutMs: input.timeoutMs ?? DEFAULT_SESSION_STATE_TIMEOUT_MS,
+      request: ({ client, headers }) => client.session({ headers }),
+    });
+  },
+);
 
 function makeEnvironmentSessionAtoms<R, E>(
   runtime: Atom.AtomRuntime<EnvironmentRegistry.EnvironmentRegistry | R, E>,

@@ -13,14 +13,14 @@ const requireUndici = NodeModule.createRequire(import.meta.url);
  * Node 26 bundles undici 8, which offers h2 over ALPN to every HTTPS origin.
  * Node 22/24 (and Electron) bundle undici 6/7, whose fetch stays on HTTP/1.1.
  */
-export const builtinFetchUsesHttp2 = (bundledUndiciVersion: string | undefined) =>
+const builtinFetchUsesHttp2 = (bundledUndiciVersion: string | undefined) =>
   Number.parseInt(bundledUndiciVersion ?? "", 10) >= 8;
 
 /**
  * Node's `--use-env-proxy` / `NODE_USE_ENV_PROXY` installs an
  * `EnvHttpProxyAgent` at startup; that choice is kept so proxies still apply.
  */
-export function installHttp1FetchDispatcher(): void {
+function installHttp1FetchDispatcher(): void {
   const undici = requireUndici("undici") as typeof Undici;
   // Node's agent comes from its internal undici copy, so `instanceof` against the npm class is false.
   const usesEnvProxy = undici.getGlobalDispatcher().constructor.name === "EnvHttpProxyAgent";

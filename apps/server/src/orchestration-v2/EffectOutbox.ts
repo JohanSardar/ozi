@@ -144,7 +144,7 @@ export type OrchestrationEffectStatusV2 = typeof OrchestrationEffectStatusV2.Typ
  * either and leaves recent history for debugging. Failed rows are kept: storage
  * cleanup keeps a deleted thread's worktree while any of its effects failed.
  */
-export const SETTLED_EFFECT_RETENTION = Duration.days(7);
+const SETTLED_EFFECT_RETENTION = Duration.days(7);
 const PRUNE_BATCH_SIZE = 500;
 
 export interface OrchestrationEffectV2 {

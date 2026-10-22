@@ -34,7 +34,7 @@ export const initialWorkflowAgentTranscriptCursor: WorkflowAgentTranscriptCursor
 };
 
 /** Sees every transcript read: where it started and ended, and how many lines it kept. */
-export const WorkflowAgentTranscriptReadObserver = Context.Reference<
+const WorkflowAgentTranscriptReadObserver = Context.Reference<
   (read: {
     readonly agentId: string;
     readonly startOffset: number;

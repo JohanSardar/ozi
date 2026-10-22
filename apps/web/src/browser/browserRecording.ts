@@ -220,24 +220,10 @@ const publishActiveRecordingTabIds = (): void => {
   });
 };
 
-export const BROWSER_RECORDING_STARTUP_SETTLE_TIMEOUT_MS = 5_000;
-export const BROWSER_RECORDING_PAINT_SETTLE_TIMEOUT_MS = 250;
+const BROWSER_RECORDING_STARTUP_SETTLE_TIMEOUT_MS = 5_000;
+const BROWSER_RECORDING_PAINT_SETTLE_TIMEOUT_MS = 250;
 
-export function readActiveBrowserRecordingTabIds(threadRef?: ScopedThreadRef): ReadonlySet<string> {
-  const tabIds = new Set<string>();
-  for (const recording of activeRecordings.values()) {
-    if (
-      threadRef === undefined ||
-      (recording.threadRef?.environmentId === threadRef.environmentId &&
-        recording.threadRef.threadId === threadRef.threadId)
-    ) {
-      tabIds.add(recording.tabId);
-    }
-  }
-  return tabIds;
-}
-
-export function readActiveBrowserRecordingTargets(
+function readActiveBrowserRecordingTargets(
   threadRef: ScopedThreadRef,
 ): ReadonlyArray<ActiveBrowserRecordingTarget> {
   return Array.from(activeRecordings.values()).flatMap((recording) =>
@@ -849,16 +835,4 @@ export function stopBrowserRecording(
     });
   recording.lifecycle = { phase: "stopping", stopPromise };
   return stopPromise;
-}
-
-export async function stopBrowserRecordingForUpload(
-  tabId: string,
-  upload: (artifact: DesktopPreviewRecordingArtifact, blob: Blob) => Promise<string>,
-): Promise<(DesktopPreviewRecordingArtifact & { uploadedAttachmentId: string }) | null> {
-  const recording = activeRecordings.get(tabId);
-  if (!recording) return null;
-  const artifact = await stopBrowserRecording(tabId);
-  if (!artifact || !recording.savedBlob) return null;
-  recording.uploadPromise ??= upload(artifact, recording.savedBlob);
-  return { ...artifact, uploadedAttachmentId: await recording.uploadPromise };
 }

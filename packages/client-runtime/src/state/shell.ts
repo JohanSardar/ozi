@@ -53,7 +53,7 @@ function shellStatusForSnapshot(
 
 const SHELL_SYNCHRONIZATION_ERROR_MESSAGE = "Could not synchronize environment data.";
 
-export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")(function* () {
+const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")(function* () {
   const supervisor = yield* EnvironmentSupervisor.EnvironmentSupervisor;
   const cache = yield* Persistence.EnvironmentCacheStore;
   const snapshotLoader = yield* ShellSnapshotLoader.ShellSnapshotLoader;
@@ -329,28 +329,7 @@ export interface EnvironmentShellSummary {
   readonly firstError: string | null;
 }
 
-const EMPTY_ENVIRONMENT_SHELL_SUMMARY: EnvironmentShellSummary = Object.freeze({
-  hasSnapshot: false,
-  hasSynchronizingShell: false,
-  hasCachedShell: false,
-  hasLiveShell: false,
-  firstError: null,
-});
-
 const EMPTY_SERVER_CONFIGS: ReadonlyMap<EnvironmentId, ServerConfig> = new Map();
-
-function shellSummariesEqual(
-  left: EnvironmentShellSummary,
-  right: EnvironmentShellSummary,
-): boolean {
-  return (
-    left.hasSnapshot === right.hasSnapshot &&
-    left.hasSynchronizingShell === right.hasSynchronizingShell &&
-    left.hasCachedShell === right.hasCachedShell &&
-    left.hasLiveShell === right.hasLiveShell &&
-    left.firstError === right.firstError
-  );
-}
 
 function mapsEqual<K, V>(left: ReadonlyMap<K, V>, right: ReadonlyMap<K, V>): boolean {
   if (left.size !== right.size) {
@@ -362,47 +341,6 @@ function mapsEqual<K, V>(left: ReadonlyMap<K, V>, right: ReadonlyMap<K, V>): boo
     }
   }
   return true;
-}
-
-export function createEnvironmentShellSummaryAtom(input: {
-  readonly catalogValueAtom: Atom.Atom<EnvironmentCatalogState>;
-  readonly shellStateValueAtom: (environmentId: EnvironmentId) => Atom.Atom<EnvironmentShellState>;
-}) {
-  let previousSummary = EMPTY_ENVIRONMENT_SHELL_SUMMARY;
-  return Atom.make((get) => {
-    let hasSnapshot = false;
-    let hasSynchronizingShell = false;
-    let hasCachedShell = false;
-    let hasLiveShell = false;
-    let firstError: string | null = null;
-
-    for (const environmentId of enabledEnvironmentIds(get(input.catalogValueAtom))) {
-      const state = get(input.shellStateValueAtom(environmentId));
-      hasSynchronizingShell ||= state.status === "synchronizing";
-      hasCachedShell ||= state.status === "cached";
-      hasLiveShell ||= state.status === "live";
-      if (firstError === null) {
-        firstError = Option.getOrNull(state.error);
-      }
-      if (Option.isNone(state.snapshot)) {
-        continue;
-      }
-      hasSnapshot = true;
-    }
-
-    const next: EnvironmentShellSummary = {
-      hasSnapshot,
-      hasSynchronizingShell,
-      hasCachedShell,
-      hasLiveShell,
-      firstError,
-    };
-    if (shellSummariesEqual(previousSummary, next)) {
-      return previousSummary;
-    }
-    previousSummary = next;
-    return previousSummary;
-  }).pipe(Atom.withLabel("environment-shell-summary"));
 }
 
 export function createEnvironmentServerConfigsAtom(input: {
@@ -430,7 +368,7 @@ export function createEnvironmentServerConfigsAtom(input: {
  * Every shell push replaces the state, so views that gate on load progress read these
  * primitives instead and stay put while threads stream.
  */
-export function createEnvironmentShellProgressAtoms(
+function createEnvironmentShellProgressAtoms(
   stateValueAtom: (environmentId: EnvironmentId) => Atom.Atom<EnvironmentShellState>,
 ) {
   return {

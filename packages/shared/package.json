@@ -11,10 +11,6 @@
       "types": "./src/orchestrationV2ThreadError.ts",
       "import": "./src/orchestrationV2ThreadError.ts"
     },
-    "./delimitedPreview": {
-      "types": "./src/delimitedPreview.ts",
-      "import": "./src/delimitedPreview.ts"
-    },
     "./themePalettes": {
       "types": "./src/themePalettes.ts",
       "import": "./src/themePalettes.ts"
@@ -30,10 +26,6 @@
     "./advertisedEndpoint": {
       "types": "./src/advertisedEndpoint.ts",
       "import": "./src/advertisedEndpoint.ts"
-    },
-    "./githubMedia": {
-      "types": "./src/githubMedia.ts",
-      "import": "./src/githubMedia.ts"
     },
     "./logging": {
       "types": "./src/logging.ts",
@@ -103,10 +95,6 @@
       "types": "./src/htmlRender.ts",
       "import": "./src/htmlRender.ts"
     },
-    "./favicon": {
-      "types": "./src/favicon.ts",
-      "import": "./src/favicon.ts"
-    },
     "./Struct": {
       "types": "./src/Struct.ts",
       "import": "./src/Struct.ts"
@@ -115,17 +103,9 @@
       "types": "./src/serverSettings.ts",
       "import": "./src/serverSettings.ts"
     },
-    "./String": {
-      "types": "./src/String.ts",
-      "import": "./src/String.ts"
-    },
     "./projectSettings": {
       "types": "./src/projectSettings.ts",
       "import": "./src/projectSettings.ts"
-    },
-    "./orchestrationTiming": {
-      "types": "./src/orchestrationTiming.ts",
-      "import": "./src/orchestrationTiming.ts"
     },
     "./remote": {
       "types": "./src/remote.ts",
@@ -255,10 +235,6 @@
       "types": "./src/usageMerge.ts",
       "import": "./src/usageMerge.ts"
     },
-    "./usageFormat": {
-      "types": "./src/usageFormat.ts",
-      "import": "./src/usageFormat.ts"
-    },
     "./usageLimits": {
       "types": "./src/usageLimits.ts",
       "import": "./src/usageLimits.ts"
@@ -302,10 +278,6 @@
     "./hostClassification": {
       "types": "./src/hostClassification.ts",
       "import": "./src/hostClassification.ts"
-    },
-    "./dateTime": {
-      "types": "./src/dateTime.ts",
-      "import": "./src/dateTime.ts"
     },
     "./cliRelease": {
       "types": "./src/cliRelease.ts",
@@ -379,10 +351,6 @@
       "types": "./src/atomicWrite.ts",
       "import": "./src/atomicWrite.ts"
     },
-    "./mcpResponsePayloads": {
-      "types": "./src/mcpResponsePayloads.ts",
-      "import": "./src/mcpResponsePayloads.ts"
-    },
     "./PtyAdapter": {
       "types": "./src/PtyAdapter.ts",
       "import": "./src/PtyAdapter.ts"
@@ -400,7 +368,6 @@
     "@noble/hashes": "catalog:",
     "@t3tools/contracts": "workspace:*",
     "effect": "catalog:",
-    "jose": "catalog:",
     "mdast-util-directive": "catalog:",
     "mdast-util-to-hast": "^13.2.1",
     "micromark-extension-directive": "catalog:",
@@ -409,17 +376,13 @@
     "rehype-sanitize": "catalog:",
     "remark-breaks": "catalog:",
     "remark-gfm": "catalog:",
-    "remark-math": "6.0.0",
     "remark-parse": "catalog:",
     "remark-rehype": "catalog:",
     "unified": "catalog:",
     "yaml": "catalog:"
   },
   "devDependencies": {
-    "@effect/platform-node": "catalog:",
-    "@types/mdast": "^4.0.4",
     "@types/node": "catalog:",
-    "micromark-util-types": "catalog:",
-    "vite-plus": "catalog:"
+    "micromark-util-types": "catalog:"
   }
 }

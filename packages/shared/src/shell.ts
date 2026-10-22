@@ -325,30 +325,30 @@ export type WindowsShellEnvironmentReader = (
   options?: WindowsEnvironmentProbeOptions,
 ) => Partial<Record<string, string>>;
 
-export const WindowsShellEnvironment = Context.Reference<WindowsShellEnvironmentReader>(
+const WindowsShellEnvironment = Context.Reference<WindowsShellEnvironmentReader>(
   "@t3tools/shared/shell/WindowsShellEnvironment",
   {
     defaultValue: () => readEnvironmentFromWindowsShell,
   },
 );
 
-export const CommandAvailability = Context.Reference<CommandAvailabilityChecker>(
+const CommandAvailability = Context.Reference<CommandAvailabilityChecker>(
   "@t3tools/shared/shell/CommandAvailability",
   {
     defaultValue: () => isCommandAvailable,
   },
 );
 
-export function readEnvironmentFromWindowsShell(
+function readEnvironmentFromWindowsShell(
   names: ReadonlyArray<string>,
   execFile?: ExecFileSyncLike,
 ): Partial<Record<string, string>>;
-export function readEnvironmentFromWindowsShell(
+function readEnvironmentFromWindowsShell(
   names: ReadonlyArray<string>,
   options?: WindowsEnvironmentProbeOptions,
   execFile?: ExecFileSyncLike,
 ): Partial<Record<string, string>>;
-export function readEnvironmentFromWindowsShell(
+function readEnvironmentFromWindowsShell(
   names: ReadonlyArray<string>,
   optionsOrExecFile?: WindowsEnvironmentProbeOptions | ExecFileSyncLike,
   maybeExecFile?: ExecFileSyncLike,
@@ -410,7 +410,7 @@ function sanitizePathEntry(entry: string, platform: NodeJS.Platform): string {
   return platform === "win32" ? entry.replaceAll('"', "") : entry;
 }
 
-export function mergePathValues(
+function mergePathValues(
   preferredPath: string | undefined,
   inheritedPath: string | undefined,
   platform: NodeJS.Platform,
@@ -501,7 +501,7 @@ interface CommandResolutionCacheEntry {
   readonly expiresAtNanos: bigint;
 }
 
-export const CommandResolutionCache = Context.Reference<Map<string, CommandResolutionCacheEntry>>(
+const CommandResolutionCache = Context.Reference<Map<string, CommandResolutionCacheEntry>>(
   "@t3tools/shared/shell/CommandResolutionCache",
   {
     defaultValue: () => new Map(),
@@ -697,7 +697,7 @@ function isFileSync(filePath: string): boolean {
  * for hooks, ssh and credential helpers only when MSYSTEM is unset, so the
  * launcher stays when MSYSTEM is set.
  */
-export function preferGitForWindowsBinary(
+function preferGitForWindowsBinary(
   executable: string,
   env: NodeJS.ProcessEnv,
   isFile: (filePath: string) => boolean = isFileSync,
@@ -743,7 +743,7 @@ function readFileSyncOrUndefined(filePath: string): string | undefined {
  * escapes the kill-on-close job libuv puts every child in: it keeps running
  * after this process is killed. Started directly it is in the job.
  */
-export function npmShimExecutable(
+function npmShimExecutable(
   shimPath: string,
   readFile: (filePath: string) => string | undefined = readFileSyncOrUndefined,
   isFile: (filePath: string) => boolean = isFileSync,
@@ -842,7 +842,7 @@ export const isCommandAvailable = Effect.fn("shell.isCommandAvailable")(function
   return (yield* resolveCommandPath(command, options)) !== null;
 });
 
-export function resolveKnownWindowsCliDirs(env: NodeJS.ProcessEnv): ReadonlyArray<string> {
+function resolveKnownWindowsCliDirs(env: NodeJS.ProcessEnv): ReadonlyArray<string> {
   const appData = env.APPDATA?.trim();
   const localAppData = env.LOCALAPPDATA?.trim();
   const userProfile = env.USERPROFILE?.trim();

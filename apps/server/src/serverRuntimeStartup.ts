@@ -94,7 +94,7 @@ const settleQueuedCommand = <A, E>(deferred: Deferred.Deferred<A, E>, exit: Exit
     ? Deferred.succeed(deferred, exit.value)
     : Deferred.failCause(deferred, exit.cause);
 
-export const makeCommandGate = Effect.gen(function* () {
+const makeCommandGate = Effect.gen(function* () {
   const commandReady = yield* Deferred.make<void, ServerRuntimeStartupError>();
   const commandQueue = yield* Queue.unbounded<QueuedCommand>();
   const commandReadinessState = yield* Ref.make<CommandReadinessState>("pending");
@@ -140,14 +140,14 @@ export const makeCommandGate = Effect.gen(function* () {
   } satisfies CommandGate;
 });
 
-export const getAutoBootstrapThreadModelSelection = (): ModelSelection => OZI_MAIN_SELECTION;
+const getAutoBootstrapThreadModelSelection = (): ModelSelection => OZI_MAIN_SELECTION;
 
 interface AutoBootstrapWelcomeTargets {
   readonly bootstrapProjectId?: ProjectId;
   readonly bootstrapThreadId?: ThreadId;
 }
 
-export const resolveWelcomeBase = Effect.gen(function* () {
+const resolveWelcomeBase = Effect.gen(function* () {
   const serverConfig = yield* ServerConfig.ServerConfig;
   const segments = serverConfig.cwd.split(/[/\\]/).filter(Boolean);
   const projectName = segments[segments.length - 1] ?? "project";
@@ -252,7 +252,7 @@ const resolveStartupBrowserTarget = Effect.gen(function* () {
  */
 const encodeStartupAccess = Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown));
 
-export const announceStartupPairingUrl = (pairingUrl: string) =>
+const announceStartupPairingUrl = (pairingUrl: string) =>
   Effect.logInfo("Authentication required. Open Ozi using the pairing URL.").pipe(
     // Indented to match the annotation line the pretty logger printed before.
     Effect.andThen(Console.log(`  pairingUrl: ${pairingUrl}`)),
@@ -260,11 +260,11 @@ export const announceStartupPairingUrl = (pairingUrl: string) =>
 
 // No URL here: the browser target carries the pairing token, which
 // announceStartupPairingUrl has already printed to stdout.
-export const logBrowserAutoOpenUnavailable = Effect.logInfo("browser auto-open unavailable", {
+const logBrowserAutoOpenUnavailable = Effect.logInfo("browser auto-open unavailable", {
   hint: "Open the pairing URL above in your browser.",
 });
 
-export const maybeOpenBrowser = Effect.fn("serverRuntimeStartup.maybeOpenBrowser")(function* (
+const maybeOpenBrowser = Effect.fn("serverRuntimeStartup.maybeOpenBrowser")(function* (
   target: string,
 ) {
   const serverConfig = yield* ServerConfig.ServerConfig;
@@ -295,7 +295,7 @@ interface StartupOptions {
   readonly abort?: (error: ServerRuntimeStartupError) => Effect.Effect<void>;
 }
 
-export const startEffectWorker = Effect.fn("ServerRuntimeStartup.startEffectWorker")(function* <
+const startEffectWorker = Effect.fn("ServerRuntimeStartup.startEffectWorker")(function* <
   WorkerContext,
 >(input: {
   readonly runWorker: Effect.Effect<void, never, WorkerContext>;
@@ -305,36 +305,36 @@ export const startEffectWorker = Effect.fn("ServerRuntimeStartup.startEffectWork
   yield* Ref.set(input.workerFiberRef, workerFiber);
 });
 
-export const runOrderedV2StartupPhases = Effect.fn(
-  "serverRuntimeStartup.runOrderedV2StartupPhases",
-)(function* <
-  Import,
-  Recovery,
-  Bootstrap,
-  ImportError,
-  RecoveryError,
-  DelegationError,
-  WorkerError,
-  BootstrapError,
-  ImportContext,
-  RecoveryContext,
-  DelegationContext,
-  WorkerContext,
-  BootstrapContext,
->(input: {
-  readonly importLegacyShells: Effect.Effect<Import, ImportError, ImportContext>;
-  readonly recover: Effect.Effect<Recovery, RecoveryError, RecoveryContext>;
-  readonly recoverDelegatedTasks: Effect.Effect<void, DelegationError, DelegationContext>;
-  readonly startEffectWorker: Effect.Effect<void, WorkerError, WorkerContext>;
-  readonly autoBootstrap: Effect.Effect<Bootstrap, BootstrapError, BootstrapContext>;
-}) {
-  yield* input.importLegacyShells;
-  const recovery = yield* input.recover;
-  yield* input.recoverDelegatedTasks;
-  yield* input.startEffectWorker;
-  const bootstrap = yield* input.autoBootstrap;
-  return { recovery, bootstrap } as const;
-});
+const runOrderedV2StartupPhases = Effect.fn("serverRuntimeStartup.runOrderedV2StartupPhases")(
+  function* <
+    Import,
+    Recovery,
+    Bootstrap,
+    ImportError,
+    RecoveryError,
+    DelegationError,
+    WorkerError,
+    BootstrapError,
+    ImportContext,
+    RecoveryContext,
+    DelegationContext,
+    WorkerContext,
+    BootstrapContext,
+  >(input: {
+    readonly importLegacyShells: Effect.Effect<Import, ImportError, ImportContext>;
+    readonly recover: Effect.Effect<Recovery, RecoveryError, RecoveryContext>;
+    readonly recoverDelegatedTasks: Effect.Effect<void, DelegationError, DelegationContext>;
+    readonly startEffectWorker: Effect.Effect<void, WorkerError, WorkerContext>;
+    readonly autoBootstrap: Effect.Effect<Bootstrap, BootstrapError, BootstrapContext>;
+  }) {
+    yield* input.importLegacyShells;
+    const recovery = yield* input.recover;
+    yield* input.recoverDelegatedTasks;
+    yield* input.startEffectWorker;
+    const bootstrap = yield* input.autoBootstrap;
+    return { recovery, bootstrap } as const;
+  },
+);
 
 const make = Effect.fn("serverRuntimeStartup.make")(function* (options?: StartupOptions) {
   const serverConfig = yield* ServerConfig.ServerConfig;

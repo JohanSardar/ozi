@@ -48,7 +48,7 @@ const isIpv4Family = (family: string | number): boolean => family === "IPv4" || 
 
 const isIpv6Family = (family: string | number): boolean => family === "IPv6" || family === 6;
 
-export const resolveHeadlessConnectionHost = (
+const resolveHeadlessConnectionHost = (
   host: string | undefined,
   interfaces: NetworkInterfacesMap = NodeOS.networkInterfaces(),
 ): string => {
@@ -74,7 +74,7 @@ export const resolveHeadlessConnectionHost = (
   return externalIpv6 ? normalizeHost(externalIpv6.address) : "localhost";
 };
 
-export const resolveHeadlessConnectionString = (
+const resolveHeadlessConnectionString = (
   host: string | undefined,
   port: number,
   interfaces: NetworkInterfacesMap = NodeOS.networkInterfaces(),
@@ -83,7 +83,7 @@ export const resolveHeadlessConnectionString = (
   return `http://${formatHostForUrl(connectionHost)}:${port}`;
 };
 
-export const resolveListeningPort = (address: unknown, fallbackPort: number): number => {
+const resolveListeningPort = (address: unknown, fallbackPort: number): number => {
   if (
     typeof address === "object" &&
     address !== null &&
@@ -103,7 +103,7 @@ export const buildPairingUrl = (connectionString: string, token: string): string
   return url.toString();
 };
 
-export const renderTerminalQrCode = (value: string, margin = 2): string => {
+const renderTerminalQrCode = (value: string, margin = 2): string => {
   const qrCode = QrCode.encodeText(value, QrCode.Ecc.MEDIUM);
   const rows: Array<string> = [];
   const isDark = (x: number, y: number): boolean =>

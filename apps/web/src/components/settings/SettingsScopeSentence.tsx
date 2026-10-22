@@ -1,11 +1,6 @@
 import { useEnvironments } from "../../state/environments";
 import { useOptionalSettingsScope } from "./SettingsScopeContext";
 
-export const SETTINGS_DEVICE_ONLY_PATHS: ReadonlySet<string> = new Set([
-  "/settings/appearance",
-  "/settings/connections",
-]);
-
 export function SettingsScopeSentence() {
   const scope = useOptionalSettingsScope();
   const { environments } = useEnvironments();

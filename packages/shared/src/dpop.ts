@@ -15,11 +15,10 @@ const DPOP_ALG = "ES256";
  * How far a proof's `iat` may sit from the verifier's clock, in either direction.
  * Proofs carry the client's clock, so this also bounds tolerated clock skew.
  */
-export const DPOP_MAX_CLOCK_SKEW_SECONDS = 300;
+const DPOP_MAX_CLOCK_SKEW_SECONDS = 300;
 
 export const DpopPublicJwk = DpopPublicJwkSchema;
 export type DpopPublicJwk = DpopPublicJwkType;
-export { normalizeDpopHtu };
 
 export const DpopVerificationFailureCode = Schema.Literals([
   "missing_proof",
@@ -93,11 +92,11 @@ function dpopThumbprintInput(jwk: DpopPublicJwkType): string {
   });
 }
 
-export function computeDpopJwkThumbprint(jwk: DpopPublicJwkType): string {
+function computeDpopJwkThumbprint(jwk: DpopPublicJwkType): string {
   return Base64Url.encode(sha256(new TextEncoder().encode(dpopThumbprintInput(jwk))));
 }
 
-export function computeDpopAccessTokenHash(accessToken: string): string {
+function computeDpopAccessTokenHash(accessToken: string): string {
   return Base64Url.encode(sha256(new TextEncoder().encode(accessToken)));
 }
 

@@ -12,7 +12,7 @@ import type { RemoteEnvironmentRequestError } from "../rpc/http.ts";
 import { executeAuthenticatedEnvironmentHttpRequest } from "./environmentHttpAuth.ts";
 import type { PreviewStreamAccess } from "../preview/streamAccess.ts";
 
-export { type PreviewStreamAccess, withPreviewStreamQuery } from "../preview/streamAccess.ts";
+export { type PreviewStreamAccess } from "../preview/streamAccess.ts";
 
 const TICKET_TIMEOUT_MS = 8_000;
 

@@ -76,7 +76,7 @@ function suggestedPackageSpec(version: string): string {
   return channel === undefined ? "ozi" : `ozi@${channel}`;
 }
 
-export function formatCliCommand(input: {
+function formatCliCommand(input: {
   readonly subcommand: string;
   readonly entryPath: string;
   readonly version: string;
@@ -88,7 +88,7 @@ export function formatCliCommand(input: {
   return `${runner} ${suggestedPackageSpec(input.version)} ${input.subcommand}`;
 }
 
-export const resolveCliCommand = (subcommand: string) =>
+const resolveCliCommand = (subcommand: string) =>
   Effect.map(resolveEntryPath, (entryPath) =>
     formatCliCommand({ subcommand, entryPath, version: packageJson.version }),
   );

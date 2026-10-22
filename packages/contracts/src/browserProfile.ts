@@ -1,7 +1,7 @@
 import * as Schema from "effect/Schema";
 import { TrimmedNonEmptyString } from "./baseSchemas.ts";
 
-export const BROWSER_PROFILE_NAME_MAX_LENGTH = 48;
+const BROWSER_PROFILE_NAME_MAX_LENGTH = 48;
 export const BROWSER_PROFILE_MAX_COUNT = 24;
 
 /**
@@ -36,10 +36,6 @@ export const BUILT_IN_BROWSER_PROFILES: ReadonlyArray<BrowserProfile> = [
   { id: DEFAULT_BROWSER_PROFILE_ID, name: "Default", kind: "persistent" },
   { id: INCOGNITO_BROWSER_PROFILE_ID, name: "Incognito", kind: "incognito" },
 ];
-
-export function isBuiltInBrowserProfileId(id: string): boolean {
-  return BUILT_IN_BROWSER_PROFILES.some((profile) => profile.id === id);
-}
 
 /**
  * - Repeated ids, which map to one partition and would otherwise appear as

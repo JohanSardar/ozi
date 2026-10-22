@@ -7,11 +7,7 @@ import type { EnvironmentId } from "@t3tools/contracts";
 import * as Option from "effect/Option";
 
 import { environmentCatalog } from "../connection/catalog";
-import {
-  environmentPresentations,
-  environmentSummaries,
-  useEnvironmentPresentation,
-} from "./presentation";
+import { environmentPresentations, useEnvironmentPresentation } from "./presentation";
 import { primaryEnvironmentIdAtom } from "./primaryEnvironment";
 import { usePreparedConnection } from "./session";
 import { isDesktopLocalConnectionTarget } from "../connection/desktopLocal";
@@ -92,20 +88,4 @@ export function useOziEnvironment() {
 export function useEnvironmentHttpBaseUrl(environmentId: EnvironmentId | null): string | null {
   const prepared = usePreparedConnection(environmentId);
   return Option.isSome(prepared) ? prepared.value.httpBaseUrl : null;
-}
-
-export function useEnvironmentIds() {
-  return useAtomValue(environmentSummaries.environmentIdsAtom);
-}
-
-export function useEnvironmentIdentities() {
-  return useAtomValue(environmentSummaries.identitiesAtom);
-}
-
-export function useEnvironmentMachines() {
-  return useAtomValue(environmentSummaries.machineByIdAtom);
-}
-
-export function useConnectedEnvironmentIds() {
-  return useAtomValue(environmentSummaries.connectedEnvironmentIdsAtom);
 }
