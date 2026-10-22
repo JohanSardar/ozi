@@ -58,6 +58,7 @@ export const isOziMainSelection = (selection: ModelSelection) =>
     ),
   ) === true;
 
+export const PI_BUILTIN_TOOL_NAMES = ["read", "bash", "edit", "write"] as const;
 export const OZI_MAIN_TOOL_NAMES = [
   "orchestrator_capabilities",
   "delegate_task",

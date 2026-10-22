@@ -1,12 +1,12 @@
 import * as NodeFSP from "node:fs/promises";
 import * as NodePath from "node:path";
 import * as NodeURL from "node:url";
-import { OZI_MAIN_TOOL_NAMES } from "@t3tools/contracts";
+import { OZI_MAIN_TOOL_NAMES, PI_BUILTIN_TOOL_NAMES } from "@t3tools/contracts";
 import { expect, it } from "vite-plus/test";
 import { startHarness } from "./harness.ts";
 import { startAnthropic } from "./fakes/anthropic.ts";
 
-it("m1.main-loadout sends only Ozi tools and the data-root prompt through real Pi and Claude Code", async () => {
+it("m1.main-loadout sends Pi and Ozi tools and the data-root prompt through real Pi and Claude Code", async () => {
   const pi = NodeURL.fileURLToPath(new URL("./node_modules/.bin/pi", import.meta.url));
   const claude = NodeURL.fileURLToPath(new URL("./node_modules/.bin", import.meta.url));
   const fake = await startAnthropic();
@@ -85,7 +85,7 @@ it("m1.main-loadout sends only Ozi tools and the data-root prompt through real P
         { id: "thinking", value: "high" },
         { id: "fastMode", value: false },
       ],
-      toolNames: OZI_MAIN_TOOL_NAMES,
+      toolNames: [...PI_BUILTIN_TOOL_NAMES, ...OZI_MAIN_TOOL_NAMES],
     });
     const requests = fake.requests.filter((request) =>
       request.system?.some((block) => block.text.includes("data-root-adhd-marker")),
@@ -100,7 +100,10 @@ it("m1.main-loadout sends only Ozi tools and the data-root prompt through real P
         /ambient-context-must-not-load|ambient-skill-must-not-load/,
       );
       expect(request.tools.map((tool) => tool.name).sort()).toEqual(
-        OZI_MAIN_TOOL_NAMES.map((name) => `mcp__custom-tools__mcp__t3-code__${name}`).sort(),
+        [
+          ...PI_BUILTIN_TOOL_NAMES.map((name) => `mcp__custom-tools__${name}`),
+          ...OZI_MAIN_TOOL_NAMES.map((name) => `mcp__custom-tools__mcp__t3-code__${name}`),
+        ].sort(),
       );
     }
     expect(JSON.stringify(requests.at(-1)?.messages)).toContain("ozi-demo-skill-loaded");
