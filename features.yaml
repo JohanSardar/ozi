@@ -183,14 +183,14 @@ features:
     status: passing
   - id: replay
     reqs: [repair-trigger, replay]
-    module: apps/server/src/ozi/Repair.ts + RepairSandbox.ts + RepairTasks.ts
+    module: apps/server/src/ozi/Repair.ts + RepairHttp.ts + RepairSandbox.ts + RepairTasks.ts + cli/client.ts + e2e/m5.test.ts
     cli: [replays]
     milestone: 5
     scenarios: [m5.correction-repairs, m5.repeat-repairs, m5.false-case, m5.unknown-effect]
     status: passing
   - id: confinement
     reqs: [protected, user-override]
-    module: apps/server/src/ozi/RepairSandbox.ts + RepairProgram.ts
+    module: apps/server/src/ozi/Repair.ts + RepairSandbox.ts + RepairProgram.ts + e2e/m5.test.ts
     cli: [replays]
     milestone: 5
     scenarios: [m5.protected-denied, m5.no-credentials, m5.user-override]
