@@ -8,6 +8,6 @@ export default defineConfig({
     testTimeout: 180_000,
     hookTimeout: 90_000,
     reporters: ["verbose", "json"],
-    outputFile: "results.json",
+    outputFile: process.env.OZI_E2E_RESULTS ?? "results.json",
   },
 });

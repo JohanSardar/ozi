@@ -5,6 +5,7 @@ packages:
   - packages/*
   - scripts
 allowBuilds:
+  "@anthropic-ai/claude-code": true
   "@google/genai": false
   browser-tabs-lock: false
   bufferutil: false
@@ -174,6 +175,7 @@ patchedDependencies:
   "@ff-labs/fff-node@0.11.0": patches/@ff-labs__fff-node@0.11.0.patch
   dbus-next@0.10.2: patches/dbus-next@0.10.2.patch
   app-builder-lib@26.16.1: patches/app-builder-lib@26.16.1.patch
+  pi-claude-bridge@0.9.3: patches/pi-claude-bridge@0.9.3.patch
 peerDependencyRules:
   allowAny:
     - vite
