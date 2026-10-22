@@ -11,7 +11,8 @@ Milestone: 1 (Connection), in progress.
 - M1 main agent merged: Pi `claude-opus-5-5`, thinking high, fast off, no built-in tools/extensions/skills/context files; verbatim data-root prompt; 24 orchestration MCP tools + `read_skill`; default worker Codex gpt-6.1-sol xhigh Fast; effective loadout on each thread.
 
 - M1 cut merged: Cursor, Grok, OpenCode, Muse, Antigravity, ACP, mobile and marketing removed (2,079 files, −442K lines); all packages typecheck.
-- M1 `ozi` CLI (serve, service, pair, status, say, steer, stop, thread, wait; `--json`) and fake-agent E2E harness (fake pi/codex/claude speaking native protocols, scripted, calling real MCP) merged. First integrated run: 2/14 M1 tests pass (m1.fresh-install, m1.read-skill); integration fix in progress.
+- M1 `ozi` CLI (serve, service, pair, status, say, steer, stop, thread, wait; `--json`) and fake-agent E2E harness (fake pi/codex/claude speaking native protocols, scripted, calling real MCP) merged.
+- **M1 fake-agent E2E: 14/14 pass** (`vp test run --root e2e`, 420 s); `features.ts check 1` ok. E2E setup now always rebuilds the web bundle (a stale bundle had hidden a fix).
 - Jobs wire contract (`OziJobCard`, evidence, errors, RPC names) in contracts.
 
 ## Blocked (real-agent runs)
