@@ -54,6 +54,11 @@ it("m7.tui-chat chats with main, queues, steers, stops, attaches and exits", asy
   await NodeFSP.writeFile(file, "tui-attachment-content");
   await h.script([
     { match: "tui-hello", role: "main", steps: [{ say: "Reply with **bold** words" }] },
+    {
+      match: "tui-command",
+      role: "main",
+      steps: [{ exec: "printf 'out-%s' line" }, { say: "command done" }],
+    },
     { match: "tui-hold", role: "main", steps: [{ say: "holding now" }, { wait: true }] },
     { match: "tui-steer", role: "main", steps: [{ say: "steered now" }, { wait: true }] },
     { match: "tui-queued", role: "main", steps: [{ fail: "queue ran despite stop" }] },
@@ -64,6 +69,10 @@ it("m7.tui-chat chats with main, queues, steers, stops, attaches and exits", asy
   tty.keys("tui-hello\r");
   await tty.waitFor("Reply with bold words");
   expect(tty.output).not.toContain("**bold**");
+  tty.keys("tui-command\r");
+  await tty.waitFor("$ printf 'out-%s' line");
+  await tty.waitFor("command done");
+  await tty.waitFor("out-line");
   tty.keys("tui-hold\r");
   await h.wait("ozi-main", "running");
   await tty.waitFor("holding now");

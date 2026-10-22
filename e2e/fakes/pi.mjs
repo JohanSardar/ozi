@@ -125,6 +125,20 @@ if (launch("pi")) {
         timestamp: Date.now(),
       });
     },
+    shell(command, result) {
+      const toolCallId = id();
+      write({ type: "tool_execution_start", toolCallId, toolName: "bash", args: { command } });
+      write({
+        type: "tool_execution_end",
+        toolCallId,
+        toolName: "bash",
+        result: {
+          content: [{ type: "text", text: `${result.stdout}${result.stderr}` }],
+          details: { exitCode: result.code },
+        },
+        isError: result.code !== 0,
+      });
+    },
     say(text) {
       const message = assistant(text);
       write({ type: "message_start", message });

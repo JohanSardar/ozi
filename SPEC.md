@@ -98,6 +98,7 @@ Cases freeze the original message, native prefix, attachment bytes, expectation 
 - Keys follow Pi: Enter sends, steering main's active turn when it works; Alt+Enter queues a follow-up, shown until it starts. Esc stops main. Ctrl+C clears the editor; twice exits. Slash commands autocomplete: `/jobs`, `/attach <path>`, `/stop`, `/quit`.
 - `/jobs` lists cards by column. A card shows title, agent, report and requests. Questions pick an option or take text, approvals allow or deny, secrets use masked input that is never rendered, Blocked takes a reply. Close sends the displayed `eventId`; errors such as `StaleEvent` show as one line. Stop and Open are separate. Open shows the lead's conversation and the editor addresses the lead until Esc.
 - Settings → Connections in the packaged desktop app installs or removes the `ozi` command: the app's launcher under its home, linked from a folder on PATH. Unpackaged builds hide the row, so the real-agent run verifies it.
+- Tool calls render like Pi's: commands, file changes and Pi tools in boxes colored by status with up to ten output lines; Ozi tool calls as one dim line.
 - A card entering Needs you adds one line to the conversation. HTML replies, MCP apps, images and the shared browser show a one-line pointer to the desktop app.
 
 ## Retained surface
@@ -263,7 +264,7 @@ The harness runs `ozi` in a real pseudo-terminal through util-linux `script`, ty
 
 - `m7.cli-text`: without `--json`, listing commands print short text with short IDs; a unique ID substring resolves and an ambiguous one fails in one line.
 - `m7.remote-cli`: a second home connects with a pairing URL; `say`, `jobs`, `answer` and `wait` reach the first server; a used or invalid token and a revoked session fail in one line; `disconnect` removes the saved remote.
-- `m7.tui-chat`: the app opens on main; a typed message reaches main and its markdown reply renders; Enter while main works steers it; Alt+Enter queues a follow-up that stays queued after Esc stops main; `/attach` sends a file; Ctrl+C twice exits.
+- `m7.tui-chat`: the app opens on main; a typed message reaches main and its markdown reply renders; a command main runs shows as a tool box with its output; Enter while main works steers it; Alt+Enter queues a follow-up that stays queued after Esc stops main; `/attach` sends a file; Ctrl+C twice exits.
 - `m7.tui-question`: a worker's question adds a Needs you line and count; picking an option in `/jobs` resumes the worker and the card reaches Ready.
 - `m7.tui-close`: closing a Ready card moves it to Done; closing a card whose event changed shows `StaleEvent` and changes nothing.
 - `m7.tui-secret`: a secret request takes masked input; the value never appears on screen or in card data.
