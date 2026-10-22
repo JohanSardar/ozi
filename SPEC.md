@@ -93,7 +93,7 @@ Cases freeze the original message, native prefix, attachment bytes, expectation 
 
 Device and simulator support is removed, including its RPC methods, MCP tools, settings, models and tool downloads. Shared browser streaming remains. Terminal sessions, their RPC streams, project setup terminals and sign-in terminal rendering are removed. Desktop and server self-update RPCs, update feeds, IPC and controls are removed. Resource monitoring, product analytics and power/activity reporting are removed. macOS packaging has no Rust prerequisite; Linux capture helpers retain their Rust builds. T3 deployment infrastructure and vendored Alchemy references are removed. The T3 welcome wizard and its stored completion marker are removed; provider setup remains in Settings. All product labels and desktop identifiers use Ozi. Desktop and web share the neutral blue icon; package names remain internal.
 
-Only Pi, Claude and Codex providers and desktop and web clients ship. Provider registration, models, settings, usage and packaging follow this boundary. T3 Connect, cloud accounts, tunnels, relay discovery and signed cloud proofs are removed. Remote pairing over direct network connections, SSH and Tailscale remains. Webhooks use the configured public URL directly.
+Only Pi, Claude and Codex providers and desktop and web clients ship. Provider registration, models, settings, usage and packaging follow this boundary. T3 Connect, cloud accounts, tunnels, relay discovery and signed cloud proofs are removed. Remote pairing over direct network connections, SSH and Tailscale remains. Webhooks use the configured public URL directly. Removal migrations follow M6’s fixes schema.
 
 ### Desktop
 
@@ -129,6 +129,7 @@ One binary, `ozi`. Every command takes `--json`. Command failures exit nonzero w
 | `ozi serve [--home] [--data-root] [--port] [--host] [--public-url]`             | Run the server.                                                                                        |
 | `ozi service install\|status\|restart\|uninstall`                               | systemd user service.                                                                                  |
 | `ozi pair`                                                                      | Pairing URL for a new client.                                                                          |
+| `ozi request <RPC-or-path>… [--method GET                                       | POST] [--payload JSON]`                                                                                | Send authenticated requests to the running server and report each RPC result or HTTP status. |
 | `ozi status`                                                                    | Server, main thread, effective loadouts (model, options, tools, prompt hash), providers.               |
 | `ozi say <text> [--file <path>]…`                                               | Message main; queues when busy.                                                                        |
 | `ozi steer <text> [--thread <id>]`                                              | Steer the active turn.                                                                                 |
@@ -216,7 +217,7 @@ Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` 
 - `m4.webhook`: a signed POST wakes main; bad signature rejected; duplicate suppressed; filter applied.
 - `m4.base-url`: schedules report webhook URLs on the configured base URL.
 - `m4.todos`: external to-dos show labeled; offline/malformed source shows unavailable, not empty; no config hides them.
-- `m4.removed`: no relay, device, terminal, PR or diff paths remain.
+- `m4.removed`: the real server rejects all retired RPC methods and Connect routes, CLI commands are absent, and removed tracked package sources, paths and native resource-monitor bundling are gone. Ozi desktop metadata and macOS preflight have no T3 identity or Rust requirement.
 
 ### M5 Replay
 

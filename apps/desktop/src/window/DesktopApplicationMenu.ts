@@ -240,10 +240,6 @@ export const make = Effect.gen(function* () {
         ],
       },
       { role: "windowMenu" },
-      {
-        role: "help",
-        submenu: [],
-      },
     );
 
     yield* electronMenu.setApplicationMenu(template);

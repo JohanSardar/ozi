@@ -433,3 +433,252 @@ it("m4.todos maps MCP data, retains stale rows, hides unconfigured sources and r
     }
   }
 });
+
+it("m4.removed rejects retired APIs and commands and removes their repository slices", async () => {
+  const removed = [
+    "projects.list",
+    "projects.add",
+    "projects.remove",
+    "projects.listEntries",
+    "projects.listIgnoredFiles",
+    "projects.readFile",
+    "projects.searchContents",
+    "projects.searchEntries",
+    "projects.writeFile",
+    "projects.mutate",
+    "projects.ensureScratch",
+    "projects.createNew",
+    "filesystem.browse",
+    "filesystem.getMetadata",
+    "agentSessions.scan",
+    "agentSessions.import",
+    "vcs.pull",
+    "vcs.refreshStatus",
+    "vcs.listRefs",
+    "vcs.createWorktree",
+    "vcs.removeWorktree",
+    "vcs.createRef",
+    "vcs.switchRef",
+    "vcs.init",
+    "git.runStackedAction",
+    "git.resolvePullRequest",
+    "git.preparePullRequestThread",
+    "review.getDiffPreview",
+    "review.getDiffFileContents",
+    "terminal.open",
+    "terminal.attach",
+    "terminal.observe",
+    "terminal.write",
+    "terminal.resize",
+    "terminal.clear",
+    "terminal.restart",
+    "terminal.close",
+    "device.configure",
+    "device.list",
+    "device.testHost",
+    "device.easAccount",
+    "device.open",
+    "device.close",
+    "device.shutdown",
+    "device.detail",
+    "device.action",
+    "server.updateServer",
+    "server.updateServerWithProgress",
+    "server.commitDesktopUpdate",
+    "server.runStorageCleanup",
+    "server.getStorageCleanupReport",
+    "server.discoverSourceControl",
+    "server.getProcessDiagnostics",
+    "server.getHostResources",
+    "server.getProcessResourceHistory",
+    "server.getResourceTelemetryHistory",
+    "server.retryResourceTelemetry",
+    "server.signalProcess",
+    "server.reportClientActivity",
+    "server.reportHostPowerState",
+    "server.getBackgroundPolicy",
+    "cloud.getRelayClientStatus",
+    "cloud.installRelayClient",
+    "pullRequests.list",
+    "pullRequests.listStats",
+    "pullRequests.summary",
+    "pullRequests.routing",
+    "pullRequests.routingIdentity",
+    "pullRequests.stack",
+    "pullRequests.linkedThreads",
+    "pullRequests.detail",
+    "pullRequests.preview",
+    "pullRequests.checks",
+    "pullRequests.activity",
+    "pullRequests.reviewGuide",
+    "pullRequests.generateReviewGuide",
+    "pullRequests.threadComments",
+    "pullRequests.diffFileContents",
+    "pullRequests.filesViewed",
+    "pullRequests.changeBreakdown",
+    "pullRequests.setFilesViewed",
+    "pullRequests.runAction",
+    "pullRequests.update",
+    "pullRequests.comment",
+    "pullRequests.updateComment",
+    "pullRequests.submitReview",
+    "pullRequests.replyToThread",
+    "pullRequests.setThreadResolution",
+    "pullRequests.setReaction",
+    "pullRequests.invalidate",
+    "pullRequests.reportState",
+    "pullRequests.subscribeRefreshes",
+    "pullRequests.reviewerCandidates",
+    "pullRequests.requestReviewers",
+    "pullRequests.labelCandidates",
+    "pullRequests.setLabels",
+    "sourceControl.lookupRepository",
+    "sourceControl.cloneRepository",
+    "sourceControl.publishRepository",
+    "projectClone.start",
+    "projectClone.cancel",
+    "projectClone.retry",
+    "subscribeProjectClones",
+    "subscribeVcsStatus",
+    "subscribeWorktreeSetup",
+    "worktreeSetup.cancel",
+    "subscribeTerminalEvents",
+    "subscribeTerminalMetadata",
+    "subscribeDeviceState",
+    "subscribeBackgroundPolicy",
+    "subscribeResourceTelemetry",
+  ];
+  const rpcs = await h.ozi<
+    Array<{
+      target: string;
+      ok: boolean;
+      result?: { environment: { capabilities: Record<string, unknown> } };
+      error?: string;
+    }>
+  >("request", "server.getConfig", ...removed);
+  expect(rpcs[0]?.ok).toBe(true);
+  expect(rpcs).toHaveLength(removed.length + 1);
+  for (const row of rpcs.slice(1)) {
+    expect(row.ok, row.target).toBe(false);
+    expect(row.error, row.target).toContain("Unknown request tag: " + row.target);
+  }
+  for (const name of [
+    "repositoryIdentity",
+    "requiredWorktreeBootstrap",
+    "storageCleanup",
+    "storageCleanupRun",
+    "projectWorktreeCleanup",
+    "settledWorktreeCleanup",
+    "threadSettlement",
+    "threadPullRequests",
+    "threadPullRequestWatch",
+    "threadPullRequestLinking",
+    "projectCloneTracking",
+    "ignoredFileListing",
+  ])
+    expect(rpcs[0]?.result?.environment.capabilities).not.toHaveProperty(name);
+  const routes = [
+    "/api/connect/link-proof",
+    "/api/connect/relay-config",
+    "/api/connect/reachability",
+    "/api/connect/unlink",
+    "/api/connect/preferences",
+    "/api/connect/mint-credential",
+    "/api/t3-connect/health",
+    "/api/t3-connect/mint-credential",
+  ];
+  const responses = await h.ozi<Array<{ target: string; status: number }>>(
+    "request",
+    "--method",
+    "POST",
+    ...routes,
+  );
+  for (const row of responses) expect(row.status, row.target).toBe(404);
+  const reads = await h.ozi<Array<{ target: string; status: number }>>(
+    "request",
+    "/.well-known/t3/environment",
+    "/api/connect/link-state",
+  );
+  expect(reads.map((row) => row.status)).toEqual([200, 404]);
+  for (const command of [
+    "connect",
+    "cloud",
+    "relay",
+    "device",
+    "terminal",
+    "git",
+    "vcs",
+    "review",
+    "diff",
+    "pull-request",
+    "project",
+    "update",
+    "__service-launcher",
+    "__service-preflight",
+  ])
+    await expect(h.ozi(command)).rejects.toThrow(/Unknown subcommand/);
+  const { migrationEntries } = await import("../apps/server/src/persistence/Migrations.ts");
+  const ids = migrationEntries.map(([id]) => id);
+  expect(new Set(ids).size).toBe(ids.length);
+  expect(ids).toEqual([...ids].sort((a, b) => a - b));
+  const fixes = migrationEntries.find(([, name]) => name === "OziFixes")![0];
+  for (const [id, name] of migrationEntries)
+    if (/^Remove(?:SourceControl|Relay|Workspace)/.test(name)) expect(id).toBeGreaterThan(fixes);
+  const root = NodeURL.fileURLToPath(new URL("..", import.meta.url));
+  const tracked = await new Promise<string>((resolve, reject) =>
+    NodeChildProcess.execFile(
+      "git",
+      ["ls-files", "-z"],
+      { cwd: root, maxBuffer: 16 * 1024 * 1024 },
+      (error, stdout) => (error ? reject(error) : resolve(stdout)),
+    ),
+  ).then((output) => output.split("\0"));
+  for (const path of [
+    "infra",
+    "native/resource-monitor",
+    "apps/server/src/cloud",
+    "apps/server/src/relay",
+    "apps/server/src/device",
+    "apps/server/src/terminal",
+    "apps/server/src/sourceControl",
+    "apps/server/src/vcs",
+    "apps/server/src/git",
+    "apps/server/src/pullRequests",
+    "apps/web/src/cloud",
+    "apps/web/src/onboarding",
+    "apps/web/src/components/terminal",
+    "apps/web/src/components/vcs",
+    "apps/web/src/routes/connect.tsx",
+    "packages/contracts/src/relay.ts",
+    "packages/client-runtime/src/relay",
+    "packages/shared/src/relayJwt.ts",
+    "packages/source-control-azure-devops",
+    "packages/source-control-bitbucket",
+    "packages/source-control-core",
+    "packages/source-control-forgejo",
+    "packages/source-control-gitcafe",
+    "packages/source-control-github",
+    "packages/source-control-gitlab",
+    "packages/source-control-testing",
+  ])
+    expect(
+      tracked.some((file) => file === path || file.startsWith(path + "/")),
+      path,
+    ).toBe(false);
+  const workspace = await NodeFSP.readFile(root + "/pnpm-workspace.yaml", "utf8");
+  const lock = await NodeFSP.readFile(root + "/pnpm-lock.yaml", "utf8");
+  expect(workspace + lock).not.toMatch(
+    /source-control-|t3code-relay|node-pty|electron-updater|@clerk\/|alchemy|resource-monitor/,
+  );
+  const build = await NodeFSP.readFile(root + "/scripts/build-desktop-artifact.ts", "utf8");
+  const mac = build.slice(
+    build.indexOf("export const preflightMacDesktopBuild"),
+    build.indexOf("export const preflightMacDesktopBuild") + 1800,
+  );
+  expect(mac).toContain("clang");
+  expect(mac).not.toMatch(/cargo|rustc|rustTargets|resourceMonitor/);
+  expect(build).not.toMatch(/stageResourceMonitor|resource-monitor/);
+  expect(build).toContain('const DESKTOP_APP_ID = "com.ozi.app"');
+  const desktop = JSON.parse(await NodeFSP.readFile(root + "/apps/desktop/package.json", "utf8"));
+  expect(desktop.productName).toBe("Ozi");
+});

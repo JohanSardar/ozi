@@ -436,7 +436,6 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
   let expiresAt = (yield* Clock.currentTimeMillis) + ASSET_TOKEN_TTL_MS;
   let claims: AssetClaims;
   let fileName: string;
-  let sourcePath: string | undefined;
   let imageDimensions: ImageDimensions | null = null;
 
   switch (input.resource._tag) {
@@ -627,7 +626,6 @@ export const issueAssetUrl = Effect.fn("AssetAccess.issueAssetUrl")(function* (i
   return {
     relativeUrl: `${ASSET_ROUTE_PREFIX}/${token}/${encodeURIComponent(fileName)}`,
     expiresAt,
-    ...(sourcePath !== undefined ? { sourcePath } : {}),
     ...(imageDimensions !== null ? { imageDimensions } : {}),
   };
 });
