@@ -27,7 +27,6 @@ catalog:
   "@effect/platform-node": 4.0.5
   "@effect/platform-node-shared": 4.0.5
   "@effect/tsgo": 0.51.1
-  "@effect/vitest": 4.0.5
   "@noble/curves": 1.9.1
   "@noble/hashes": 1.8.0
   "@types/node": 24.12.4
@@ -77,7 +76,6 @@ minimumReleaseAgeExclude:
   - "@effect/platform-node@4.0.5"
   - "@effect/sql-pg@4.0.5"
   - "@effect/sql-sqlite-do@4.0.5"
-  - "@effect/vitest@4.0.5"
   - effect@4.0.5
   - electron@44.4.5
   - "@anthropic-ai/claude-agent-sdk@0.3.276"
@@ -99,8 +97,6 @@ overrides:
   "@effect/atom-react": "catalog:"
   "@effect/platform-node": "catalog:"
   "@effect/platform-node-shared": "catalog:"
-  "@effect/vitest": "catalog:"
-  "@effect/vitest>vitest": "-"
   remark-math>micromark-extension-math: npm:micromark-extension-llm-math@3.1.0
   micromark-extension-gfm-table: 2.1.1
   "@tailwindcss/node": "catalog:"
@@ -119,15 +115,10 @@ overrides:
   vite: "catalog:"
   vite-plus: "catalog:"
   yaml: "catalog:"
-packageExtensions:
-  "@effect/vitest@*":
-    dependencies:
-      vite-plus: "catalog:"
 patchedDependencies:
   mdast-util-math@3.0.0: patches/mdast-util-math@3.0.0.patch
   micromark-extension-llm-math@3.1.0: patches/micromark-extension-llm-math@3.1.0.patch
   micromark-extension-gfm-table@2.1.1: patches/micromark-extension-gfm-table@2.1.1.patch
-  "@effect/vitest@4.0.5": patches/@effect__vitest@4.0.5.patch
   "@ff-labs/fff-node@0.11.0": patches/@ff-labs__fff-node@0.11.0.patch
   dbus-next@0.10.2: patches/dbus-next@0.10.2.patch
   app-builder-lib@26.16.1: patches/app-builder-lib@26.16.1.patch

@@ -301,8 +301,7 @@
     }
   },
   "scripts": {
-    "typecheck": "tsc-rs --noEmit",
-    "test": "vp test run"
+    "typecheck": "tsc-rs --noEmit"
   },
   "dependencies": {
     "@t3tools/contracts": "workspace:*",
@@ -310,7 +309,6 @@
     "effect": "catalog:"
   },
   "devDependencies": {
-    "@effect/vitest": "catalog:",
     "vite-plus": "catalog:"
   }
 }

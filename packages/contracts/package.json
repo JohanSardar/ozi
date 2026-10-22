@@ -17,14 +17,12 @@
     }
   },
   "scripts": {
-    "typecheck": "tsc-rs --noEmit",
-    "test": "vp test run --config ../../vite.config.ts --dir ."
+    "typecheck": "tsc-rs --noEmit"
   },
   "dependencies": {
     "effect": "catalog:"
   },
   "devDependencies": {
-    "@effect/vitest": "catalog:",
     "vite-plus": "catalog:"
   }
 }

@@ -126,3 +126,27 @@ it("m6.audit bundled desktop starts ozi serve and pairs through Connections", as
     await local.close();
   }
 }, 360_000);
+
+it("m6.audit tests and provider fakes live only in e2e", async () => {
+  const paths = (await exec("git", ["ls-files", "-z"])).split("\0").filter(Boolean);
+  const violations: string[] = [];
+  for (const path of paths) {
+    if (path.startsWith(".repos/") || path.startsWith("e2e/")) continue;
+    if (!(await NodeFSP.lstat(NodePath.join(repo, path)).catch(() => null))) continue;
+    if (
+      /\.(?:test|spec|testkit|testFixtures)\.[cm]?[jt]sx?$|(?:^|\/)(?:testUtils|testFixtures|testkit|testing)\//.test(
+        path,
+      )
+    )
+      violations.push(path);
+    if (!/\.(?:[cm]?[jt]sx?|json)$/.test(path)) continue;
+    const source = await NodeFSP.readFile(NodePath.join(repo, path), "utf8");
+    if (
+      /(?:from\s+|import\s*\(|require\s*\()['"](?:@effect\/vitest|@vitest\/|vitest|@t3tools\/provider-testing)/.test(
+        source,
+      )
+    )
+      violations.push(`${path}: test-only import`);
+  }
+  expect(violations).toEqual([]);
+});
