@@ -158,7 +158,7 @@ function JobCard({
   const [error, setError] = useState<string | null>(null);
   const inFlight = useRef(false);
   const commandId = useRef(CommandId.make(randomUUID()));
-  const eventId = card.report?.eventId ?? card.requestEventId;
+  const eventId = card.eventId;
   const act = async (action: "close" | "stop") => {
     if (inFlight.current || !connected) return;
     inFlight.current = true;
@@ -281,7 +281,11 @@ export function JobPanel({
   connected,
   unavailable,
   ...actions
-}: JobActions & { cards: readonly OziJobCard[]; connected: boolean; unavailable?: string }) {
+}: JobActions & {
+  cards: readonly OziJobCard[];
+  connected: boolean;
+  unavailable?: string | undefined;
+}) {
   return (
     <aside className={styles["ozi-job-panel"]} aria-label="Jobs">
       {!connected && (
@@ -308,7 +312,7 @@ export function JobPanel({
             {list.length ? (
               list.map((card) => (
                 <JobCard
-                  key={`${card.jobId}:${card.column}:${card.report?.eventId ?? card.requestEventId}`}
+                  key={`${card.jobId}:${card.eventId}`}
                   card={card}
                   connected={connected && !unavailable}
                   {...actions}

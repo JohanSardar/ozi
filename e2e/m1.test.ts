@@ -360,15 +360,8 @@ it("m1.remote-client pairs Chromium over the network address and chats", async (
   await h.script([{ match: "browser-message", steps: [{ say: "browser-response" }] }]);
   const page = await h.page();
   await page.waitForURL((url) => url.pathname !== "/pair", { timeout: 30_000 });
-  const environmentId = (await h.status()).server.environment.environmentId;
-  await page.goto(
-    new URL(
-      `/${encodeURIComponent(environmentId)}/${encodeURIComponent(threadId)}`,
-      page.url(),
-    ).toString(),
-  );
-  await page.getByText("ready", { exact: true }).first().waitFor();
-  const editor = page.locator('[contenteditable="true"]').first();
+  const editor = page.getByRole("textbox", { name: "Message Ozi", exact: true });
+  await editor.waitFor();
   await editor.fill("browser-message");
   await page.getByRole("button", { name: "Submit message", exact: true }).click();
   await h.ozi("wait", "thread", threadId, "text:browser-response", "--timeout", "20");

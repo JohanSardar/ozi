@@ -4,6 +4,12 @@ import {
   ChatAttachment,
   ChatAttachmentId,
   CommandId,
+  EventId,
+  OZI_MAIN_THREAD_ID,
+  OZI_WS_METHODS as J,
+  OziJobCard,
+  RuntimeRequestId,
+  TurnItemId,
   MessageId,
   ProviderInstanceId,
   ORCHESTRATION_V2_WS_METHODS as O,
@@ -120,7 +126,7 @@ const snapshot = Effect.fn("ozi.snapshot")(function* (client: Client) {
 });
 
 const mainThread = (shell: OrchestrationV2ShellSnapshot) =>
-  shell.threads.find((thread) => thread.role === "main");
+  shell.threads.find((thread) => thread.id === OZI_MAIN_THREAD_ID);
 
 const targetThread = Effect.fn("ozi.targetThread")(function* (
   client: Client,
@@ -321,6 +327,108 @@ const threadCommand = Command.make("thread", {
   ),
 );
 
+const jobsCommand = Command.make("jobs", locationFlags).pipe(
+  Command.withHandler((flags) =>
+    Effect.gen(function* () {
+      const { client } = yield* connect(flags.baseDir);
+      yield* emit(Schema.Array(OziJobCard), yield* client[J.jobsGet]({}));
+    }),
+  ),
+);
+const jobCommand = Command.make("job", {
+  ...locationFlags,
+  id: Argument.String("id").pipe(Argument.withSchema(ThreadId)),
+}).pipe(
+  Command.withHandler((flags) =>
+    Effect.gen(function* () {
+      const { client } = yield* connect(flags.baseDir);
+      const card = (yield* client[J.jobsGet]({})).find((card) => card.jobId === flags.id);
+      if (!card) return yield* new ClientError({ operation: "found no such job" });
+      yield* emit(Schema.Struct({ card: OziJobCard, lead: OrchestrationV2ThreadProjection }), {
+        card,
+        lead: yield* client[O.getThreadProjection]({ threadId: flags.id }),
+      });
+    }),
+  ),
+);
+const closeCommand = Command.make("close", {
+  ...locationFlags,
+  jobId: Argument.String("jobId").pipe(Argument.withSchema(ThreadId)),
+  eventId: Argument.String("eventId").pipe(Argument.withSchema(EventId)),
+  commandId: Flag.String("command-id").pipe(Flag.withSchema(CommandId), Flag.optional),
+}).pipe(
+  Command.withHandler((flags) =>
+    Effect.gen(function* () {
+      const { client } = yield* connect(flags.baseDir);
+      yield* emit(
+        OrchestrationV2DispatchCommandResult,
+        yield* client[J.jobsHandle]({
+          commandId: Option.isSome(flags.commandId)
+            ? flags.commandId.value
+            : CommandId.make(yield* (yield* Crypto.Crypto).randomUUIDv4()),
+          jobId: flags.jobId,
+          eventId: flags.eventId,
+          evidence: { type: "close" },
+        }),
+      );
+    }),
+  ),
+);
+const answerCommand = Command.make("answer", {
+  ...locationFlags,
+  requestId: Argument.String("requestId"),
+  values: Argument.String("value").pipe(Argument.atLeast(1)),
+}).pipe(
+  Command.withHandler((flags) =>
+    Effect.gen(function* () {
+      const { client } = yield* connect(flags.baseDir);
+      const request = (yield* client[J.jobsGet]({}))
+        .flatMap((card) => card.requests)
+        .find((request) => request.id === flags.requestId);
+      if (!request) return yield* new ClientError({ operation: "found no such request" });
+      const value = flags.values.join(" ");
+      if (request.kind === "secret") {
+        yield* client[W.secretsAnswerRequest]({
+          threadId: request.threadId,
+          turnItemId: TurnItemId.make(request.id),
+          answer: { type: "save", secret: value },
+        });
+        yield* print({ answered: true });
+        return;
+      }
+      if (request.kind !== "question" && request.kind !== "approval")
+        return yield* new ClientError({ operation: "requires the indicated human action" });
+      if (request.kind === "approval" && value !== "allow" && value !== "deny")
+        return yield* new ClientError({ operation: "approval requires allow or deny" });
+      const projection = yield* client[O.getThreadProjection]({ threadId: request.threadId });
+      const item = projection.turnItems.find(
+        (item) => item.type === "user_input_request" && item.requestId === request.id,
+      );
+      const answers =
+        item?.type === "user_input_request"
+          ? Object.fromEntries(
+              item.questions.map((question, index) => [
+                question.id,
+                item.questions.length === 1 ? value : (flags.values[index] ?? ""),
+              ]),
+            )
+          : {};
+      yield* emit(
+        OrchestrationV2DispatchCommandResult,
+        yield* client[O.dispatchCommand]({
+          type: "runtime-request.respond",
+          commandId: CommandId.make(yield* (yield* Crypto.Crypto).randomUUIDv4()),
+          threadId: request.threadId,
+          requestId: RuntimeRequestId.make(request.id),
+          ...(request.kind === "approval"
+            ? { decision: value === "allow" ? ("accept" as const) : ("decline" as const) }
+            : { answers }),
+        }),
+      );
+    }),
+  ),
+);
+
 const waitCommand = Command.make("wait", {
   ...locationFlags,
   entity: Argument.Literals("entity", ["thread", "job", "check"]),
@@ -334,6 +442,20 @@ const waitCommand = Command.make("wait", {
   Command.withHandler((flags) =>
     Effect.gen(function* () {
       const { client } = yield* connect(flags.baseDir);
+      if (flags.entity === "job") {
+        const result = yield* client[J.jobsSubscribe]({}).pipe(
+          Stream.map((cards) =>
+            cards.find((card) => card.jobId === flags.id && card.column === flags.state),
+          ),
+          Stream.filter((card): card is OziJobCard => card !== undefined),
+          Stream.runHead,
+          Effect.timeout(`${flags.timeout} seconds`),
+        );
+        if (Option.isNone(result))
+          return yield* new ClientError({ operation: "jobs subscription ended" });
+        yield* emit(OziJobCard, result.value);
+        return;
+      }
       const threadId = ThreadId.make(flags.id);
       const { client: reader } = yield* connect(flags.baseDir);
       const result = yield* client[O.subscribeThread]({ threadId }).pipe(
@@ -387,4 +509,8 @@ export const clientCommands = [
   threadCommand,
   waitCommand,
   pairCommand,
+  jobsCommand,
+  jobCommand,
+  answerCommand,
+  closeCommand,
 ];

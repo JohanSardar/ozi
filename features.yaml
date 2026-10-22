@@ -85,8 +85,8 @@ features:
     status: passing
   - id: job-cards
     reqs: [one-job-per-outcome, card-columns]
-    module: Jobs
-    cli: [jobs, job]
+    module: ozi/Jobs.ts
+    cli: [jobs, job, close, wait]
     milestone: 2
     scenarios:
       [
@@ -98,21 +98,21 @@ features:
         m2.main-without-worker,
         m2.restart,
       ]
-    status: planned
+    status: passing
   - id: card-requests
     reqs: [on-cards, does-it-itself]
-    module: Jobs
+    module: ozi/Jobs.ts
     cli: [answer]
     milestone: 2
     scenarios: [m2.question-card, m2.approval-card, m2.secret-card]
-    status: planned
+    status: passing
   - id: panel
     reqs: [one-conversation, drawer, card-columns]
     module: apps/web/src/components/ozi + e2e/m2.ui.test.ts
     cli: [jobs]
     milestone: 2
     scenarios: [m2.drawer, m2.no-thread-list]
-    status: building
+    status: passing
   - id: completion-check
     reqs: [end-of-turn-check]
     module: Completion

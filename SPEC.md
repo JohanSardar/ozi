@@ -27,10 +27,14 @@ New code lives in `apps/server/src/ozi/` and `apps/web/src/components/ozi/`. Eve
 
 ### Jobs (`ozi/Jobs.ts`)
 
-- `cards(mainThreadId) → JobCard[]` via existing snapshots/subscriptions.
+- `cards(mainThreadId) → JobCard[]` via authenticated `ozi.jobs.get` and `ozi.jobs.subscribe` (empty payload, stream of card arrays). `ozi.jobs.handle` returns the existing command receipt sequence.
+- Cards expose `jobId`, current `eventId`, title, column, agent, short status, `checking`, `requestEventId`, report, requests with owner thread IDs, `handledEventId`, and `updatedAt`. Secret values never enter cards. M2 reports are null; completed leads stay Running/checking until M3.
 - `handle({commandId, jobId, eventId, evidence}) → CommandReceipt`. Errors: `UnknownJob`, `WrongJob`, `StaleEvent`, `InvalidEvidence`, no mutation.
 - Thread fields only: `jobId`, `visibility`, `handledEventId`. No job tables.
 - Column: any unresolved question/approval/secret/login/Blocked in the job → Needs you; else unresolved or unchecked work → Running; checked lead report for current request → Ready; handled → Done. Newer request, actionable event or result reopens.
+- M2 accepts close evidence against the exact current `eventId`; accepted/verified evidence requires M3. `ozi close --command-id` retries the same command without closing a newer event. Close leaves active work and requests alone.
+- Main alone may pass `jobId` to delegation. Helpers inherit it; related follow-ups use the lead's existing send/queue path. An unavailable worker leaves a lead with its blocker and no agent run. Scheduled jobs inherit quiet visibility; internal threads do not appear in cards.
+- The current request follows its source event through lead sends, steering and queued follow-ups; event order, not the clock, identifies it.
 
 ### Completion (`ozi/Completion.ts`)
 
@@ -50,8 +54,7 @@ New code lives in `apps/server/src/ozi/` and `apps/web/src/components/ozi/`. Eve
 - The app opens at `/` into `ozi-main`. No thread list, projects, drafts, workspace selectors or branch controls. Settings retain connections, providers, appearance, keybindings, scheduled tasks and licenses. New schedules target main.
 - `JobPanel` renders supplied `OziJobCard[]` with answer, handle, stop and open callbacks. Four sections with counts and empty states; Needs you count in the title bar. Questions, approvals, private entry and reports stay on cards. Close and Stop are separate. Status indicators are static.
 - Opening a card mounts `JobDrawer`, which loads the lead's brief and conversation on demand. Its composer addresses the lead. The main composer remains mounted and usable. HTML replies, MCP apps and the shared browser remain available. To-dos below jobs, labeled with their source, arrive in M4.
-- Until the Jobs RPCs land, the app shows job updates as unavailable and disables job mutations. It does not derive cards from thread shells or acknowledge commands optimistically. Request responses and stop already use the existing owner-specific commands.
-- Remaining integration: add a client-runtime subscription atom for `OZI_WS_METHODS.jobsSubscribe` with `{}` payload and a command atom for `OZI_WS_METHODS.jobsHandle`, then expose them through a web `useOziJobs` hook. In `OziWorkspace`, replace the unavailable source with its cards and freshness state and connect `onHandle` to the command, preserving its command ID and exact event ID. Keep the last cards on disconnect and surface `OziJobError`, including `StaleEvent`. The drawer E2E also needs the server's `ozi jobs` command.
+- Client-runtime atoms subscribe to `ozi.jobs.subscribe` with `{}` and send `ozi.jobs.handle`. `useOziJobs` supplies authoritative cards and session freshness. The panel retains its last cards on disconnect, disables mutations until a current snapshot arrives, and surfaces `OziJobError`, including `StaleEvent`. Close preserves its command ID and exact card `eventId`; commands are never acknowledged optimistically. Answers and stop use the existing owner-specific commands.
 
 ## Retained surface
 
@@ -59,7 +62,7 @@ Only Pi, Claude and Codex providers and desktop and web clients ship. Provider r
 
 ## Main agent
 
-- Startup creates the sole main thread, `ozi-main`, in a Workspace project rooted at `<home>/workspace`. Main delegates in that workspace.
+- Startup creates the sole main thread, `ozi-main`, rooted at `<home>/workspace`. Workers share a per-job scratch directory under `<home>/workspace/jobs/`; execution does not select a project or worktree. Legacy project storage remains for retained scheduler and coding APIs until their owning slices are removed.
 - Thread projections and shells expose `role: "main" | "main-fork" | "worker"` and `effectiveLoadout: {provider, model, options: [{id, value}], toolNames, systemPromptSha256}`. Tool names describe the injected MCP catalog; the hash covers the server-owned prompt. Main forks retain the restricted loadout with role `main-fork`.
 - Main selections are fixed on launch, resume and fork: Pi `anthropic/claude-opus-5-5`, `thinking: high`, `fastMode: false`. Unavailable selections fail. Main cannot change workspace, provider or model, or archive/delete itself.
 - Pi main disables built-in tools, extension/skill/context/prompt-template discovery, and loads only the injected MCP bridge. The server checks the role allowlist on tool calls and limits thread targets to main's own descendants.
@@ -94,9 +97,9 @@ One binary, `ozi`. Every command takes `--json`. Client commands find the server
 | `ozi todos`                                                                     | External to-dos with source and freshness.                                                             |
 | `ozi wait <job\|thread\|check> <id> <state> [--timeout]`                        | Block until the state holds; non-zero on timeout.                                                      |
 
-M1 implements `serve`, `service`, `pair`, `status`, `say`, `steer`, `stop`, `thread`, and `wait`. Other commands arrive with their owning milestones. `--home`/`OZI_HOME` selects server state; `--data-root`/`OZI_DATA_ROOT` selects the data repository. Desktop launchers may use the `--base-dir` alias.
+M1 implements `serve`, `service`, `pair`, `status`, `say`, `steer`, `stop`, `thread`, and `wait`. M2 adds `jobs`, `job`, `answer`, `close`, and `wait job`. Other commands arrive with their owning milestones. `--home`/`OZI_HOME` selects server state; `--data-root`/`OZI_DATA_ROOT` selects the data repository. Desktop launchers may use the `--base-dir` alias.
 
-The CLI resolves main by `role: "main"`; worker and fork activity never changes the default target. `status` returns server configuration, the shell snapshot and the complete main projection with its effective loadout; `thread` returns the complete thread projection. `--fork` creates a child from the latest stable run; other thread flags then address the child. Main and main-fork model changes fail. `wait thread <id> text:<substring>` waits for transcript text. JSON errors retain a non-zero exit code. Uploaded text files include their name, saved path and UTF-8 content in main's prompt so main can delegate a complete brief without file tools.
+The CLI resolves main by its fixed `ozi-main` ID; worker and fork activity never changes the default target. `status` returns server configuration, the shell snapshot and the complete main projection with its effective loadout; `thread` returns the complete thread projection. `--fork` creates a child from the latest stable run; other thread flags then address the child. Main and main-fork model changes fail. `job` returns `{card, lead}`; `jobs` returns a card array. `answer` routes questions, allow/deny approvals and secret entry to the request's owning thread. `wait thread <id> text:<substring>` waits for transcript text; `wait job` uses `needs_you`, `running`, `ready`, or `done`. JSON errors retain a non-zero exit code. Uploaded text files include their name, saved path and UTF-8 content in main's prompt so main can delegate a complete brief without file tools.
 
 ## E2E
 

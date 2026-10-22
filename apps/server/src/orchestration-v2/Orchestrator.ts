@@ -57,6 +57,7 @@ import {
   latestProviderTurnForAttempt,
   orchestrationV2RunWorkStartedAt,
   ProviderInstanceId,
+  ProviderDriverKind,
   ProviderInteractionMode,
   resolveProviderInstanceEnabled,
   type ProviderSessionId,
@@ -64,7 +65,7 @@ import {
   RuntimeMode,
   ThreadLinkedPullRequest,
   ThreadId,
-  type TurnItemId,
+  TurnItemId,
 } from "@t3tools/contracts";
 import { modelSelectionsEqual } from "@t3tools/shared/model";
 import {
@@ -2424,6 +2425,9 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       creationSource: command.creationSource,
       id: command.threadId,
       role: command.threadId === OZI_MAIN_THREAD_ID ? "main" : "worker",
+      jobId: null,
+      visibility: "user",
+      handledEventId: null,
       projectId: command.projectId,
       title: command.title,
       providerInstanceId: command.modelSelection.instanceId,
@@ -6881,6 +6885,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           "providerThreads",
           "providerTurns",
           "attempts",
+          "messages",
         ])
         .pipe(
           Effect.mapError(
@@ -6911,6 +6916,30 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       const parentNode = parentProjection.nodes.find(
         (candidate) => candidate.id === command.parentNodeId,
       );
+      if (command.jobId !== undefined) {
+        const jobId = command.jobId;
+        const lead = yield* projectionStore
+          .getThread(command.jobId)
+          .pipe(
+            Effect.mapError((cause) => new OrchestratorProjectionError({ threadId: jobId, cause })),
+          );
+        if (
+          !isOziMain(parentProjection.thread) ||
+          lead.id !== lead.jobId ||
+          lead.lineage.rootThreadId !== parentProjection.thread.lineage.rootThreadId
+        )
+          return yield* new OrchestratorDispatchError({
+            commandId: command.commandId,
+            commandType: command.type,
+            cause: "Only main may attach work to one of its jobs.",
+          });
+      }
+      if (command.workspaceStrategy !== undefined)
+        return yield* new OrchestratorDispatchError({
+          commandId: command.commandId,
+          commandType: command.type,
+          cause: "Workers run in the installation workspace.",
+        });
       if (
         parentNode === undefined ||
         parentNode.runId !== parentRun.id ||
@@ -6923,16 +6952,19 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         });
       }
 
-      const targetAdapter = yield* providerAdapters.get(command.modelSelection.instanceId).pipe(
-        Effect.mapError(
-          (cause) =>
-            new OrchestratorProviderAdapterError({
-              commandId: command.commandId,
-              providerInstanceId: command.modelSelection.instanceId,
-              cause,
-            }),
-        ),
-      );
+      const targetAdapter =
+        command.launchFailure !== undefined
+          ? { driver: ProviderDriverKind.make("codex") }
+          : yield* providerAdapters.get(command.modelSelection.instanceId).pipe(
+              Effect.mapError(
+                (cause) =>
+                  new OrchestratorProviderAdapterError({
+                    commandId: command.commandId,
+                    providerInstanceId: command.modelSelection.instanceId,
+                    cause,
+                  }),
+              ),
+            );
 
       const now = command.createdAt ?? (yield* DateTime.now);
       const taskNodeId = idAllocator.derive.delegatedTaskNode({
@@ -6968,7 +7000,15 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         }),
         runtimeMode: command.runtimeMode,
         interactionMode: command.interactionMode,
-        ...(command.workspaceStrategy === undefined ? {} : { branch: null, worktreePath: null }),
+        jobId: command.jobId ?? parentProjection.thread.jobId ?? childThreadId,
+        visibility: parentProjection.messages.some(
+          (message) =>
+            message.id === parentRun.userMessageId && message.scheduledTaskId !== undefined,
+        )
+          ? "quiet"
+          : (parentProjection.thread.visibility ?? "user"),
+        branch: null,
+        worktreePath: null,
       };
       const task: OrchestrationV2Subagent = {
         id: taskNodeId,
@@ -6986,10 +7026,10 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         title: command.title ?? null,
         model: command.modelSelection.model,
         ...(command.completionWake === undefined ? {} : { completionWake: command.completionWake }),
-        status: "running",
-        result: null,
+        status: command.launchFailure === undefined ? "running" : "failed",
+        result: command.launchFailure ?? null,
         startedAt: now,
-        completedAt: null,
+        completedAt: command.launchFailure === undefined ? null : now,
         updatedAt: now,
       };
       const taskNode: OrchestrationV2ExecutionNode = {
@@ -6999,7 +7039,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         parentNodeId: command.parentNodeId,
         rootNodeId: parentRun.rootNodeId,
         kind: "subagent",
-        status: "running",
+        status: command.launchFailure === undefined ? "running" : "failed",
         countsForRun: false,
         providerThreadId: null,
         providerTurnId: null,
@@ -7007,7 +7047,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         runtimeRequestId: null,
         checkpointScopeId: null,
         startedAt: now,
-        completedAt: null,
+        completedAt: command.launchFailure === undefined ? null : now,
       };
       const parentProviderTurn = providerTurnForRun(parentProjection, parentRun);
       const taskTurnItem: OrchestrationV2TurnItem = {
@@ -7020,10 +7060,10 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         nativeItemRef: null,
         parentItemId: null,
         ordinal: yield* nextTurnItemOrdinal(parentProjection),
-        status: "running",
+        status: command.launchFailure === undefined ? "running" : "failed",
         title: command.title ?? taskTitle,
         startedAt: now,
-        completedAt: null,
+        completedAt: command.launchFailure === undefined ? null : now,
         updatedAt: now,
         type: "subagent",
         subagentId: taskNodeId,
@@ -7074,6 +7114,35 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         occurredAt: now,
         payload: taskTurnItem,
       });
+
+      if (command.launchFailure !== undefined) {
+        yield* emitEvent({
+          type: "turn-item.updated",
+          threadId: childThreadId,
+          occurredAt: now,
+          payload: {
+            id: TurnItemId.make(`${taskTurnItemId}:blocker`),
+            threadId: childThreadId,
+            runId: null,
+            nodeId: null,
+            providerThreadId: null,
+            providerTurnId: null,
+            nativeItemRef: null,
+            parentItemId: null,
+            ordinal: 0,
+            title: "Worker unavailable",
+            startedAt: now,
+            updatedAt: now,
+            type: "notification",
+            status: "failed",
+            completedAt: now,
+            source: { kind: "system" },
+            outcome: "failed",
+            summary: command.launchFailure,
+          },
+        });
+        return;
+      }
 
       const childMessageCommand = {
         type: "message.dispatch",

@@ -7,6 +7,7 @@ import { CommandId, EventId, RuntimeRequestId, ThreadId, TurnItemId } from "./ba
 export const OZI_MAIN_THREAD_ID = ThreadId.make("ozi-main");
 export const OziThreadRole = Schema.Literals(["main", "main-fork", "worker"]);
 export type OziThreadRole = typeof OziThreadRole.Type;
+export const OziThreadVisibility = Schema.Literals(["user", "quiet", "internal"]);
 
 export const OziEffectiveLoadout = Schema.Struct({
   provider: Schema.String,
@@ -75,6 +76,7 @@ export const OZI_MAIN_TOOL_NAMES = [
   "run_scheduled_task_now",
   "request_secret",
   "read_skill",
+  "handle_job",
 ] as const;
 
 export const OziJobColumn = Schema.Literals(["needs_you", "running", "ready", "done"]);
@@ -98,6 +100,7 @@ export type OziJobReport = typeof OziJobReport.Type;
 
 export const OziJobCard = Schema.Struct({
   jobId: ThreadId,
+  eventId: EventId,
   title: Schema.String,
   column: OziJobColumn,
   agent: Schema.Struct({ provider: Schema.String, model: Schema.String }),
@@ -129,9 +132,14 @@ export type OziJobHandleInput = typeof OziJobHandleInput.Type;
 export class OziJobError extends Schema.TaggedError<OziJobError>()("OziJobError", {
   reason: Schema.Literals(["UnknownJob", "WrongJob", "StaleEvent", "InvalidEvidence"]),
   detail: Schema.String,
-}) {}
+}) {
+  override get message() {
+    return `${this.reason}: ${this.detail}`;
+  }
+}
 
 export const OZI_WS_METHODS = {
+  jobsGet: "ozi.jobs.get",
   jobsSubscribe: "ozi.jobs.subscribe",
   jobsHandle: "ozi.jobs.handle",
 } as const;

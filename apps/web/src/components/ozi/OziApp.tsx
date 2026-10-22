@@ -10,12 +10,11 @@ import { Conversation } from "./Conversation";
 import { JobDrawer } from "./JobDrawer";
 import { JobPanel, NeedsYouPill } from "./JobPanel";
 import { useJobActions } from "./useJobActions";
+import { useOziJobs } from "./useOziJobs";
 import { usePrimaryEnvironment } from "../../state/environments";
 import { PreviewPanel } from "../preview/PreviewPanel";
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { usePreviewSession } from "../preview/usePreviewSession";
-
-const noCards: readonly OziJobCard[] = [];
 
 export function OziApp() {
   const environment = usePrimaryEnvironment();
@@ -34,7 +33,8 @@ function OziWorkspace({
 }: {
   environment: NonNullable<ReturnType<typeof usePrimaryEnvironment>>;
 }) {
-  const cards = noCards;
+  const jobs = useOziJobs(environment.environmentId);
+  const cards = jobs.cards;
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const [opened, setOpened] = useState<OziJobCard | null>(null);
   const [browser, setBrowser] = useState(false);
@@ -118,11 +118,9 @@ function OziWorkspace({
         <JobPanel
           cards={cards}
           connected={environment.connection.phase === "connected"}
-          unavailable="Job updates are unavailable on this server."
+          unavailable={jobs.unavailable}
           {...actions}
-          onHandle={async () => {
-            throw new Error("Closing jobs is unavailable on this server.");
-          }}
+          onHandle={jobs.onHandle}
           onOpen={setOpened}
         />
       </div>

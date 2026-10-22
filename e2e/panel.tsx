@@ -7,6 +7,7 @@ import styles from "../apps/web/src/components/ozi/ozi.module.css";
 const state = new URL(location.href).searchParams.get("state") ?? "running";
 const base: OziJobCard = {
   jobId: ThreadId.make("preview-job"),
+  eventId: EventId.make("preview-update"),
   title: "Arrange a visit",
   column: "running",
   agent: { provider: "codex", model: "gpt-6.1-sol" },

@@ -10,9 +10,13 @@ import {
 } from "./auth.ts";
 import { ORCHESTRATION_V2_WS_METHODS } from "./orchestrationV2.ts";
 import { WS_METHODS } from "./rpc.ts";
+import { OZI_WS_METHODS } from "./ozi.ts";
 
 /** Incremental client enforcement; the server still authorizes every request. */
 export const CLIENT_GUARDED_RPC_SCOPES = {
+  [OZI_WS_METHODS.jobsGet]: AuthOrchestrationReadScope,
+  [OZI_WS_METHODS.jobsSubscribe]: AuthOrchestrationReadScope,
+  [OZI_WS_METHODS.jobsHandle]: AuthOrchestrationOperateScope,
   [WS_METHODS.previewClose]: AuthPreviewOperateScope,
   [WS_METHODS.serverRunStorageCleanup]: AuthSettingsWriteScope,
   [WS_METHODS.serverCheckOtlpEndpoint]: AuthSettingsWriteScope,

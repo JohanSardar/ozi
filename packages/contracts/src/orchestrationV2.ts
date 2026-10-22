@@ -1,5 +1,5 @@
 import { OrchestrationMessageContext } from "./composerContext.ts";
-import { OziEffectiveLoadout, OziThreadRole } from "./ozi.ts";
+import { OziEffectiveLoadout, OziThreadRole, OziThreadVisibility } from "./ozi.ts";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as SchemaAST from "effect/SchemaAST";
@@ -372,6 +372,9 @@ export type OrchestrationV2LimitRecoveryUpdate = typeof OrchestrationV2LimitReco
 
 export const OrchestrationV2AppThread = Schema.Struct({
   ...OrchestrationV2CreationFields,
+  jobId: Schema.optional(Schema.NullOr(ThreadId)),
+  visibility: Schema.optional(OziThreadVisibility),
+  handledEventId: Schema.optional(Schema.NullOr(EventId)),
   role: Schema.optional(OziThreadRole),
   effectiveLoadout: Schema.optional(OziEffectiveLoadout),
   id: ThreadId,
@@ -1808,6 +1811,9 @@ export type OrchestrationV2LatestVisibleMessageSummary =
 
 export const OrchestrationV2ThreadShell = Schema.Struct({
   ...OrchestrationV2CreationFields,
+  jobId: Schema.optional(Schema.NullOr(ThreadId)),
+  visibility: Schema.optional(OziThreadVisibility),
+  handledEventId: Schema.optional(Schema.NullOr(EventId)),
   role: Schema.optional(OziThreadRole),
   effectiveLoadout: Schema.optional(OziEffectiveLoadout),
   id: ThreadId,
@@ -2952,6 +2958,8 @@ export const OrchestrationV2Command = Schema.Union([
   Schema.Struct({
     type: Schema.Literal("delegated_task.request"),
     ...OrchestrationV2CreationFields,
+    jobId: Schema.optional(ThreadId),
+    launchFailure: Schema.optional(Schema.String),
     commandId: CommandId,
     parentThreadId: ThreadId,
     parentRunId: RunId,
