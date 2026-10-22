@@ -10,7 +10,21 @@ if (
   const { ignoreMacosTypeOfServiceEinval } = await import("./outboundHttp.ts");
   ignoreMacosTypeOfServiceEinval();
   const command = process.argv[2];
-  if (["status", "say", "steer", "stop", "thread", "wait", "pair"].includes(command ?? "")) {
+  if (
+    [
+      "status",
+      "say",
+      "steer",
+      "stop",
+      "thread",
+      "wait",
+      "pair",
+      "schedules",
+      "schedule",
+      "todos",
+      "test-clock",
+    ].includes(command ?? "")
+  ) {
     const { runClientCli } = await import("./binClientCli.ts");
     runClientCli();
   } else {

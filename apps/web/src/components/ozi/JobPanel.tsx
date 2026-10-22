@@ -334,7 +334,10 @@ export function JobPanel({
         );
       })}
       {todos && (
-        <section className={styles["ozi-column"]} aria-label="Your to-dos">
+        <section
+          className={`${styles["ozi-column"]} ${styles["ozi-todos"]}`}
+          aria-label="Your to-dos"
+        >
           <h2>
             Your to-dos <span>· {todos.source}</span>
             <button

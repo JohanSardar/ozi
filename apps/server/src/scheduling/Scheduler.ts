@@ -20,7 +20,9 @@ export class Scheduler extends Context.Service<
 >()("t3/scheduling/Scheduler") {}
 
 const make = Effect.gen(function* () {
-  const sources = yield* Ref.make(new Map<symbol, Effect.Effect<void>>());
+  const sources = yield* Ref.make(
+    new Map<symbol, { readonly launch: Effect.Effect<void>; readonly run: Effect.Effect<void> }>(),
+  );
   const register: Scheduler["Service"]["register"] = Effect.fn("Scheduler.register")(function* <
     E,
     R,
@@ -28,20 +30,20 @@ const make = Effect.gen(function* () {
     const scope = yield* Effect.scope;
     const context = yield* Effect.context<R>();
     const permit = yield* Semaphore.make(1);
-    const run = runDueWork.pipe(
+    const work = runDueWork.pipe(
       Effect.provideContext(context),
       Effect.catchCause((cause) =>
         Cause.hasInterruptsOnly(cause)
           ? Effect.void
           : Effect.logWarning("Scheduler source failed", { source: name, cause }),
       ),
-      permit.withPermitsIfAvailable(1),
-      Effect.forkIn(scope),
-      Effect.asVoid,
     );
+    const run = work.pipe(permit.withPermitsIfAvailable(1), Effect.forkIn(scope), Effect.asVoid);
     const id = Symbol(name);
     yield* Effect.acquireRelease(
-      Ref.update(sources, (current) => new Map(current).set(id, run)),
+      Ref.update(sources, (current) =>
+        new Map(current).set(id, { launch: run, run: work.pipe(permit.withPermits(1)) }),
+      ),
       () =>
         Ref.update(sources, (current) => {
           const next = new Map(current);
@@ -53,9 +55,19 @@ const make = Effect.gen(function* () {
     yield* forkParked(run);
   });
   const tick = Ref.get(sources).pipe(
-    Effect.flatMap((current) => Effect.forEach(current.values(), (run) => run, { discard: true })),
+    Effect.flatMap((current) =>
+      Effect.forEach(current.values(), (source) => source.run, {
+        concurrency: "unbounded",
+        discard: true,
+      }),
+    ),
   );
-  yield* forkParked(Effect.sleep("5 seconds").pipe(Effect.andThen(tick), Effect.forever));
+  const launchTick = Ref.get(sources).pipe(
+    Effect.flatMap((current) =>
+      Effect.forEach(current.values(), (source) => source.launch, { discard: true }),
+    ),
+  );
+  yield* forkParked(Effect.sleep("5 seconds").pipe(Effect.andThen(launchTick), Effect.forever));
   return Scheduler.of({ register, tick });
 });
 

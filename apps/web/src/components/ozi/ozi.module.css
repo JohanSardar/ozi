@@ -425,7 +425,19 @@
   position: relative;
   z-index: 1;
 }
+.ozi-todos h2 span {
+  background: none;
+  padding: 0;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: normal;
+}
+.ozi-todos h2 button {
+  margin-left: auto;
+  font-size: 11px;
+}
 .ozi-todo {
+  background: var(--card);
   display: flex;
   align-items: center;
   gap: 8px;

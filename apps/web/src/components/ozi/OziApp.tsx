@@ -97,7 +97,10 @@ function OziWorkspace({
           type="button"
 
           aria-pressed={mobileJobs}
-          onClick={() => setMobileJobs((value) => !value)}
+          onClick={() => {
+            if (!mobileJobs) todos.refresh();
+            setMobileJobs((value) => !value);
+          }}
         >
           Jobs
         </button>

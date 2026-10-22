@@ -518,7 +518,7 @@ const waitCommand = Command.make("wait", {
 const todosCommand = Command.make("todos", {
   ...locationFlags,
   configure: Flag.String("configure").pipe(Flag.optional),
-  clear: Flag.Boolean("clear"),
+  clear: Flag.Boolean("clear").pipe(Flag.withDefault(false)),
 }).pipe(
   Command.withHandler((flags) =>
     Effect.gen(function* () {
@@ -569,7 +569,7 @@ const scheduleAddCommand = Command.make("add", {
   every: Flag.String("every").pipe(Flag.optional),
   at: Flag.String("at").pipe(Flag.optional),
   days: Flag.String("days").pipe(Flag.optional),
-  webhook: Flag.Boolean("webhook"),
+  webhook: Flag.Boolean("webhook").pipe(Flag.withDefault(false)),
   secretRef: Flag.String("secret-ref").pipe(Flag.withSchema(SecretRef), Flag.optional),
   filters: Flag.String("filter").pipe(Flag.atLeast(0)),
   replayKey: Flag.String("replay-key").pipe(Flag.optional),
