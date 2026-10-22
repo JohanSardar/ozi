@@ -106,6 +106,7 @@ import * as ProjectionMaintenance from "./orchestration-v2/ProjectionMaintenance
 import * as ProjectionStore from "./orchestration-v2/ProjectionStore.ts";
 import * as Jobs from "./ozi/Jobs.ts";
 import { Todos } from "./ozi/Todos.ts";
+import { Scheduler } from "./scheduling/Scheduler.ts";
 import * as ThreadManagement from "./orchestration-v2/ThreadManagementService.ts";
 import * as ProjectStore from "./orchestration-v2/ProjectStore.ts";
 import * as OrchestrationEventStore from "./persistence/OrchestrationEventStore.ts";
@@ -503,6 +504,7 @@ const layerUnusedConfigRpcServices = Layer.mergeAll(
   Layer.mock(ThreadManagement.ThreadManagementService)({}),
   Layer.mock(Jobs.Jobs)({}),
   Layer.mock(Todos)({}),
+  Layer.mock(Scheduler)({}),
   Layer.mock(ThreadSearch.ThreadSearch)({}),
   Layer.mock(UsageService.UsageService)({}),
   Layer.mock(VcsProvisioningService.VcsProvisioningService)({}),

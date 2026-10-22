@@ -1183,7 +1183,7 @@ export const layerWsRpc = (
       const threadManagement = yield* ThreadManagementService.ThreadManagementService;
       const jobs = yield* Jobs.Jobs;
       const clock = yield* OziClock;
-      const scheduler = yield* Effect.serviceOption(Scheduler);
+      const scheduler = yield* Scheduler;
       const todos = yield* Todos;
       const intakeContext = yield* Effect.context<
         | ThreadManagementService.ThreadManagementService
@@ -1699,7 +1699,7 @@ export const layerWsRpc = (
           Stream.unwrap(subscribeOrchestrationV2Shell(input)),
         [OZI_WS_METHODS.clockAdvance]: Effect.fn("ozi.clock.advance")(function* ({ milliseconds }) {
           const now = yield* clock.advance(milliseconds);
-          if (Option.isSome(scheduler)) yield* scheduler.value.tick;
+          yield* scheduler.tick;
           return { now };
         }),
         [OZI_WS_METHODS.todosGet]: () => todos.fetch,
