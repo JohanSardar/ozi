@@ -77,6 +77,7 @@ export const OrchestrationV2Actor = Schema.Literals(["user", "agent", "system"])
 export type OrchestrationV2Actor = typeof OrchestrationV2Actor.Type;
 
 export const OrchestrationV2CreationSource = Schema.Literals([
+  "cli",
   "web",
   "mobile",
   "mcp",

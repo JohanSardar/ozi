@@ -1,0 +1,17 @@
+{
+  "name": "@ozi/e2e",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "vp test run",
+    "typecheck": "tsc-rs --noEmit"
+  },
+  "devDependencies": {
+    "@t3tools/contracts": "workspace:*",
+    "@types/node": "catalog:",
+    "effect": "catalog:",
+    "effect-codex-app-server": "workspace:*",
+    "playwright": "1.60.0",
+    "vite-plus": "catalog:"
+  }
+}

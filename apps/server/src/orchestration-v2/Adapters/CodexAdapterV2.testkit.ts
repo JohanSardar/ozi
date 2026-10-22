@@ -147,6 +147,7 @@ export function makeReplayServerConfig(
       port: 0,
       host: undefined,
       cwd: process.cwd(),
+      dataRoot: baseDir,
       baseDir,
       staticDir: undefined,
       devUrl: undefined,

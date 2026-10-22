@@ -138,6 +138,7 @@ import {
   RELAY_URL_SECRET,
 } from "./cloud/config.ts";
 import * as EnvironmentAuth from "./auth/EnvironmentAuth.ts";
+import * as OwnerSession from "./ozi/OwnerSession.ts";
 import * as CloudHttp from "./cloud/http.ts";
 import * as CloudLink from "./cloud/CloudLink.ts";
 import * as ConnectReachability from "./cloud/ConnectReachability.ts";
@@ -762,6 +763,7 @@ const layerMakeServer = Layer.unwrap(
           return;
         }
 
+        yield* OwnerSession.publish();
         const launcher = yield* ServiceLauncherClient.ServiceLauncherClient;
         const state = yield* makePersistedServerRuntimeState({
           config,

@@ -8,7 +8,6 @@ import * as OtelEnvironment from "@t3tools/shared/otelEnvironment";
 import { parsePersistedServerObservabilitySettings } from "@t3tools/shared/serverSettings";
 import { DesktopBackendBootstrap, PortSchema } from "@t3tools/contracts";
 import * as Config from "effect/Config";
-import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as LogLevel from "effect/LogLevel";
@@ -17,7 +16,6 @@ import * as Path from "effect/Path";
 import * as Redacted from "effect/Redacted";
 import * as Schema from "effect/Schema";
 import * as SchemaIssue from "effect/SchemaIssue";
-import * as SchemaTransformation from "effect/SchemaTransformation";
 import { Argument, Flag } from "effect/cli";
 import * as CliError from "effect/cli/CliError";
 
@@ -39,12 +37,12 @@ const hostFlag = Flag.String("host").pipe(
   Flag.withDescription("Host/interface to bind (for example 127.0.0.1, 0.0.0.0, or a Tailnet IP)."),
   Flag.optional,
 );
-export const baseDirFlag = Flag.String("base-dir").pipe(
-  Flag.withDescription(
-    "Explicit T3 Code data directory; runtime state is stored under userdata (equivalent to T3CODE_HOME).",
-  ),
-  Flag.optional,
-);
+export const baseDirFlag = Flag.String("home")
+  .pipe(Flag.withAlias("base-dir"))
+  .pipe(
+    Flag.withDescription("Server home (OZI_HOME); state is stored under userdata."),
+    Flag.optional,
+  );
 const devUrlFlag = Flag.String("dev-url").pipe(
   Flag.withSchema(Schema.URLFromString),
   Flag.withDescription("Dev web URL to proxy/redirect to (equivalent to VITE_DEV_SERVER_URL)."),
@@ -82,6 +80,18 @@ const tailscaleServePortFlag = Flag.Int("tailscale-serve-port").pipe(
   Flag.withSchema(PortSchema),
   Flag.withDescription("HTTPS port for Tailscale Serve when --tailscale-serve is enabled."),
   Flag.optional,
+);
+
+export const homeConfig = Config.all({
+  home: Config.String("OZI_HOME").pipe(Config.option),
+  legacy: Config.String("T3CODE_HOME").pipe(Config.option),
+  dev: Config.String("VITE_DEV_SERVER_URL").pipe(Config.option),
+}).pipe(
+  Config.map(
+    ({ home, legacy, dev }) =>
+      Option.getOrUndefined(home) ??
+      (Option.isSome(dev) ? Option.getOrUndefined(legacy) : undefined),
+  ),
 );
 
 export const traceFileConfig = Config.String("T3CODE_TRACE_FILE").pipe(
@@ -128,7 +138,7 @@ const EnvServerConfig = Config.all({
   ),
   port: Config.Port("T3CODE_PORT").pipe(Config.option, Config.map(Option.getOrUndefined)),
   host: Config.String("T3CODE_HOST").pipe(Config.option, Config.map(Option.getOrUndefined)),
-  t3Home: Config.String("T3CODE_HOME").pipe(Config.option, Config.map(Option.getOrUndefined)),
+  t3Home: homeConfig,
   devUrl: Config.URL("VITE_DEV_SERVER_URL").pipe(Config.option, Config.map(Option.getOrUndefined)),
   devAllowedOrigins: Config.String("T3CODE_DEV_ALLOWED_ORIGINS").pipe(
     Config.withDefault(""),
@@ -190,6 +200,8 @@ export interface CliServerFlags {
   readonly port: Option.Option<number>;
   readonly host: Option.Option<string>;
   readonly baseDir: Option.Option<string>;
+  readonly dataRoot?: Option.Option<string>;
+  readonly json?: boolean;
   readonly cwd: Option.Option<string>;
   readonly devUrl: Option.Option<URL>;
   readonly noBrowser: Option.Option<boolean>;
@@ -205,20 +217,13 @@ export interface CliAuthLocationFlags {
   readonly devUrl?: Option.Option<URL>;
 }
 
-export const authLocationFlags = {
-  baseDir: baseDirFlag,
-  devUrl: devUrlFlag,
-} as const;
-
-export const projectLocationFlags = {
-  baseDir: baseDirFlag,
-} as const;
-
 export const sharedServerCommandFlags = {
   mode: modeFlag,
   port: portFlag,
   host: hostFlag,
   baseDir: baseDirFlag,
+  dataRoot: Flag.String("data-root").pipe(Flag.optional),
+  json: Flag.Boolean("json"),
   cwd: Argument.String("cwd").pipe(
     Argument.withDescription(
       "Working directory for provider sessions (defaults to the current directory).",
@@ -323,6 +328,12 @@ export const resolveServerConfig = Effect.fn("config.resolveServerConfig")(funct
       resolveOptionPrecedence(explicitBaseDir, Option.fromUndefinedOr(bootstrap?.t3Home)),
     ),
   );
+  const dataRoot = path.resolve(
+    yield* expandHomePath(
+      Option.getOrUndefined(flags.dataRoot ?? Option.none()) ??
+        (yield* Config.String("OZI_DATA_ROOT").pipe(Config.withDefault("~/ozi"))),
+    ),
+  );
   const rawCwd = Option.getOrElse(normalizedFlags.cwd, () => process.cwd());
   const cwd = path.resolve(yield* expandHomePath(rawCwd.trim()));
   const derivedPaths = yield* ServerConfig.deriveServerPaths(baseDir, devUrl, {
@@ -340,7 +351,7 @@ export const resolveServerConfig = Effect.fn("config.resolveServerConfig")(funct
       isProcessAlive(runtime.value.pid)
     ) {
       return yield* new CliError.UserError({
-        cause: `A T3 Code server is already running for ${baseDir} (pid ${runtime.value.pid}, ${runtime.value.origin}). Connect to that server, stop it before starting another, or use a different --base-dir.`,
+        cause: `An Ozi server is already running for ${baseDir} (pid ${runtime.value.pid}, ${runtime.value.origin}). Connect to that server, stop it before starting another, or use a different --home.`,
       });
     }
   }
@@ -411,7 +422,7 @@ export const resolveServerConfig = Effect.fn("config.resolveServerConfig")(funct
     ),
     () => (mode === "desktop" ? "127.0.0.1" : undefined),
   );
-  const logLevel = Option.getOrElse(cliLogLevel, () => env.logLevel);
+  const logLevel = flags.json ? "Error" : Option.getOrElse(cliLogLevel, () => env.logLevel);
 
   const otel = yield* OtelEnvironment.load;
 
@@ -460,6 +471,8 @@ export const resolveServerConfig = Effect.fn("config.resolveServerConfig")(funct
     port,
     cwd,
     baseDir,
+    dataRoot,
+    jsonOutput: flags.json ?? false,
     ...derivedPaths,
     serverTracePath,
     host,
@@ -507,66 +520,3 @@ export const resolveCliAuthConfig = (
     },
     cliLogLevel,
   );
-
-const DurationShorthandPattern = /^(?<value>\d+)(?<unit>ms|s|m|h|d|w)$/i;
-
-const parseDurationInput = (value: string): Duration.Duration | null => {
-  const trimmed = value.trim();
-  if (trimmed.length === 0) return null;
-
-  const shorthand = DurationShorthandPattern.exec(trimmed);
-  const normalizedInput = shorthand?.groups
-    ? (() => {
-        const amountText = shorthand.groups.value;
-        const unitText = shorthand.groups.unit;
-        if (typeof amountText !== "string" || typeof unitText !== "string") {
-          return null;
-        }
-
-        const amount = Number.parseInt(amountText, 10);
-        if (!Number.isFinite(amount)) return null;
-
-        switch (unitText.toLowerCase()) {
-          case "ms":
-            return `${amount} millis`;
-          case "s":
-            return `${amount} seconds`;
-          case "m":
-            return `${amount} minutes`;
-          case "h":
-            return `${amount} hours`;
-          case "d":
-            return `${amount} days`;
-          case "w":
-            return `${amount} weeks`;
-          default:
-            return null;
-        }
-      })()
-    : (trimmed as Duration.Input);
-
-  if (normalizedInput === null) return null;
-
-  const decoded = Duration.fromInput(normalizedInput as Duration.Input);
-  return Option.isSome(decoded) ? decoded.value : null;
-};
-
-export const DurationFromString = Schema.String.pipe(
-  Schema.decodeTo(
-    Schema.Duration,
-    SchemaTransformation.transformEffect({
-      decode: (value) => {
-        const duration = parseDurationInput(value);
-        if (duration !== null) {
-          return Effect.succeed(duration);
-        }
-        return Effect.fail(
-          new SchemaIssue.InvalidValue({
-            message: "Invalid duration. Use values like 5m, 1h, 30d, or 15 minutes.",
-          }),
-        );
-      },
-      encode: (duration) => Effect.succeed(Duration.format(duration)),
-    }),
-  ),
-);

@@ -62,6 +62,7 @@ const makeServerConfig = Effect.fn(function* (baseDir: string) {
     otlpLogsExport: DEFAULT_SIGNAL_EXPORT,
     otelEnvironment: OtelEnvironment.none,
     cwd: process.cwd(),
+    dataRoot: baseDir,
     baseDir,
     mode: "web",
     autoBootstrapProjectFromCwd: false,
