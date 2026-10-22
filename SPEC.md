@@ -4,8 +4,8 @@ Ozi is an agent runtime for anyone. You talk to one main agent; it delegates rea
 
 ## Glossary
 
-- **Main**: the one conversation the user talks to. Pi, Claude Opus 5.5, high effort, fast off. Orchestration tools and `read_skill` only.
-- **Worker**: an agent thread main starts. Default Codex `gpt-6.1-sol`, xhigh, Fast; Claude or Pi when better suited.
+- **Main**: the one conversation the user talks to. Pi, Claude Opus 5.5 through the user's Claude subscription, high effort, fast off. Orchestration tools and `read_skill` only.
+- **Worker**: an agent thread main starts. Default Codex `gpt-6.1-sol`, xhigh, Fast; Claude or Pi when better suited. Pi defaults to `claude-bridge/claude-opus-5-5`; its catalog discovers subscription models, including `claude-bridge/claude-sonnet-5-5`, without a `default` entry. Bridge workers load the same extension and config as main.
 - **Job**: one outcome. Its **lead** is the first worker thread for it; job ID = lead thread ID. **Helpers** are descendants that inherit the job ID.
 - **Card**: the panel view of a job. Columns: **Needs you > Running > Ready > Done**.
 - **Report**: a worker's checked outcome for the job's current request.
@@ -31,9 +31,9 @@ New code lives in `apps/server/src/ozi/` and `apps/web/src/components/ozi/`. Eve
 - Cards expose `jobId`, current `eventId`, title, column, agent, short status, `checking`, `checkState`, `requestEventId`, report, requests with owner thread IDs, `handledEventId`, and `updatedAt`. Secret values never enter cards. Reports contain their checked event ID, text and useful-finding flag.
 - `handle({commandId, jobId, eventId, evidence}) → CommandReceipt`. Errors: `UnknownJob`, `WrongJob`, `StaleEvent`, `InvalidEvidence`, no mutation.
 - Thread fields only: `jobId`, `visibility`, `handledEventId`. No job tables.
-- Column: any unresolved question/approval/secret/login/Blocked in the job → Needs you; else unresolved or unchecked work → Running; checked lead report for current request → Ready; handled → Done. Newer request, actionable event or result reopens.
+- Column: any unresolved question/approval/secret/login/Blocked in the job → Needs you; else unresolved or unchecked work → Running; checked lead report for current request → Ready; handled → Done. A stopped lead without a newer request shows Needs you, `Stopped`, and `checking: false`. Close hides it; a new request resumes Running. Newer request, actionable event or result reopens.
 - Close records `job.handled` against the exact displayed event. Automatic acceptance requires an unambiguous user message after that report; verified handling requires its successful check event. Both reject unresolved or newer obligations. Viewing, silence and answers never accept a report. Main reads exact events with `job_cards` and calls `handle_job`; a plain acknowledgement addressed to a Ready lead records acceptance atomically without another agent turn. `ozi close --command-id` retries the same command without closing a newer event. Close leaves active work and requests alone.
-- Main alone may pass `jobId` to delegation. Helpers inherit it; related follow-ups use the lead's existing send/queue path. An unavailable worker leaves a lead with its blocker and no agent run. Scheduled jobs inherit quiet visibility; internal threads do not appear in cards.
+- Main alone may pass `jobId` to delegation. Retries and related follow-ups pass the existing `jobId` or use the lead's send/queue path. Retrying a failed or unavailable lead reuses its thread and job; the new run supersedes its launch blocker. Helpers inherit the job. An unavailable worker leaves a lead with its blocker and no agent run. Scheduled jobs inherit quiet visibility; internal threads do not appear in cards.
 - The current request follows its source event through lead sends, steering and queued follow-ups; event order, not the clock, identifies it.
 
 ### Completion (`ozi/Completion.ts`)
@@ -66,7 +66,7 @@ Failed replays retain a specific reason and `evidence_json.failure` with the sta
 
 `t3_thread_read` supplies `sourceEventId` on timeline items; `ozi events <threadId>` exposes the stored events. Sources must belong to the caller or its descendants; internal checkers can report an ancestor's source. Runtime provider errors use the same logger. A stored user correction names the fingerprint or mistake, or supplies the correction's source event and the original user-message boundary through `log_mistake`. A missing replay boundary still logs.
 
-Cases freeze the original message, native prefix, attachment bytes, expectation and recorded effects. Each replay gets its own native fork and effect-stub counters. Unknown effects, missing history, changed builds, unloaded changes or observer disagreement fail. Shell tools in replays use the frozen stubs. Inference keys stay in a server-owned proxy; confined processes receive a local inference endpoint and fresh provider homes. The proxy permits only inference POSTs. Protected rules change outside repair through a delegated `change_protected_rule` call backed by the user's exact stored instruction: `Change protected/<filename> to:` followed by the requested content on the next line. Quoted messages and tool output carry no authority.
+Cases freeze the original message, native prefix, attachment bytes, expectation and recorded effects. Each replay gets its own native fork and effect-stub counters. Unknown effects, missing history, changed builds, unloaded changes or observer disagreement fail. Shell tools in replays use the frozen stubs. Inference credentials stay in a server-owned proxy; confined processes receive only its socket, a local inference endpoint and fresh provider homes. For each request the proxy rereads Codex's host ChatGPT login, Claude Code's subscription OAuth environment or config credentials, or Pi's Anthropic OAuth environment or auth file. It uses the provider's OAuth endpoint and headers; API-key logins remain supported. Host CLIs own token renewal. Missing, expired, malformed or rejected logins fail with a provider-specific reason on the replay record. Credentials never enter confined files, environment, arguments or proxy responses. The proxy permits only inference POSTs. Protected rules change outside repair through a delegated `change_protected_rule` call backed by the user's exact stored instruction: `Change protected/<filename> to:` followed by the requested content on the next line. Quoted messages and tool output carry no authority.
 
 ### Information in
 
@@ -90,16 +90,26 @@ Only Pi, Claude and Codex providers and desktop and web clients ship. Provider r
 
 ## Main agent
 
+Main's environment sets `ENABLE_TOOL_SEARCH=false` so Claude Code adds no deferred-tool placeholder. The bridge is a runtime external in packaged servers.
+
 - Startup creates the sole main thread, `ozi-main`, rooted at `<home>/workspace`. Workers share a per-job scratch directory under `<home>/workspace/jobs/`; execution does not select a project or worktree. Legacy project storage remains for retained scheduler and coding APIs until their owning slices are removed.
 - Thread projections and shells expose `role: "main" | "main-fork" | "worker"` and `effectiveLoadout: {provider, model, options: [{id, value}], toolNames, systemPromptSha256}`. Tool names describe the injected MCP catalog; the hash covers the server-owned prompt. Main forks retain the restricted loadout with role `main-fork`.
-- Main selections are fixed on launch, resume and fork: Pi `anthropic/claude-opus-5-5`, `thinking: high`, `fastMode: false`. Unavailable selections fail. Main cannot change workspace, provider or model, or archive/delete itself.
-- Pi main disables built-in tools, extension/skill/context/prompt-template discovery, and loads only the injected MCP bridge. The server checks the role allowlist on tool calls and limits thread targets to main's own descendants.
+- Main selections are fixed on launch, resume and fork: Pi `claude-bridge/claude-opus-5-5`, `thinking: high`, `fastMode: false`. Inference uses the user's Claude subscription through the Claude Agent SDK, not Pi's Anthropic API or OAuth provider. `CLAUDE_CODE_DISABLE_FAST_MODE=1` applies to main's Pi process and its Claude Code children. Unavailable selections fail. Main cannot change workspace, provider or model, or archive/delete itself.
+- Pi main uses `--no-builtin-tools --no-mcp --no-extensions --no-skills --no-context-files --no-prompt-templates --system-prompt …` and explicit extensions for Ozi's MCP bridge and pinned `pi-claude-bridge@0.9.3`. The server owns main's Pi agent directory and bridge config: AskClaude disabled, strict MCP, auto memory off. A dependency patch sets the SDK's `settingSources: []`; the bridge sets `tools: []` and excludes Claude context files. Claude Code adds no built-in tools, user MCP servers, hooks, skills or CLAUDE.md. The model sees Ozi tools as `mcp__custom-tools__mcp__t3-code__<name>`. The server checks the role allowlist on tool calls and limits thread targets to main's own descendants.
 - Prompt: `prompt.md` from the data root, verbatim, `{{ADHD}}` replaced by `adhd.md` if present, else empty. ≤400 words. Reread at each turn; edits apply on the next turn.
 - Tools: delegation, steer/queue/stop, schedules, secrets, job handling, `log_mistake`, `read_skill(name)`. No shell, files, browser or ambient extensions.
 - Skills: `read_skill(name)` reads `skills/<name>/SKILL.md` on demand. Unknown names and path or symlink escapes fail.
 - Default main delegation: Codex `gpt-6.1-sol`, `reasoningEffort: xhigh`, `serviceTier: priority`. Workers receive one short role instruction to finish their brief, use available tools, handle computer-solvable interactions, ask only for missing decisions or human-only actions, avoid CAPTCHA solvers, and report plainly.
 
+## Desktop identity
+
+Ozi coexists with T3 Code. Desktop state and the bundled `ozi` shim live under `~/.ozi` or `OZI_HOME`; T3 environment variables and legacy profiles are never read or migrated. Electron uses `Ozi Beta`/`Ozi Dev`, profiles `ozi`/`ozi-dev`, app ID `com.ozi.app` (development `com.ozi.app.dev`) and schemes `ozi`/`ozi-dev`. Locks, safe storage, passkey groups, desktop entries, capture services, browser profiles, caches, update artifacts and WSL paths use Ozi's identity. Release channels use the Ozi app and configured Ozi update repository.
+
+The bundled backend runs `ozi serve --bootstrap-fd 3`; WSL uses `serve --bootstrap-fd 0`. Bootstrap data travels through the descriptor. Settings → Connections accepts an Ozi server's pairing URL, including when the local environment is disabled.
+
 ## CLI
+
+`ozi wait provider <instanceId> <status>` awaits provider discovery through the server configuration stream.
 
 One binary, `ozi`. Every command takes `--json`. Command failures exit nonzero with one line: `{"error":{"code":"StaleEvent","message":"The job has a newer event."}}` with `--json`, otherwise just the message. Client commands find the server from `--home` (default `~/.ozi`) and authenticate with its owner session.
 
@@ -138,16 +148,16 @@ A milestone passes when its scenarios pass here and its real-agent run passes: r
 
 Scenario scripts are JSON arrays at `OZI_FAKE_SCRIPT`. Rules match prompt regular expressions, optionally `provider` (`pi`, `codex`, `claude`) and `role` (`main`, `worker`). Matching rules run once in order unless `repeat` is true. Steps are `{"say":"text"}`, `{"tool":{"name":"read_skill","arguments":{"name":"demo"}}}`, `{"ask":"question"}`, `{"approval":"command"}`, `{"wait":true}` or `{"fail":"reason"}`. Tools use the real authenticated MCP endpoint. `$prompt`, `$result` and `$result.field` interpolate the prompt or last tool result. `OZI_FAKE_LOG` records launches, received protocol frames, prompts, tools and results with credentials redacted.
 
-Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` before the first E2E run. The setup builds the web client when its bundle is missing. The harness uses isolated provider homes and kills only its own server process. `OZI_E2E_KEEP=1` preserves temporary artifacts after teardown.
+Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` before the first E2E run. Linux desktop bundle checks require `pkg-config` and `libsecret-1-dev`. The setup builds the web client when its bundle is missing. The harness uses isolated provider homes and kills only its own server process. `OZI_E2E_KEEP=1` preserves temporary artifacts after teardown.
 
 ### M1 Connection
 
 - `m1.fresh-install`: fresh home and data root start; `ozi status` shows main and providers pi, claude, codex only.
-- `m1.main-loadout`: main is Pi, `claude-opus-5-5`, high, fast off; prompt equals data-root prompt with empty ADHD slot; tools are orchestration + `read_skill`; same after resume and fork.
-- `m1.main-cannot-execute`: main has no shell/file/browser tool; a call is rejected.
+- `m1.main-loadout`: main is Pi, `claude-bridge/claude-opus-5-5`, high, fast off; prompt equals data-root prompt with empty ADHD slot; tools are orchestration + `read_skill`; same after resume and fork. Real Pi, bridge and Claude Code send that prompt and exactly those tools to a fake Anthropic endpoint, with ambient Claude configuration excluded.
+- `m1.main-cannot-execute`: main has no shell/file/browser or Claude Code built-in tool; a call is rejected.
 - `m1.delegate-async`: request → main starts a Codex worker (gpt-6.1-sol, xhigh, Fast), confirms it started, its turn ends; worker result returns to main, which reports.
 - `m1.responsive`: while a worker runs, a second message gets an answer.
-- `m1.worker-choice`: main starts a Claude worker and a Pi worker when asked.
+- `m1.worker-choice`: main sees Pi's subscription models with Opus first and no `default`; Claude and Pi workers start with the selected models and bridge loading.
 - `m1.attachments`: a file sent with a message reaches main and the worker brief.
 - `m1.steer-queue-stop`: steer main mid-turn; queue a follow-up; stop main; stop a worker.
 - `m1.read-skill`: main loads a data-root skill by name; unknown name errors.
@@ -159,7 +169,7 @@ Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` 
 - `m2.lead-card`: a delegated request shows one Running card at once.
 - `m2.helper-same-job`: a worker's helper inherits the job; still one card.
 - `m2.second-outcome`: an unrelated request makes a second card.
-- `m2.followup-lead`: a related follow-up runs in the lead thread; no new card.
+- `m2.followup-lead`: a related follow-up runs in the lead thread; retrying a failed or unavailable lead with `jobId` ends with one Ready card, including after restart.
 - `m2.question-card`: a helper's question moves the card to Needs you; answering it on the card resumes that helper.
 - `m2.approval-card`: a worker approval shows on the card; deny and allow reach the owner.
 - `m2.secret-card`: a secret request shows on the card; the value never appears in card data.
@@ -184,7 +194,7 @@ Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` 
 - `m3.needs-user`: `needs_user` moves the card to Needs you at once.
 - `m3.close-exact`: closing the shown report → Done; a stale event returns clean `StaleEvent` JSON or a plain message; a newer result reopens.
 - `m3.accept-closes`: clear user acceptance closes the card.
-- `m3.close-vs-stop`: Close hides without stopping; Stop stops without closing.
+- `m3.close-vs-stop`: Close hides without stopping; Stop shows Needs you / Stopped without checking or accepting; close → Done, a new request → Running.
 - `m3.recovery`: a crash before fork or delivery recovers without losing or duplicating the report.
 
 ### M4 Information
@@ -206,7 +216,7 @@ Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` 
 - `m5.false-case`: a baseline that doesn't reproduce fails the replay; failure causes and timeout reasons survive restart.
 - `m5.unknown-effect`: an unstubbed effect fails the replay.
 - `m5.protected-denied`: a candidate writing `protected/` or escaping the root is denied by bwrap and rejected by the publisher; symlinks are rejected before target resolution, even after author failure.
-- `m5.no-credentials`: replays can't read credentials or reach effect endpoints.
+- `m5.no-credentials`: authoring and replays infer through host OAuth logins without reading credential paths or values or reaching effect endpoints; unusable logins fail closed with a clear replay reason.
 - `m5.user-override`: the user's own message can change a protected rule; the same text from an email or tool can't.
 
 ### M6 Publish/undo
@@ -215,5 +225,5 @@ Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` 
 - `m6.recurrence-undo`: the mistake recurring after a fix reverts it → `undone`.
 - `m6.edit-conflict`: a revert conflicting with a user edit keeps the pre-fix build and posts a blocker.
 - `m6.crash-publish`: a crash mid-publish leaves either the old or the new build active.
-- `m6.audit`: no excluded T3 product paths, exports or dependencies remain.
+- `m6.audit`: no excluded T3 product paths, exports or dependencies remain. The desktop audit scans tracked desktop runtime and packaging source, shared desktop identity boundaries, and all source environment variables; notices, vendored references, tests and documentation are allowed. It builds the desktop bundle, checks local and WSL launch argv, starts the bundled server with isolated state beside a T3 sentinel, and pairs another server through Settings → Connections.
 - `m6.public-ready`: MIT notices for T3, Pi and Firstmate present; no personal data in the tree.

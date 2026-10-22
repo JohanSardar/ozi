@@ -138,10 +138,10 @@ it.layer(NodeServices.layer)("service state persistence", (it) => {
         const root = yield* fs.makeTempDirectoryScoped({ prefix: "t3-service-env-" });
         const inherited = Object.freeze({
           PATH: "inherited-path",
-          T3CODE_HOME: root,
+          OZI_HOME: root,
           T3_BOOT_SERVICE_UNIT: "managed-unit",
           T3_SERVICE_LAUNCHER_CONTEXT: "managed-context",
-          T3CODE_PORT: "ambient",
+          OZI_PORT: "ambient",
         });
         assert.deepEqual(
           yield* Effect.promise(() => readServiceEnvironment(root, inherited)),
@@ -151,13 +151,13 @@ it.layer(NodeServices.layer)("service state persistence", (it) => {
           path.join(root, SERVICE_ENV_FILE),
           [
             "# service configuration",
-            "export T3CODE_PORT=1234 # inline comment",
-            'T3CODE_TOKEN="literal $HOME ${USER} $(whoami) # token"',
+            "export OZI_PORT=1234 # inline comment",
+            'OZI_TOKEN="literal $HOME ${USER} $(whoami) # token"',
             'MULTILINE="first\nsecond"',
             "EMPTY=",
             "PATH=/bad",
             "Path=/bad",
-            "T3CODE_HOME=/bad",
+            "OZI_HOME=/bad",
             "t3code_home=/bad",
             "T3_BOOT_SERVICE_UNIT=bad",
             "t3_boot_service_unit=bad",
@@ -167,8 +167,8 @@ it.layer(NodeServices.layer)("service state persistence", (it) => {
         );
         assert.deepEqual(yield* Effect.promise(() => readServiceEnvironment(root, inherited)), {
           ...inherited,
-          T3CODE_PORT: "1234",
-          T3CODE_TOKEN: "literal $HOME ${USER} $(whoami) # token",
+          OZI_PORT: "1234",
+          OZI_TOKEN: "literal $HOME ${USER} $(whoami) # token",
           MULTILINE: "first\nsecond",
           EMPTY: "",
         });
@@ -361,9 +361,9 @@ if (context.update?.status === "pending") {
       const databasePath = path.join(root, "userdata", "state.sqlite");
       const observationsPath = path.join(root, "environment-observations.jsonl");
       const envPath = path.join(root, SERVICE_ENV_FILE);
-      yield* fs.writeFileString(envPath, "T3CODE_TEST_SERVICE_TOKEN=initial\n");
-      vi.stubEnv("T3CODE_HOME", root);
-      vi.stubEnv("T3CODE_TEST_SERVICE_TOKEN", "inherited");
+      yield* fs.writeFileString(envPath, "OZI_TEST_SERVICE_TOKEN=initial\n");
+      vi.stubEnv("OZI_HOME", root);
+      vi.stubEnv("OZI_TEST_SERVICE_TOKEN", "inherited");
       yield* Effect.addFinalizer(() => Effect.sync(() => vi.unstubAllEnvs()));
       yield* fs.makeDirectory(path.dirname(databasePath), { recursive: true });
       yield* fs.writeFileString(databasePath, "before trial");
@@ -372,13 +372,13 @@ if (context.update?.status === "pending") {
 import { appendFileSync, writeFileSync } from "node:fs";
 const context = JSON.parse(process.env.T3_SERVICE_LAUNCHER_CONTEXT);
 appendFileSync(${JSON.stringify(observationsPath)}, JSON.stringify({
-  token: process.env.T3CODE_TEST_SERVICE_TOKEN,
+  token: process.env.OZI_TEST_SERVICE_TOKEN,
   update: context.update?.status ?? "active",
 }) + "\\n");
 if (context.update?.status === "pending") {
   process.send({ type: "prepared", updateId: "wrong-update" });
 } else if (context.update === undefined) {
-  writeFileSync(${JSON.stringify(envPath)}, "T3CODE_TEST_SERVICE_TOKEN=changed\\n");
+  writeFileSync(${JSON.stringify(envPath)}, "OZI_TEST_SERVICE_TOKEN=changed\\n");
   process.send({ type: "request-update", targetVersion: "1.1.0", dbPath: ${encodedDatabasePath} });
   setInterval(() => {}, 1_000);
 } else {
@@ -423,8 +423,8 @@ if (context.update?.status === "pending") {
         { token: "initial", update: "pending" },
         { token: "initial", update: "rolled-back" },
       ]);
-      assert.equal(process.env.T3CODE_TEST_SERVICE_TOKEN, "inherited");
-      assert.equal(yield* fs.readFileString(envPath), "T3CODE_TEST_SERVICE_TOKEN=changed\n");
+      assert.equal(process.env.OZI_TEST_SERVICE_TOKEN, "inherited");
+      assert.equal(yield* fs.readFileString(envPath), "OZI_TEST_SERVICE_TOKEN=changed\n");
     }),
   );
 

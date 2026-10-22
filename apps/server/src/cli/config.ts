@@ -66,7 +66,7 @@ const autoBootstrapProjectFromCwdFlag = Flag.Boolean("auto-bootstrap-project-fro
 );
 const logWebSocketEventsFlag = Flag.Boolean("log-websocket-events").pipe(
   Flag.withDescription(
-    "Emit server-side logs for outbound WebSocket push traffic (equivalent to T3CODE_LOG_WS_EVENTS).",
+    "Emit server-side logs for outbound WebSocket push traffic (equivalent to OZI_LOG_WS_EVENTS).",
   ),
   Flag.withAlias("log-ws-events"),
   Flag.optional,
@@ -83,65 +83,54 @@ const tailscaleServePortFlag = Flag.Int("tailscale-serve-port").pipe(
   Flag.optional,
 );
 
-export const homeConfig = Config.all({
-  home: Config.String("OZI_HOME").pipe(Config.option),
-  legacy: Config.String("T3CODE_HOME").pipe(Config.option),
-  dev: Config.String("VITE_DEV_SERVER_URL").pipe(Config.option),
-}).pipe(
-  Config.map(
-    ({ home, legacy, dev }) =>
-      Option.getOrUndefined(home) ??
-      (Option.isSome(dev) ? Option.getOrUndefined(legacy) : undefined),
-  ),
-);
-
-export const traceFileConfig = Config.String("T3CODE_TRACE_FILE").pipe(
+export const homeConfig = Config.String("OZI_HOME").pipe(
   Config.option,
   Config.map(Option.getOrUndefined),
 );
-export const traceMaxFilesConfig = Config.Int("T3CODE_TRACE_MAX_FILES").pipe(
-  Config.withDefault(10),
+
+export const traceFileConfig = Config.String("OZI_TRACE_FILE").pipe(
+  Config.option,
+  Config.map(Option.getOrUndefined),
 );
+export const traceMaxFilesConfig = Config.Int("OZI_TRACE_MAX_FILES").pipe(Config.withDefault(10));
 
 const EnvServerConfig = Config.all({
-  logLevel: Config.LogLevel("T3CODE_LOG_LEVEL").pipe(Config.withDefault("Info")),
-  traceMinLevel: Config.LogLevel("T3CODE_TRACE_MIN_LEVEL").pipe(Config.withDefault("Info")),
-  traceTimingEnabled: Config.Boolean("T3CODE_TRACE_TIMING_ENABLED").pipe(Config.withDefault(true)),
+  logLevel: Config.LogLevel("OZI_LOG_LEVEL").pipe(Config.withDefault("Info")),
+  traceMinLevel: Config.LogLevel("OZI_TRACE_MIN_LEVEL").pipe(Config.withDefault("Info")),
+  traceTimingEnabled: Config.Boolean("OZI_TRACE_TIMING_ENABLED").pipe(Config.withDefault(true)),
   traceFile: traceFileConfig,
-  traceMaxBytes: Config.Int("T3CODE_TRACE_MAX_BYTES").pipe(Config.withDefault(10 * 1024 * 1024)),
+  traceMaxBytes: Config.Int("OZI_TRACE_MAX_BYTES").pipe(Config.withDefault(10 * 1024 * 1024)),
   traceMaxFiles: traceMaxFilesConfig,
-  traceBatchWindowMs: Config.Int("T3CODE_TRACE_BATCH_WINDOW_MS").pipe(Config.withDefault(1_000)),
-  otlpTracesUrl: Config.String("T3CODE_OTLP_TRACES_URL").pipe(
+  traceBatchWindowMs: Config.Int("OZI_TRACE_BATCH_WINDOW_MS").pipe(Config.withDefault(1_000)),
+  otlpTracesUrl: Config.String("OZI_OTLP_TRACES_URL").pipe(
     Config.option,
     Config.map(Option.getOrUndefined),
   ),
-  otlpMetricsUrl: Config.String("T3CODE_OTLP_METRICS_URL").pipe(
+  otlpMetricsUrl: Config.String("OZI_OTLP_METRICS_URL").pipe(
     Config.option,
     Config.map(Option.getOrUndefined),
   ),
-  otlpLogsUrl: Config.String("T3CODE_OTLP_LOGS_URL").pipe(
+  otlpLogsUrl: Config.String("OZI_OTLP_LOGS_URL").pipe(
     Config.option,
     Config.map(Option.getOrUndefined),
   ),
-  otlpExportIntervalMs: Config.Int("T3CODE_OTLP_EXPORT_INTERVAL_MS").pipe(
-    Config.withDefault(10_000),
-  ),
-  otlpHeaders: Config.schema(OtlpHeadersFromString, "T3CODE_OTLP_HEADERS").pipe(
+  otlpExportIntervalMs: Config.Int("OZI_OTLP_EXPORT_INTERVAL_MS").pipe(Config.withDefault(10_000)),
+  otlpHeaders: Config.schema(OtlpHeadersFromString, "OZI_OTLP_HEADERS").pipe(
     Config.option,
     Config.map(Option.getOrUndefined),
   ),
-  otlpProtocol: Config.schema(OtlpProtocol, "T3CODE_OTLP_PROTOCOL").pipe(
+  otlpProtocol: Config.schema(OtlpProtocol, "OZI_OTLP_PROTOCOL").pipe(
     Config.withDefault("http/json"),
   ),
-  mode: Config.schema(ServerConfig.RuntimeMode, "T3CODE_MODE").pipe(
+  mode: Config.schema(ServerConfig.RuntimeMode, "OZI_MODE").pipe(
     Config.option,
     Config.map(Option.getOrUndefined),
   ),
-  port: Config.Port("T3CODE_PORT").pipe(Config.option, Config.map(Option.getOrUndefined)),
-  host: Config.String("T3CODE_HOST").pipe(Config.option, Config.map(Option.getOrUndefined)),
-  t3Home: homeConfig,
+  port: Config.Port("OZI_PORT").pipe(Config.option, Config.map(Option.getOrUndefined)),
+  host: Config.String("OZI_HOST").pipe(Config.option, Config.map(Option.getOrUndefined)),
+  oziHome: homeConfig,
   devUrl: Config.URL("VITE_DEV_SERVER_URL").pipe(Config.option, Config.map(Option.getOrUndefined)),
-  devAllowedOrigins: Config.String("T3CODE_DEV_ALLOWED_ORIGINS").pipe(
+  devAllowedOrigins: Config.String("OZI_DEV_ALLOWED_ORIGINS").pipe(
     Config.withDefault(""),
     Config.map((value) =>
       value
@@ -150,33 +139,33 @@ const EnvServerConfig = Config.all({
         .filter((entry) => entry.length > 0),
     ),
   ),
-  noBrowser: Config.Boolean("T3CODE_NO_BROWSER").pipe(
+  noBrowser: Config.Boolean("OZI_NO_BROWSER").pipe(
     Config.option,
     Config.map(Option.getOrUndefined),
   ),
-  bootstrapFd: Config.Int("T3CODE_BOOTSTRAP_FD").pipe(
+  bootstrapFd: Config.Int("OZI_BOOTSTRAP_FD").pipe(
     Config.option,
     Config.map(Option.getOrUndefined),
   ),
-  autoBootstrapProjectFromCwd: Config.Boolean("T3CODE_AUTO_BOOTSTRAP_PROJECT_FROM_CWD").pipe(
+  autoBootstrapProjectFromCwd: Config.Boolean("OZI_AUTO_BOOTSTRAP_PROJECT_FROM_CWD").pipe(
     Config.option,
     Config.map(Option.getOrUndefined),
   ),
-  logWebSocketEvents: Config.Boolean("T3CODE_LOG_WS_EVENTS").pipe(
+  logWebSocketEvents: Config.Boolean("OZI_LOG_WS_EVENTS").pipe(
     Config.option,
     Config.map(Option.getOrUndefined),
   ),
-  tailscaleServeEnabled: Config.Boolean("T3CODE_TAILSCALE_SERVE").pipe(
+  tailscaleServeEnabled: Config.Boolean("OZI_TAILSCALE_SERVE").pipe(
     Config.option,
     Config.map(Option.getOrUndefined),
   ),
-  tailscaleServePort: Config.Port("T3CODE_TAILSCALE_SERVE_PORT").pipe(
+  tailscaleServePort: Config.Port("OZI_TAILSCALE_SERVE_PORT").pipe(
     Config.option,
     Config.map(Option.getOrUndefined),
   ),
 });
 
-const DevAuthTokenConfig = Config.Redacted("T3CODE_DEV_AUTH_TOKEN").pipe(
+const DevAuthTokenConfig = Config.Redacted("OZI_DEV_AUTH_TOKEN").pipe(
   Config.map((token) => Redacted.make(Redacted.value(token).trim())),
   Config.mapEffect((token) =>
     Redacted.value(token).length === 0 || Redacted.value(token).length >= 32
@@ -185,7 +174,7 @@ const DevAuthTokenConfig = Config.Redacted("T3CODE_DEV_AUTH_TOKEN").pipe(
           new Config.ConfigError(
             new Schema.SchemaError(
               new SchemaIssue.InvalidValue({
-                message: "T3CODE_DEV_AUTH_TOKEN must contain at least 32 characters.",
+                message: "OZI_DEV_AUTH_TOKEN must contain at least 32 characters.",
               }),
             ),
           ),
@@ -324,11 +313,11 @@ export const resolveServerConfig = Effect.fn("config.resolveServerConfig")(funct
     mode === "web" && devUrl !== undefined ? yield* DevAuthTokenConfig : undefined;
   const explicitBaseDir = resolveOptionPrecedence(
     normalizedFlags.baseDir,
-    Option.fromUndefinedOr(env.t3Home),
+    Option.fromUndefinedOr(env.oziHome),
   ).pipe(Option.filter((value) => value.trim().length > 0));
   const baseDir = yield* resolveBaseDir(
     Option.getOrUndefined(
-      resolveOptionPrecedence(explicitBaseDir, Option.fromUndefinedOr(bootstrap?.t3Home)),
+      resolveOptionPrecedence(explicitBaseDir, Option.fromUndefinedOr(bootstrap?.oziHome)),
     ),
   );
   const dataRoot = path.resolve(

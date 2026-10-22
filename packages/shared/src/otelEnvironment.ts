@@ -74,8 +74,8 @@ const flag = (
   );
 
 // `Config.Boolean`'s literals, which effect does not export on their own.
-const T3CODE_TRUE = ["true", "yes", "on", "1", "y"];
-const T3CODE_FALSE = ["false", "no", "off", "0", "n"];
+const OZI_TRUE = ["true", "yes", "on", "1", "y"];
+const OZI_FALSE = ["false", "no", "off", "0", "n"];
 
 const RESOURCE_ATTRIBUTES = "OTEL_RESOURCE_ATTRIBUTES";
 
@@ -248,10 +248,10 @@ const endpointSignal = (name: OtlpSignalName, own: Settings, generic: Settings):
 
 const sdkFlags = {
   t3: flag(
-    "T3CODE_OTEL_SDK_DISABLED",
-    T3CODE_TRUE,
-    T3CODE_FALSE,
-    (value) => `T3CODE_OTEL_SDK_DISABLED=${value} is not a yes or a no and was ignored`,
+    "OZI_OTEL_SDK_DISABLED",
+    OZI_TRUE,
+    OZI_FALSE,
+    (value) => `OZI_OTEL_SDK_DISABLED=${value} is not a yes or a no and was ignored`,
   ),
   // The specification: a boolean it defines is true "only by the
   // case-insensitive string `true`", implementations "MUST NOT" accept other
@@ -261,7 +261,7 @@ const sdkFlags = {
     ["true"],
     ["false"],
     (value) =>
-      `OTEL_SDK_DISABLED=${value} was read as false; the OpenTelemetry specification recognizes only the string true, so use OTEL_SDK_DISABLED=true or T3CODE_OTEL_SDK_DISABLED to say it any other way`,
+      `OTEL_SDK_DISABLED=${value} was read as false; the OpenTelemetry specification recognizes only the string true, so use OTEL_SDK_DISABLED=true or OZI_OTEL_SDK_DISABLED to say it any other way`,
   ),
 };
 
@@ -299,8 +299,8 @@ export const load: Effect.Effect<OtelEnvironment> = Config.all({
     if (disabled) {
       warnings.push(
         t3.value
-          ? "T3CODE_OTEL_SDK_DISABLED is set, so no telemetry is exported, whatever configured it"
-          : "OTEL_SDK_DISABLED is set, so no telemetry is exported, whatever configured it; set T3CODE_OTEL_SDK_DISABLED=false to export anyway",
+          ? "OZI_OTEL_SDK_DISABLED is set, so no telemetry is exported, whatever configured it"
+          : "OTEL_SDK_DISABLED is set, so no telemetry is exported, whatever configured it; set OZI_OTEL_SDK_DISABLED=false to export anyway",
       );
     }
     return {
@@ -318,7 +318,7 @@ export const load: Effect.Effect<OtelEnvironment> = Config.all({
 export const isRelayTracingEnabled = (env: Readonly<Record<string, string | undefined>>) =>
   Config.all({
     ...sdkFlags,
-    telemetry: flag("T3CODE_TELEMETRY_ENABLED", T3CODE_TRUE, T3CODE_FALSE, String),
+    telemetry: flag("OZI_TELEMETRY_ENABLED", OZI_TRUE, OZI_FALSE, String),
   }).pipe(
     Effect.map(
       ({ telemetry, t3, spec }) => telemetry.value !== false && !(t3.value ?? spec.value ?? false),
