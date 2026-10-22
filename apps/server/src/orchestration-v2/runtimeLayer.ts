@@ -282,14 +282,7 @@ const layerSecretRequestsProvided = SecretRequests.layer.pipe(
   Layer.provide(layerThreadManagementProvided),
 );
 const layerScheduledTaskProvided = ScheduledTaskService.layer.pipe(
-  Layer.provide(
-    Layer.mergeAll(
-      layerThreadLaunchProvided,
-      layerThreadManagementProvided,
-      layerManagedProjectFoldersProvided,
-      layerSecretRequestsProvided,
-    ),
-  ),
+  Layer.provide(Layer.merge(layerThreadManagementProvided, layerSecretRequestsProvided)),
 );
 const layerProviderContinuationWorkerProvided = ProviderContinuationService.layer.pipe(
   Layer.provide(
@@ -385,6 +378,6 @@ export const layerProduction = Layer.mergeAll(
   EffectOutbox.layerPruneWorker.pipe(Layer.provide(EffectOutbox.layer)),
 ).pipe(
   Layer.provide(ResourceCleanupService.layer.pipe(Layer.provide(layerScheduledTaskProvided))),
-  Layer.provide(Scheduler.layer),
+  Layer.provideMerge(Scheduler.layer),
   Layer.provideMerge(layerEventInfrastructure),
 );

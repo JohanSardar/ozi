@@ -425,3 +425,43 @@
   position: relative;
   z-index: 1;
 }
+.ozi-todos h2 span {
+  background: none;
+  padding: 0;
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: normal;
+}
+.ozi-todos h2 button {
+  margin-left: auto;
+  font-size: 11px;
+}
+.ozi-todo {
+  background: var(--card);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border: 1px dashed var(--ozi-line, #d9d5cc);
+  border-radius: 10px;
+  padding: 7px 10px;
+  margin: 6px 0;
+  font-size: 12.5px;
+}
+.ozi-todo i {
+  width: 13px;
+  height: 13px;
+  border: 1.5px solid #bdb8ad;
+  border-radius: 50%;
+  flex: none;
+}
+.ozi-todo b {
+  font-weight: normal;
+}
+.ozi-todo a {
+  color: inherit;
+}
+.ozi-todo span {
+  margin-left: auto;
+  font-size: 11px;
+  color: #9a978f;
+}

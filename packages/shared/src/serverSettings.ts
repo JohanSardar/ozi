@@ -379,8 +379,10 @@ export function applyServerSettingsPatch(
     projectAgentBrowserAccessOverrides: _legacyBrowserAccess,
     projectAutoPullOverrides: _legacyAutoPull,
     projectScriptOverrides: _legacyScripts,
+    externalTodos,
     ...patchForMerge
   } = patch;
+  if (externalTodos !== undefined) current = { ...current, externalTodos };
   const currentBackgroundActivity = normalizeServerBackgroundActivitySettings(current);
   const backgroundActivityPatch =
     backgroundActivityProfile !== undefined

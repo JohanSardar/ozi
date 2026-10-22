@@ -6,6 +6,7 @@ import {
   type OziJobColumn,
   type OziJobHandleInput,
   type OziJobRequest,
+  type OziTodos,
   type ThreadId,
 } from "@t3tools/contracts";
 import { useRef, useState } from "react";
@@ -280,11 +281,17 @@ export function JobPanel({
   cards,
   connected,
   unavailable,
+  todos,
+  todosLoading,
+  onRefreshTodos,
   ...actions
 }: JobActions & {
   cards: readonly OziJobCard[];
   connected: boolean;
   unavailable?: string | undefined;
+  todos?: OziTodos;
+  todosLoading?: boolean;
+  onRefreshTodos?: () => void;
 }) {
   return (
     <aside className={styles["ozi-job-panel"]} aria-label="Jobs">
@@ -326,6 +333,51 @@ export function JobPanel({
           </section>
         );
       })}
+      {todos && (
+        <section
+          className={`${styles["ozi-column"]} ${styles["ozi-todos"]}`}
+          aria-label="Your to-dos"
+        >
+          <h2>
+            Your to-dos <span>· {todos.source}</span>
+            <button
+              type="button"
+              disabled={!connected || todosLoading}
+              onClick={() => void onRefreshTodos?.()}
+            >
+              {todosLoading ? "Refreshing…" : "Refresh"}
+            </button>
+          </h2>
+          {todos.state !== "available" && (
+            <p role="status" className={styles["ozi-connection"]}>
+              {todos.state === "stale"
+                ? "Unavailable · showing saved to-dos"
+                : "To-dos unavailable"}
+            </p>
+          )}
+          <p className={styles["ozi-muted"]}>
+            {todos.fetchedAt
+              ? `Last fetched ${new Date(todos.fetchedAt).toLocaleString()}`
+              : `Last attempted ${new Date(todos.attemptedAt).toLocaleString()}`}
+          </p>
+          {todos.items?.map((todo) => (
+            <div className={styles["ozi-todo"]} key={todo.id} data-todo-id={todo.id}>
+              <i aria-hidden />
+              {todo.link ? (
+                <a href={todo.link} target="_blank" rel="noreferrer">
+                  {todo.title}
+                </a>
+              ) : (
+                <b>{todo.title}</b>
+              )}
+              <span>{todo.due ?? todo.status}</span>
+            </div>
+          ))}
+          {todos.state === "available" && todos.items?.length === 0 && (
+            <p className={styles["ozi-empty"]}>No to-dos</p>
+          )}
+        </section>
+      )}
     </aside>
   );
 }

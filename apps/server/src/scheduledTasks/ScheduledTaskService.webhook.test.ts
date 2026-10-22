@@ -203,6 +203,7 @@ const withService = <A, E>(
       options.workers === undefined
         ? Scheduler.layer
         : Layer.succeed(Scheduler.Scheduler, {
+            tick: Effect.void,
             register: <E, R>(name: string, work: Effect.Effect<void, E, R>) =>
               Effect.gen(function* () {
                 const context = yield* Effect.context<R>();
