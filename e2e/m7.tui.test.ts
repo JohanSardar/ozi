@@ -43,7 +43,7 @@ const job = async (task: string, steps: Rule["steps"], extra: Rule[] = []) => {
 const openCard = async (title: string, text: string) => {
   const from = tty!.mark();
   tty!.keys("/jobs\r");
-  await tty!.waitFor(title, from);
+  await tty!.waitFor(`· ${title}`, from);
   const card = tty!.mark();
   tty!.keys("\r");
   await tty!.waitFor(text, card);
