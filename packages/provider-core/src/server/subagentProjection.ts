@@ -56,6 +56,8 @@ export function makeSubagentChildThread(input: {
 }): OrchestrationV2AppThread {
   return {
     ...input.parentThread,
+    role: "worker",
+    effectiveLoadout: undefined,
     createdBy: input.createdBy,
     creationSource: input.creationSource,
     id: input.childThreadId,

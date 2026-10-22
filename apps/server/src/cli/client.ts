@@ -17,7 +17,6 @@ import {
 } from "@t3tools/contracts";
 import * as Crypto from "effect/Crypto";
 import * as Console from "effect/Console";
-import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
@@ -121,36 +120,16 @@ const snapshot = Effect.fn("ozi.snapshot")(function* (client: Client) {
 });
 
 const mainThread = (shell: OrchestrationV2ShellSnapshot) =>
-  shell.threads.toSorted(
-    (a, b) => DateTime.toEpochMillis(b.updatedAt) - DateTime.toEpochMillis(a.updatedAt),
-  )[0];
+  shell.threads.find((thread) => thread.role === "main");
 
 const targetThread = Effect.fn("ozi.targetThread")(function* (
   client: Client,
   id: Option.Option<ThreadId>,
-  create = false,
 ) {
   if (Option.isSome(id)) return id.value;
   const main = mainThread(yield* snapshot(client));
   if (main) return main.id;
-  if (!create) return yield* new ClientError({ operation: "has no main thread" });
-  const { projectId } = yield* client[W.projectsEnsureScratch]({});
-  const launched = yield* client[O.launchThread]({
-    commandId: CommandId.make(yield* (yield* Crypto.Crypto).randomUUIDv4()),
-    projectId,
-    title: "Main",
-    creationSource: "cli",
-    generateTitle: false,
-    modelSelection: {
-      instanceId: ProviderInstanceId.make("codex"),
-      model: "gpt-6.1-sol",
-      options: [],
-    },
-    runtimeMode: "full-access",
-    interactionMode: "default",
-    workspaceStrategy: { type: "root" },
-  });
-  return launched.threadId;
+  return yield* new ClientError({ operation: "has no main thread" });
 });
 
 const print = (value: unknown) => encodeJson(value).pipe(Effect.flatMap(Console.log));
@@ -204,7 +183,7 @@ const send = Effect.fn("ozi.send")(function* (
   steer = false,
 ) {
   const { client, state } = yield* connect(flags.baseDir);
-  const threadId = yield* targetThread(client, flags.thread ?? Option.none(), !steer);
+  const threadId = yield* targetThread(client, flags.thread ?? Option.none());
   const attachments: ChatAttachment[] = [];
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -249,19 +228,31 @@ const send = Effect.fn("ozi.send")(function* (
           ? { type: "queue_after_active" }
           : { type: "start_immediately" },
   });
-  yield* emit(OrchestrationV2DispatchCommandResult, result);
+  return result;
 });
 
 const sayCommand = Command.make("say", {
   ...locationFlags,
   text: Argument.String("text"),
   files: Flag.String("file").pipe(Flag.atLeast(0)),
-}).pipe(Command.withHandler((flags) => send(flags)));
+}).pipe(
+  Command.withHandler((flags) =>
+    send(flags).pipe(
+      Effect.flatMap((result) => emit(OrchestrationV2DispatchCommandResult, result)),
+    ),
+  ),
+);
 const steerCommand = Command.make("steer", {
   ...locationFlags,
   text: Argument.String("text"),
   thread: threadFlag,
-}).pipe(Command.withHandler((flags) => send(flags, true)));
+}).pipe(
+  Command.withHandler((flags) =>
+    send(flags, true).pipe(
+      Effect.flatMap((result) => emit(OrchestrationV2DispatchCommandResult, result)),
+    ),
+  ),
+);
 const stopCommand = Command.make("stop", { ...locationFlags, thread: threadFlag }).pipe(
   Command.withHandler((flags) =>
     Effect.gen(function* () {
@@ -281,16 +272,31 @@ const threadCommand = Command.make("thread", {
   id: Argument.String("id").pipe(Argument.withSchema(ThreadId)),
   provider: Flag.String("provider").pipe(Flag.withSchema(ProviderInstanceId), Flag.optional),
   model: Flag.String("model").pipe(Flag.optional),
+  fork: Flag.Boolean("fork").pipe(Flag.withDefault(false)),
+  message: Flag.String("message").pipe(Flag.optional),
 }).pipe(
   Command.withHandler((flags) =>
     Effect.gen(function* () {
       const { client } = yield* connect(flags.baseDir);
+      let threadId = flags.id;
+      if (flags.fork) {
+        threadId = ThreadId.make(yield* (yield* Crypto.Crypto).randomUUIDv4());
+        yield* client[O.dispatchCommand]({
+          type: "thread.fork",
+          commandId: CommandId.make(yield* (yield* Crypto.Crypto).randomUUIDv4()),
+          sourceThreadId: flags.id,
+          targetThreadId: threadId,
+          sourcePoint: { type: "latest_stable" },
+          createdBy: "user",
+          creationSource: "cli",
+        });
+      }
       if (Option.isSome(flags.provider) || Option.isSome(flags.model)) {
-        const current = yield* client[O.getThreadProjection]({ threadId: flags.id });
+        const current = yield* client[O.getThreadProjection]({ threadId });
         yield* client[O.dispatchCommand]({
           type: "thread.model-selection.set",
           commandId: CommandId.make(yield* (yield* Crypto.Crypto).randomUUIDv4()),
-          threadId: flags.id,
+          threadId,
           modelSelection: {
             instanceId: Option.getOrElse(
               flags.provider,
@@ -301,9 +307,15 @@ const threadCommand = Command.make("thread", {
           },
         });
       }
+      if (Option.isSome(flags.message))
+        yield* send({
+          baseDir: flags.baseDir,
+          thread: Option.some(threadId),
+          text: flags.message.value,
+        });
       yield* emit(
         OrchestrationV2ThreadProjection,
-        yield* client[O.getThreadProjection]({ threadId: flags.id }),
+        yield* client[O.getThreadProjection]({ threadId }),
       );
     }),
   ),
@@ -323,11 +335,12 @@ const waitCommand = Command.make("wait", {
     Effect.gen(function* () {
       const { client } = yield* connect(flags.baseDir);
       const threadId = ThreadId.make(flags.id);
+      const { client: reader } = yield* connect(flags.baseDir);
       const result = yield* client[O.subscribeThread]({ threadId }).pipe(
         Stream.mapEffect((item) =>
           item.kind === "snapshot"
             ? Effect.succeed(item.projection)
-            : client[O.getThreadProjection]({ threadId }),
+            : reader[O.getThreadProjection]({ threadId }),
         ),
         Stream.filter((projection) => {
           const latest = projection.runs.findLast((run) => run.status !== "queued");
