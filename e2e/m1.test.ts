@@ -431,6 +431,7 @@ it("m1.cli-json returns JSON and exercises each provider, attachments, waits and
       .filter((record) => record.event === "prompt")
       .map((record) => record.provider),
   ).toEqual(expect.arrayContaining(["pi", "claude", "codex"]));
+  expect(await h.exec("status")).toBe(0);
 });
 
 it.each([
