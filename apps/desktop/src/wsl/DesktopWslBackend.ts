@@ -136,7 +136,7 @@ export const layer = Layer.effect(
                 Ref.set(
                   preflightErrorRef,
                   Option.some(
-                    "Another Ozi server is using this distro’s home. Stop that server or pair with it.",
+                    "Another Ozi server is using this home. Pair with it in Settings > Connections, stop it with `ozi service uninstall`, or choose a separate OZI_HOME.",
                   ),
                 ),
               ),

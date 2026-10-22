@@ -201,7 +201,7 @@ const makeWindowsPayloadFixture = Effect.fn("test.makeWindowsPayloadFixture")(fu
     path.join(resourcesDir, "resource-monitor/t3-resource-monitor.exe"),
     "monitor",
   );
-  const appExecutableName = "t3code.exe";
+  const appExecutableName = "ozi.exe";
   yield* fs.writeFileString(path.join(packagedAppDir, appExecutableName), "electron");
   yield* fs.writeFileString(path.join(packagedAppDir, "chrome_crashpad_handler.exe"), "crashpad");
 
@@ -987,7 +987,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
     ),
   );
 
-  // The fixture's t3code.exe is a text placeholder, not an executable. These
+  // The fixture's ozi.exe is a text placeholder, not an executable. These
   // cases reach the native-load probe, so pin only that host-platform check to
   // Linux. Host-native paths and the real Windows tar/archive checks still run.
   it.effect("validates every ASAR-unpacked native in the packaged Windows payload", () =>
@@ -1454,7 +1454,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
         const path = yield* Path.Path;
         const fixture = yield* makeWindowsPayloadFixture({
           copyUnpackedNatives: true,
-          serverEntrySource: 'import "t3code-deliberately-missing-package";\n',
+          serverEntrySource: 'import "ozi-deliberately-missing-package";\n',
         });
         const error = yield* verifyPackagedBundleIsSelfContained({
           asarPath: path.join(fixture.packagedAppDir, "resources", WINDOWS_SERVER_ASAR_RESOURCE),
@@ -1462,7 +1462,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
         }).pipe(Effect.flip);
 
         assert.instanceOf(error, BundleNotSelfContainedError);
-        assert.include(error.output, "t3code-deliberately-missing-package");
+        assert.include(error.output, "ozi-deliberately-missing-package");
       }),
     ),
   );
@@ -1472,7 +1472,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
       Effect.gen(function* () {
         const fixture = yield* makeWindowsPayloadFixture({
           copyUnpackedNatives: true,
-          serverEntrySource: 'import "t3code-deliberately-missing-package";\n',
+          serverEntrySource: 'import "ozi-deliberately-missing-package";\n',
         });
         yield* validateWindowsPackagedPayload({
           stageDistDir: fixture.stageDistDir,
@@ -1537,7 +1537,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const stageResourcesDir = yield* fs.makeTempDirectoryScoped({
-          prefix: "t3code-dmg-background-",
+          prefix: "ozi-dmg-background-",
         });
         const dmgDir = path.join(stageResourcesDir, "dmg");
         yield* fs.makeDirectory(dmgDir, { recursive: true });
@@ -1588,7 +1588,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
         const stageResourcesDir = yield* fs.makeTempDirectoryScoped({
-          prefix: "t3code-dmg-background-missing-",
+          prefix: "ozi-dmg-background-missing-",
         });
 
         const error = yield* stageDesktopDmgBackground(stageResourcesDir, "latest", false).pipe(
@@ -1617,13 +1617,13 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
     Effect.gen(function* () {
       const config = yield* createBuildConfig("mac", "dmg", "1.2.3", true, {
         entitlementsPath: "/tmp/entitlements.mac.plist",
-        provisioningProfilePath: "/tmp/t3code.provisionprofile",
+        provisioningProfilePath: "/tmp/ozi.provisionprofile",
       });
 
       const mac = config.mac as Record<string, unknown>;
-      assert.equal(config.appId, "app.ozi.desktop");
+      assert.equal(config.appId, "com.ozi.app");
       assert.equal(mac.entitlements, "/tmp/entitlements.mac.plist");
-      assert.equal(mac.provisioningProfile, "/tmp/t3code.provisionprofile");
+      assert.equal(mac.provisioningProfile, "/tmp/ozi.provisionprofile");
       assert.match(String(mac.sign), /[\\/]scripts[\\/]sign-macos\.ts$/);
       assert.deepStrictEqual(mac.protocols, [
         { name: "Ozi", schemes: ["ozi", "ozi-dev"] },
@@ -1820,7 +1820,7 @@ it.effect.skipIf(!symlinksSupported)("rebases packaged links into the isolated t
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
-    const root = yield* fs.makeTempDirectoryScoped({ prefix: "t3code-copy-symlinks-" });
+    const root = yield* fs.makeTempDirectoryScoped({ prefix: "ozi-copy-symlinks-" });
     const source = path.join(root, "source");
     const destination = path.join(root, "destination");
     const packageDir = path.join(source, "node_modules/.pnpm/example@1/node_modules/example");

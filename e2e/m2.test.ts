@@ -163,6 +163,75 @@ it("m2.followup-lead sends related follow-up work to the existing lead", async (
   expect(cards[0]!.requestEventId).not.toBe(before);
 });
 
+it.each(["failed", "unavailable"])(
+  "m2.followup-lead retries a %s lead with jobId and one ready card",
+  async (failure) => {
+    await script([
+      {
+        match: "^retry-start$",
+        role: "main",
+        steps: [
+          delegate(
+            "retry-outcome",
+            failure === "unavailable"
+              ? { target: { providerInstanceId: "unavailable", model: "missing" } }
+              : {},
+          ),
+          { say: "first attempt started" },
+        ],
+      },
+      {
+        match: "^retry-outcome$",
+        role: "worker",
+        steps: [{ fail: "No API key found for the selected model" }],
+      },
+    ]);
+    await h.ozi("say", "retry-start");
+    await h.wait("ozi-main", "text:first attempt started");
+    const card = (await jobs())[0]!;
+    await wait(card.jobId, "needs_you");
+    const retry = delegate("retry-with-bridge", {
+      jobId: card.jobId,
+      target: { providerInstanceId: "pi", model: "claude-bridge/claude-opus-5-5" },
+    });
+    await script([
+      {
+        match: "^retry-request$",
+        role: "main",
+        steps: [retry, retry, { say: "retry dispatched" }],
+      },
+      { match: "retry-with-bridge", role: "worker", steps: [{ say: "retry succeeded" }] },
+    ]);
+    await h.ozi("say", "retry-request");
+    await h.wait("ozi-main", "text:retry dispatched");
+    expect(await wait(card.jobId, "ready")).toMatchObject({
+      jobId: card.jobId,
+      title: card.title,
+      checking: false,
+      requests: [],
+      agent: { provider: "pi", model: "claude-bridge/claude-opus-5-5" },
+      report: { text: "retry succeeded" },
+    });
+    expect(await jobs()).toHaveLength(1);
+    const lead = await h.thread(card.jobId);
+    expect(lead.runs).toHaveLength(failure === "failed" ? 2 : 1);
+    expect(
+      (await h.status()).snapshot.threads.filter((thread) => thread.jobId === card.jobId),
+    ).toHaveLength(1);
+    const tasks = (await h.thread("ozi-main")).subagents.filter(
+      (task) => task.origin === "app_owned",
+    );
+    expect(tasks).toHaveLength(2);
+    expect(tasks.map((task) => task.childThreadId)).toEqual([card.jobId, card.jobId]);
+    await h.restart();
+    expect(await jobs()).toHaveLength(1);
+    expect(await wait(card.jobId, "ready")).toMatchObject({
+      requests: [],
+      report: { text: "retry succeeded" },
+    });
+  },
+);
+
 it("m2.question-card routes a helper question and answer to its owner", async () => {
   const card = await start(
     "question-lead",

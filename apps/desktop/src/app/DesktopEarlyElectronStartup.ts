@@ -32,7 +32,7 @@ export interface EarlyLinuxElectronOptions {
 }
 
 export const resolveLinuxDesktopEntryName = (isDevelopment: boolean): string =>
-  isDevelopment ? "app.ozi.Ozi.Development.desktop" : "app.ozi.Ozi.desktop";
+  isDevelopment ? "com.ozi.app.dev.desktop" : "com.ozi.app.desktop";
 
 const trimNonEmpty = (value: string | undefined): string | null => {
   const trimmed = value?.trim();
@@ -54,17 +54,17 @@ function resolveEarlyDesktopSettingsPath(input: {
   readonly homeDirectory: string;
   readonly joinPath: JoinPath;
 }): string {
-  const t3Home = Option.fromUndefinedOr(input.env.T3CODE_HOME);
+  const oziHome = Option.fromUndefinedOr(input.env.OZI_HOME);
   const baseDir = resolveDesktopBaseDir({
     homeDirectory: input.homeDirectory,
     joinPath: input.joinPath,
-    t3Home,
+    oziHome,
   });
   const stateDir = resolveDesktopStateDir({
     baseDir,
     isDevelopment: isDevelopmentEnvironment(input.env),
     joinPath: input.joinPath,
-    t3Home,
+    oziHome,
   });
   return input.joinPath(stateDir, "desktop-settings.json");
 }

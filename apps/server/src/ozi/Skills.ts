@@ -8,6 +8,7 @@ import { ServerConfig } from "../config.ts";
 import { McpInvocationContext } from "../mcp/McpInvocationContext.ts";
 import * as McpToolAccess from "../mcp/McpToolAccess.ts";
 import { dataRoot } from "./Loadout.ts";
+import { dataRootPermit } from "./DataRoot.ts";
 
 export const SkillToolkit = Toolkit.make(
   Tool.make("read_skill", {
@@ -38,7 +39,10 @@ export const layer = McpToolAccess.toLayer(SkillToolkit, {
         if (relative.startsWith(`..${path.sep}`) || relative === ".." || path.isAbsolute(relative))
           return yield* missing;
         return yield* fs.readFileString(file);
-      }).pipe(Effect.mapError(() => missing));
+      }).pipe(
+        dataRootPermit.withPermits(1),
+        Effect.mapError(() => missing),
+      );
     }),
   ),
 });

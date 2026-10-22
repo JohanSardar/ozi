@@ -63,7 +63,8 @@ const start = async (
                     ? undefined
                     : {
                         providerInstanceId: provider,
-                        model: provider === "pi" ? "anthropic/claude-opus-5-5" : "claude-opus-5-5",
+                        model:
+                          provider === "pi" ? "claude-bridge/claude-opus-5-5" : "claude-opus-5-5",
                       },
               },
             },
@@ -369,7 +370,16 @@ it("m3.close-exact rejects stale reports and reopens on a newer result", async (
   ]);
   await h.ozi("thread", id, "--message", "new outcome");
   await waitJob(id, "ready");
-  await expect(h.ozi("close", id, eventId)).rejects.toThrow(/StaleEvent/);
+  expect(await h.execOutput("close", id, eventId, "--json")).toEqual({
+    code: 1,
+    stdout: '{"error":{"code":"StaleEvent","message":"The job has a newer event."}}\n',
+    stderr: "",
+  });
+  expect(await h.execOutput("close", id, eventId)).toEqual({
+    code: 1,
+    stdout: "",
+    stderr: "The job has a newer event.\n",
+  });
   expect((await job(id)).report?.text).toBe("new result");
   const card = await job(id);
   const checked = (await checks(id)).at(-1)!;
@@ -426,6 +436,20 @@ it("m3.close-vs-stop closes without interrupting and stops without accepting", a
   await h.ozi("stop", "--thread", other);
   await h.wait(other, "interrupted");
   expect((await job(other)).column).not.toBe("done");
+  expect(await job(other)).toMatchObject({
+    column: "needs_you",
+    status: "Stopped",
+    checking: false,
+  });
+  expect(await checks(other)).toEqual([]);
+  await h.ozi("close", other, displayed(await job(other)));
+  expect((await job(other)).column).toBe("done");
+  await h.script([
+    { match: "^resume-stopped$", role: "worker", steps: [{ say: "resumed" }, { wait: true }] },
+  ]);
+  await h.ozi("thread", other, "--message", "resume-stopped");
+  await h.wait(other, "text:resumed");
+  expect(await job(other)).toMatchObject({ column: "running", status: "Working", checking: false });
 });
 
 it("m3.recovery recovers a durable claim before fork and deduplicates delivery after crashes", async () => {

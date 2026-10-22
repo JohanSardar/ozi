@@ -6179,14 +6179,22 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       const parentRun = parentProjection.runs.find(
         (candidate) => candidate.id === command.parentRunId,
       );
-      if (parentRun === undefined || (!isBlockingRun(parentRun) && !repair)) {
+      const systemBlocker =
+        command.createdBy === "system" &&
+        command.creationSource === "server" &&
+        command.launchFailure !== undefined &&
+        isOziMain(parentProjection.thread);
+      if (parentRun === undefined || (!isBlockingRun(parentRun) && !repair && !systemBlocker)) {
         return yield* new OrchestratorDispatchError({
           commandId: command.commandId,
           commandType: command.type,
           cause: `Parent run ${command.parentRunId} is not active.`,
         });
       }
-      if (yield* stopReachedRun(command, command.parentThreadId, parentRun.id)) {
+      if (
+        !systemBlocker &&
+        (yield* stopReachedRun(command, command.parentThreadId, parentRun.id))
+      ) {
         return yield* new OrchestratorDispatchError({
           commandId: command.commandId,
           commandType: command.type,
@@ -6196,6 +6204,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       const parentNode = parentProjection.nodes.find(
         (candidate) => candidate.id === command.parentNodeId,
       );
+      let retryLead: OrchestrationV2AppThread | undefined;
       if (command.jobId !== undefined) {
         const jobId = command.jobId;
         const lead = yield* projectionStore
@@ -6213,6 +6222,17 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
             commandType: command.type,
             cause: "Only main may attach work to one of its jobs.",
           });
+        const projection = yield* projectionStore
+          .getThreadRecords(jobId, ["runs", "turnItems"])
+          .pipe(mapDispatchError(command));
+        if (
+          projection.runs.at(-1)?.status === "failed" ||
+          (!projection.runs.length &&
+            projection.turnItems.some(
+              (item) => item.type === "notification" && item.outcome === "failed",
+            ))
+        )
+          retryLead = lead;
       }
       if (command.workspaceStrategy !== undefined)
         return yield* new OrchestratorDispatchError({
@@ -6250,9 +6270,11 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       const taskNodeId = idAllocator.derive.delegatedTaskNode({
         commandId: command.commandId,
       });
-      const childThreadId = idAllocator.derive.delegatedTaskThread({
-        commandId: command.commandId,
-      });
+      const childThreadId =
+        retryLead?.id ??
+        idAllocator.derive.delegatedTaskThread({
+          commandId: command.commandId,
+        });
       const childMessageId = idAllocator.derive.delegatedTaskMessage({
         commandId: command.commandId,
       });
@@ -6266,29 +6288,32 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         ordinal: parentProjection.subagents.length + 1,
       });
       const childThread: OrchestrationV2AppThread = {
-        ...makeSubagentChildThread({
-          parentThread: parentProjection.thread,
-          childThreadId,
-          parentNodeId: taskNodeId,
-          activeProviderThreadId: null,
-          providerInstanceId: command.modelSelection.instanceId,
-          modelSelection: command.modelSelection,
-          title: taskTitle,
-          now,
-          createdBy: command.createdBy,
-          creationSource: command.creationSource,
-        }),
+        ...(retryLead ??
+          makeSubagentChildThread({
+            parentThread: parentProjection.thread,
+            childThreadId,
+            parentNodeId: taskNodeId,
+            activeProviderThreadId: null,
+            providerInstanceId: command.modelSelection.instanceId,
+            modelSelection: command.modelSelection,
+            title: taskTitle,
+            now,
+            createdBy: command.createdBy,
+            creationSource: command.creationSource,
+          })),
         runtimeMode: command.runtimeMode,
         interactionMode: command.interactionMode,
         jobId: repair ? null : (command.jobId ?? parentProjection.thread.jobId ?? childThreadId),
-        visibility: repair
-          ? "internal"
-          : parentProjection.messages.some(
-                (message) =>
-                  message.id === parentRun.userMessageId && message.scheduledTaskId !== undefined,
-              )
-            ? "quiet"
-            : (parentProjection.thread.visibility ?? "user"),
+        visibility:
+          retryLead?.visibility ??
+          (repair
+            ? "internal"
+            : parentProjection.messages.some(
+                  (message) =>
+                    message.id === parentRun.userMessageId && message.scheduledTaskId !== undefined,
+                )
+              ? "quiet"
+              : (parentProjection.thread.visibility ?? "user")),
         branch: null,
         worktreePath: null,
       };
@@ -6361,7 +6386,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       const emitEvent = emit(events, command);
 
       yield* emitEvent({
-        type: "thread.created",
+        type: retryLead === undefined ? "thread.created" : "thread.metadata-updated",
         threadId: childThreadId,
         driver: targetAdapter.driver,
         providerInstanceId: command.modelSelection.instanceId,
@@ -6447,7 +6472,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       yield* dispatchMessage(childMessageCommand, events, effects);
 
       const childProjection = yield* getProjectionWithPendingEvents(childThreadId, events);
-      const childRun = childProjection.runs[0];
+      const childRun = childProjection.runs.at(-1);
       if (childRun === undefined) {
         return yield* new OrchestratorDispatchError({
           commandId: command.commandId,
@@ -6455,6 +6480,14 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           cause: `Delegated child thread ${childThreadId} did not create a run.`,
         });
       }
+      if (retryLead !== undefined)
+        yield* emitEvent({
+          type: "run.updated",
+          threadId: childThreadId,
+          runId: childRun.id,
+          occurredAt: now,
+          payload: { ...childRun, delegatedTaskId: taskNodeId },
+        });
       const spawnTransferId = yield* mapDispatchError(command)(
         idAllocator.allocate.contextTransfer({
           sourceThreadId: command.parentThreadId,

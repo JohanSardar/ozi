@@ -19,7 +19,7 @@ const tools = {
     vi.fn<() => Promise<{ modmask: number; key: string; dispatcher: string; arg: string }[]>>(),
   reloadHyprland: vi.fn<() => Promise<void>>(),
 };
-const appId = "app.ozi.Ozi";
+const appId = "com.ozi.app";
 const install = { operation: "install", chooseFile: false } as const;
 const target = () => ({ desktop: "niri" as const, path, appId });
 beforeEach(async () => {
