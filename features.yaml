@@ -201,7 +201,7 @@ features:
     cli: [fixes, undo, wait]
     milestone: 6
     scenarios: [m6.publish, m6.recurrence-undo, m6.edit-conflict, m6.crash-publish]
-    status: building
+    status: passing
   - id: public-ready
     reqs: [for-everybody, minimal, t3-cut]
     module: repo
