@@ -26,6 +26,7 @@ export type Step =
   | { approval: string }
   | { wait: true }
   | { exec: string }
+  | { inference: true }
   | { history: "partial" }
   | { fail: string };
 export type Rule = {
@@ -367,8 +368,9 @@ export async function startHarness(
       spawnServer();
       await ready();
     },
-    async restart() {
+    async restart(environment: Record<string, string> = {}) {
       await stopServer();
+      Object.assign(env, environment);
       spawnServer();
       await ready();
     },
