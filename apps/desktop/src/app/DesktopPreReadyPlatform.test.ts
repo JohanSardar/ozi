@@ -74,7 +74,7 @@ describe("DesktopPreReadyPlatform", () => {
   });
 
   it.effect("persists Linux scaling synchronously across relaunches and settings rewrites", () => {
-    vi.stubEnv("T3CODE_HOME", "/isolated");
+    vi.stubEnv("OZI_HOME", "/isolated");
     vi.stubEnv("VITE_DEV_SERVER_URL", "");
     const settingsPath = "/isolated/userdata/desktop-settings.json";
     const files = new Map([[settingsPath, "{}"]]);
@@ -209,17 +209,17 @@ describe("DesktopPreReadyPlatform", () => {
     vi.stubEnv("XDG_DATA_HOME", "/xdg");
     vi.stubEnv("APPIMAGE", "/Applications/current.AppImage");
     getSwitchValueMock.mockReturnValue("");
-    let desktopName = "t3code.desktop";
+    let desktopName = "ozi.desktop";
     let desktopEntry = previousEntry;
     let iconInstalled = false;
     copyFileSyncMock.mockImplementation((_source: string, destination: string) => {
-      iconInstalled = destination === "/xdg/icons/com.t3tools.T3Code.desktop.png";
+      iconInstalled = destination === "/xdg/icons/com.ozi.app.desktop.png";
     });
     setDesktopNameMock.mockImplementation((name: string) => {
       desktopName = name;
     });
     writeFileSyncMock.mockImplementation((path: string, contents: string) => {
-      if (path === "/xdg/applications/com.t3tools.T3Code.desktop") desktopEntry = contents;
+      if (path === "/xdg/applications/com.ozi.app.desktop") desktopEntry = contents;
     });
 
     return Effect.scoped(
@@ -235,14 +235,11 @@ describe("DesktopPreReadyPlatform", () => {
           ),
         );
         const identity = yield* Effect.promise(() => portalIdentity);
-        assert.equal(identity.desktopName, "com.t3tools.T3Code.desktop");
+        assert.equal(identity.desktopName, "com.ozi.app.desktop");
         assert.include(identity.desktopEntry ?? "", "Exec=/Applications/current.AppImage %U");
-        assert.include(identity.desktopEntry ?? "", "Name=T3 Code (Beta)");
-        assert.include(identity.desktopEntry ?? "", "MimeType=x-scheme-handler/t3code;");
-        assert.include(
-          identity.desktopEntry ?? "",
-          "Icon=/xdg/icons/com.t3tools.T3Code.desktop.png",
-        );
+        assert.include(identity.desktopEntry ?? "", "Name=Ozi (Beta)");
+        assert.include(identity.desktopEntry ?? "", "MimeType=x-scheme-handler/ozi;");
+        assert.include(identity.desktopEntry ?? "", "Icon=/xdg/icons/com.ozi.app.desktop.png");
         assert.isTrue(identity.iconInstalled);
       }),
     ).pipe(Effect.ensuring(Effect.sync(() => vi.unstubAllEnvs())));
@@ -268,7 +265,7 @@ describe("DesktopPreReadyPlatform", () => {
     return Effect.gen(function* () {
       yield* DesktopPreReadyPlatform.make;
       const contents = writeFileSyncMock.mock.calls[0]?.[1];
-      assert.include(contents, "MimeType=x-scheme-handler/t3code;");
+      assert.include(contents, "MimeType=x-scheme-handler/ozi;");
       assert.include(contents, "Icon=");
       assert.equal(setDesktopNameMock.mock.calls.length, 1);
     }).pipe(Effect.provideService(HostProcess.Platform, "linux"));

@@ -29,9 +29,9 @@ const makeEnvironment = (path: Path.Path, overrides: Record<string, unknown> = {
     platform: "linux",
     isPackaged: true,
     isDevelopment: false,
-    displayName: "T3 Code (Alpha)",
-    linuxDesktopEntryName: "com.t3tools.T3Code.desktop",
-    linuxWmClass: "t3code",
+    displayName: "Ozi (Alpha)",
+    linuxDesktopEntryName: "com.ozi.app.desktop",
+    linuxWmClass: "ozi",
     linuxApplicationsDir: "/home/alice/.local/share/applications",
     appImagePath: Option.some("/home/alice/Applications/T3-Code.AppImage"),
     path,
@@ -161,38 +161,38 @@ const emptyRecording = (): RecordedRegistration => ({
 describe("DesktopLinuxUrlHandler", () => {
   it("renders a scheme-handler desktop entry with freedesktop Exec quoting", () => {
     const entry = DesktopLinuxUrlHandler.renderUrlHandlerDesktopEntry({
-      displayName: "T3 Code (Nightly)",
+      displayName: "Ozi (Nightly)",
       execTarget: '/home/al ice/Apps/T3 "100%" $HOME\\x.AppImage',
-      scheme: "t3code",
+      scheme: "ozi",
       iconPath: "/home/al ice/icons/T3\\x.png",
     });
 
     assert.include(entry, "[Desktop Entry]");
-    assert.include(entry, "Name=T3 Code (Nightly)");
+    assert.include(entry, "Name=Ozi (Nightly)");
     assert.include(
       entry,
       'Exec="/home/al ice/Apps/T3 \\\\"100%%\\\\" \\\\$HOME\\\\\\\\x.AppImage" %U',
     );
     assert.include(entry, "NoDisplay=true");
     assert.notInclude(entry, "StartupWMClass=");
-    assert.include(entry, "MimeType=x-scheme-handler/t3code;");
+    assert.include(entry, "MimeType=x-scheme-handler/ozi;");
     assert.include(entry, "Icon=/home/al ice/icons/T3\\\\x.png");
   });
 
   it.each([
     {
-      execTarget: "/opt/T3(beta)/t3code.AppImage",
-      execLine: 'Exec="/opt/T3(beta)/t3code.AppImage" %U',
+      execTarget: "/opt/T3(beta)/ozi.AppImage",
+      execLine: 'Exec="/opt/T3(beta)/ozi.AppImage" %U',
     },
     {
-      execTarget: "/opt/t3%20code/t3code.AppImage",
-      execLine: "Exec=/opt/t3%%20code/t3code.AppImage %U",
+      execTarget: "/opt/t3%20code/ozi.AppImage",
+      execLine: "Exec=/opt/t3%%20code/ozi.AppImage %U",
     },
   ])("renders the handler Exec line for $execTarget", ({ execTarget, execLine }) => {
     const entry = DesktopLinuxUrlHandler.renderUrlHandlerDesktopEntry({
-      displayName: "T3 Code",
+      displayName: "Ozi",
       execTarget,
-      scheme: "t3code",
+      scheme: "ozi",
     });
 
     assert.include(entry.split("\n"), execLine);
@@ -201,27 +201,27 @@ describe("DesktopLinuxUrlHandler", () => {
   it("carries structured context on registration errors", () => {
     const writeError = new DesktopLinuxUrlHandler.DesktopLinuxUrlHandlerRegistrationError({
       step: "write-desktop-entry",
-      scheme: "t3code",
-      desktopEntryPath: "/home/alice/.local/share/applications/com.t3tools.T3Code.desktop",
+      scheme: "ozi",
+      desktopEntryPath: "/home/alice/.local/share/applications/com.ozi.app.desktop",
       cause: new Error("boom"),
     });
     assert.equal(
       writeError.message,
-      "Failed to register the t3code:// URL handler (step: write-desktop-entry).",
+      "Failed to register the ozi:// URL handler (step: write-desktop-entry).",
     );
     assert.equal(
       writeError.desktopEntryPath,
-      "/home/alice/.local/share/applications/com.t3tools.T3Code.desktop",
+      "/home/alice/.local/share/applications/com.ozi.app.desktop",
     );
 
     const exitError = new DesktopLinuxUrlHandler.DesktopLinuxUrlHandlerRegistrationError({
       step: "set-default-handler",
-      scheme: "t3code",
+      scheme: "ozi",
       exitCode: 4,
     });
     assert.equal(
       exitError.message,
-      "Failed to register the t3code:// URL handler (step: set-default-handler, xdg-mime exit code 4).",
+      "Failed to register the ozi:// URL handler (step: set-default-handler, xdg-mime exit code 4).",
     );
   });
 
@@ -237,13 +237,13 @@ describe("DesktopLinuxUrlHandler", () => {
         assert.equal(recorded.files.length, 1);
         assert.equal(
           recorded.files[0]?.path,
-          "/home/alice/.local/share/applications/com.t3tools.T3Code.desktop",
+          "/home/alice/.local/share/applications/com.ozi.app.desktop",
         );
         assert.include(
           recorded.files[0]?.content,
           "Exec=/home/alice/Applications/T3-Code.AppImage %U",
         );
-        assert.include(recorded.files[0]?.content, "MimeType=x-scheme-handler/t3code;");
+        assert.include(recorded.files[0]?.content, "MimeType=x-scheme-handler/ozi;");
         assert.deepEqual(recorded.commands, [
           {
             command: "update-desktop-database",
@@ -251,7 +251,7 @@ describe("DesktopLinuxUrlHandler", () => {
           },
           {
             command: "xdg-mime",
-            args: ["default", "com.t3tools.T3Code.desktop", "x-scheme-handler/t3code"],
+            args: ["default", "com.ozi.app.desktop", "x-scheme-handler/ozi"],
           },
         ]);
       });
@@ -267,10 +267,10 @@ describe("DesktopLinuxUrlHandler", () => {
       assert.include(
         recorded.files[0]?.content,
         DesktopLinuxUrlHandler.renderUrlHandlerDesktopEntry({
-          displayName: "T3 Code (Alpha)",
+          displayName: "Ozi (Alpha)",
           execTarget: process.execPath,
-          scheme: "t3code",
-          iconPath: "/home/alice/.local/share/icons/com.t3tools.T3Code.desktop.png",
+          scheme: "ozi",
+          iconPath: "/home/alice/.local/share/icons/com.ozi.app.desktop.png",
         }),
       );
     });
@@ -282,10 +282,10 @@ describe("DesktopLinuxUrlHandler", () => {
     return Effect.gen(function* () {
       yield* runRegister(recorded, {
         existingEntry: DesktopLinuxUrlHandler.renderUrlHandlerDesktopEntry({
-          displayName: "T3 Code (Alpha)",
+          displayName: "Ozi (Alpha)",
           execTarget: "/home/alice/Applications/T3-Code.AppImage",
-          scheme: "t3code",
-          iconPath: "/home/alice/.local/share/icons/com.t3tools.T3Code.desktop.png",
+          scheme: "ozi",
+          iconPath: "/home/alice/.local/share/icons/com.ozi.app.desktop.png",
         }),
       });
 
@@ -298,7 +298,7 @@ describe("DesktopLinuxUrlHandler", () => {
         },
         {
           command: "xdg-mime",
-          args: ["default", "com.t3tools.T3Code.desktop", "x-scheme-handler/t3code"],
+          args: ["default", "com.ozi.app.desktop", "x-scheme-handler/ozi"],
         },
       ]);
     });
@@ -306,14 +306,14 @@ describe("DesktopLinuxUrlHandler", () => {
 
   it.effect("installs a persistent icon even when the desktop entry is already current", () => {
     const recorded = emptyRecording();
-    const iconPath = "/home/alice/.local/share/icons/com.t3tools.T3Code.desktop.png";
+    const iconPath = "/home/alice/.local/share/icons/com.ozi.app.desktop.png";
     return Effect.gen(function* () {
       yield* runRegister(recorded, {
         iconSource: "/tmp/.mount_T3/resources/icon.png",
         existingEntry: DesktopLinuxUrlHandler.renderUrlHandlerDesktopEntry({
-          displayName: "T3 Code (Alpha)",
+          displayName: "Ozi (Alpha)",
           execTarget: "/home/alice/Applications/T3-Code.AppImage",
-          scheme: "t3code",
+          scheme: "ozi",
           iconPath,
         }),
       });
@@ -354,14 +354,14 @@ describe("DesktopLinuxUrlHandler", () => {
       yield* runRegister(unpackaged, {
         environment: {
           isPackaged: false,
-          linuxDesktopEntryName: "com.t3tools.T3Code.Development.desktop",
+          linuxDesktopEntryName: "com.ozi.app.dev.desktop",
         },
       });
 
       assert.deepEqual(nonLinux.files, []);
       assert.equal(
         unpackaged.files[0]?.path,
-        "/home/alice/.local/share/applications/com.t3tools.T3Code.Development.desktop",
+        "/home/alice/.local/share/applications/com.ozi.app.dev.desktop",
       );
       assert.deepEqual(unpackaged.commands, []);
     });
@@ -381,7 +381,7 @@ describe("DesktopLinuxUrlHandler", () => {
           module: "FileSystem",
           method: "writeFileString",
           description: "read-only filesystem",
-          pathOrDescriptor: "/home/alice/.local/share/applications/com.t3tools.T3Code.desktop",
+          pathOrDescriptor: "/home/alice/.local/share/applications/com.ozi.app.desktop",
         }),
       });
 
@@ -553,17 +553,17 @@ it.layer(NodeServices.layer)("DesktopLinuxUrlHandler theme icons", (it) => {
 
       yield* registerWithRealFileSystem(run);
       assert.deepEqual([...(yield* fileSystem.readDirectory(fixture.appsDir))].sort(), [
-        "com.t3tools.T3Code.png",
-        "com.t3tools.t3code.png",
+        "com.ozi.app.png",
+        "com.ozi.app.png",
       ]);
-      for (const name of ["com.t3tools.t3code", "com.t3tools.T3Code"]) {
+      for (const name of ["com.ozi.app", "com.ozi.app"]) {
         const target = path.join(fixture.appsDir, `${name}.png`);
         assert.deepEqual([...(yield* fileSystem.readFile(target))], [...icon]);
         yield* fileSystem.utimes(target, fixture.pastSeconds, fixture.pastSeconds);
       }
 
       yield* registerWithRealFileSystem(run);
-      for (const name of ["com.t3tools.t3code", "com.t3tools.T3Code"]) {
+      for (const name of ["com.ozi.app", "com.ozi.app"]) {
         const info = yield* fileSystem.stat(path.join(fixture.appsDir, `${name}.png`));
         assert.equal(Option.getOrThrow(info.mtime).getTime(), fixture.pastSeconds * 1000);
       }
@@ -578,8 +578,8 @@ it.layer(NodeServices.layer)("DesktopLinuxUrlHandler theme icons", (it) => {
       const path = yield* Path.Path;
       const fixture = yield* themeIconFixture(new Uint8Array([1, 2, 3]));
       yield* fixture.seedCache;
-      const lower = path.join(fixture.appsDir, "com.t3tools.t3code.png");
-      const upper = path.join(fixture.appsDir, "com.t3tools.T3Code.png");
+      const lower = path.join(fixture.appsDir, "com.ozi.app.png");
+      const upper = path.join(fixture.appsDir, "com.ozi.app.png");
       yield* fileSystem.writeFile(lower, new Uint8Array([3, 2, 1]));
       yield* fileSystem.writeFile(upper, new Uint8Array([1, 2, 3]));
       for (const target of [lower, upper]) {
@@ -621,7 +621,7 @@ it.layer(NodeServices.layer)("DesktopLinuxUrlHandler theme icons", (it) => {
 
       yield* registerWithRealFileSystem(run);
 
-      assert.isTrue(yield* fileSystem.exists(path.join(fixture.appsDir, "com.t3tools.T3Code.png")));
+      assert.isTrue(yield* fileSystem.exists(path.join(fixture.appsDir, "com.ozi.app.png")));
       assert.equal(iconCacheRuns(run), 1);
     }).pipe(Effect.scoped),
   );

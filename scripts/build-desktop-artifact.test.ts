@@ -212,7 +212,7 @@ const makeWindowsPayloadFixture = Effect.fn("test.makeWindowsPayloadFixture")(fu
     path.join(resourcesDir, "resource-monitor/t3-resource-monitor.exe"),
     "monitor",
   );
-  const appExecutableName = "t3code.exe";
+  const appExecutableName = "ozi.exe";
   yield* fs.writeFileString(path.join(packagedAppDir, appExecutableName), "electron");
   yield* fs.writeFileString(path.join(packagedAppDir, "chrome_crashpad_handler.exe"), "crashpad");
 
@@ -525,8 +525,8 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
   });
 
   it("switches desktop packaging product names to nightly for nightly builds", () => {
-    assert.equal(resolveDesktopProductName("0.1.0"), "T3 Code (Beta)");
-    assert.equal(resolveDesktopProductName("0.0.17-nightly.20260413.42"), "T3 Code (Nightly)");
+    assert.equal(resolveDesktopProductName("0.1.0"), "Ozi (Beta)");
+    assert.equal(resolveDesktopProductName("0.0.17-nightly.20260413.42"), "Ozi (Nightly)");
   });
 
   it("switches desktop packaging icons to the nightly artwork for nightly versions", () => {
@@ -567,7 +567,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
         {
           provider: "github",
           owner: "pingdotgg",
-          repo: "t3code",
+          repo: "ozi",
           releaseType: "release",
         },
       ]);
@@ -1061,7 +1061,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
     ),
   );
 
-  // The fixture's t3code.exe is a text placeholder, not an executable. These
+  // The fixture's ozi.exe is a text placeholder, not an executable. These
   // cases reach the native-load probe, so pin only that host-platform check to
   // Linux. Host-native paths and the real Windows tar/archive checks still run.
   it.effect("validates every ASAR-unpacked native in the packaged Windows payload", () =>
@@ -1528,7 +1528,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
         const path = yield* Path.Path;
         const fixture = yield* makeWindowsPayloadFixture({
           copyUnpackedNatives: true,
-          serverEntrySource: 'import "t3code-deliberately-missing-package";\n',
+          serverEntrySource: 'import "ozi-deliberately-missing-package";\n',
         });
         const error = yield* verifyPackagedBundleIsSelfContained({
           asarPath: path.join(fixture.packagedAppDir, "resources", WINDOWS_SERVER_ASAR_RESOURCE),
@@ -1536,7 +1536,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
         }).pipe(Effect.flip);
 
         assert.instanceOf(error, BundleNotSelfContainedError);
-        assert.include(error.output, "t3code-deliberately-missing-package");
+        assert.include(error.output, "ozi-deliberately-missing-package");
       }),
     ),
   );
@@ -1546,7 +1546,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
       Effect.gen(function* () {
         const fixture = yield* makeWindowsPayloadFixture({
           copyUnpackedNatives: true,
-          serverEntrySource: 'import "t3code-deliberately-missing-package";\n',
+          serverEntrySource: 'import "ozi-deliberately-missing-package";\n',
         });
         yield* validateWindowsPackagedPayload({
           stageDistDir: fixture.stageDistDir,
@@ -1611,7 +1611,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
         const fs = yield* FileSystem.FileSystem;
         const path = yield* Path.Path;
         const stageResourcesDir = yield* fs.makeTempDirectoryScoped({
-          prefix: "t3code-dmg-background-",
+          prefix: "ozi-dmg-background-",
         });
         const dmgDir = path.join(stageResourcesDir, "dmg");
         yield* fs.makeDirectory(dmgDir, { recursive: true });
@@ -1662,7 +1662,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
       Effect.gen(function* () {
         const fs = yield* FileSystem.FileSystem;
         const stageResourcesDir = yield* fs.makeTempDirectoryScoped({
-          prefix: "t3code-dmg-background-missing-",
+          prefix: "ozi-dmg-background-missing-",
         });
 
         const error = yield* stageDesktopDmgBackground(stageResourcesDir, "latest", false).pipe(
@@ -1678,24 +1678,24 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
 
   it("derives macOS passkey signing configuration from the Clerk publishable key", () => {
     const configuration = resolveMacPasskeySigningConfiguration({
-      T3CODE_APPLE_TEAM_ID: "abc1234567",
-      T3CODE_MACOS_PROVISIONING_PROFILE: "/tmp/t3code.provisionprofile",
-      T3CODE_CLERK_PUBLISHABLE_KEY: `pk_test_${btoa("example.clerk.accounts.dev$")}`,
+      OZI_APPLE_TEAM_ID: "abc1234567",
+      OZI_MACOS_PROVISIONING_PROFILE: "/tmp/ozi.provisionprofile",
+      OZI_CLERK_PUBLISHABLE_KEY: `pk_test_${btoa("example.clerk.accounts.dev$")}`,
     });
 
     assert.deepStrictEqual(configuration, {
-      appId: "com.t3tools.t3code",
+      appId: "com.ozi.app",
       teamId: "ABC1234567",
       rpDomains: ["example.clerk.accounts.dev"],
-      provisioningProfilePath: "/tmp/t3code.provisionprofile",
+      provisioningProfilePath: "/tmp/ozi.provisionprofile",
     });
   });
 
   it("normalizes explicit macOS passkey RP domains and renders required entitlements", () => {
     const configuration = resolveMacPasskeySigningConfiguration({
-      T3CODE_APPLE_TEAM_ID: "ABC1234567",
-      T3CODE_MACOS_PROVISIONING_PROFILE: "/tmp/t3code.provisionprofile",
-      T3CODE_CLERK_PASSKEY_RP_DOMAINS:
+      OZI_APPLE_TEAM_ID: "ABC1234567",
+      OZI_MACOS_PROVISIONING_PROFILE: "/tmp/ozi.provisionprofile",
+      OZI_CLERK_PASSKEY_RP_DOMAINS:
         " Clerk.Example.com,example.clerk.accounts.dev,clerk.example.com ",
     });
     const entitlements = renderMacPasskeyEntitlements(configuration, {
@@ -1707,7 +1707,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
       "clerk.example.com",
       "example.clerk.accounts.dev",
     ]);
-    assert.include(entitlements, "<string>ABC1234567.com.t3tools.t3code</string>");
+    assert.include(entitlements, "<string>ABC1234567.com.ozi.app</string>");
     assert.include(entitlements, "<string>webcredentials:clerk.example.com</string>");
     assert.include(entitlements, "<string>webcredentials:example.clerk.accounts.dev</string>");
     assert.include(entitlements, "<key>com.apple.security.cs.allow-jit</key>");
@@ -1718,7 +1718,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
   });
 
   it("grants in-app browser passkey entitlements only when the provisioning profile does", () => {
-    const configuration = { appId: "com.t3tools.t3code", teamId: "ABC1234567" };
+    const configuration = { appId: "com.ozi.app", teamId: "ABC1234567" };
     const profile = (entitlements: string, outside = "") =>
       `0\x82\x1f\x9a\x06\t*\x86H<?xml version="1.0"?><plist version="1.0"><dict>${outside}<key>Entitlements</key><dict>${entitlements}</dict></dict></plist>\x00\x01`;
     const teamWildcardGroups = `<key>keychain-access-groups</key>
@@ -1760,7 +1760,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
         configuration,
       ),
       {
-        touchIdKeychainAccessGroup: "ABC1234567.com.t3tools.t3code.webauthn",
+        touchIdKeychainAccessGroup: "ABC1234567.com.ozi.app.webauthn",
         browserPasskeys: true,
       },
     );
@@ -1776,7 +1776,7 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
     );
     assert.match(
       entitlements,
-      /<key>keychain-access-groups<\/key>\s*<array>\s*<string>ABC1234567\.com\.t3tools\.t3code\.webauthn<\/string>\s*<\/array>/u,
+      /<key>keychain-access-groups<\/key>\s*<array>\s*<string>ABC1234567\.com\.ozi\.app\.webauthn<\/string>\s*<\/array>/u,
     );
     assert.match(
       entitlements,
@@ -1795,21 +1795,21 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
     };
 
     const missingProfileError = captureError({
-      T3CODE_APPLE_TEAM_ID: "ABC1234567",
-      T3CODE_CLERK_PASSKEY_RP_DOMAINS: "example.clerk.accounts.dev",
+      OZI_APPLE_TEAM_ID: "ABC1234567",
+      OZI_CLERK_PASSKEY_RP_DOMAINS: "example.clerk.accounts.dev",
     });
     assert.instanceOf(missingProfileError, MissingMacPasskeyProvisioningProfileError);
     assert.equal(
       missingProfileError.message,
-      "T3CODE_MACOS_PROVISIONING_PROFILE must point to an Associated Domains provisioning profile.",
+      "OZI_MACOS_PROVISIONING_PROFILE must point to an Associated Domains provisioning profile.",
     );
 
     const unsafeDomain =
       "https://domain-user:domain-secret@example.clerk.accounts.dev/path?token=query-secret";
     const invalidDomainError = captureError({
-      T3CODE_APPLE_TEAM_ID: "ABC1234567",
-      T3CODE_MACOS_PROVISIONING_PROFILE: "/tmp/t3code.provisionprofile",
-      T3CODE_CLERK_PASSKEY_RP_DOMAINS: unsafeDomain,
+      OZI_APPLE_TEAM_ID: "ABC1234567",
+      OZI_MACOS_PROVISIONING_PROFILE: "/tmp/ozi.provisionprofile",
+      OZI_CLERK_PASSKEY_RP_DOMAINS: unsafeDomain,
     });
     assert.instanceOf(invalidDomainError, InvalidMacPasskeyRpDomainError);
     assert.equal(invalidDomainError.reason, "scheme-not-allowed");
@@ -1825,20 +1825,20 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
     assert.throws(
       () =>
         resolveMacPasskeySigningConfiguration({
-          T3CODE_APPLE_TEAM_ID: "ABC1234567",
-          T3CODE_MACOS_PROVISIONING_PROFILE: "/tmp/t3code.provisionprofile",
-          T3CODE_CLERK_PASSKEY_RP_DOMAINS: "example.clerk.accounts.dev:8443",
+          OZI_APPLE_TEAM_ID: "ABC1234567",
+          OZI_MACOS_PROVISIONING_PROFILE: "/tmp/ozi.provisionprofile",
+          OZI_CLERK_PASSKEY_RP_DOMAINS: "example.clerk.accounts.dev:8443",
         }),
       /Invalid passkey RP domain/u,
     );
     const invalidPublishableKeyError = captureError({
-      T3CODE_APPLE_TEAM_ID: "ABC1234567",
-      T3CODE_MACOS_PROVISIONING_PROFILE: "/tmp/t3code.provisionprofile",
-      T3CODE_CLERK_PUBLISHABLE_KEY: "pk_test_%",
+      OZI_APPLE_TEAM_ID: "ABC1234567",
+      OZI_MACOS_PROVISIONING_PROFILE: "/tmp/ozi.provisionprofile",
+      OZI_CLERK_PUBLISHABLE_KEY: "pk_test_%",
     });
     assert.instanceOf(invalidPublishableKeyError, InvalidMacPasskeyPublishableKeyError);
     assert.ok(invalidPublishableKeyError.cause);
-    assert.equal(invalidPublishableKeyError.message, "T3CODE_CLERK_PUBLISHABLE_KEY is invalid.");
+    assert.equal(invalidPublishableKeyError.message, "OZI_CLERK_PUBLISHABLE_KEY is invalid.");
     assert.notProperty(invalidPublishableKeyError, "publishableKey");
     assert.notInclude(invalidPublishableKeyError.message, "pk_test_%");
   });
@@ -1869,16 +1869,16 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
     Effect.gen(function* () {
       const config = yield* createBuildConfig("mac", "dmg", "1.2.3", true, {
         entitlementsPath: "/tmp/entitlements.mac.plist",
-        provisioningProfilePath: "/tmp/t3code.provisionprofile",
+        provisioningProfilePath: "/tmp/ozi.provisionprofile",
       });
 
       const mac = config.mac as Record<string, unknown>;
-      assert.equal(config.appId, "com.t3tools.t3code");
+      assert.equal(config.appId, "com.ozi.app");
       assert.equal(mac.entitlements, "/tmp/entitlements.mac.plist");
-      assert.equal(mac.provisioningProfile, "/tmp/t3code.provisionprofile");
+      assert.equal(mac.provisioningProfile, "/tmp/ozi.provisionprofile");
       assert.match(String(mac.sign), /[\\/]scripts[\\/]sign-macos\.ts$/);
       assert.deepStrictEqual(mac.protocols, [
-        { name: "T3 Code", schemes: ["t3code", "t3code-dev"] },
+        { name: "Ozi", schemes: ["ozi", "ozi-dev"] },
         { name: "Web site URL", schemes: ["http", "https"], role: "Viewer" },
       ]);
     }).pipe(Effect.provide(ConfigProvider.layer(ConfigProvider.fromEnv({ env: {} })))),
@@ -2092,7 +2092,7 @@ it.effect.skipIf(!symlinksSupported)("rebases packaged links into the isolated t
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
-    const root = yield* fs.makeTempDirectoryScoped({ prefix: "t3code-copy-symlinks-" });
+    const root = yield* fs.makeTempDirectoryScoped({ prefix: "ozi-copy-symlinks-" });
     const source = path.join(root, "source");
     const destination = path.join(root, "destination");
     const packageDir = path.join(source, "node_modules/.pnpm/example@1/node_modules/example");
