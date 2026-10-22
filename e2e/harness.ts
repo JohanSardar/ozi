@@ -88,6 +88,7 @@ export async function startHarness(
     testClock?: string;
     publicUrl?: string;
     publicUrlEnv?: string;
+    repairPause?: string;
     desktopArgv?: string[];
     bundled?: boolean;
     pi?: { binaryPath: string; env: NodeJS.ProcessEnv };
@@ -148,6 +149,7 @@ export async function startHarness(
     OZI_FAKE_SCRIPT: script,
     OZI_FAKE_LOG: log,
     ...(options.testClock === undefined ? {} : { OZI_TEST_CLOCK: options.testClock }),
+    ...(options.repairPause === undefined ? {} : { OZI_TEST_REPAIR_PAUSE: options.repairPause }),
     ...(options.publicUrlEnv === undefined ? {} : { OZI_PUBLIC_URL: options.publicUrlEnv }),
     TZ: "UTC",
     CODEX_HOME: NodePath.join(root, "codex"),
@@ -307,6 +309,16 @@ export async function startHarness(
       controller.abort();
     }
   };
+  const execOutput = (...args: string[]) =>
+    new Promise<{ code: number; stdout: string; stderr: string }>((resolve) =>
+      NodeChildProcess.execFile(
+        process.execPath,
+        [cli, ...args, "--home", home],
+        { cwd: dataRoot, env, timeout: 45_000 },
+        (error, stdout, stderr) =>
+          resolve({ code: error ? Number(error.code ?? 1) : 0, stdout, stderr }),
+      ),
+    );
   const stopServer = async () => {
     if (server.exitCode !== null || server.signalCode !== null) return;
     const exited = new Promise<void>((resolve) => server.once("exit", () => resolve()));
@@ -332,16 +344,15 @@ export async function startHarness(
     dataRoot,
     port,
     ozi,
+    git: (...args: string[]) =>
+      new Promise<string>((resolve, reject) => {
+        NodeChildProcess.execFile("git", args, { cwd: dataRoot, env }, (error, stdout, stderr) =>
+          error ? reject(new Error(stderr || error.message)) : resolve(stdout.trim()),
+        );
+      }),
     status: () => ozi<Status>("status"),
-    exec: (...args: string[]) =>
-      new Promise<number>((resolve) =>
-        NodeChildProcess.execFile(
-          process.execPath,
-          [cli, ...args, "--home", home],
-          { cwd: dataRoot, env, timeout: 45_000 },
-          (error) => resolve(error ? Number(error.code ?? 1) : 0),
-        ),
-      ),
+    execOutput,
+    exec: async (...args: string[]) => (await execOutput(...args)).code,
     thread: (id: string) => ozi<Projection>("thread", id),
     wait: (id: string, state: string, timeout = 15) =>
       ozi<Projection>("wait", "thread", id, state, "--timeout", String(timeout)),
@@ -370,6 +381,7 @@ export async function startHarness(
       const exited = new Promise<void>((resolve) => server.once("exit", () => resolve()));
       server.kill("SIGKILL");
       await exited;
+      delete env.OZI_TEST_REPAIR_PAUSE;
       spawnServer();
       await ready();
     },

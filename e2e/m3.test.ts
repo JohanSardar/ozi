@@ -370,7 +370,16 @@ it("m3.close-exact rejects stale reports and reopens on a newer result", async (
   ]);
   await h.ozi("thread", id, "--message", "new outcome");
   await waitJob(id, "ready");
-  await expect(h.ozi("close", id, eventId)).rejects.toThrow(/StaleEvent/);
+  expect(await h.execOutput("close", id, eventId, "--json")).toEqual({
+    code: 1,
+    stdout: '{"error":{"code":"StaleEvent","message":"The job has a newer event."}}\n',
+    stderr: "",
+  });
+  expect(await h.execOutput("close", id, eventId)).toEqual({
+    code: 1,
+    stdout: "",
+    stderr: "The job has a newer event.\n",
+  });
   expect((await job(id)).report?.text).toBe("new result");
   const card = await job(id);
   const checked = (await checks(id)).at(-1)!;

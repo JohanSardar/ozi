@@ -108,7 +108,7 @@ it("m6.audit bundled desktop starts ozi serve and pairs through Connections", as
     );
     expect(await NodeFSP.readdir(NodePath.join(local.root, "account/.t3"))).toEqual(["bin"]);
     const page = await local.page();
-    await page.waitForURL((url) => url.pathname !== "/pair");
+    await page.getByPlaceholder("Tell Ozi anything…").waitFor();
     await page.goto(new URL("/settings/connections", page.url()).href);
     await page.getByRole("button", { name: "Add environment", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Add Environment", exact: true });
