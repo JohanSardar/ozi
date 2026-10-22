@@ -27,6 +27,7 @@ import {
   OrchestrationV2ShellSnapshot,
   OrchestrationV2ThreadProjection,
   ServerConfig,
+  ServerProvider,
   ThreadId,
   WS_METHODS as W,
   WsRpcGroup,
@@ -461,7 +462,7 @@ const answerCommand = Command.make("answer", {
 
 const waitCommand = Command.make("wait", {
   ...locationFlags,
-  entity: Argument.Literals("entity", ["thread", "job", "check", "mistake", "replay"]),
+  entity: Argument.Literals("entity", ["thread", "job", "check", "mistake", "replay", "provider"]),
   id: Argument.String("id"),
   state: Argument.String("state"),
   timeout: Flag.Finite("timeout").pipe(
@@ -485,6 +486,27 @@ const waitCommand = Command.make("wait", {
         return;
       }
       const { client } = yield* connect(flags.baseDir);
+      if (flags.entity === "provider") {
+        const result = yield* client[W.subscribeServerConfig]({}).pipe(
+          Stream.map((event) =>
+            (event.type === "snapshot"
+              ? event.config.providers
+              : event.type === "providerStatuses"
+                ? event.payload.providers
+                : []
+            ).find(
+              (provider) => provider.instanceId === flags.id && provider.status === flags.state,
+            ),
+          ),
+          Stream.filter((provider): provider is ServerProvider => provider !== undefined),
+          Stream.runHead,
+          Effect.timeout(`${flags.timeout} seconds`),
+        );
+        if (Option.isNone(result))
+          return yield* new ClientError({ operation: "provider subscription ended" });
+        yield* emit(ServerProvider, result.value);
+        return;
+      }
       if (flags.entity === "job") {
         const result = yield* client[J.jobsSubscribe]({}).pipe(
           Stream.map((cards) =>

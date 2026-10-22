@@ -85,9 +85,11 @@ export async function startHarness(
     testClock?: string;
     publicUrl?: string;
     publicUrlEnv?: string;
-    realPi?: string;
+    bundled?: boolean;
+    pi?: { binaryPath: string; env: NodeJS.ProcessEnv };
   } = {},
 ) {
+  const entry = options.bundled ? NodePath.join(repo, "apps/server/dist/bin.mjs") : cli;
   const root = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "ozi-e2e-"));
   const home = NodePath.join(root, "home");
   const dataRoot = NodePath.join(root, "data-root");
@@ -110,8 +112,8 @@ export async function startHarness(
         enabled: true,
         config: {
           binaryPath:
-            name === "pi" && options.realPi !== undefined
-              ? NodePath.join(repo, "e2e/node_modules/.bin/pi")
+            driver === "pi" && options.pi
+              ? options.pi.binaryPath
               : NodePath.join(repo, "e2e/fakes", name!),
         },
       },
@@ -144,22 +146,15 @@ export async function startHarness(
     CODEX_HOME: NodePath.join(root, "codex"),
     CLAUDE_CONFIG_DIR: NodePath.join(root, "claude"),
     PI_CODING_AGENT_DIR: NodePath.join(root, "pi"),
-    ...(options.realPi === undefined ? {} : { ANTHROPIC_API_KEY: "e2e" }),
     T3CODE_LOG_LEVEL: "Error",
     T3CODE_TRACE_TIMING_ENABLED: "false",
     T3CODE_NO_BROWSER: "true",
     CI: "1",
     GIT_CONFIG_NOSYSTEM: "1",
     GIT_CONFIG_GLOBAL: NodePath.join(root, "gitconfig"),
+    ...options.pi?.env,
   };
   await NodeFSP.mkdir(env.HOME!, { recursive: true });
-  if (options.realPi !== undefined) {
-    await NodeFSP.mkdir(env.PI_CODING_AGENT_DIR!, { recursive: true });
-    await NodeFSP.writeFile(
-      NodePath.join(env.PI_CODING_AGENT_DIR!, "models.json"),
-      JSON.stringify({ providers: { anthropic: { baseUrl: options.realPi } } }),
-    );
-  }
   await NodeFSP.writeFile(
     env.GIT_CONFIG_GLOBAL!,
     "[user]\nname = Ozi E2E\nemail = e2e@example.invalid\n[init]\ndefaultBranch = main\n",
@@ -178,7 +173,7 @@ export async function startHarness(
     server = NodeChildProcess.spawn(
       process.execPath,
       [
-        cli,
+        entry,
         "serve",
         "--mode",
         "web",
@@ -224,7 +219,7 @@ export async function startHarness(
     new Promise<T>((resolve, reject) => {
       NodeChildProcess.execFile(
         process.execPath,
-        [cli, ...args, "--home", home, "--json"],
+        [entry, ...args, "--home", home, "--json"],
         { cwd: dataRoot, env, timeout: 45_000, maxBuffer: 16 * 1024 * 1024 },
         (error, stdout, stderr) => {
           if (error) {

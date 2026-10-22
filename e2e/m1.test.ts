@@ -69,7 +69,7 @@ it("m1.main-loadout preserves the Pi loadout, prompt and tools after resume and 
   const initial = await main();
   expect(initial.thread.modelSelection).toMatchObject({
     instanceId: "pi",
-    model: "anthropic/claude-opus-5-5",
+    model: "claude-bridge/claude-opus-5-5",
   });
   expect(initial.thread.modelSelection.options).toEqual([
     { id: "thinking", value: "high" },
@@ -80,7 +80,7 @@ it("m1.main-loadout preserves the Pi loadout, prompt and tools after resume and 
   ).replaceAll("{{ADHD}}", "");
   expect(initial.thread.effectiveLoadout).toMatchObject({
     provider: "pi",
-    model: "anthropic/claude-opus-5-5",
+    model: "claude-bridge/claude-opus-5-5",
     options: initial.thread.modelSelection.options,
     systemPromptSha256: NodeCrypto.createHash("sha256").update(prompt).digest("hex"),
   });
@@ -139,6 +139,7 @@ it("m1.main-loadout preserves the Pi loadout, prompt and tools after resume and 
 
 it("m1.main-cannot-execute rejects execution tools on main", async () => {
   const initial = await main();
+  expect(initial.thread.modelSelection.model).toBe("claude-bridge/claude-opus-5-5");
   await h.script([
     {
       match: "forbidden-execution",
@@ -156,7 +157,9 @@ it("m1.main-cannot-execute rejects execution tools on main", async () => {
   expect(call?.result?.isError).toBe(true);
   const launch = (await h.records()).find(
     (record) =>
-      record.provider === "pi" && record.event === "launch" && record.argv?.includes("--extension"),
+      record.provider === "pi" &&
+      record.event === "launch" &&
+      record.argv?.includes("--system-prompt"),
   );
   expect(launch?.argv).toEqual(
     expect.arrayContaining([
@@ -167,8 +170,10 @@ it("m1.main-cannot-execute rejects execution tools on main", async () => {
       "--no-context-files",
       "--no-prompt-templates",
       "--system-prompt",
+      "claude-bridge",
     ]),
   );
+  expect(launch?.argv?.filter((argument) => argument === "--extension")).toHaveLength(2);
   expect(launch?.argv).not.toContain("--no-tools");
 });
 
