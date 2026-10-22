@@ -3854,7 +3854,11 @@ export function ConnectionsSettings() {
       ) : (
         <SettingsSection {...searchableSetting("connections-environment")}>
           <SettingsRow
-            title="Local environment is off"
+            title={
+              isLocalEnvironmentDisabled()
+                ? "Local environment is off"
+                : "Local environment is unavailable"
+            }
             description={
               ozi.environment
                 ? "Ozi uses your saved remote server."
