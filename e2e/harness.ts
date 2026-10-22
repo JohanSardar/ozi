@@ -43,6 +43,7 @@ export type FakeRecord = {
   prompt?: string;
   instructions?: string;
   argv?: string[];
+  frame?: { type: string; provider?: string; modelId?: string };
   name?: string;
   result?: { isError?: boolean; structuredContent?: Record<string, unknown> };
   tools?: { name: string }[];
