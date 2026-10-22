@@ -26,6 +26,7 @@ import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import * as SqlClient from "effect/sql/SqlClient";
 import * as IdAllocator from "@t3tools/provider-core/server/IdAllocator";
+import { piMainAgentDir } from "@t3tools/provider-pi/server";
 import * as ServerConfig from "../config.ts";
 import type { McpThreadCaller } from "../mcp/McpInvocationContext.ts";
 import * as ThreadManagement from "../orchestration-v2/ThreadManagementService.ts";
@@ -278,7 +279,11 @@ const make = Effect.gen(function* () {
         hostHome,
         driver === "pi" ? ".pi/agent" : driver === "codex" ? ".codex" : ".claude",
       );
-    const home = yield* fs.realPath(providerHome);
+    const home = yield* fs.realPath(
+      driver === "pi" && harness.selection.model.startsWith("claude-bridge/")
+        ? piMainAgentDir(config.providerStatusCacheDir)
+        : providerHome,
+    );
     const locate = Effect.fn("Repair.locateHistory")(function* (
       directory: string,
     ): Effect.fn.Return<string[], PlatformError> {
