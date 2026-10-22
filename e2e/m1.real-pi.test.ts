@@ -1,4 +1,3 @@
-import * as NodeChildProcess from "node:child_process";
 import * as NodeFSP from "node:fs/promises";
 import * as NodePath from "node:path";
 import * as NodeURL from "node:url";
@@ -8,10 +7,8 @@ import { startHarness } from "./harness.ts";
 import { startAnthropic } from "./fakes/anthropic.ts";
 
 it("m1.main-loadout sends only Ozi tools and the data-root prompt through real Pi and Claude Code", async () => {
-  const binary = (name: string) =>
-    NodeChildProcess.execFileSync("which", [name], { encoding: "utf8" }).trim();
   const pi = NodeURL.fileURLToPath(new URL("./node_modules/.bin/pi", import.meta.url));
-  const claude = binary("claude");
+  const claude = NodeURL.fileURLToPath(new URL("./node_modules/.bin", import.meta.url));
   const fake = await startAnthropic();
   const h = await startHarness({
     bundled: true,
@@ -19,7 +16,7 @@ it("m1.main-loadout sends only Ozi tools and the data-root prompt through real P
       binaryPath: pi,
       env: {
         PATH: [
-          NodePath.dirname(claude),
+          claude,
           NodeURL.fileURLToPath(new URL("./fakes", import.meta.url)),
           NodePath.dirname(process.execPath),
           "/usr/bin",

@@ -6,6 +6,7 @@ packages:
   - packages/*
   - scripts
 allowBuilds:
+  "@anthropic-ai/claude-code": true
   "@google/genai": false
   browser-tabs-lock: false
   bufferutil: false
