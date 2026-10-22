@@ -1,0 +1,13 @@
+diff --git a/src/index.ts b/src/index.ts
+index e65ec14ba4274d20bdd5ec5d7387f292e12f4ca3..66986d90b42debd79a8e27f8b99495f4f7b5f910 100644
+--- a/src/index.ts
++++ b/src/index.ts
+@@ -2032,6 +2032,8 @@ function streamClaudeAgentSdk(model: Model<any>, context: Context, options?: Sim
+ 	const queryOptions: NonNullable<Parameters<typeof query>[0]["options"]> = {
+ 		cwd,
+ 		env: childEnv,
++		settingSources: [],
++		strictMcpConfig: true,
+ 		tools: [],
+ 		permissionMode: "bypassPermissions",
+ 		includePartialMessages: true,
