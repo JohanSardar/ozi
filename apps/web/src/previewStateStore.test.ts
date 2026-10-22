@@ -133,34 +133,6 @@ describe("previewStateStore (single-tab)", () => {
     }
   });
 
-  it("resized event updates tab viewport without changing the active tab", () => {
-    const active = makeSnapshot({ tabId: "tab_a" });
-    const background = makeSnapshot({ tabId: "tab_b" });
-    applyPreviewServerSnapshot(ref, background);
-    applyPreviewServerSnapshot(ref, active);
-
-    applyPreviewServerEvent(ref, {
-      type: "resized",
-      threadId: "thread-1",
-      tabId: background.tabId,
-      createdAt: "2026-01-01T00:00:01.000Z",
-      snapshot: {
-        ...background,
-        viewport: { _tag: "preset", presetId: "pixel-8", width: 412, height: 915 },
-        updatedAt: "2026-01-01T00:00:01.000Z",
-      },
-    });
-
-    const state = readThreadPreviewState(ref);
-    expect(state.activeTabId).toBe(active.tabId);
-    expect(state.sessions[background.tabId]?.viewport).toEqual({
-      _tag: "preset",
-      presetId: "pixel-8",
-      width: 412,
-      height: 915,
-    });
-  });
-
   it("failed event flips the snapshot to LoadFailed when tabId matches", () => {
     const snapshot = makeSnapshot();
     applyPreviewServerEvent(ref, {
