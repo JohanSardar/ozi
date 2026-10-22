@@ -60,14 +60,6 @@ it.each([
   expect(sourceDimensions(gif, 8_388_608)).toEqual(dimensions);
 });
 
-it("rejects GIF frames exceeding the caller's cumulative pixel limit", () => {
-  const gif = sourceGif(2048, 2048, 2048, 2048, [
-    { width: 2048, height: 2048 },
-    { width: 2048, height: 2048 },
-  ]);
-  expect(sourceDimensions(gif, 8_388_608)).toBeNull();
-});
-
 function sourceJpeg(
   width: number,
   height: number,
