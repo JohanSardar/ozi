@@ -28,7 +28,8 @@ requirements:
   todos: The panel shows the user's external to-dos, clearly marked.
   t3-keep: Keep chat (attachments, steer/queue, stop), approval/question cards, delegation, scheduler, webhooks, secret entry, shared browser, visual replies, desktop shell, Pi/Claude/Codex adapters.
   provider-scope: Only Pi, Claude and Codex providers ship.
-  client-scope: Only desktop and web clients ship.
+  client-scope: Only desktop, web and terminal clients ship.
+  terminal-client: Running `ozi` opens a Pi-style terminal app for main and job cards, on the server or a remote machine.
   t3-cut: Cut other providers, thread list, projects, worktrees, PR tools, checkpoints, diffs, simulators, terminal, T3 coding instructions.
   minimal: Fewest words and least code.
   for-everybody: No user-specific paths or accounts in code; public repo ozi.
@@ -223,3 +224,31 @@ features:
     milestone: 6
     scenarios: [m6.audit, m6.public-ready]
     status: passing
+  - id: cli-remote
+    reqs: [terminal-client, desktop-remote]
+    module: apps/server/src/cli/OziClient.ts + apps/server/src/cli/client.ts + e2e/m7.test.ts
+    cli: [connect, disconnect, say, jobs, answer, wait]
+    milestone: 7
+    scenarios: [m7.remote-cli]
+    status: planned
+  - id: cli-text
+    reqs: [terminal-client, minimal]
+    module: apps/server/src/cli/text.ts + apps/server/src/cli/client.ts + e2e/m7.test.ts
+    cli: [status, jobs, job, thread, checks, mistakes, replays, fixes, schedules, todos]
+    milestone: 7
+    scenarios: [m7.cli-text]
+    status: planned
+  - id: tui-chat
+    reqs: [terminal-client, client-scope, t3-keep]
+    module: apps/server/src/cli/tui + e2e/tty.ts + e2e/m7.tui.test.ts
+    cli: []
+    milestone: 7
+    scenarios: [m7.tui-chat]
+    status: planned
+  - id: tui-jobs
+    reqs: [terminal-client, card-columns, on-cards, drawer]
+    module: apps/server/src/cli/tui + e2e/m7.tui.test.ts
+    cli: []
+    milestone: 7
+    scenarios: [m7.tui-question, m7.tui-close, m7.tui-secret, m7.tui-lead]
+    status: planned
