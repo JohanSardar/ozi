@@ -337,13 +337,6 @@ export async function startHarness(
       await page.goto(url.toString());
       return page;
     },
-    async crash() {
-      const exited = new Promise<void>((resolve) => server.once("exit", () => resolve()));
-      server.kill("SIGKILL");
-      await exited;
-      spawnServer();
-      await ready();
-    },
     async restart() {
       await stopServer();
       spawnServer();
