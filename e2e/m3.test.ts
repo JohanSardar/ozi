@@ -78,7 +78,9 @@ const start = async (
   );
   await h.ozi("say", `start-${n}`);
   const main = await h.wait("ozi-main", `text:started-${n}`);
-  const child = main.subagents.findLast((task) => task.origin === "app_owned")?.childThreadId;
+  const child = main.subagents.findLast(
+    (task) => task.origin === "app_owned" && task.prompt === `work-${n}`,
+  )?.childThreadId;
   expect(child).toBeTruthy();
   return child!;
 };
