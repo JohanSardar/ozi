@@ -93,6 +93,10 @@ Cases freeze the original message, native prefix, attachment bytes, expectation 
 
 Only Pi, Claude and Codex providers and desktop and web clients ship. Provider registration, models, settings, usage, packaging and relay APIs follow this boundary.
 
+### Desktop
+
+Ozi shows one environment's main, jobs, to-dos, drawer and composer. Saved remotes take precedence over local: use the client's chosen remote, or the first saved remote when that choice is absent or removed. Use local only without saved remotes. Settings → Connections has one Ozi server picker when multiple environments exist; its choice persists on the client. Disconnection stays on that server and displays its connection state.
+
 ## Main agent
 
 Main's environment sets `ENABLE_TOOL_SEARCH=false` so Claude Code adds no deferred-tool placeholder. The bridge is a runtime external in packaged servers.
@@ -153,7 +157,7 @@ A milestone passes when its scenarios pass here and its real-agent run passes: r
 
 Scenario scripts are JSON arrays at `OZI_FAKE_SCRIPT`. Rules match prompt regular expressions, optionally `provider` (`pi`, `codex`, `claude`) and `role` (`main`, `worker`). Matching rules run once in order unless `repeat` is true. Steps are `{"say":"text"}`, `{"tool":{"name":"read_skill","arguments":{"name":"demo"}}}`, `{"ask":"question"}`, `{"approval":"command"}`, `{"wait":true}` or `{"fail":"reason"}`. Tools use the real authenticated MCP endpoint. `$prompt`, `$result` and `$result.field` interpolate the prompt or last tool result. `OZI_FAKE_LOG` records launches, received protocol frames, prompts, tools and results with credentials redacted.
 
-Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` before the first E2E run. Linux desktop bundle checks require `pkg-config` and `libsecret-1-dev`. The setup builds the web client when its bundle is missing. The harness uses isolated provider homes and kills only its own server process. `OZI_E2E_KEEP=1` preserves temporary artifacts after teardown.
+Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` before the first E2E run. Linux desktop tests require `pkg-config`, `libsecret-1-dev`, `xvfb`, `dbus`, `gnome-keyring` and `libglib2.0-bin`; saved credentials use a private D-Bus session and real temporary keyring. Setup builds the desktop, server and web bundles and ensures the Electron runtime. On Linux run `xvfb-run -a vp test run --root e2e`. The harness uses isolated provider homes and kills only its own processes. `OZI_E2E_KEEP=1` preserves temporary artifacts after teardown.
 
 ### M1 Connection
 
@@ -166,7 +170,7 @@ Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` 
 - `m1.attachments`: a file sent with a message reaches main and the worker brief.
 - `m1.steer-queue-stop`: steer main mid-turn; queue a follow-up; stop main; stop a worker.
 - `m1.read-skill`: main loads a data-root skill by name; unknown name errors.
-- `m1.remote-client`: web client pairs with the server over its network address and chats.
+- `m1.remote-client`: web and built Electron clients pair with the server over its network address and chat. With local off, Electron reopens its saved remote main and jobs; remote selection persists, including with local on, and disconnect never switches servers.
 - `m1.cli-json`: every implemented `ozi` command returns valid JSON with `--json`; errors have a code and one-line message, plain errors print only the message; native forks of Pi, Claude and Codex workers preserve the source conversation.
 
 ### M2 Jobs
