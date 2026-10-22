@@ -1,8 +1,5 @@
 import {
   DEFAULT_SERVER_SETTINGS,
-  ModelSelection,
-  ProjectId,
-  ProjectSettingsOverrides,
   type ProviderInstanceConfig,
   type ProviderInstanceMutation,
   defaultInstanceIdForDriver,
@@ -32,7 +29,7 @@ import * as SchemaTransformation from "effect/SchemaTransformation";
 import * as Semaphore from "effect/Semaphore";
 import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
-import * as SqlClient from "effect/sql/SqlClient";
+
 import { writeFileStringAtomically } from "@t3tools/shared/atomicWrite";
 import { resolveSymlinkTarget } from "@t3tools/shared/symlink";
 import * as ServerConfig from "./config.ts";
@@ -40,7 +37,6 @@ import { type DeepPartial, deepMerge } from "@t3tools/shared/Struct";
 import { fromJsonStringPretty, fromLenientJson } from "@t3tools/shared/schemaJson";
 import {
   applyServerSettingsPatch,
-  deriveLegacyProjectOverrides,
   fallbackTextGenerationModelSelection,
   isModelSelectionProviderEnabled,
 } from "@t3tools/shared/serverSettings";
@@ -105,7 +101,6 @@ const normalizeServerSettings = (
   encodeServerSettings(settings).pipe(
     Effect.flatMap(decodeServerSettings),
     Effect.map(foldProviderInstanceEnabledFlags),
-    Effect.map((next) => ({ ...next, ...deriveLegacyProjectOverrides(next) })),
     Effect.mapError(
       (cause) =>
         new ServerSettingsError({
@@ -264,13 +259,6 @@ const ServerSettingsJson = fromLenientJson(
     responseStreamingMode: PersistedResponseStreamingMode.pipe(
       Schema.withDecodingDefault(Effect.succeed("paragraph" as const)),
     ),
-    projectSettingsOverrides: Schema.Record(
-      ProjectId,
-      Schema.Struct({
-        ...ProjectSettingsOverrides.fields,
-        responseStreamingMode: Schema.optionalKey(PersistedResponseStreamingMode),
-      }),
-    ).pipe(Schema.withDecodingDefault(Effect.succeed({}))),
   }),
 );
 const decodeServerSettingsJsonExit = Schema.decodeUnknownExit(ServerSettingsJson);
@@ -373,65 +361,12 @@ function stripDefaultServerSettings(current: unknown, defaults: unknown): unknow
 
   return Object.is(current, defaults) ? undefined : current;
 }
-const decodeModelSelectionJson = Schema.decodeUnknownOption(
-  Schema.fromJsonString(Schema.NullOr(ModelSelection)),
-);
-
-interface LegacyProjectSettingsRow {
-  readonly projectId: string;
-  readonly defaultModelSelection: string | null;
-}
-
-/**
- * Marked with `projectSettingsFolded` so a later reset in the UI survives restarts.
- */
-function foldLegacyProjectSettings(
-  settings: ServerSettings,
-  rows: ReadonlyArray<LegacyProjectSettingsRow>,
-): ServerSettings {
-  if (settings.projectSettingsFolded) return settings;
-  if (rows.length === 0 && Object.keys(settings.projectAgentBrowserAccessOverrides).length === 0) {
-    return settings;
-  }
-  const entries: Record<string, ProjectSettingsOverrides> = {
-    ...settings.projectSettingsOverrides,
-  };
-  const set = <K extends keyof ProjectSettingsOverrides>(
-    projectId: string,
-    key: K,
-    value: ProjectSettingsOverrides[K] | undefined,
-  ) => {
-    if (value === undefined) return;
-    const entry = entries[projectId] ?? {};
-    if (Object.hasOwn(entry, key)) return;
-    entries[projectId] = { ...entry, [key]: value };
-  };
-  for (const [projectId, value] of Object.entries(settings.projectAgentBrowserAccessOverrides)) {
-    set(projectId, "enableAgentBrowserAccess", value);
-  }
-  for (const row of rows) {
-    const model = decodeModelSelectionJson(row.defaultModelSelection ?? "null");
-    if (Option.isSome(model) && model.value !== null) {
-      set(row.projectId, "defaultModelSelection", model.value);
-    }
-  }
-  const projectSettingsOverrides = Object.fromEntries(
-    Object.entries(entries).filter(([, entry]) => Object.keys(entry).length > 0),
-  );
-  return {
-    ...settings,
-    projectSettingsOverrides,
-    projectSettingsFolded: true,
-    ...deriveLegacyProjectOverrides({ projectSettingsOverrides }),
-  };
-}
 
 const make = Effect.gen(function* () {
   const { settingsPath } = yield* ServerConfig.ServerConfig;
   const fs = yield* FileSystem.FileSystem;
   const pathService = yield* Path.Path;
   const secretStore = yield* ServerSecretStore.ServerSecretStore;
-  const sql = yield* SqlClient.SqlClient;
   const writeSemaphore = yield* Semaphore.make(1);
   const cacheKey = "settings" as const;
   const changesPubSub = yield* PubSub.unbounded<ServerSettings>();
@@ -550,38 +485,15 @@ const make = Effect.gen(function* () {
 
     // A file that failed to decode must stay on disk for the user to repair.
     const settingsFileTrusted = Option.isNone(parseFailure);
-    const legacyProjectRows =
-      settings.projectSettingsFolded || !settingsFileTrusted
-        ? []
-        : yield* sql<LegacyProjectSettingsRow>`
-          SELECT
-            project_id AS "projectId",
-            default_model_selection_json AS "defaultModelSelection"
-          FROM projection_projects
-          WHERE deleted_at IS NULL
-        `.pipe(
-            Effect.mapError(
-              (cause) =>
-                new ServerSettingsError({
-                  settingsPath,
-                  operation: "read-project-settings",
-                  cause,
-                }),
-            ),
-          );
-
     const loaded = foldProviderInstanceEnabledFlags(
       legacyProviders === undefined
         ? settings
         : migrateLegacyProviderSettings(settings, legacyProviders),
     );
-    const folded = settingsFileTrusted
-      ? foldLegacyProjectSettings(loaded, legacyProjectRows)
-      : loaded;
     // Copied, not moved: the old entry is removed only after the new file is written. A token
     // that cannot be read or copied leaves the retired keys in place, so the migration runs again
     // on the next load instead of dropping it.
-    const migrated = settingsFileTrusted ? yield* moveInlineSettingsSecrets(folded) : folded;
+    const migrated = settingsFileTrusted ? yield* moveInlineSettingsSecrets(loaded) : loaded;
     if (migrated !== loaded || (settingsFileTrusted && legacyProviders !== undefined))
       yield* writeSettingsAtomically(migrated);
     return { settings: migrated, parseFailure };

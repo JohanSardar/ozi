@@ -7,8 +7,7 @@
   "scripts": {
     "ensure:electron": "node scripts/ensure-electron-runtime.mjs",
     "start": "node scripts/start-electron.mjs",
-    "typecheck": "tsc-rs --noEmit",
-    "smoke-test": "node scripts/smoke-test.mjs"
+    "typecheck": "tsc-rs --noEmit"
   },
   "dependencies": {
     "@crowecawcaw/xa11y": "0.13.0",

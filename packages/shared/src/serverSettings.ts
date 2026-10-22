@@ -7,8 +7,6 @@ import {
   isUnconfiguredDefaultInstanceEnabled,
   resolveProviderInstanceEnabled,
   type ModelSelection,
-  type ProjectScopedServerSettingKey,
-  type ProjectSettingsOverrides,
   ProviderDriverKind,
   ProviderInstanceId,
   ServerSettings,
@@ -39,18 +37,10 @@ const TEXT_GENERATION_FALLBACK_DRIVERS = ["codex", "claudeAgent", "pi"].map((dri
   ProviderDriverKind.make(driver),
 );
 
-/**
- * `includeConfiguredInstances` is for the project-scoped caller only: a
- * project that disabled every built-in instance should still be able to
- * fall back to one it configured itself. The machine-level caller leaves it
- * unset, since widening the candidates there would change behavior for
- * every user regardless of project scope.
- */
 export function fallbackTextGenerationModelSelection(
   providerInstances: ServerSettings["providerInstances"],
   isEnabled: (instanceId: ProviderInstanceId, driver: ProviderDriverKind) => boolean,
   options?: {
-    readonly includeConfiguredInstances?: boolean;
     readonly defaultModelSelection?: ModelSelection | null;
   },
 ): ModelSelection | null {
@@ -58,13 +48,6 @@ export function fallbackTextGenerationModelSelection(
     ...TEXT_GENERATION_FALLBACK_DRIVERS.map(
       (driver) => [defaultInstanceIdForDriver(driver), driver] as const,
     ),
-    ...(options?.includeConfiguredInstances === true
-      ? Object.entries(providerInstances).flatMap(([instanceId, instance]) =>
-          TEXT_GENERATION_FALLBACK_DRIVERS.includes(instance.driver)
-            ? [[ProviderInstanceId.make(instanceId), instance.driver] as const]
-            : [],
-        )
-      : []),
   ];
   const match = candidates.find(([instanceId, driver]) => isEnabled(instanceId, driver));
   if (match === undefined) return null;
@@ -162,92 +145,10 @@ function mergeSettingsEntries<Value>(
   return Object.fromEntries(next);
 }
 
-/**
- * `projectSettingsOverrides` entries otherwise replace whole (see the field's
- * doc comment in contracts), but `providerInstances` was added after clients
- * already round-trip a project's entry on every edit. A client built before
- * that addition sends an entry that never mentions the key, and a whole replace
- * would silently wipe it.
- */
-function mergeProjectSettingsOverridesPatch(
-  current: Readonly<Record<string, ProjectSettingsOverrides>>,
-  patch: Readonly<Record<string, ProjectSettingsOverrides | null>>,
-): Record<string, ProjectSettingsOverrides> {
-  const next = new Map(Object.entries(current));
-  for (const [projectId, entry] of Object.entries(patch)) {
-    if (entry === null) {
-      next.delete(projectId);
-      continue;
-    }
-    const storedProviderInstances = current[projectId]?.providerInstances;
-    next.set(projectId, {
-      ...entry,
-      ...(Object.hasOwn(entry, "providerInstances") || storedProviderInstances === undefined
-        ? {}
-        : { providerInstances: storedProviderInstances }),
-    });
-  }
-  return Object.fromEntries(next);
-}
-
-export function deriveLegacyProjectOverrides(
-  settings: Pick<ServerSettings, "projectSettingsOverrides">,
-): Pick<ServerSettings, "projectAgentBrowserAccessOverrides"> {
-  const projectAgentBrowserAccessOverrides: Record<string, boolean> = {};
-  for (const [projectId, entry] of Object.entries(settings.projectSettingsOverrides)) {
-    if (entry.enableAgentBrowserAccess !== undefined) {
-      projectAgentBrowserAccessOverrides[projectId] = entry.enableAgentBrowserAccess;
-    }
-  }
-  return { projectAgentBrowserAccessOverrides };
-}
-
-function translateLegacyProjectOverridePatch(
-  current: Pick<ServerSettings, "projectSettingsOverrides">,
-  patch: ServerSettingsPatch,
-): ServerSettingsPatch {
-  const { projectAgentBrowserAccessOverrides, ...rest } = patch;
-  if (projectAgentBrowserAccessOverrides === undefined) {
-    return patch;
-  }
-  const currentEntries: Readonly<Record<string, ProjectSettingsOverrides>> =
-    current.projectSettingsOverrides;
-  const entries = new Map<string, ProjectSettingsOverrides | null>(
-    Object.entries(rest.projectSettingsOverrides ?? {}),
-  );
-  // A canonical entry in the same patch is the newer representation; a legacy
-  // map must not resurrect a key that entry deliberately omits.
-  const canonicalProjectIds = new Set(Object.keys(rest.projectSettingsOverrides ?? {}));
-  const applyKey = <K extends ProjectScopedServerSettingKey>(
-    map: Readonly<Record<string, ProjectSettingsOverrides[K] | null>> | undefined,
-    key: K,
-  ) => {
-    if (map === undefined) return;
-    for (const [projectId, value] of Object.entries(map)) {
-      if (canonicalProjectIds.has(projectId)) continue;
-      const entry: ProjectSettingsOverrides = {
-        ...(entries.get(projectId) ?? currentEntries[projectId]),
-      };
-      if (value === null || value === undefined) {
-        delete entry[key];
-      } else {
-        entry[key] = value;
-      }
-      entries.set(projectId, Object.keys(entry).length === 0 ? null : entry);
-    }
-  };
-  applyKey(projectAgentBrowserAccessOverrides, "enableAgentBrowserAccess");
-  return {
-    ...rest,
-    projectSettingsOverrides: Object.fromEntries(entries),
-  } as ServerSettingsPatch;
-}
-
 export function applyServerSettingsPatch(
   current: ServerSettings,
-  rawPatch: ServerSettingsPatch,
+  patch: ServerSettingsPatch,
 ): ServerSettings {
-  const patch = translateLegacyProjectOverridePatch(current, rawPatch);
   const selectionPatch = patch.textGenerationModelSelection;
   const {
     migrateModelPreferences,
@@ -259,8 +160,6 @@ export function applyServerSettingsPatch(
     usagePriceOverrides: usagePriceOverridesPatch,
     usageModelAliases: usageModelAliasesPatch,
     // Entry replacement: deepMerge would keep keys the client meant to clear.
-    projectSettingsOverrides: projectSettingsOverridesPatch,
-    projectAgentBrowserAccessOverrides: _legacyBrowserAccess,
     externalTodos,
     ...patchForMerge
   } = patch;
@@ -312,24 +211,12 @@ export function applyServerSettingsPatch(
     };
   }
   const next = deepMerge(current, patchForMerge);
-  const nextWithReplacementsBase = {
+  const nextWithReplacements = {
     ...next,
     favorites,
     providerModelPreferences: nextModelPreferences,
     ...(patch.providerInstances !== undefined
       ? { providerInstances: patch.providerInstances }
-      : {}),
-    ...(projectSettingsOverridesPatch !== undefined
-      ? {
-          projectSettingsOverrides: Object.fromEntries(
-            Object.entries(
-              mergeProjectSettingsOverridesPatch(
-                current.projectSettingsOverrides,
-                projectSettingsOverridesPatch,
-              ),
-            ).filter(([, entry]) => Object.keys(entry).length > 0),
-          ),
-        }
       : {}),
     ...(patch.defaultModelSelection !== undefined
       ? { defaultModelSelection: patch.defaultModelSelection }
@@ -351,10 +238,6 @@ export function applyServerSettingsPatch(
         }
       : {}),
     ...(providerHealthRefreshInterval !== undefined ? { providerHealthRefreshInterval } : {}),
-  };
-  const nextWithReplacements = {
-    ...nextWithReplacementsBase,
-    ...deriveLegacyProjectOverrides(nextWithReplacementsBase),
   };
   if (!selectionPatch) {
     return nextWithReplacements;

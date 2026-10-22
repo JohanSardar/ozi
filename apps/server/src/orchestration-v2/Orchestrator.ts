@@ -1316,22 +1316,16 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           ? latestRootProviderFailure(failedRun, projection.turnItems)?.class
           : undefined;
       const settings = yield* serverSettings.getSettings.pipe(Effect.orDie);
-      const projectOverride =
-        settings.projectSettingsOverrides[projection.thread.projectId]?.providerInstances?.[
-          queuedRun.providerInstanceId
-        ]?.enabled;
       const machineInstance = Object.hasOwn(
         settings.providerInstances,
         queuedRun.providerInstanceId,
       )
         ? settings.providerInstances[queuedRun.providerInstanceId]
         : undefined;
-      const instanceDisabledForProject =
-        projectOverride !== undefined
-          ? !projectOverride
-          : machineInstance !== undefined && !resolveProviderInstanceEnabled(machineInstance);
+      const instanceDisabled =
+        machineInstance !== undefined && !resolveProviderInstanceEnabled(machineInstance);
       if (
-        instanceDisabledForProject ||
+        instanceDisabled ||
         (failureClass !== undefined &&
           failureClass !== "validation_error" &&
           failedRun?.providerInstanceId === queuedRun.providerInstanceId)

@@ -1128,7 +1128,7 @@ const make = Effect.gen(function* () {
     readonly parent: Pick<OrchestrationV2ThreadProjection, "thread">;
     readonly target: OrchestratorMcpTarget | undefined;
     readonly providers: ReadonlyArray<ServerProvider>;
-    readonly skipProjectEnablementFilter?: boolean;
+    readonly skipProviderEnablementFilter?: boolean;
   }): Effect.fn.Return<ResolvedTarget, OrchestratorMcpFailure> {
     const requestedInstanceId = input.target?.providerInstanceId;
     const requestedDriver = input.target?.driverKind;
@@ -1158,13 +1158,12 @@ const make = Effect.gen(function* () {
         ...healthyCandidates.filter((candidate) => candidate !== inheritedCandidate),
       ];
       for (const candidate of orderedCandidates) {
-        const enabledForProject =
-          input.skipProjectEnablementFilter === true ||
-          (yield* threadManagement.isProviderInstanceEnabledForProject({
-            projectId: input.parent.thread.projectId,
+        const instanceEnabled =
+          input.skipProviderEnablementFilter === true ||
+          (yield* threadManagement.isProviderInstanceEnabled({
             instanceId: candidate.instanceId,
           }));
-        if (enabledForProject) {
+        if (instanceEnabled) {
           instanceId = candidate.instanceId;
           break;
         }
@@ -1956,7 +1955,7 @@ const make = Effect.gen(function* () {
               }
             : input.target,
         providers,
-        skipProjectEnablementFilter: true,
+        skipProviderEnablementFilter: true,
       }).pipe(
         Effect.catchIf(
           (error) =>

@@ -1,7 +1,7 @@
 import {
   CommandId,
   MessageId,
-  resolveProjectProviderInstanceEnabled,
+  resolveServerProviderInstanceEnabled,
   type RunId,
   type ThreadId,
 } from "@t3tools/contracts";
@@ -46,13 +46,7 @@ export const make = Effect.gen(function* () {
           ],
           { messageRunIds: [runId], turnItemStatuses: ["pending", "running", "waiting"] },
         );
-        if (
-          !resolveProjectProviderInstanceEnabled(
-            current,
-            records.thread.projectId,
-            records.thread.providerInstanceId,
-          )
-        )
+        if (!resolveServerProviderInstanceEnabled(current, records.thread.providerInstanceId))
           return;
         const nowMs = DateTime.toEpochMillis(yield* DateTime.now);
         const window = idleCompactionWindow(records, nowMs);
