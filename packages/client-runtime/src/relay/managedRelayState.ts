@@ -358,29 +358,6 @@ export function createManagedRelayQueryManager(
       ),
   );
 
-  const devicesAtom = Atom.family((accountId: string) =>
-    runtime
-      .atom((get) =>
-        Effect.gen(function* () {
-          const base = { operation: "devices" as const, accountId };
-          const clerkToken = yield* observe(
-            { ...base, stage: "clerk-token" },
-            requireClerkToken(get, accountId),
-          );
-          const relay = yield* ManagedRelay.ManagedRelayClient;
-          return yield* observe(
-            { ...base, stage: "relay-request" },
-            relay.listDevices({ clerkToken }),
-          );
-        }),
-      )
-      .pipe(
-        Atom.swr({ staleTime, revalidateOnMount: true }),
-        Atom.setIdleTTL(idleTtl),
-        Atom.withLabel(`managed-relay:devices:${accountId}`),
-      ),
-  );
-
   const environmentStatusAtom = Atom.family((key: string) => {
     const { accountId, environment } = parseStatusKey(key);
     return runtime
@@ -419,16 +396,12 @@ export function createManagedRelayQueryManager(
 
   return {
     environmentsAtom,
-    devicesAtom,
     environmentStatusAtom: (input: {
       readonly accountId: string;
       readonly environment: RelayClientEnvironmentRecord;
     }) => environmentStatusAtom(statusKey(input)),
     refreshEnvironments(registry: AtomRegistry.AtomRegistry, accountId: string): void {
       registry.refresh(environmentsAtom(accountId));
-    },
-    refreshDevices(registry: AtomRegistry.AtomRegistry, accountId: string): void {
-      registry.refresh(devicesAtom(accountId));
     },
     refreshEnvironmentStatus(
       registry: AtomRegistry.AtomRegistry,

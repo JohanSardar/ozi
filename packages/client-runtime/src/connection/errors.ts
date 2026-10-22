@@ -49,8 +49,6 @@ function relayProtectedError(error: RelayProtectedError): ConnectionAttemptError
         ...(error.dpopFailureReason === "time_window" ? { failureCause: "clock_skew" } : {}),
       });
     case "RelayEnvironmentLinkProofExpiredError":
-    case "RelayAgentActivityPublishProofExpiredError":
-    case "RelayAgentActivityPublishProofInvalidError":
       return new ConnectionBlockedError({
         reason: "authentication",
         detail,

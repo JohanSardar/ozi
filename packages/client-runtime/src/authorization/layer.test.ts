@@ -172,7 +172,6 @@ const makeHarness = Effect.fn("TestRemoteAuthorization.makeHarness")(function* (
   const relay = ManagedRelay.ManagedRelayClient.of({
     relayUrl: "https://relay.example.test",
     listEnvironments: unexpected,
-    listDevices: unexpected,
     createEnvironmentLinkChallenge: unexpected,
     linkEnvironment: unexpected,
     unlinkEnvironment: unexpected,
@@ -184,10 +183,6 @@ const makeHarness = Effect.fn("TestRemoteAuthorization.makeHarness")(function* (
         yield* input.beforeBootstrap ?? Effect.void;
         return input.bootstrap ?? BOOTSTRAP;
       }),
-    registerDevice: unexpected,
-    unregisterDevice: unexpected,
-    registerLiveActivity: unexpected,
-    getAgentActivitySnapshot: unexpected,
     resetTokenCache: Effect.void,
   });
   const layer = RemoteEnvironmentAuthorization.layer.pipe(

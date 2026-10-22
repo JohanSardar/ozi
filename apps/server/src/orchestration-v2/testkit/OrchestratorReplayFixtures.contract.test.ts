@@ -55,15 +55,7 @@ describe("orchestrator replay fixture contract", () => {
             const firstCommand = materialized.commands[0];
 
             assert.equal(transcript.scenario, provider.recordedScenario ?? fixture.name);
-            if (provider.driver === "acpRegistry") {
-              assert.include(
-                ["acpRegistry", "grok"],
-                transcript.provider,
-                "ACP Registry may retarget protocol-standard Grok ACP evidence",
-              );
-            } else {
-              assert.equal(transcript.provider, provider.driver);
-            }
+            assert.equal(transcript.provider, provider.driver);
             assert.equal(
               provider.modelSelection.instanceId,
               ProviderInstanceId.make(provider.driver),

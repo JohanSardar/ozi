@@ -66,7 +66,7 @@ describe("resolveSubagentMetadata", () => {
       resolveSubagentMetadata({
         model: "my-model",
         provider: {
-          driver: ProviderDriverKind.make("acpRegistry"),
+          driver: ProviderDriverKind.make("pi"),
           models: [
             {
               slug: "my-model",

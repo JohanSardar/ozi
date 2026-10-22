@@ -11,5 +11,6 @@ CREATE TABLE "relay_managed_endpoint_allocations" (
 	CONSTRAINT "relay_managed_endpoint_allocations_pkey" PRIMARY KEY("user_id","environment_id")
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX "idx_relay_managed_endpoint_allocations_hostname" ON "relay_managed_endpoint_allocations" ("hostname");--> statement-breakpoint
+CREATE UNIQUE INDEX "idx_relay_managed_endpoint_allocations_hostname" ON "relay_managed_endpoint_allocations" ("hostname");
+--> statement-breakpoint
 CREATE UNIQUE INDEX "idx_relay_managed_endpoint_allocations_tunnel_name" ON "relay_managed_endpoint_allocations" ("tunnel_name");

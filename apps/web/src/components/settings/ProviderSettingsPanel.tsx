@@ -16,7 +16,6 @@ import {
 import {
   defaultInstanceIdForDriver,
   type EnvironmentId,
-  type AcpRegistryUrlAuthAction,
   PROVIDER_DISPLAY_NAMES,
   ProviderDriverKind,
   type ProjectId,
@@ -61,7 +60,6 @@ import {
   serverEnvironment,
 } from "../../state/server";
 import { useEnvironmentSessionState } from "../../state/session";
-import { useProjects } from "../../state/entities";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { useRelativeTimeState } from "../../hooks/useRelativeTimeState";
 import {
@@ -99,7 +97,6 @@ import { AddProviderInstanceDialog } from "./AddProviderInstanceDialog";
 import { ExpandableText } from "./ExpandableText";
 import { ProviderInstanceCard } from "./ProviderInstanceCard";
 import { UsageProviderSettings } from "./UsageProviderSettings";
-import { ProviderSetupSection, readAntigravityAuthMethod } from "./ProviderSetupSection";
 import { ProviderAuthenticationSection } from "./ProviderAuthenticationSection";
 import { CodexSetupSection, CodexManagedRuntimeFields } from "./CodexSetupSection";
 import { readCodexSetupMode } from "./CodexSetupSection.logic";
@@ -139,21 +136,10 @@ function modelListChanges(current: ReadonlyArray<string>, next: ReadonlyArray<st
     .map((model) => ({ model, selected: nextSet.has(model) }));
 }
 
-function providerConfigString(config: unknown, key: string): string | null {
-  if (config === null || typeof config !== "object") return null;
-  const value = (config as Record<string, unknown>)[key];
-  return typeof value === "string" && value.trim().length > 0 ? value.trim() : null;
-}
-
 const PROVIDER_SETTINGS = providerClients.definitions.map((definition) => ({
   provider: definition.driverKind,
   hasDefaultInstance: definition.hasDefaultInstance !== false,
 }));
-
-function configuredBinaryPath(config: unknown): string {
-  if (config === null || typeof config !== "object" || !("binaryPath" in config)) return "";
-  return typeof config.binaryPath === "string" ? config.binaryPath.trim() : "";
-}
 
 // Subscribes on its own: a status push restamps `checkedAt` on every provider,
 // and this label is the only part of the panel that shows it.
@@ -336,26 +322,10 @@ function ProviderSettingsPanelContent(target: ProviderSettingsTarget) {
       hasServerConfig: environment.serverConfig !== null,
     }),
   )?.environmentId;
-  const searchableCursorEnvironmentId = options.find(
-    (environment) =>
-      environment.serverConfig?.environment.platform.os === "darwin" &&
-      isProviderSettingsEnvironmentAvailable({
-        connectionPhase: environment.connection.phase,
-        hasServerConfig: true,
-      }),
-  )?.environmentId;
   // A search jump to a setting the selected device cannot show switches to one that can.
   let searchRedirectEnvironmentId: EnvironmentId | undefined;
   {
     if (
-      !target.scoped &&
-      searchTargetId === searchableSetting("cursor-keychain-usage").id &&
-      (!selectedEnvironmentCanRenderSettings ||
-        selectedEnvironment?.serverConfig?.environment.platform.os !== "darwin") &&
-      searchableCursorEnvironmentId !== undefined
-    ) {
-      searchRedirectEnvironmentId = searchableCursorEnvironmentId;
-    } else if (
       !target.scoped &&
       (searchTargetId === searchableSetting("provider-health-check-interval").id ||
         searchTargetId === searchableSetting("usage-providers").id) &&
@@ -590,13 +560,6 @@ export function EnvironmentProviderSettings({
   const updateProvider = useAtomCommand(serverEnvironment.updateProvider, {
     reportFailure: false,
   });
-  const uninstallAcpRegistryManagedBinary = useAtomCommand(
-    serverEnvironment.uninstallAcpRegistryManagedBinary,
-    { reportFailure: false },
-  );
-  const acceptAcpRegistryUrlAuth = useAtomCommand(serverEnvironment.acceptAcpRegistryUrlAuth, {
-    reportFailure: false,
-  });
   const [isRefreshingProviders, setIsRefreshingProviders] = useState(false);
   const [isAddInstanceDialogOpen, setIsAddInstanceDialogOpen] = useState(false);
   const [selectedInstanceId, setSelectedInstanceId] = useState<ProviderInstanceId | null>(
@@ -608,43 +571,7 @@ export function EnvironmentProviderSettings({
   const refreshingRef = useRef(false);
   const updatingInstanceIdsRef = useRef<Set<ProviderInstanceId>>(new Set());
 
-  // Rows call these at event time and receive the same functions every render,
-  // so a settings write or provider push only redraws the row it changed.
-  const acceptUrlAuthentication = useStableCallback(
-    (instanceId: ProviderInstanceId, action: AcpRegistryUrlAuthAction) => {
-      void acceptAcpRegistryUrlAuth({
-        environmentId,
-        input: { instanceId, elicitationId: action.elicitationId },
-      }).then((result) => {
-        if (result._tag === "Success" && !result.value.accepted) {
-          toastManager.add({
-            type: "warning",
-            title: "Authentication request expired",
-            description: "Refresh the provider and start the authentication flow again.",
-          });
-          return;
-        }
-        if (result._tag === "Failure" && !isAtomCommandInterrupted(result)) {
-          const error = squashAtomCommandFailure(result);
-          toastManager.add({
-            type: "error",
-            title: "Could not continue authentication",
-            description:
-              error instanceof Error ? error.message : "The authentication request expired.",
-          });
-        }
-      });
-    },
-  );
-
-  const visibleProviderSettings = PROVIDER_SETTINGS.filter(
-    (providerSettings) =>
-      providerSettings.provider !== "cursor" ||
-      serverProviders.some(
-        (provider) =>
-          provider.instanceId === defaultInstanceIdForDriver(ProviderDriverKind.make("cursor")),
-      ),
-  );
+  const visibleProviderSettings = PROVIDER_SETTINGS;
   const resolvedBackgroundActivity = resolveServerBackgroundActivitySettings(settings);
   const providerHealthPreset = getBackgroundActivityPresetSettings(
     resolvedBackgroundActivity.profile,
@@ -857,44 +784,21 @@ export function EnvironmentProviderSettings({
       persistInstance(instanceId, next),
   );
 
-  const deleteInstance = useStableCallback(
-    async (instanceId: ProviderInstanceId, instance: ProviderInstanceConfig) => {
-      const updateResult = await persistProviderInstance({
-        operation: "remove",
-        instanceId,
+  const deleteInstance = useStableCallback(async (instanceId: ProviderInstanceId) => {
+    const updateResult = await persistProviderInstance({
+      operation: "remove",
+      instanceId,
+    });
+    if (updateResult._tag === "Failure") {
+      const error = squashAtomCommandFailure(updateResult);
+      toastManager.add({
+        type: "error",
+        title: "Could not delete provider instance",
+        description: error instanceof Error ? error.message : "The settings update failed.",
       });
-      if (updateResult._tag === "Failure") {
-        const error = squashAtomCommandFailure(updateResult);
-        toastManager.add({
-          type: "error",
-          title: "Could not delete provider instance",
-          description: error instanceof Error ? error.message : "The settings update failed.",
-        });
-        return;
-      }
-
-      if (instance.driver !== ProviderDriverKind.make("acpRegistry")) return;
-      if (providerConfigString(instance.config, "source") === "local") return;
-      const agentId = providerConfigString(instance.config, "agentId");
-      if (agentId === null) return;
-
-      // The server decides from its latest settings whether this was the last
-      // instance using the managed agent. A client-side snapshot check can race
-      // two removals and make both callers skip cleanup.
-      const uninstallResult = await uninstallAcpRegistryManagedBinary({
-        environmentId,
-        input: { agentId },
-      });
-      if (uninstallResult._tag === "Failure" && !isAtomCommandInterrupted(uninstallResult)) {
-        const error = squashAtomCommandFailure(uninstallResult);
-        toastManager.add({
-          type: "warning",
-          title: "Provider deleted, but managed files remain",
-          description: error instanceof Error ? error.message : "Managed binary cleanup failed.",
-        });
-      }
-    },
-  );
+      return;
+    }
+  });
 
   const resetDefaultInstance = useStableCallback(async (driverKind: ProviderDriverKind) => {
     const result = await persistProviderInstance({
@@ -927,7 +831,6 @@ export function EnvironmentProviderSettings({
   const stableUpdateModelPreferences = useStableCallback(updateModelPreferences);
   const stableToggleModelFavorite = useStableCallback(toggleModelFavorite);
   const actions: ProviderInstanceRowActions = {
-    acceptUrlAuthentication,
     runProviderUpdate,
     updateInstance,
     enableInstance,
@@ -1100,7 +1003,6 @@ export function EnvironmentProviderSettings({
         environmentId={environmentId}
         environmentLabel={environmentLabel}
         sources={settings.usageLimitSources}
-        cursorKeychainUsageEnabled={settings.cursorKeychainUsageEnabled}
         readOnly={readOnly}
       />
 
@@ -1194,10 +1096,6 @@ export function EnvironmentProviderSettings({
 }
 
 interface ProviderInstanceRowActions {
-  readonly acceptUrlAuthentication: (
-    instanceId: ProviderInstanceId,
-    action: AcpRegistryUrlAuthAction,
-  ) => void;
   readonly runProviderUpdate: (
     candidate: Pick<ProviderSettingsUpdateCandidate, "driver" | "instanceId">,
     targetVersion?: string,
@@ -1211,10 +1109,7 @@ interface ProviderInstanceRowActions {
     instanceId: ProviderInstanceId,
     next: ProviderInstanceConfig,
   ) => Promise<void>;
-  readonly deleteInstance: (
-    instanceId: ProviderInstanceId,
-    instance: ProviderInstanceConfig,
-  ) => Promise<void>;
+  readonly deleteInstance: (instanceId: ProviderInstanceId) => Promise<void>;
   readonly resetDefaultInstance: (driverKind: ProviderDriverKind) => Promise<void>;
   readonly writeProjectOverride: (
     instanceId: ProviderInstanceId,
@@ -1276,11 +1171,6 @@ function ProviderInstanceRow({
   readonly favorites: UnifiedSettings["favorites"];
   readonly actions: ProviderInstanceRowActions;
 }) {
-  const allProjects = useProjects();
-  const acpProjects =
-    mode === "editor" && liveProvider?.driver === "acpRegistry"
-      ? allProjects.filter((project) => project.environmentId === environmentId)
-      : undefined;
   const instance = explicitInstance ?? { driver };
   const driverOption = providerClients.get(driver);
   const updateCandidate =
@@ -1314,12 +1204,7 @@ function ProviderInstanceRow({
 
   return (
     <ProviderInstanceCard
-      environmentId={environmentId}
-      acpProjects={acpProjects}
       projectOverride={projectOverride}
-      onAcceptUrlAuth={
-        readOnly ? undefined : (action) => actions.acceptUrlAuthentication(instanceId, action)
-      }
       instanceId={instanceId}
       instance={instance}
       driverOption={driverOption}
@@ -1339,19 +1224,7 @@ function ProviderInstanceRow({
       }
       canWriteSettings={canWriteSettings}
       setup={
-        mode === "editor" && driver === "antigravity" ? (
-          <ProviderSetupSection
-            environmentId={environmentId}
-            environmentLabel={environmentLabel}
-            instanceId={instanceId}
-            provider={liveProvider}
-            binaryPath={configuredBinaryPath(instance.config)}
-            authMethod={readAntigravityAuthMethod(instance.config)}
-            enabled={resolveProviderInstanceEnabled(instance)}
-            readOnly={readOnly}
-            onEnable={() => actions.enableInstance(instanceId, { ...instance, enabled: true })}
-          />
-        ) : mode === "editor" && codexSetupMode === "managed" ? (
+        mode === "editor" && codexSetupMode === "managed" ? (
           <CodexSetupSection
             environmentId={environmentId}
             instanceId={instanceId}
@@ -1376,8 +1249,7 @@ function ProviderInstanceRow({
         ) : mode === "editor" &&
           !readOnly &&
           liveProvider &&
-          (liveProvider.setup?.canAuthenticate ||
-            (liveProvider.driver === "acpRegistry" && liveProvider.installed)) ? (
+          liveProvider.setup?.canAuthenticate ? (
           <ProviderAuthenticationSection
             key={`${environmentId}:${instanceId}`}
             environmentId={environmentId}
@@ -1386,21 +1258,11 @@ function ProviderInstanceRow({
             provider={liveProvider}
             readOnly={readOnly}
           />
-        ) : mode === "editor" &&
-          !readOnly &&
-          driver === "cursor" &&
-          liveProvider?.setup?.canAuthenticate === false ? (
-          <SettingsRow
-            title="Cursor account"
-            description="Using CURSOR_API_KEY. Remove it from this provider's environment to use browser sign-in."
-          />
         ) : null
       }
       onUpdate={(next) => actions.updateInstance(instanceId, instance, next)}
       onDelete={
-        mode === "editor" && !isDefault
-          ? () => actions.deleteInstance(instanceId, instance)
-          : undefined
+        mode === "editor" && !isDefault ? () => actions.deleteInstance(instanceId) : undefined
       }
       headerAction={
         mode === "editor" && isDefault && isDirty ? (

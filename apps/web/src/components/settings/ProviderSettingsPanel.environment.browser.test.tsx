@@ -43,8 +43,6 @@ vi.mock(import("../../state/server"), async (original) => {
   const commandLabels = {
     refreshProviders: "refresh",
     updateProvider: "update",
-    uninstallAcpRegistryManagedBinary: "uninstall",
-    acceptAcpRegistryUrlAuth: "accept-url-auth",
   } as const;
   const labelled = Object.fromEntries(
     Object.entries(commandLabels).map(([key, label]) => [
@@ -238,29 +236,19 @@ async function setup() {
 }
 
 describe("EnvironmentProviderSettings routing", () => {
-  it("shows Codex and Claude while hiding untouched disabled provider slots", async () => {
-    await setup();
-    await using _screen = await render(panel());
-    await expect.element(select("Codex")).toBeVisible();
-    await expect.element(select("Claude")).toBeVisible();
-    for (const label of ["Cursor", "Grok", "Pi", "OpenCode", "Antigravity"]) {
-      await expect.element(select(label)).not.toBeInTheDocument();
-    }
-  });
-
   it("keeps explicitly configured providers visible when disabled", async () => {
     await setup();
     state.settings = {
       ...DEFAULT_UNIFIED_SETTINGS,
       providerInstances: {
-        [ProviderInstanceId.make("grok")]: {
-          driver: ProviderDriverKind.make("grok"),
+        [ProviderInstanceId.make("pi")]: {
+          driver: ProviderDriverKind.make("pi"),
           enabled: false,
         },
       },
     };
     await using _screen = await render(panel());
-    await expect.element(select("Grok")).toBeVisible();
+    await expect.element(select("Pi")).toBeVisible();
   });
 
   it("keeps legacy provider configuration visible when disabled", async () => {
@@ -268,15 +256,15 @@ describe("EnvironmentProviderSettings routing", () => {
     state.settings = {
       ...DEFAULT_UNIFIED_SETTINGS,
       providerInstances: {
-        [ProviderInstanceId.make("grok")]: {
-          driver: ProviderDriverKind.make("grok"),
+        [ProviderInstanceId.make("pi")]: {
+          driver: ProviderDriverKind.make("pi"),
           enabled: false,
-          config: { binaryPath: "/custom/grok" },
+          config: { binaryPath: "/custom/pi" },
         },
       },
     };
     await using _screen = await render(panel());
-    await expect.element(select("Grok")).toBeVisible();
+    await expect.element(select("Pi")).toBeVisible();
   });
 
   it("reads and writes settings on the selected environment", async () => {
@@ -463,98 +451,5 @@ describe("EnvironmentProviderSettings routing", () => {
       },
       {},
     );
-  });
-
-  it("lets the server decide managed ACP cleanup after an atomic delete", async () => {
-    await setup();
-    const firstId = ProviderInstanceId.make("acpRegistry_kilo_one");
-    const secondId = ProviderInstanceId.make("acpRegistry_kilo_two");
-    const registryInstance = (displayName: string) => ({
-      driver: ProviderDriverKind.make("acpRegistry"),
-      enabled: true,
-      displayName,
-      config: { agentId: "kilo" },
-    });
-    state.settings = {
-      ...DEFAULT_UNIFIED_SETTINGS,
-      providerInstances: {
-        [firstId]: registryInstance("Kilo one"),
-        [secondId]: registryInstance("Kilo two"),
-      },
-    };
-    await using _screen = await render(panel());
-    await userEvent.click(select("Kilo one"));
-    await userEvent.click(deleteButton(firstId));
-
-    expect(state.mutateProviderInstance).toHaveBeenCalledWith({
-      operation: "remove",
-      instanceId: firstId,
-    });
-    await vi.waitFor(() =>
-      expect(state.uninstall).toHaveBeenCalledWith({ environmentId, input: { agentId: "kilo" } }),
-    );
-  });
-
-  it("keeps the signed-in ACP account visible when login methods are no longer advertised", async () => {
-    await setup();
-    const instanceId = ProviderInstanceId.make("acpRegistry_devin");
-    state.settings = {
-      ...DEFAULT_UNIFIED_SETTINGS,
-      providerInstances: {
-        [instanceId]: {
-          driver: ProviderDriverKind.make("acpRegistry"),
-          enabled: true,
-          config: { agentId: "devin" },
-        },
-      },
-    };
-    await setProviders([
-      {
-        ...provider(),
-        instanceId,
-        driver: ProviderDriverKind.make("acpRegistry"),
-        auth: { status: "authenticated", canLogout: false },
-        setup: { canAuthenticate: false, canInstall: false },
-      },
-    ]);
-    await using _screen = await render(panel({ targetInstanceId: instanceId }));
-    await expect.element(page.getByRole("heading", { name: "Account" })).toBeVisible();
-  });
-
-  it("routes explicit ACP browser authentication consent to the selected environment", async () => {
-    await setup();
-    const instanceId = ProviderInstanceId.make("acpRegistry_antigravity");
-    const action = {
-      elicitationId: "google-login-1",
-      url: "https://accounts.google.com/login",
-      message: "Continue with Google",
-    };
-    state.settings = {
-      ...DEFAULT_UNIFIED_SETTINGS,
-      providerInstances: {
-        [instanceId]: {
-          driver: ProviderDriverKind.make("acpRegistry"),
-          enabled: true,
-          config: { agentId: "antigravity" },
-        },
-      },
-    };
-    await setProviders([
-      {
-        ...provider(),
-        instanceId,
-        driver: ProviderDriverKind.make("acpRegistry"),
-        auth: { status: "unauthenticated", action },
-      },
-    ]);
-    await using _screen = await render(panel({ targetInstanceId: instanceId }));
-    const link = page.getByRole("link", { name: "Continue authentication" });
-    link.element().addEventListener("click", (event) => event.preventDefault());
-    await userEvent.click(link);
-
-    expect(state.acceptUrlAuth).toHaveBeenCalledWith({
-      environmentId,
-      input: { instanceId, elicitationId: action.elicitationId },
-    });
   });
 });

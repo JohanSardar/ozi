@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { type ReactNode } from "react";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import {
@@ -10,7 +10,7 @@ import {
   type ProviderSettingsFormOption,
   type ProviderSettingsFormSchemaAnnotation,
 } from "@t3tools/contracts";
-import { PlusIcon, XIcon } from "lucide-react";
+import { XIcon } from "lucide-react";
 
 import { cn } from "../../lib/utils";
 import { Button } from "../ui/button";
@@ -86,11 +86,8 @@ function readFieldBooleanDefault(
 
 export function deriveProviderSettingsFields(
   definition: SettingsFormDefinition,
-  value?: unknown,
+  _value?: unknown,
 ): ReadonlyArray<ProviderSettingsFieldModel> {
-  const isLocalAcp =
-    definition.driverKind === "acpRegistry" &&
-    readProviderConfigString(value, "source") === "local";
   const schemaAnnotation = readProviderSettingsFormSchemaAnnotation(definition);
   const orderedKeys = new Map(
     (schemaAnnotation.order ?? []).map((key, index) => [key, index] as const),
@@ -109,7 +106,6 @@ export function deriveProviderSettingsFields(
       const fieldSchema = definition.settingsSchema.fields[key]!;
       const formAnnotation = readProviderSettingsFormAnnotation(fieldSchema);
       if (formAnnotation.hidden) return [];
-      if (isLocalAcp && key !== "source" && key !== "commandPath") return [];
 
       const annotatedTitle = readFieldAnnotationString(fieldSchema, "title");
       const annotatedDescription = readFieldAnnotationString(fieldSchema, "description");
@@ -117,20 +113,11 @@ export function deriveProviderSettingsFields(
         {
           key,
           control: formAnnotation.control ?? "text",
-          label:
-            isLocalAcp && key === "commandPath"
-              ? "Executable"
-              : (annotatedTitle ?? titleizeFieldKey(key)),
-          ...(isLocalAcp && key === "commandPath"
-            ? { description: "Executable name or path on this environment." }
-            : annotatedDescription !== undefined
-              ? { description: annotatedDescription }
-              : {}),
-          ...(isLocalAcp && key === "commandPath"
-            ? { placeholder: "e.g. dsh" }
-            : formAnnotation.placeholder !== undefined
-              ? { placeholder: formAnnotation.placeholder }
-              : {}),
+          label: annotatedTitle ?? titleizeFieldKey(key),
+          ...(annotatedDescription !== undefined ? { description: annotatedDescription } : {}),
+          ...(formAnnotation.placeholder !== undefined
+            ? { placeholder: formAnnotation.placeholder }
+            : {}),
           clearWhenEmpty: formAnnotation.clearWhenEmpty ?? "omit",
           ...(isSecretSetting(fieldSchema) ? { secret: true } : {}),
           ...(formAnnotation.control === "switch"
@@ -142,114 +129,6 @@ export function deriveProviderSettingsFields(
         } satisfies ProviderSettingsFieldModel,
       ];
     });
-}
-
-let commandArgumentDraftId = 0;
-const makeCommandArgumentDraftRow = (value: string) => ({
-  id: `provider-argument-${commandArgumentDraftId++}`,
-  value,
-});
-
-function commandArgumentsEqual(left: ReadonlyArray<string>, right: ReadonlyArray<string>) {
-  return left.length === right.length && left.every((argument, index) => argument === right[index]);
-}
-
-function configuredCommandArgs(value: ProviderSettingsFormProps["value"]) {
-  const configured =
-    value !== null && typeof value === "object"
-      ? (value as Record<string, unknown>).commandArgs
-      : undefined;
-  return Array.isArray(configured)
-    ? configured.filter((argument): argument is string => typeof argument === "string")
-    : [];
-}
-
-function ProviderCommandArguments({
-  value,
-  onChange,
-}: Pick<ProviderSettingsFormProps, "value" | "onChange">) {
-  const args = configuredCommandArgs(value);
-  const [rows, setRows] = useState(() => args.map(makeCommandArgumentDraftRow));
-  const rowsRef = useRef(rows);
-  const previousArgsRef = useRef(args);
-  const lastPublishedArgsRef = useRef<ReadonlyArray<string> | undefined>(undefined);
-
-  useEffect(() => {
-    const previousArgs = previousArgsRef.current;
-    const lastPublishedArgs = lastPublishedArgsRef.current;
-    previousArgsRef.current = args;
-    lastPublishedArgsRef.current = undefined;
-    if (
-      commandArgumentsEqual(previousArgs, args) ||
-      (lastPublishedArgs !== undefined && commandArgumentsEqual(lastPublishedArgs, args))
-    )
-      return;
-    const nextRows = args.map(makeCommandArgumentDraftRow);
-    rowsRef.current = nextRows;
-    setRows(nextRows);
-  }, [args]);
-
-  const updateArguments = (nextRows: typeof rows) => {
-    rowsRef.current = nextRows;
-    setRows(nextRows);
-    const next = nextRows.map((row) => row.value);
-    lastPublishedArgsRef.current = next;
-    const config =
-      value !== null && typeof value === "object" ? { ...(value as Record<string, unknown>) } : {};
-    onChange({ ...config, commandArgs: next });
-  };
-
-  return (
-    <SettingsRow
-      title="Arguments"
-      description="One literal argument per row, in launch order."
-      control={
-        <Button
-          type="button"
-          size="sm"
-          variant="outline"
-          onClick={() => updateArguments([...rowsRef.current, makeCommandArgumentDraftRow("")])}
-        >
-          <PlusIcon />
-          Add argument
-        </Button>
-      }
-    >
-      {rows.length > 0 ? (
-        <div className="mt-3 min-w-0 space-y-2 pb-2">
-          {rows.map((argument, index) => (
-            <div key={argument.id} className="flex min-w-0 items-center gap-1.5">
-              <DraftInput
-                size="sm"
-                font="mono"
-                value={argument.value}
-                onCommit={(next) =>
-                  updateArguments(
-                    rowsRef.current.map((current) =>
-                      current.id === argument.id ? { ...current, value: next } : current,
-                    ),
-                  )
-                }
-                aria-label={`Argument ${index + 1}`}
-                spellCheck={false}
-              />
-              <Button
-                type="button"
-                size="icon-micro"
-                variant="ghost-destructive"
-                onClick={() =>
-                  updateArguments(rowsRef.current.filter((current) => current.id !== argument.id))
-                }
-                aria-label={`Remove argument ${index + 1}`}
-              >
-                <XIcon />
-              </Button>
-            </div>
-          ))}
-        </div>
-      ) : null}
-    </SettingsRow>
-  );
 }
 
 function readProviderConfigString(config: unknown, key: string): string {
@@ -569,9 +448,6 @@ export function ProviderSettingsForm({
   onChange,
 }: ProviderSettingsFormProps) {
   const fields = deriveProviderSettingsFields(definition, value);
-  const isLocalAcp =
-    definition.driverKind === "acpRegistry" &&
-    readProviderConfigString(value, "source") === "local";
 
   if (fields.length === 0) {
     return null;
@@ -589,7 +465,6 @@ export function ProviderSettingsForm({
           onChange={onChange}
         />
       ))}
-      {isLocalAcp ? <ProviderCommandArguments value={value} onChange={onChange} /> : null}
     </>
   );
 }

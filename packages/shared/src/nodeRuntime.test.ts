@@ -20,9 +20,9 @@ describe("Self invocation", () => {
       );
       expect(invocation.command).toBe("/runtime/node");
       expect(invocation.entrypoint).toBe(path.resolve("dist/bin.mjs"));
-      expect(selfInvocationArgs(invocation, ["acp-mcp-bridge"])).toEqual([
+      expect(selfInvocationArgs(invocation, ["serve"])).toEqual([
         path.resolve("dist/bin.mjs"),
-        "acp-mcp-bridge",
+        "serve",
       ]);
     }).pipe(Effect.provide(NodeServices.layer)),
   );
@@ -36,7 +36,7 @@ describe("Self invocation", () => {
         Effect.provideService(HostProcess.Arguments, ["/packaged/t3", "/packaged/t3", "serve"]),
       );
       expect(invocation).toEqual({ command: "/packaged/t3", entrypoint: undefined });
-      expect(selfInvocationArgs(invocation, ["acp-mcp-bridge"])).toEqual(["acp-mcp-bridge"]);
+      expect(selfInvocationArgs(invocation, ["serve"])).toEqual(["serve"]);
     }).pipe(Effect.provide(NodeServices.layer)),
   );
 });

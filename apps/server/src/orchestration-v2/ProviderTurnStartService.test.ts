@@ -298,7 +298,7 @@ function makeLocalCommandHarness(input: {
   const providerThreadId = ProviderThreadId.make("new-provider-thread");
   const providerSessionId = ProviderSessionId.make("new-provider-session");
   const oldProviderThreadId = ProviderThreadId.make("existing-native-provider-thread");
-  const oldInstanceId = ProviderInstanceId.make("antigravity-personal");
+  const oldInstanceId = ProviderInstanceId.make("pi-personal");
   const newInstanceId = ProviderInstanceId.make("codex-personal");
   const checkpointScopeId = CheckpointScopeId.make("scope-native-account-command");
   const messageId = MessageId.make("message-native-account-command");
@@ -414,10 +414,10 @@ function makeLocalCommandHarness(input: {
               ...providerThread,
               id: oldProviderThreadId,
               providerInstanceId: oldInstanceId,
-              driver: ProviderDriverKind.make("antigravity"),
+              driver: ProviderDriverKind.make("pi"),
               lastRunOrdinal: 1,
               nativeThreadRef: {
-                driver: ProviderDriverKind.make("antigravity"),
+                driver: ProviderDriverKind.make("pi"),
                 nativeId: "existing-session",
                 strength: "strong" as const,
               },
@@ -980,7 +980,7 @@ effectIt.effect("terminalizes a starting run when its provider session cannot op
   Effect.gen(function* () {
     const harness = makeLocalCommandHarness({
       text: "Continue",
-      openFailure: new Error("DESCRIPTION is not valid ACP JSON"),
+      openFailure: new Error("DESCRIPTION is not valid JSON"),
     });
 
     yield* harness.start;
@@ -1003,7 +1003,7 @@ effectIt.effect("terminalizes a starting run when its provider session cannot op
         status: "failed",
         failure: {
           class: "provider_error",
-          message: "DESCRIPTION is not valid ACP JSON",
+          message: "DESCRIPTION is not valid JSON",
         },
       },
     ]);

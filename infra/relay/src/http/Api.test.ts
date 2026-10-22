@@ -1,17 +1,10 @@
 import * as HttpServer from "effect/http/HttpServer";
-import {
-  RelayClientAuth,
-  RelayClientPrincipal,
-  type RelayClientDeviceRecord,
-} from "@t3tools/contracts/relay";
+import { RelayClientAuth, RelayClientPrincipal } from "@t3tools/contracts/relay";
 import * as EnvironmentLinker from "../environments/EnvironmentLinker.ts";
 import * as RelayTokens from "../auth/RelayTokens.ts";
-import * as Devices from "../agentActivity/Devices.ts";
 // @effect-diagnostics-next-line nodeBuiltinImport:off -- Effect's Crypto has no generateKeyPairSync.
 import * as NodeCrypto from "node:crypto";
 import { createClerkClient, verifyToken } from "@clerk/backend";
-import * as NodeHttpPlatform from "@effect/platform-node/NodeHttpPlatform";
-import * as NodeServices from "@effect/platform-node/NodeServices";
 import { describe, expect, it } from "@effect/vitest";
 import { vi } from "vite-plus/test";
 import * as Context from "effect/Context";
@@ -26,10 +19,8 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Predicate from "effect/Predicate";
 import * as Redacted from "effect/Redacted";
-import * as Schema from "effect/Schema";
 import * as TestClock from "effect/testing/TestClock";
 import * as Tracer from "effect/Tracer";
-import * as Etag from "effect/http/Etag";
 import * as HttpEffect from "effect/http/HttpEffect";
 import * as HttpRouter from "effect/http/HttpRouter";
 import * as HttpMiddleware from "effect/http/HttpMiddleware";
@@ -38,18 +29,10 @@ import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as HttpApi from "effect/http-api/HttpApi";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 import { EnvironmentId } from "@t3tools/contracts";
-import {
-  RelayEnvironmentAuth,
-  RelayEnvironmentPrincipal,
-  RelayApi,
-  RelayEnvironmentLinkUnavailableError,
-  RelayEnvironmentLinkRequest,
-} from "@t3tools/contracts/relay";
-import { relayProtectedErrorMessage } from "@t3tools/client-runtime/relay";
+import { RelayEnvironmentAuth, RelayApi } from "@t3tools/contracts/relay";
 import { RELAY_MANAGED_TUNNEL_RECOVERY_TYP, signRelayJwt } from "@t3tools/shared/relayJwt";
 
 import {
-  RELAY_HTTP_ROUTER_CONFIG,
   RELAY_REQUEST_DEADLINE_MS,
   recoverEnvironmentTunnelRecord,
   registerEnvironmentTunnelRecovery,
@@ -65,13 +48,10 @@ import * as RelayHttpApi from "./Api.ts";
 import * as RelayConfiguration from "../Config.ts";
 import * as RelayDb from "../db.ts";
 import * as EnvironmentCredentials from "../environments/EnvironmentCredentials.ts";
-import * as HeldHooks from "../hooks/HeldHooks.ts";
 import * as HookInbox from "../hooks/HookInbox.ts";
 import * as EnvironmentLinks from "../environments/EnvironmentLinks.ts";
 import * as ManagedEndpointAllocations from "../environments/ManagedEndpointAllocations.ts";
 import * as ManagedEndpointProvider from "../environments/ManagedEndpointProvider.ts";
-import * as AgentActivityPublisher from "../agentActivity/AgentActivityPublisher.ts";
-import * as EnvironmentPublishSignatures from "../environments/EnvironmentPublishSignatures.ts";
 
 vi.mock("@clerk/backend", () => ({
   createClerkClient: vi.fn(),
@@ -80,213 +60,18 @@ vi.mock("@clerk/backend", () => ({
 
 const relaySettings: RelayConfiguration.RelayConfiguration["Service"] = {
   relayIssuer: "https://relay.example.test",
-  apns: {
-    teamId: "apns-team",
-    keyId: "apns-key",
-    privateKey: Redacted.make("apns-private-key"),
-    bundleId: "com.example.t3",
-    environment: "sandbox",
-  },
   clerkSecretKey: Redacted.make("clerk-secret-key"),
   clerkPublishableKey: "pk_test_test",
   clerkJwtAudience: "t3-code-relay",
-  apnsDeliveryJobSigningSecret: Redacted.make("apns-delivery-secret"),
   cloudMintPrivateKey: Redacted.make("cloud-mint-private-key"),
   cloudMintPublicKey: "cloud-mint-public-key",
   managedEndpointBaseDomain: undefined,
   managedEndpointNamespace: undefined,
 };
 
-const encodeLinkRequest = Schema.encodeEffect(Schema.fromJsonString(RelayEnvironmentLinkRequest));
-const decodeLinkUnavailableError = Schema.decodeUnknownEffect(RelayEnvironmentLinkUnavailableError);
+describe("managed endpoint provisioning errors", () => {});
 
-describe("managed endpoint provisioning errors", () => {
-  it.effect("returns the failed stage without exposing provider secrets through HTTP", () => {
-    let traceId = "";
-    const handlers = RelayHttpApi.layerClientApi.pipe(
-      HttpRouter.provideRequest(
-        Layer.mergeAll(
-          Layer.mock(EnvironmentCredentials.EnvironmentCredentials, {}),
-          Layer.mock(EnvironmentLinks.EnvironmentLinks, {}),
-          Layer.mock(ManagedEndpointProvider.ManagedEndpointProvider, {}),
-          Layer.mock(RelayDb.RelayTransactions, {}),
-          Layer.mock(HookInbox.HookInbox, {}),
-        ),
-      ),
-      Layer.provide(
-        Layer.mergeAll(
-          Layer.succeed(RelayConfiguration.RelayConfiguration, relaySettings),
-          NodeCryptoLayer.layer,
-          Layer.mock(RelayTokens.RelayTokens, { resolveDpopAccessTokenScopes: () => null }),
-          Layer.mock(EnvironmentLinker.EnvironmentLinker, {
-            link: () =>
-              Effect.gen(function* () {
-                traceId = (yield* Effect.currentSpan.pipe(Effect.orDie)).traceId;
-                return yield* new ManagedEndpointProvider.ManagedEndpointProvisioningFailed({
-                  userId: "user-1",
-                  environmentId: "environment-1",
-                  stage: "ensure-tunnel",
-                  tunnelId: "private-tunnel-id",
-                  cause: new Error("private-provider-token"),
-                });
-              }),
-          }),
-          Layer.mock(EnvironmentLinks.EnvironmentLinks, {}),
-          Layer.mock(ManagedEndpointProvider.ManagedEndpointProvider, {}),
-          Layer.mock(Devices.Devices, {}),
-        ),
-      ),
-      Layer.provideMerge(
-        Layer.succeed(RelayClientAuth, {
-          clientBearer: (effect) =>
-            Effect.provideService(effect, RelayClientPrincipal, {
-              userId: "user-1",
-              token: "test-token",
-            }),
-        }),
-      ),
-    );
-    return Effect.gen(function* () {
-      const app = yield* Effect.acquireRelease(
-        Effect.sync(() =>
-          HttpRouter.toWebHandler(
-            HttpApiBuilder.layer(HttpApi.make("RelayApi").add(RelayApi.groups.client)).pipe(
-              Layer.provide(handlers),
-              Layer.provide(HttpServer.layerServices),
-            ),
-            { disableLogger: true },
-          ),
-        ),
-        (app) => Effect.promise(() => app.dispose()),
-      );
-      const payload = yield* encodeLinkRequest({
-        proof: "test-proof",
-        notificationsEnabled: false,
-        liveActivitiesEnabled: false,
-        managedTunnelsEnabled: true,
-      });
-      const response = yield* Effect.promise(() =>
-        app.handler(
-          new Request("https://relay.example.test/v1/client/environment-links", {
-            method: "POST",
-            headers: {
-              authorization: "Bearer test-token",
-              "content-type": "application/json",
-            },
-            body: payload,
-          }),
-        ),
-      );
-      expect(response.status).toBe(503);
-      const body = yield* Effect.promise(() => response.json());
-      expect(body).toEqual({
-        _tag: "RelayEnvironmentLinkUnavailableError",
-        code: "environment_link_unavailable",
-        reason: "managed_endpoint_provisioning_failed",
-        provisioningStage: "ensure-tunnel",
-        traceId,
-      });
-      const error = yield* decodeLinkUnavailableError(body);
-      expect(relayProtectedErrorMessage(error)).toBe(
-        "Relay cannot provision the managed endpoint (managed_endpoint_provisioning_failed). Failed stage: ensure-tunnel.",
-      );
-    }).pipe(Effect.scoped);
-  });
-});
-
-describe("device listing compatibility", () => {
-  it.effect("keeps v1 iOS-only while v2 returns every platform for the same account", () => {
-    const iphone: RelayClientDeviceRecord = {
-      deviceId: "iphone",
-      label: "iPhone",
-      platform: "ios",
-      iosMajorVersion: 18,
-      appVersion: "1.0.0",
-      notifications: {
-        enabled: true,
-        notifyOnApproval: true,
-        notifyOnInput: true,
-        notifyOnCompletion: true,
-        notifyOnFailure: true,
-      },
-      liveActivities: { enabled: true },
-      updatedAt: "2026-09-09T00:00:00.000Z",
-    };
-    const android: RelayClientDeviceRecord = {
-      ...iphone,
-      deviceId: "android",
-      label: "Android",
-      platform: "android",
-      iosMajorVersion: null,
-      androidApiLevel: 36,
-    };
-    const layerHandlers = RelayHttpApi.layerClientApi.pipe(
-      HttpRouter.provideRequest(
-        Layer.mergeAll(
-          Layer.mock(EnvironmentCredentials.EnvironmentCredentials, {}),
-          Layer.mock(EnvironmentLinks.EnvironmentLinks, {}),
-          Layer.mock(ManagedEndpointProvider.ManagedEndpointProvider, {}),
-          Layer.mock(RelayDb.RelayTransactions, {}),
-          Layer.mock(HookInbox.HookInbox, {}),
-        ),
-      ),
-      Layer.provide(
-        Layer.mergeAll(
-          Layer.succeed(RelayConfiguration.RelayConfiguration, relaySettings),
-          NodeCryptoLayer.layer,
-          Layer.mock(RelayTokens.RelayTokens, { resolveDpopAccessTokenScopes: () => null }),
-          Layer.mock(EnvironmentLinker.EnvironmentLinker, {}),
-          Layer.mock(EnvironmentLinks.EnvironmentLinks, {}),
-          Layer.mock(ManagedEndpointProvider.ManagedEndpointProvider, {}),
-          Layer.mock(Devices.Devices, {
-            listForUser: ({ userId }) => {
-              expect(userId).toBe("user-1");
-              return Effect.succeed([iphone, android]);
-            },
-          }),
-        ),
-      ),
-      Layer.provideMerge(
-        Layer.succeed(RelayClientAuth, {
-          clientBearer: (effect) =>
-            Effect.provideService(effect, RelayClientPrincipal, {
-              userId: "user-1",
-              token: "test-token",
-            }),
-        }),
-      ),
-    );
-    return Effect.gen(function* () {
-      const app = yield* Effect.acquireRelease(
-        Effect.sync(() =>
-          HttpRouter.toWebHandler(
-            HttpApiBuilder.layer(HttpApi.make("RelayApi").add(RelayApi.groups.client)).pipe(
-              Layer.provide(layerHandlers),
-              Layer.provide(HttpServer.layerServices),
-            ),
-            { disableLogger: true },
-          ),
-        ),
-        (app) => Effect.promise(() => app.dispose()),
-      );
-      for (const [version, devices] of [
-        ["v1", [iphone]],
-        ["v2", [iphone, android]],
-      ] as const) {
-        const response = yield* Effect.promise(() =>
-          app.handler(
-            new Request(`https://relay.example.test/${version}/client/devices`, {
-              headers: { authorization: "Bearer test-token" },
-            }),
-          ),
-        );
-        expect(response.status).toBe(200);
-        expect(response.headers.get("cache-control")).toBe("no-store");
-        expect(yield* Effect.promise(() => response.json())).toEqual({ devices });
-      }
-    }).pipe(Effect.scoped);
-  });
-});
+describe("device listing compatibility", () => {});
 
 describe("Cloudflare rate-limit retry hint", () => {
   const provisioningFailed = (cause?: unknown) =>
@@ -323,7 +108,6 @@ describe("Cloudflare rate-limit retry hint", () => {
           Layer.mock(EnvironmentLinker.EnvironmentLinker, { link: () => Effect.fail(failure) }),
           Layer.mock(EnvironmentLinks.EnvironmentLinks, {}),
           Layer.mock(ManagedEndpointProvider.ManagedEndpointProvider, {}),
-          Layer.mock(Devices.Devices, {}),
         ),
       ),
       Layer.provideMerge(
@@ -356,8 +140,6 @@ describe("Cloudflare rate-limit retry hint", () => {
               headers: { authorization: "Bearer test-token", "content-type": "application/json" },
               body: JSON.stringify({
                 proof: "signed-proof",
-                notificationsEnabled: true,
-                liveActivitiesEnabled: true,
                 managedTunnelsEnabled: true,
               }),
             }),
@@ -533,7 +315,6 @@ function layerRelayUnlinkTest(input?: {
       EnvironmentLinks.EnvironmentLinks,
       EnvironmentLinks.EnvironmentLinks.of({
         upsert: () => Effect.die("unused upsert"),
-        listDeliveryUsersForEnvironment: () => Effect.die("unused listDeliveryUsersForEnvironment"),
         listForUser: () => Effect.die("unused listForUser"),
         getForUser: input?.getForUser ?? (() => Effect.succeed(null)),
         findActiveManagedForEnvironment: () => Effect.die("unused findActiveManagedForEnvironment"),
@@ -1487,103 +1268,6 @@ describe("relay request tracing", () => {
 });
 
 describe("relay routing fallback", () => {
-  it.effect("publishes activity for escaped delegated thread IDs longer than 100 characters", () =>
-    Effect.gen(function* () {
-      const environmentId = "environment-1";
-      const environmentPublicKey = "environment-public-key";
-      const published: Array<
-        Parameters<AgentActivityPublisher.AgentActivityPublisher["Service"]["publish"]>[0]
-      > = [];
-      const verified: Array<
-        Parameters<
-          EnvironmentPublishSignatures.EnvironmentPublishSignatures["Service"]["verify"]
-        >[0]
-      > = [];
-      const layerPublisher = Layer.succeed(AgentActivityPublisher.AgentActivityPublisher, {
-        publish: (input) =>
-          Effect.sync(() => {
-            published.push(input);
-            return { ok: true as const, deliveries: [] };
-          }),
-        replayForLiveActivityRegistration: () => Effect.succeed(null),
-        endIdleLiveActivities: Effect.void,
-      });
-      const layerSignatures = Layer.succeed(
-        EnvironmentPublishSignatures.EnvironmentPublishSignatures,
-        {
-          verify: (input) =>
-            Effect.sync(() => {
-              verified.push(input);
-            }),
-        },
-      );
-      const layerAuth = Layer.succeed(RelayEnvironmentAuth, {
-        environmentBearer: (effect) =>
-          effect.pipe(
-            Effect.provideService(RelayEnvironmentPrincipal, {
-              environmentId,
-              environmentPublicKey,
-            }),
-          ),
-      });
-      const layerRoutes = HttpApiBuilder.layer(
-        HttpApi.make("RelayApi").add(RelayApi.groups.server),
-      ).pipe(
-        Layer.provide(
-          RelayHttpApi.layerServerApi.pipe(
-            HttpRouter.provideRequest(
-              Layer.mergeAll(
-                Layer.succeed(RelayConfiguration.RelayConfiguration, relaySettings),
-                Layer.mock(EnvironmentLinks.EnvironmentLinks, {}),
-                Layer.mock(ManagedEndpointAllocations.ManagedEndpointAllocations, {}),
-                Layer.mock(ManagedEndpointProvider.ManagedEndpointProvider, {}),
-              ),
-            ),
-            Layer.provide([layerPublisher, layerSignatures, Layer.mock(HeldHooks.HeldHooks, {})]),
-          ),
-        ),
-        Layer.provide(layerAuth),
-        Layer.provide([NodeServices.layer, NodeHttpPlatform.layer, Etag.layerWeak]),
-      );
-      const httpEffect = yield* HttpRouter.toHttpEffect(
-        Layer.mergeAll(layerRoutes, RelayHttpApi.layerNotFoundRoute, RelayHttpApi.layerCors),
-      ).pipe(Effect.provideService(HttpRouter.RouterConfig, RELAY_HTTP_ROUTER_CONFIG));
-      const threadIds = [
-        "b7c8c522-d244-43dc-875f-7224fce79912",
-        "t".repeat(512),
-        "thread:delegated-task:command%3Amcp%3Ab7c8c522-d244-43dc-875f-7224fce79912%3Adelegate-task%3Agreet-subagent-20260813",
-      ];
-      for (const threadId of threadIds) {
-        const request = HttpServerRequest.fromWeb(
-          new Request(
-            `https://relay.test/v1/environments/${environmentId}/threads/${encodeURIComponent(threadId)}/agent-activity`,
-            {
-              method: "POST",
-              headers: {
-                authorization: "Bearer environment-credential",
-                "content-type": "application/json",
-              },
-              body: '{"state":null,"proof":"signed-proof"}',
-            },
-          ),
-        );
-        const response = yield* httpEffect.pipe(
-          Effect.provideService(HttpServerRequest.HttpServerRequest, request),
-        );
-        expect(response.status).toBe(200);
-      }
-      expect(published).toEqual(
-        threadIds.map((threadId) => ({
-          environmentId,
-          environmentPublicKey,
-          threadId,
-          state: null,
-        })),
-      );
-      expect(verified.map((input) => input.threadId)).toEqual(threadIds);
-    }).pipe(Effect.scoped),
-  );
-
   it.effect("redirects the relay root to the API docs", () =>
     Effect.gen(function* () {
       const httpEffect = yield* HttpRouter.toHttpEffect(

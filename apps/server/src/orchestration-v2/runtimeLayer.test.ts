@@ -1602,7 +1602,7 @@ it.layer(layerTest)("OrchestrationV2LayerLive", (it) => {
       yield* orchestrator.dispatch({
         type: "thread.merge_back",
         createdBy: "user",
-        creationSource: "mobile",
+        creationSource: "web",
         commandId: CommandId.make("runtime-layer-waiting-merge"),
         sourceThreadId,
         targetThreadId,

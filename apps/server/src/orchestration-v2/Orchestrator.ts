@@ -5236,7 +5236,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       );
     const sentByUserFromClient =
       command.createdBy === "user" &&
-      (command.creationSource === "web" || command.creationSource === "mobile") &&
+      command.creationSource === "web" &&
       command.scheduledTaskId === undefined;
     const heldRunsToRelease =
       sentByUserFromClient && startsOrQueuesRun && !worktreeSetupUnresolved

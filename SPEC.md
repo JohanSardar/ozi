@@ -49,6 +49,10 @@ New code lives in `apps/server/src/ozi/` and `apps/web/src/components/ozi/`. Eve
 
 - `<JobPanel mainThreadId/>`: cards in four columns, questions/approvals/secrets/reports on the card, Close and Stop, drawer with the lead's conversation (lazy), to-dos below jobs labeled with their source. One main composer, always usable. No thread list.
 
+## Retained surface
+
+Only Pi, Claude and Codex providers and desktop and web clients ship. Provider registration, models, settings, usage, packaging and relay APIs follow this boundary.
+
 ## Main agent
 
 - Startup creates the sole main thread, `ozi-main`, in a Workspace project rooted at `<home>/workspace`. Main delegates in that workspace.

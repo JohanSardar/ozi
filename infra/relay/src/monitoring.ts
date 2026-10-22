@@ -97,24 +97,6 @@ const relayMonitors: ReadonlyArray<RelayMonitor> = [
     triggerFromNRuns: 2,
   },
   {
-    id: "RelayPushFailureRateMonitor",
-    severity: "page",
-    name: "T3 Connect relay: push delivery failing",
-    description:
-      "Share of APNs and FCM delivery jobs failing over 15 min, e.g. an expired APNs key or FCM credential. Healthy: APNs under 0.3%, FCM under 4%.",
-    query: (dataset) =>
-      [
-        `['${dataset}']`,
-        `| where name in ("relay.apns_deliveries.process_signed_job", "relay.fcm.process")`,
-        `| summarize total = count(), failed = countif(error == true)`,
-        `| project failure_pct = iff(total >= 100, 100.0 * failed / total, 0.0)`,
-      ].join("\n"),
-    operator: "Above",
-    threshold: 10,
-    rangeMinutes: 15,
-    triggerFromNRuns: 2,
-  },
-  {
     id: "RelayCloudflareRateLimitedMonitor",
     severity: "page",
     name: "T3 Connect relay: Cloudflare API rate limited",
@@ -263,11 +245,6 @@ const relayDashboardCharts = (dataset: string): ReadonlyArray<QueryChart> => {
       "postgres",
       "Postgres query time",
       `${source}\n| where name == "postgres"\n| summarize p50 = percentile(duration, 50), p90 = percentile(duration, 90) by bin_auto(_time)`,
-    ),
-    timeSeries(
-      "push",
-      "Push delivery jobs",
-      `${source}\n| where name in ("relay.apns_deliveries.process_signed_job", "relay.fcm.process")\n| summarize delivered = countif(error != true), failed = countif(error == true) by bin_auto(_time), service = iff(name == "relay.fcm.process", "fcm", "apns")`,
     ),
     timeSeries(
       "tunnel-cleanup",

@@ -247,10 +247,10 @@ it.each(["local-exec", "remote-links"] as const)(
     await using fixture = await setup();
     const { renderPicker, byLabel, menuItems, click } = fixture;
     state.allowed.add(selected);
-    state.clientEditors = ["cursor", "vscode"];
+    state.clientEditors = ["vscode", "vscode"];
     state.remote =
       mode === "local-exec" ? { mode } : { mode, host: { kind: "ssh-alias", host: "test-host" } };
-    await renderPicker(["cursor", "vscode"], true);
+    await renderPicker(["vscode", "vscode"], true);
     byLabel("Open in Cursor");
     await click(byLabel("Choose editor"));
     await click(menuItems().find((item) => item.textContent?.includes("VS Code"))!);

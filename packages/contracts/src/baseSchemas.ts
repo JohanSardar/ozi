@@ -284,7 +284,7 @@ export type AuthSessionId = typeof AuthSessionId.Type;
 export const RpcClientId = NonNegativeInt.pipe(Schema.brand("RpcClientId"));
 export type RpcClientId = typeof RpcClientId.Type;
 
-export const ClientSurface = Schema.Literals(["web", "desktop", "mobile", "cli"]);
+export const ClientSurface = Schema.Literals(["web", "desktop", "cli"]);
 export type ClientSurface = typeof ClientSurface.Type;
 
 export const ClientOs = Schema.Literals([

@@ -31,8 +31,9 @@ describe("fallbackTextGenerationModelSelection", () => {
     const providerInstances = {
       [configured]: { driver: ProviderDriverKind.make("codex"), config: {} },
     };
-    const fallback = fallbackTextGenerationModelSelection(providerInstances, (instanceId) =>
-      instanceId === configured ? true : false,
+    const fallback = fallbackTextGenerationModelSelection(
+      providerInstances,
+      (instanceId) => instanceId === configured,
     );
     expect(fallback).toBeNull();
   });
@@ -398,12 +399,12 @@ describe("serverSettings helpers", () => {
     expect(
       applyServerSettingsPatch(current, {
         textGenerationModelSelection: {
-          instanceId: ProviderInstanceId.make("opencode"),
+          instanceId: ProviderInstanceId.make("pi"),
           model: "openai/gpt-5",
         },
       }).textGenerationModelSelection,
     ).toEqual({
-      instanceId: "opencode",
+      instanceId: "pi",
       model: "openai/gpt-5",
     });
   });
@@ -412,7 +413,7 @@ describe("serverSettings helpers", () => {
     expect(
       applyServerSettingsPatch(DEFAULT_SERVER_SETTINGS, {
         textGenerationModelSelection: {
-          instanceId: ProviderInstanceId.make("opencode"),
+          instanceId: ProviderInstanceId.make("pi"),
           model: "openai/gpt-5",
           options: [
             { id: "variant", value: "prod" },
@@ -421,7 +422,7 @@ describe("serverSettings helpers", () => {
         },
       }).textGenerationModelSelection,
     ).toEqual({
-      instanceId: "opencode",
+      instanceId: "pi",
       model: "openai/gpt-5",
       options: [
         { id: "variant", value: "prod" },
@@ -443,12 +444,12 @@ describe("serverSettings helpers", () => {
     expect(
       applyServerSettingsPatch(current, {
         sourceControlWriterModelSelection: {
-          instanceId: ProviderInstanceId.make("opencode"),
+          instanceId: ProviderInstanceId.make("pi"),
           model: "openai/gpt-5",
         },
       }).sourceControlWriterModelSelection,
     ).toEqual({
-      instanceId: "opencode",
+      instanceId: "pi",
       model: "openai/gpt-5",
     });
   });
@@ -535,7 +536,7 @@ describe("serverSettings helpers", () => {
       ...DEFAULT_SERVER_SETTINGS,
       providerInstances: {
         [instanceId]: {
-          driver: ProviderDriverKind.make("acpRegistry"),
+          driver: ProviderDriverKind.make("pi"),
           enabled: true,
           config: {},
         },
@@ -544,7 +545,7 @@ describe("serverSettings helpers", () => {
     };
     const incapableProvider = {
       instanceId,
-      driver: ProviderDriverKind.make("acpRegistry"),
+      driver: ProviderDriverKind.make("pi"),
       supportsTextGeneration: false,
       enabled: true,
       installed: true,

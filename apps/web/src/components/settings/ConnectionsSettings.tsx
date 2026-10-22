@@ -1833,7 +1833,6 @@ function ConfiguredCloudLinkRow({ canManageRelay }: { readonly canManageRelay: b
     linkRevoked,
     managedTunnelActive,
     managedTunnelOutOfSync,
-    publishAgentActivity,
     holdWebhooksWhileOffline,
     operationError,
     reconcileCloudState,
@@ -1881,50 +1880,23 @@ function ConfiguredCloudLinkRow({ canManageRelay }: { readonly canManageRelay: b
     )
       return;
     setIsUpdating(true);
-    const ok = await reconcileCloudState({ managedTunnel: enabled, publish: publishAgentActivity });
+    const ok = await reconcileCloudState({ managedTunnel: enabled });
     if (ok) {
       toastManager.add({
         type: "success",
-        title: enabled
-          ? "T3 Connect linked"
-          : publishAgentActivity
-            ? "T3 Connect tunnel disabled"
-            : "T3 Connect unlinked",
+        title: enabled ? "T3 Connect linked" : "T3 Connect unlinked",
         description: enabled
           ? "This environment is available through T3 Connect."
-          : publishAgentActivity
-            ? "The managed tunnel was removed. Agent activity publishing stays on."
-            : "This environment is no longer available through T3 Connect.",
+          : "This environment is no longer available through T3 Connect.",
       });
     }
     setIsUpdating(false);
-  };
-
-  const updatePublishAgentActivity = async (enabled: boolean) => {
-    if (
-      primaryEnvironmentId === null ||
-      !readEnvironmentScope(primaryEnvironmentId, AuthRelayWriteScope)
-    )
-      return;
-    setIsUpdatingPreference(true);
-    const ok = await reconcileCloudState({ managedTunnel: managedTunnelActive, publish: enabled });
-    if (ok) {
-      toastManager.add({
-        type: "success",
-        title: enabled ? "Agent activity enabled" : "Agent activity disabled",
-        description: enabled
-          ? "This environment publishes agent activity to your mobile clients."
-          : "This environment will stop publishing agent activity.",
-      });
-    }
-    setIsUpdatingPreference(false);
   };
 
   const updateHoldWebhooks = async (enabled: boolean) => {
     setIsUpdatingPreference(true);
     const ok = await reconcileCloudState({
       managedTunnel: managedTunnelActive,
-      publish: publishAgentActivity,
       holdWebhooksWhileOffline: enabled,
     });
     if (ok) {
@@ -1979,25 +1951,7 @@ function ConfiguredCloudLinkRow({ canManageRelay }: { readonly canManageRelay: b
           description="This environment was removed from T3 Connect. Run `t3 connect link` on the host to link it again."
         />
       ) : null}
-      <SettingsRow
-        title={searchableSetting("publish-agent-activity").title}
-        description="Send activity to mobile notifications and Live Activities without T3 Connect."
-        control={
-          <CloudLinkSwitch
-            ariaLabel="Publish agent activity to mobile clients"
-            checked={publishAgentActivity}
-            disabled={
-              !canManageRelay ||
-              !isSignedIn ||
-              primaryCloudLinkState.data === null ||
-              primaryCloudLinkState.isPending ||
-              isBusy
-            }
-            disabledReason={disabledReason}
-            onCheckedChange={(enabled) => void updatePublishAgentActivity(enabled)}
-          />
-        }
-      />
+
       {managedTunnelActive ? (
         <SettingsRow
           title={searchableSetting("hold-webhooks-while-offline").title}

@@ -13,14 +13,12 @@ import * as EnvironmentAuth from "../auth/EnvironmentAuth.ts";
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
 import * as ServerConfig from "../config.ts";
 import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
-import * as AgentAwarenessRelay from "../relay/AgentAwarenessRelay.ts";
 import * as CliTokenManager from "./CliTokenManager.ts";
 import * as CloudLink from "./CloudLink.ts";
 import * as ConnectReachability from "./ConnectReachability.ts";
 import * as ManagedEndpointRuntime from "./ManagedEndpointRuntime.ts";
 import {
   HOLD_WEBHOOKS_WHILE_OFFLINE_SECRET,
-  PUBLISH_AGENT_ACTIVITY_SECRET,
   RELAY_ENVIRONMENT_CREDENTIAL_SECRET,
   RELAY_URL_SECRET,
 } from "./config.ts";
@@ -30,9 +28,7 @@ const encode = (value: string) => new TextEncoder().encode(value);
 const withService = <A, E>(
   options: {
     readonly failHoldWrite?: boolean;
-    readonly failActivityWrite?: boolean;
     readonly relayFails?: boolean;
-    readonly failActivityRead?: boolean;
     readonly failHoldRead?: boolean;
     readonly holdFirstRelayCall?: {
       readonly started: () => void;
@@ -50,7 +46,6 @@ const withService = <A, E>(
       [RELAY_URL_SECRET, encode("https://relay.test")],
       [RELAY_ENVIRONMENT_CREDENTIAL_SECRET, encode("credential")],
       [HOLD_WEBHOOKS_WHILE_OFFLINE_SECRET, encode("false")],
-      [PUBLISH_AGENT_ACTIVITY_SECRET, encode("false")],
     ]);
     const relayCalls: Array<boolean> = [];
     const fetch: typeof globalThis.fetch = Object.assign(
@@ -70,8 +65,7 @@ const withService = <A, E>(
     const layerDependencies = Layer.mergeAll(
       Layer.mock(ServerSecretStore.ServerSecretStore)({
         get: (name) =>
-          (options.failActivityRead && name === PUBLISH_AGENT_ACTIVITY_SECRET) ||
-          (options.failHoldRead && name === HOLD_WEBHOOKS_WHILE_OFFLINE_SECRET)
+          options.failHoldRead && name === HOLD_WEBHOOKS_WHILE_OFFLINE_SECRET
             ? Effect.fail(
                 new ServerSecretStore.SecretStoreReadError({
                   resource: name,
@@ -80,8 +74,7 @@ const withService = <A, E>(
               )
             : Effect.succeed(Option.fromNullishOr(stored.get(name))),
         set: (name, value) =>
-          (options.failHoldWrite && name === HOLD_WEBHOOKS_WHILE_OFFLINE_SECRET) ||
-          (options.failActivityWrite && name === PUBLISH_AGENT_ACTIVITY_SECRET)
+          options.failHoldWrite && name === HOLD_WEBHOOKS_WHILE_OFFLINE_SECRET
             ? Effect.fail(
                 new ServerSecretStore.SecretStorePersistError({
                   resource: name,
@@ -93,7 +86,6 @@ const withService = <A, E>(
       Layer.mock(ServerEnvironment.ServerEnvironment)({
         getEnvironmentId: Effect.succeed(EnvironmentId.make("environment-1")),
       }),
-      Layer.mock(AgentAwarenessRelay.AgentAwarenessRelay)({ requestCatchUp: () => Effect.void }),
       Layer.mock(ManagedEndpointRuntime.CloudManagedEndpointRuntime)({}),
       Layer.mock(ConnectReachability.ConnectReachability)({
         latest: Effect.succeed(Option.none()),
@@ -122,7 +114,7 @@ const withService = <A, E>(
 it.effect("tells the relay before saving the hold setting locally", () =>
   withService({}, ({ preferences, stored, relayCalls }) =>
     Effect.gen(function* () {
-      yield* preferences.update({ publishAgentActivity: true, holdWebhooksWhileOffline: true });
+      yield* preferences.update({ holdWebhooksWhileOffline: true });
       assert.deepEqual(relayCalls, [true]);
       assert.equal(
         new TextDecoder().decode(stored.get(HOLD_WEBHOOKS_WHILE_OFFLINE_SECRET)),
@@ -135,9 +127,7 @@ it.effect("tells the relay before saving the hold setting locally", () =>
 it.effect("puts the relay back when the local save fails", () =>
   withService({ failHoldWrite: true }, ({ preferences, stored, relayCalls }) =>
     Effect.gen(function* () {
-      const error = yield* preferences
-        .update({ publishAgentActivity: true, holdWebhooksWhileOffline: true })
-        .pipe(Effect.flip);
+      const error = yield* preferences.update({ holdWebhooksWhileOffline: true }).pipe(Effect.flip);
       assert.deepInclude(error, {
         _tag: "CloudLinkInternalError",
         operation: "persist-preferences",
@@ -152,11 +142,9 @@ it.effect("puts the relay back when the local save fails", () =>
 );
 
 it.effect("leaves the relay untouched when the activity setting can't be saved", () =>
-  withService({ failActivityWrite: true }, ({ preferences, stored, relayCalls }) =>
+  withService({}, ({ preferences, stored, relayCalls }) =>
     Effect.gen(function* () {
-      const error = yield* preferences
-        .update({ publishAgentActivity: true, holdWebhooksWhileOffline: true })
-        .pipe(Effect.flip);
+      const error = yield* preferences.update({ holdWebhooksWhileOffline: true }).pipe(Effect.flip);
       assert.deepInclude(error, {
         _tag: "CloudLinkInternalError",
         operation: "persist-preferences",
@@ -173,10 +161,7 @@ it.effect("leaves the relay untouched when the activity setting can't be saved",
 it.effect("keeps both settings unchanged when the relay refuses the hold change", () =>
   withService({ relayFails: true }, ({ preferences, stored }) =>
     Effect.gen(function* () {
-      yield* preferences
-        .update({ publishAgentActivity: true, holdWebhooksWhileOffline: true })
-        .pipe(Effect.flip);
-      assert.equal(new TextDecoder().decode(stored.get(PUBLISH_AGENT_ACTIVITY_SECRET)), "false");
+      yield* preferences.update({ holdWebhooksWhileOffline: true }).pipe(Effect.flip);
       assert.equal(
         new TextDecoder().decode(stored.get(HOLD_WEBHOOKS_WHILE_OFFLINE_SECRET)),
         "false",
@@ -186,14 +171,11 @@ it.effect("keeps both settings unchanged when the relay refuses the hold change"
 );
 
 it.effect("changes nothing when the current activity setting can't be read", () =>
-  withService({ failActivityRead: true, relayFails: true }, ({ preferences, stored, relayCalls }) =>
+  withService({ relayFails: true }, ({ preferences, relayCalls }) =>
     Effect.gen(function* () {
-      const error = yield* preferences
-        .update({ publishAgentActivity: true, holdWebhooksWhileOffline: true })
-        .pipe(Effect.flip);
+      const error = yield* preferences.update({ holdWebhooksWhileOffline: true }).pipe(Effect.flip);
       assert.deepInclude(error, { _tag: "CloudLinkInternalError", operation: "read-preferences" });
       assert.deepEqual(relayCalls, []);
-      assert.equal(new TextDecoder().decode(stored.get(PUBLISH_AGENT_ACTIVITY_SECRET)), "false");
     }),
   ),
 );
@@ -210,18 +192,16 @@ it.effect("two overlapping updates are applied one after the other", () => {
   return withService({ holdFirstRelayCall: { started, released } }, ({ preferences, stored }) =>
     Effect.gen(function* () {
       const first = yield* preferences
-        .update({ publishAgentActivity: true, holdWebhooksWhileOffline: true })
+        .update({ holdWebhooksWhileOffline: true })
         .pipe(Effect.forkChild);
       yield* Effect.promise(() => firstAtRelay);
       const second = yield* preferences
-        .update({ publishAgentActivity: false, holdWebhooksWhileOffline: false })
+        .update({ holdWebhooksWhileOffline: false })
         .pipe(Effect.forkChild);
       yield* Effect.yieldNow;
-      assert.equal(new TextDecoder().decode(stored.get(PUBLISH_AGENT_ACTIVITY_SECRET)), "true");
       release();
       yield* Fiber.join(first);
       yield* Fiber.join(second);
-      assert.equal(new TextDecoder().decode(stored.get(PUBLISH_AGENT_ACTIVITY_SECRET)), "false");
       assert.equal(
         new TextDecoder().decode(stored.get(HOLD_WEBHOOKS_WHILE_OFFLINE_SECRET)),
         "false",
@@ -235,11 +215,10 @@ it.effect("changes nothing when the current hold setting can't be read", () =>
     Effect.gen(function* () {
       stored.set(HOLD_WEBHOOKS_WHILE_OFFLINE_SECRET, encode("true"));
       const error = yield* preferences
-        .update({ publishAgentActivity: true, holdWebhooksWhileOffline: false })
+        .update({ holdWebhooksWhileOffline: false })
         .pipe(Effect.flip);
       assert.deepInclude(error, { _tag: "CloudLinkInternalError", operation: "read-preferences" });
       assert.deepEqual(relayCalls, []);
-      assert.equal(new TextDecoder().decode(stored.get(PUBLISH_AGENT_ACTIVITY_SECRET)), "false");
     }),
   ),
 );
@@ -256,14 +235,13 @@ it.effect("an update the client walks away from still finishes", () => {
   return withService({ holdFirstRelayCall: { started, released } }, ({ preferences, stored }) =>
     Effect.gen(function* () {
       const update = yield* preferences
-        .update({ publishAgentActivity: true, holdWebhooksWhileOffline: true })
+        .update({ holdWebhooksWhileOffline: true })
         .pipe(Effect.forkChild);
       yield* Effect.promise(() => atRelay);
       const interrupted = yield* Fiber.interrupt(update).pipe(Effect.forkChild);
       yield* Effect.yieldNow;
       release();
       yield* Fiber.join(interrupted);
-      assert.equal(new TextDecoder().decode(stored.get(PUBLISH_AGENT_ACTIVITY_SECRET)), "true");
       assert.equal(
         new TextDecoder().decode(stored.get(HOLD_WEBHOOKS_WHILE_OFFLINE_SECRET)),
         "true",

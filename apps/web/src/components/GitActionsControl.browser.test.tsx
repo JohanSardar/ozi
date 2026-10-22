@@ -110,7 +110,7 @@ vi.mock(import("~/state/use-atom-command"), async (original) => {
 vi.mock(import("~/state/server"), async (original) => {
   const actual = await original();
   const { Atom } = await import("effect/reactivity");
-  const config = Atom.make(() => ({ availableEditors: ["cursor"] }));
+  const config = Atom.make(() => ({ availableEditors: ["vscode"] }));
   return {
     ...actual,
     serverEnvironment: { ...actual.serverEnvironment, configValueAtom: (() => config) as never },
@@ -358,10 +358,10 @@ describe("Changed-file editor targets", () => {
 
     await vi.waitFor(() => expect(state.editorOpens).toHaveLength(2));
     expect(state.editorOpens).toEqual([
-      { environmentId: "environment", input: { cwd: "/repo/nested/new.txt", editor: "cursor" } },
+      { environmentId: "environment", input: { cwd: "/repo/nested/new.txt", editor: "vscode" } },
       {
         environmentId: "environment",
-        input: { cwd: "/repo/nested/tracked.txt", editor: "cursor" },
+        input: { cwd: "/repo/nested/tracked.txt", editor: "vscode" },
       },
     ]);
   });

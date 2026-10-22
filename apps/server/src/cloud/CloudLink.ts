@@ -68,7 +68,6 @@ import * as EnvironmentAuth from "../auth/EnvironmentAuth.ts";
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
 import * as ServerConfig from "../config.ts";
 import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
-import * as AgentAwarenessRelay from "../relay/AgentAwarenessRelay.ts";
 import { makeRelayEnvironmentClient } from "../relay/relayEnvironmentClient.ts";
 import { loopbackUrlHostForAddress } from "../startupAccess.ts";
 import {
@@ -89,7 +88,6 @@ import {
   encodeConfirmedOriginJson,
   encodeEndpointRuntimeConfigJson,
   HOLD_WEBHOOKS_WHILE_OFFLINE_SECRET,
-  PUBLISH_AGENT_ACTIVITY_SECRET,
   readRelayConnection,
   RELAY_ENVIRONMENT_CREDENTIAL_SECRET,
   RELAY_ISSUER_SECRET,
@@ -535,7 +533,6 @@ const make = Effect.gen(function* () {
   const cliTokenManager = yield* CliTokenManager.CloudCliTokenManager;
   const httpClient = yield* HttpClient.HttpClient;
   const httpServer = yield* HttpServer.HttpServer;
-  const awarenessRelay = yield* AgentAwarenessRelay.AgentAwarenessRelay;
   const crypto = yield* Crypto.Crypto;
   const config = yield* ServerConfig.ServerConfig;
   const fileSystem = yield* FileSystem.FileSystem;
@@ -808,7 +805,6 @@ const make = Effect.gen(function* () {
       );
       yield* secrets.remove(CLOUD_LINK_REVOKED);
       yield* secrets.set(CLOUD_MINT_PUBLIC_KEY, stringToBytes(payload.cloudMintPublicKey));
-      yield* awarenessRelay.requestCatchUp();
       if (endpointRuntimeJson !== null) {
         yield* secrets.set(CLOUD_ENDPOINT_RUNTIME_CONFIG, stringToBytes(endpointRuntimeJson));
       }
@@ -874,8 +870,6 @@ const make = Effect.gen(function* () {
         url: `${relayUrl}/v1/client/environment-link-challenges`,
         token: token.accessToken,
         payload: {
-          notificationsEnabled: true,
-          liveActivitiesEnabled: true,
           managedTunnelsEnabled,
         },
         schema: RelayEnvironmentLinkChallengeResponse,
@@ -898,8 +892,6 @@ const make = Effect.gen(function* () {
         token: token.accessToken,
         payload: {
           proof,
-          notificationsEnabled: true,
-          liveActivitiesEnabled: true,
           managedTunnelsEnabled,
         },
         schema: RelayEnvironmentLinkResponse,
@@ -1313,7 +1305,6 @@ const make = Effect.gen(function* () {
       relayUrl,
       relayIssuer,
       endpointRuntimeConfig,
-      publishAgentActivity,
       holdWebhooks,
       revoked,
       latestReachability,
@@ -1323,7 +1314,6 @@ const make = Effect.gen(function* () {
         secrets.get(RELAY_URL_SECRET),
         secrets.get(RELAY_ISSUER_SECRET),
         secrets.get(CLOUD_ENDPOINT_RUNTIME_CONFIG),
-        secrets.get(PUBLISH_AGENT_ACTIVITY_SECRET),
         secrets.get(HOLD_WEBHOOKS_WHILE_OFFLINE_SECRET),
         secrets.get(CLOUD_LINK_REVOKED),
         reachability.latest,
@@ -1337,9 +1327,6 @@ const make = Effect.gen(function* () {
       relayUrl: Option.isSome(relayUrl) ? bytesToString(relayUrl.value) : null,
       relayIssuer: Option.isSome(relayIssuer) ? bytesToString(relayIssuer.value) : null,
       managedTunnelActive: Option.isSome(endpointRuntimeConfig),
-      publishAgentActivity: Option.isSome(publishAgentActivity)
-        ? bytesToString(publishAgentActivity.value) === "true"
-        : false,
       holdWebhooksWhileOffline:
         Option.isSome(holdWebhooks) && bytesToString(holdWebhooks.value) === "true",
       ...(Option.isSome(latestReachability) ? { reachability: latestReachability.value } : {}),
@@ -1367,7 +1354,6 @@ const make = Effect.gen(function* () {
               secrets.remove(CLOUD_MINT_PUBLIC_KEY),
               secrets.remove(CLOUD_ENDPOINT_RUNTIME_CONFIG),
               secrets.remove(CLOUD_ENDPOINT_CONFIRMED_ORIGIN),
-              secrets.remove(PUBLISH_AGENT_ACTIVITY_SECRET),
               secrets.remove(HOLD_WEBHOOKS_WHILE_OFFLINE_SECRET),
               secrets.remove(CLOUD_LINK_REVOKED),
             ],
@@ -1411,9 +1397,7 @@ const make = Effect.gen(function* () {
       // anything changes, because a guessed value would be the rollback target.
       const readCurrent = (name: string) =>
         secrets.get(name).pipe(Effect.catch(internalError("read-preferences")));
-      const previousActivity = yield* readCurrent(PUBLISH_AGENT_ACTIVITY_SECRET);
       const previousHold = yield* readCurrent(HOLD_WEBHOOKS_WHILE_OFFLINE_SECRET);
-      yield* savePreference(PUBLISH_AGENT_ACTIVITY_SECRET, input.publishAgentActivity);
       if (input.holdWebhooksWhileOffline !== undefined) {
         const next = input.holdWebhooksWhileOffline;
         const previous = Option.match(previousHold, {
@@ -1430,15 +1414,8 @@ const make = Effect.gen(function* () {
               ),
             ),
           ),
-          Effect.tapError(() =>
-            Option.match(previousActivity, {
-              onNone: () => secrets.remove(PUBLISH_AGENT_ACTIVITY_SECRET),
-              onSome: (bytes) => secrets.set(PUBLISH_AGENT_ACTIVITY_SECRET, bytes),
-            }).pipe(Effect.catch(rollbackFailed)),
-          ),
         );
       }
-      yield* awarenessRelay.requestCatchUp();
     },
     // A client that disconnects mid-update must not stop it between a save and
     // its rollback, so an update always finishes or undoes itself.

@@ -1,9 +1,4 @@
-import type {
-  RelayAgentActivityAggregateState,
-  RelayAgentActivityState,
-  RelayAgentAwarenessPreferences,
-  RelayManagedEndpointOrigin,
-} from "@t3tools/contracts/relay";
+import type { RelayManagedEndpointOrigin } from "@t3tools/contracts/relay";
 import {
   bigint,
   boolean,
@@ -17,51 +12,6 @@ import {
   varchar,
 } from "drizzle-orm/pg-core";
 
-export const relayMobileDevices = pgTable(
-  "relay_mobile_devices",
-  {
-    userId: varchar("user_id", { length: 255 }).notNull(),
-    deviceId: varchar("device_id", { length: 255 }).notNull(),
-    label: text("label").notNull().default("iOS device"),
-    platform: varchar("platform", { length: 16 }).notNull().$type<"ios" | "android">(),
-    iosMajorVersion: integer("ios_major_version"),
-    androidApiLevel: integer("android_api_level"),
-    appVersion: varchar("app_version", { length: 64 }),
-    bundleId: varchar("bundle_id", { length: 255 }),
-    apsEnvironment: varchar("aps_environment", { length: 16 }).$type<"sandbox" | "production">(),
-    pushToken: text("push_token"),
-    pushToStartToken: text("push_to_start_token"),
-    preferencesJson: jsonb("preferences_json").notNull().$type<RelayAgentAwarenessPreferences>(),
-    createdAt: varchar("created_at", { length: 64 }).notNull(),
-    updatedAt: varchar("updated_at", { length: 64 }).notNull(),
-  },
-  (table) => [
-    primaryKey({ columns: [table.userId, table.deviceId] }),
-    uniqueIndex("idx_relay_mobile_devices_push_token").on(table.pushToken),
-    uniqueIndex("idx_relay_mobile_devices_push_to_start_token").on(table.pushToStartToken),
-  ],
-);
-
-export const relayLiveActivities = pgTable(
-  "relay_live_activities",
-  {
-    userId: varchar("user_id", { length: 255 }).notNull(),
-    deviceId: varchar("device_id", { length: 255 }).notNull(),
-    activityPushToken: text("activity_push_token"),
-    remoteStartQueuedAt: varchar("remote_start_queued_at", { length: 64 }),
-    remoteStartedAt: varchar("remote_started_at", { length: 64 }),
-    endedAt: varchar("ended_at", { length: 64 }),
-    lastAggregateJson: jsonb("last_aggregate_json").$type<RelayAgentActivityAggregateState>(),
-    lastLiveActivityDeliveryAt: varchar("last_live_activity_delivery_at", { length: 64 }),
-    createdAt: varchar("created_at", { length: 64 }).notNull(),
-    updatedAt: varchar("updated_at", { length: 64 }).notNull(),
-  },
-  (table) => [
-    primaryKey({ columns: [table.userId, table.deviceId] }),
-    uniqueIndex("idx_relay_live_activities_activity_push_token").on(table.activityPushToken),
-  ],
-);
-
 export const relayEnvironmentLinks = pgTable(
   "relay_environment_links",
   {
@@ -72,8 +22,6 @@ export const relayEnvironmentLinks = pgTable(
     endpointHttpBaseUrl: text("endpoint_http_base_url").notNull(),
     endpointWsBaseUrl: text("endpoint_ws_base_url").notNull(),
     endpointProviderKind: varchar("endpoint_provider_kind", { length: 32 }).notNull(),
-    notificationsEnabled: boolean("notifications_enabled").notNull().default(true),
-    liveActivitiesEnabled: boolean("live_activities_enabled").notNull().default(true),
     managedTunnelsEnabled: boolean("managed_tunnels_enabled").notNull().default(false),
     holdWebhooksWhileOffline: boolean("hold_webhooks_while_offline").notNull().default(false),
     createdByDeviceId: varchar("created_by_device_id", { length: 191 }),
@@ -145,49 +93,6 @@ export const relayEnvironmentCredentials = pgTable(
       table.environmentPublicKey,
       table.revokedAt,
     ),
-  ],
-);
-
-export const relayAgentActivityRows = pgTable(
-  "relay_agent_activity_rows",
-  {
-    environmentId: varchar("environment_id", { length: 191 }).notNull(),
-    environmentPublicKey: text("environment_public_key").notNull(),
-    threadId: varchar("thread_id", { length: 512 }).notNull(),
-    stateJson: jsonb("state_json").notNull().$type<RelayAgentActivityState>(),
-    updatedAt: varchar("updated_at", { length: 64 }).notNull(),
-    createdAt: varchar("created_at", { length: 64 }).notNull(),
-  },
-  (table) => [
-    primaryKey({ columns: [table.environmentId, table.environmentPublicKey, table.threadId] }),
-    index("idx_relay_agent_activity_rows_updated").on(table.updatedAt),
-  ],
-);
-
-export const relayDeliveryAttempts = pgTable(
-  "relay_delivery_attempts",
-  {
-    id: varchar("id", { length: 36 }).primaryKey(),
-    createdAt: varchar("created_at", { length: 64 }).notNull(),
-    userId: varchar("user_id", { length: 255 }),
-    environmentId: varchar("environment_id", { length: 191 }),
-    threadId: varchar("thread_id", { length: 512 }),
-    deviceId: varchar("device_id", { length: 255 }),
-    kind: varchar("kind", { length: 64 }).notNull(),
-    sourceJobId: varchar("source_job_id", { length: 64 }),
-    tokenSuffix: varchar("token_suffix", { length: 16 }),
-    apnsStatus: integer("apns_status"),
-    apnsReason: text("apns_reason"),
-    apnsId: varchar("apns_id", { length: 128 }),
-    transportError: text("transport_error"),
-  },
-  (table) => [
-    index("idx_relay_delivery_attempts_environment").on(
-      table.environmentId,
-      table.threadId,
-      table.createdAt,
-    ),
-    uniqueIndex("idx_relay_delivery_attempts_source_job").on(table.sourceJobId),
   ],
 );
 

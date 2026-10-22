@@ -21,11 +21,7 @@ export interface AgentScopeShape {
     readonly shared?: boolean | undefined;
   }) => Effect.Effect<AgentScopeCommand>;
   readonly oomKilled: (threadId: string) => Effect.Effect<boolean>;
-  /**
-   * Forgets the thread's scope. The session manager calls it before it opens
-   * a provider session, so a scope only answers for the session that launched
-   * it, even when the next session runs without one (Cursor, OpenCode).
-   */
+
   readonly clear: (threadId: string) => Effect.Effect<void>;
 }
 

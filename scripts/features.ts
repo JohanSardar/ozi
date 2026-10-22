@@ -1,4 +1,7 @@
-import { existsSync, readFileSync } from "node:fs";
+import * as NodeFileSystem from "@effect/platform-node/NodeFileSystem";
+import * as Console from "effect/Console";
+import * as Effect from "effect/Effect";
+import * as FileSystem from "effect/FileSystem";
 import { parse } from "yaml";
 
 interface Feature {
@@ -11,17 +14,20 @@ interface Feature {
   status: "planned" | "building" | "passing";
 }
 
+const fs = await Effect.runPromise(
+  FileSystem.FileSystem.pipe(Effect.provide(NodeFileSystem.layer)),
+);
 const root = new URL("..", import.meta.url).pathname;
-const graph = parse(readFileSync(`${root}features.yaml`, "utf8")) as {
+const graph = parse(await Effect.runPromise(fs.readFileString(`${root}features.yaml`))) as {
   requirements: Record<string, string>;
   features: Feature[];
 };
-const spec = readFileSync(`${root}SPEC.md`, "utf8");
+const spec = await Effect.runPromise(fs.readFileString(`${root}SPEC.md`));
 const specScenarios = new Set([...spec.matchAll(/^- `(m\d\.[a-z0-9-]+)`/gm)].map((m) => m[1]!));
 const resultsPath = `${root}e2e/results.json`;
 const passed = new Set<string>();
-if (existsSync(resultsPath)) {
-  const results = JSON.parse(readFileSync(resultsPath, "utf8")) as {
+if (await Effect.runPromise(fs.exists(resultsPath))) {
+  const results = JSON.parse(await Effect.runPromise(fs.readFileString(resultsPath))) as {
     testResults: { assertionResults: { title: string; status: string }[] }[];
   };
   for (const file of results.testResults)
@@ -48,9 +54,11 @@ function check(milestone: number) {
     }
   }
   for (const s of specScenarios) if (!mapped.has(s)) errors.push(`scenario ${s} has no feature`);
-  for (const e of errors) console.error(e);
-  console.log(
-    `${errors.length === 0 ? "ok" : `${errors.length} problems`} (milestone ${milestone})`,
+  for (const e of errors) Effect.runSync(Console.error(e));
+  Effect.runSync(
+    Console.log(
+      `${errors.length === 0 ? "ok" : `${errors.length} problems`} (milestone ${milestone})`,
+    ),
   );
   process.exit(errors.length === 0 ? 0 : 1);
 }
@@ -64,8 +72,10 @@ function html() {
         `<tr><td>M${f.milestone}</td><td>${f.id}</td><td>${f.reqs.map((r) => `<span title="${esc(graph.requirements[r] ?? "")}">${r}</span>`).join(" ")}</td><td>${f.module}</td><td>${f.cli.join(" ")}</td><td>${f.scenarios.map((s) => `<span class="${scenarioState(s)}">${s}</span>`).join(" ")}</td><td>${f.status}</td></tr>`,
     )
     .join("\n");
-  console.log(
-    `<!doctype html><meta charset="utf-8"><title>Ozi features</title><style>body{font:13px system-ui;margin:24px}table{border-collapse:collapse}td,th{border:1px solid #ddd;padding:4px 8px;vertical-align:top}span{display:inline-block;margin:1px;padding:0 4px;border-radius:4px;background:#eee}.pass{background:#cfc}.todo{background:#fdd}</style><h1>Ozi features</h1><p>${passed.size} scenarios passing of ${specScenarios.size}</p><table><tr><th>M</th><th>Feature</th><th>Requirements</th><th>Module</th><th>CLI</th><th>Scenarios</th><th>Status</th></tr>${rows}</table>`,
+  Effect.runSync(
+    Console.log(
+      `<!doctype html><meta charset="utf-8"><title>Ozi features</title><style>body{font:13px system-ui;margin:24px}table{border-collapse:collapse}td,th{border:1px solid #ddd;padding:4px 8px;vertical-align:top}span{display:inline-block;margin:1px;padding:0 4px;border-radius:4px;background:#eee}.pass{background:#cfc}.todo{background:#fdd}</style><h1>Ozi features</h1><p>${passed.size} scenarios passing of ${specScenarios.size}</p><table><tr><th>M</th><th>Feature</th><th>Requirements</th><th>Module</th><th>CLI</th><th>Scenarios</th><th>Status</th></tr>${rows}</table>`,
+    ),
   );
 }
 
@@ -73,6 +83,6 @@ const [command, arg] = process.argv.slice(2);
 if (command === "check") check(Number(arg ?? 0));
 else if (command === "html") html();
 else {
-  console.error("usage: node scripts/features.ts check [milestone] | html");
+  Effect.runSync(Console.error("usage: node scripts/features.ts check [milestone] | html"));
   process.exit(2);
 }

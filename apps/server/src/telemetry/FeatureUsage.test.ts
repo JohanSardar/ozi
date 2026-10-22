@@ -38,8 +38,8 @@ it("ignores messages, housekeeping commands, and untracked RPCs", () => {
 
 it("reads RPC variants from enums, never from paths or text", () => {
   expect(
-    featureUsage(WS_METHODS.shellOpenInEditor, { cwd: "/Users/someone/secret", editor: "cursor" }),
-  ).toEqual({ feature: "editor.open", variant: "cursor" });
+    featureUsage(WS_METHODS.shellOpenInEditor, { cwd: "/Users/someone/secret", editor: "vscode" }),
+  ).toEqual({ feature: "editor.open", variant: "vscode" });
   expect(
     featureUsage(ORCHESTRATION_V2_WS_METHODS.launchThread, {
       title: "Private title",

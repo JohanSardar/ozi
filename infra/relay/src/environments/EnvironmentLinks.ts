@@ -9,19 +9,13 @@ import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
-import { and, eq, isNull, or, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 
 import * as RelayDb from "../db.ts";
 import { relayEnvironmentLinks } from "../persistence/schema.ts";
 
 export interface RelayLinkedEnvironmentRecord extends RelayClientEnvironmentRecord {
   readonly environmentPublicKey: string;
-}
-
-export interface AgentAwarenessDeliveryUserRecord {
-  readonly userId: string;
-  readonly notificationsEnabled: boolean;
-  readonly liveActivitiesEnabled: boolean;
 }
 
 export class EnvironmentLinkUpsertPersistenceError extends Schema.TaggedError<EnvironmentLinkUpsertPersistenceError>()(
@@ -35,18 +29,6 @@ export class EnvironmentLinkUpsertPersistenceError extends Schema.TaggedError<En
 ) {
   override get message(): string {
     return `Failed to persist environment link for user '${this.userId}', environment '${this.environmentId}'`;
-  }
-}
-
-export class EnvironmentLinkUserListPersistenceError extends Schema.TaggedError<EnvironmentLinkUserListPersistenceError>()(
-  "EnvironmentLinkUserListPersistenceError",
-  {
-    environmentId: Schema.String,
-    cause: Schema.Defect(),
-  },
-) {
-  override get message(): string {
-    return `Environment link user query 'list-delivery-users' failed for environment '${this.environmentId}'`;
   }
 }
 
@@ -109,13 +91,6 @@ export class EnvironmentLinks extends Context.Service<
       readonly proof: RelayEnvironmentLinkProofPayload;
       readonly endpoint: RelayManagedEndpoint;
     }) => Effect.Effect<void, EnvironmentLinkUpsertPersistenceError>;
-    readonly listDeliveryUsersForEnvironment: (input: {
-      readonly environmentId: string;
-      readonly environmentPublicKey: string;
-    }) => Effect.Effect<
-      ReadonlyArray<AgentAwarenessDeliveryUserRecord>,
-      EnvironmentLinkUserListPersistenceError
-    >;
     readonly listForUser: (input: {
       readonly userId: string;
     }) => Effect.Effect<
@@ -156,21 +131,6 @@ export class EnvironmentLinks extends Context.Service<
   }
 >()("t3code-relay/environments/EnvironmentLinks") {}
 
-function agentAwarenessDeliveryUserKeyCondition(input: {
-  readonly environmentId: string;
-  readonly environmentPublicKey: string;
-}) {
-  return and(
-    eq(relayEnvironmentLinks.environmentId, input.environmentId),
-    isNull(relayEnvironmentLinks.revokedAt),
-    or(
-      eq(relayEnvironmentLinks.notificationsEnabled, true),
-      eq(relayEnvironmentLinks.liveActivitiesEnabled, true),
-    ),
-    eq(relayEnvironmentLinks.environmentPublicKey, input.environmentPublicKey),
-  );
-}
-
 const make = Effect.gen(function* () {
   const db = yield* RelayDb.RelayDb;
 
@@ -205,8 +165,6 @@ const make = Effect.gen(function* () {
           endpointHttpBaseUrl: endpoint.httpBaseUrl,
           endpointWsBaseUrl: endpoint.wsBaseUrl,
           endpointProviderKind: endpoint.providerKind,
-          notificationsEnabled: request.notificationsEnabled,
-          liveActivitiesEnabled: request.liveActivitiesEnabled,
           managedTunnelsEnabled: request.managedTunnelsEnabled,
           createdByDeviceId: request.deviceId ?? null,
           revokedAt: null,
@@ -221,8 +179,6 @@ const make = Effect.gen(function* () {
             endpointHttpBaseUrl: endpoint.httpBaseUrl,
             endpointWsBaseUrl: endpoint.wsBaseUrl,
             endpointProviderKind: endpoint.providerKind,
-            notificationsEnabled: request.notificationsEnabled,
-            liveActivitiesEnabled: request.liveActivitiesEnabled,
             managedTunnelsEnabled: request.managedTunnelsEnabled,
             createdByDeviceId: request.deviceId ?? null,
             revokedAt: null,
@@ -237,36 +193,6 @@ const make = Effect.gen(function* () {
                 userId: input.userId,
                 environmentId,
                 ...(request.deviceId === undefined ? {} : { deviceId: request.deviceId }),
-                cause,
-              }),
-          ),
-        );
-    }),
-
-    listDeliveryUsersForEnvironment: Effect.fn(
-      "relay.environment_links.list_delivery_users_for_environment",
-    )(function* (input) {
-      yield* Effect.annotateCurrentSpan({ "relay.environment_id": input.environmentId });
-      return yield* db
-        .select({
-          userId: relayEnvironmentLinks.userId,
-          notificationsEnabled: relayEnvironmentLinks.notificationsEnabled,
-          liveActivitiesEnabled: relayEnvironmentLinks.liveActivitiesEnabled,
-        })
-        .from(relayEnvironmentLinks)
-        .where(agentAwarenessDeliveryUserKeyCondition(input))
-        .pipe(
-          Effect.map((rows) =>
-            rows.map((row) => ({
-              userId: row.userId,
-              notificationsEnabled: row.notificationsEnabled,
-              liveActivitiesEnabled: row.liveActivitiesEnabled,
-            })),
-          ),
-          Effect.mapError(
-            (cause) =>
-              new EnvironmentLinkUserListPersistenceError({
-                environmentId: input.environmentId,
                 cause,
               }),
           ),

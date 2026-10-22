@@ -263,16 +263,6 @@ export function extractCommandOutputText(dataValue: unknown): string | null {
     nonEmptyString(rawOutput?.stdout),
     nonEmptyString(rawOutput?.stderr),
   ].filter((value): value is string => value !== null);
-  const acpContent = Array.isArray(data?.content)
-    ? data.content
-        .flatMap((entryValue) => {
-          const entry = asRecord(entryValue);
-          const content = asRecord(entry?.content);
-          const text = entry?.type === "content" ? nonEmptyString(content?.text) : null;
-          return text ? [text] : [];
-        })
-        .join("\n")
-    : null;
 
   const candidates = [
     item?.aggregatedOutput,
@@ -281,7 +271,6 @@ export function extractCommandOutputText(dataValue: unknown): string | null {
     rawOutput?.content,
     outputStreams.length > 0 ? outputStreams.join("\n") : null,
     rawOutput?.output,
-    acpContent,
     data?.result,
   ];
   for (const candidate of candidates) {
@@ -315,13 +304,6 @@ function textRepeatsCommand(text: string, commands: ReadonlyArray<string | null>
   });
 }
 
-/**
- * OpenCode stores completed output in `detail` with no other output channel, so
- * plain equality is only treated as synthetic when the payload shape shows the
- * detail came from the command: Codex item metadata, an ACP tool call
- * (`data.toolCallId`, `kind: "execute"`), a Claude tool-name prefix, or no
- * structured command at all.
- */
 export function commandDetailRepeatsCommand(input: {
   readonly detail: string;
   readonly command: string | null;

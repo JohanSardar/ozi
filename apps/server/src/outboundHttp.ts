@@ -1,5 +1,7 @@
 import * as NodeModule from "node:module";
 import * as NodeNet from "node:net";
+import * as HostProcess from "@t3tools/shared/HostProcess";
+import * as Effect from "effect/Effect";
 
 import type * as Undici from "undici";
 
@@ -51,8 +53,7 @@ type TypeOfServiceSocket = {
 // Bundled undici calls this from a socket callback without catching. On macOS,
 // EINVAL after a peer reset must not exit the server over an optional QoS hint.
 export function ignoreMacosTypeOfServiceEinval(
-  // oxlint-disable-next-line t3code/no-global-process-runtime -- Runs before ACP dispatch without loading the Effect graph.
-  platform = process.platform,
+  platform = Effect.runSync(HostProcess.Platform),
   socketPrototype: TypeOfServiceSocket = NodeNet.Socket.prototype as TypeOfServiceSocket,
 ): void {
   if (platform !== "darwin") return;
@@ -68,11 +69,6 @@ export function ignoreMacosTypeOfServiceEinval(
   };
 }
 
-/**
- * Node's 250 ms Happy Eyeballs attempt timeout abandons a working-but-slow IPv4
- * connect when IPv6 is advertised but unroutable, which broke the ACP registry
- * fetch (#15039). A larger `--network-family-autoselection-attempt-timeout` still wins.
- */
 export function extendConnectionAttemptTimeout(): void {
   NodeNet.setDefaultAutoSelectFamilyAttemptTimeout(
     Math.max(NodeNet.getDefaultAutoSelectFamilyAttemptTimeout(), 1_000),

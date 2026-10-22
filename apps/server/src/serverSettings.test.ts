@@ -76,27 +76,6 @@ const layerFailingSecretStore = (cause: ServerSecretStore.SecretStoreError) =>
     }),
   );
 
-const recordProviderUsage = (provider: string, instanceId: string | null = provider) =>
-  Effect.gen(function* () {
-    const sql = yield* SqlClient.SqlClient;
-    yield* sql`
-      INSERT INTO projection_thread_sessions (
-        thread_id,
-        status,
-        provider_name,
-        provider_instance_id,
-        updated_at
-      )
-      VALUES (
-        ${`thread-${instanceId ?? provider}`},
-        ${"ready"},
-        ${provider},
-        ${instanceId},
-        ${"2026-08-25T00:00:00.000Z"}
-      )
-    `;
-  });
-
 it.layer(NodeServices.layer)("server settings", (it) => {
   it.effect("serializes concurrent model preference edits without cancelling duplicate adds", () =>
     Effect.gen(function* () {
@@ -511,12 +490,12 @@ it.layer(NodeServices.layer)("server settings", (it) => {
         filePath: config.settingsPath,
         contents: `{ "responseStreamingMode": "paragraph" }`,
       });
-      const instanceId = ProviderInstanceId.make("acpRegistry_kilo");
+      const instanceId = ProviderInstanceId.make("pi_work");
       yield* serverSettings.updateProviderInstance({
         operation: "upsert",
         instanceId,
         instance: {
-          driver: ProviderDriverKind.make("acpRegistry"),
+          driver: ProviderDriverKind.make("pi"),
           displayName: "Kilo",
           config: { agentId: "kilo", distribution: "auto" },
         },
@@ -555,7 +534,7 @@ it.layer(NodeServices.layer)("server settings", (it) => {
   it.effect("creates provider instances atomically without overwriting a concurrent add", () =>
     Effect.gen(function* () {
       const serverSettings = yield* ServerSettingsModule.ServerSettingsService;
-      const instanceId = ProviderInstanceId.make("acpRegistry_shared");
+      const instanceId = ProviderInstanceId.make("pi_shared");
       const results = yield* Effect.all(
         ["First", "Second"].map((displayName) =>
           serverSettings
@@ -563,7 +542,7 @@ it.layer(NodeServices.layer)("server settings", (it) => {
               operation: "create",
               instanceId,
               instance: {
-                driver: ProviderDriverKind.make("acpRegistry"),
+                driver: ProviderDriverKind.make("pi"),
                 displayName,
                 config: { agentId: "shared", distribution: "auto" },
               },
@@ -589,7 +568,7 @@ it.layer(NodeServices.layer)("server settings", (it) => {
       const snapshotEntered = yield* Deferred.make<void>();
       const releaseSnapshot = yield* Deferred.make<void>();
       const mutationCompleted = yield* Deferred.make<void>();
-      const instanceId = ProviderInstanceId.make("acpRegistry_kilo");
+      const instanceId = ProviderInstanceId.make("pi_work");
 
       const snapshotFiber = yield* serverSettings
         .withSettingsSnapshot(() =>
@@ -605,7 +584,7 @@ it.layer(NodeServices.layer)("server settings", (it) => {
           operation: "upsert",
           instanceId,
           instance: {
-            driver: ProviderDriverKind.make("acpRegistry"),
+            driver: ProviderDriverKind.make("pi"),
             displayName: "Kilo",
             config: { agentId: "kilo", distribution: "auto" },
           },
@@ -1105,9 +1084,7 @@ it.layer(NodeServices.layer)("server settings", (it) => {
           providers: {
             codex: { binaryPath: "/opt/guard/bin/codex" },
             claudeAgent: { enabled: false },
-            cursor: { enabled: false },
-            grok: { enabled: false },
-            opencode: { enabled: false },
+            pi: { enabled: false },
           },
         }),
       );
@@ -1161,78 +1138,6 @@ it.layer(NodeServices.layer)("server settings", (it) => {
     }).pipe(Effect.provide(layerServerSettings())),
   );
 
-  it.effect("enables previously used optional providers while migrating legacy settings", () =>
-    Effect.gen(function* () {
-      const serverConfig = yield* ServerConfig.ServerConfig;
-      const fileSystem = yield* FileSystem.FileSystem;
-      const serverSettings = yield* ServerSettingsModule.ServerSettingsService;
-      yield* fileSystem.writeFileString(
-        serverConfig.settingsPath,
-        JSON.stringify({
-          providers: { opencode: { serverUrl: "http://127.0.0.1:4096" }, cursor: {} },
-          providerInstances: {
-            cursor_work: { driver: "cursor", config: {} },
-            opencode_unused: { driver: "opencode", config: {} },
-          },
-        }),
-      );
-      yield* recordProviderUsage("opencode");
-      yield* recordProviderUsage("grok", null);
-      yield* recordProviderUsage("cursor", "cursor_work");
-
-      const settings = yield* serverSettings.getSettings;
-
-      assert.deepEqual(settings.providerInstances[ProviderInstanceId.make("opencode")], {
-        driver: ProviderDriverKind.make("opencode"),
-        enabled: true,
-        config: { serverUrl: "http://127.0.0.1:4096" },
-      });
-
-      assert.isTrue(settings.providerInstances[ProviderInstanceId.make("grok")]?.enabled);
-      assert.isTrue(settings.providerInstances[ProviderInstanceId.make("cursor_work")]?.enabled);
-
-      assert.isTrue(settings.providerInstances[ProviderInstanceId.make("cursor")]?.enabled);
-      const unused = settings.providerInstances[ProviderInstanceId.make("opencode_unused")];
-      assert.isDefined(unused);
-      assert.isFalse(resolveProviderInstanceEnabled(unused));
-    }).pipe(Effect.provide(layerServerSettings())),
-  );
-
-  it.effect("keeps explicit legacy disables even when provider history shows use", () =>
-    Effect.gen(function* () {
-      const serverConfig = yield* ServerConfig.ServerConfig;
-      const fileSystem = yield* FileSystem.FileSystem;
-      const serverSettings = yield* ServerSettingsModule.ServerSettingsService;
-      yield* fileSystem.writeFileString(
-        serverConfig.settingsPath,
-        JSON.stringify({ providers: { grok: { enabled: false, binaryPath: "/opt/grok" } } }),
-      );
-      yield* recordProviderUsage("grok");
-
-      const settings = yield* serverSettings.getSettings;
-
-      assert.deepEqual(settings.providerInstances[ProviderInstanceId.make("grok")], {
-        driver: ProviderDriverKind.make("grok"),
-        enabled: false,
-        config: { binaryPath: "/opt/grok" },
-      });
-    }).pipe(Effect.provide(layerServerSettings())),
-  );
-
-  it.effect("runs provider history only for files that still carry the legacy map", () =>
-    Effect.gen(function* () {
-      const serverConfig = yield* ServerConfig.ServerConfig;
-      const fileSystem = yield* FileSystem.FileSystem;
-      const serverSettings = yield* ServerSettingsModule.ServerSettingsService;
-      yield* fileSystem.writeFileString(serverConfig.settingsPath, "{}");
-      yield* recordProviderUsage("grok");
-
-      const settings = yield* serverSettings.getSettings;
-
-      assert.deepEqual(settings.providerInstances, {});
-    }).pipe(Effect.provide(layerServerSettings())),
-  );
-
   it.effect("migrates legacy providers from an invalid file without rewriting it", () =>
     Effect.gen(function* () {
       const serverConfig = yield* ServerConfig.ServerConfig;
@@ -1278,19 +1183,19 @@ it.layer(NodeServices.layer)("server settings", (it) => {
 
       const next = yield* serverSettings.updateSettings({
         providerInstances: {
-          [ProviderInstanceId.make("grok")]: {
-            driver: ProviderDriverKind.make("grok"),
+          [ProviderInstanceId.make("pi")]: {
+            driver: ProviderDriverKind.make("pi"),
             config: {},
           },
         },
       });
 
-      const grok = next.providerInstances[ProviderInstanceId.make("grok")];
-      assert.isDefined(grok);
-      assert.isFalse(resolveProviderInstanceEnabled(grok));
+      const pi = next.providerInstances[ProviderInstanceId.make("pi")];
+      assert.isDefined(pi);
+      assert.isFalse(resolveProviderInstanceEnabled(pi));
       const persisted = JSON.parse(yield* fileSystem.readFileString(serverConfig.settingsPath));
       assert.isUndefined(persisted.providers);
-      assert.isUndefined(persisted.providerInstances.grok.enabled);
+      assert.isUndefined(persisted.providerInstances.pi.enabled);
     }).pipe(Effect.provide(layerServerSettings())),
   );
 
@@ -1302,15 +1207,15 @@ it.layer(NodeServices.layer)("server settings", (it) => {
 
       yield* fileSystem.writeFileString(
         serverConfig.settingsPath,
-        '{"providerInstances":{"grok":{"driver":"grok","enabled":true,"config":{"enabled":false}},"codex_work":{"driver":"codex","config":{"enabled":true,"homePath":"~/.codex"}},"cursor":{"driver":"cursor","config":{"enabled":"nope"}}}}',
+        '{"providerInstances":{"pi":{"driver":"pi","enabled":true,"config":{"enabled":false}},"codex_work":{"driver":"codex","config":{"enabled":true,"homePath":"~/.codex"}}}}',
       );
 
       const settings = yield* serverSettings.getSettings;
 
-      const grokId = ProviderInstanceId.make("grok");
+      const piId = ProviderInstanceId.make("pi");
       const codexWorkId = ProviderInstanceId.make("codex_work");
-      assert.deepEqual(settings.providerInstances[grokId], {
-        driver: ProviderDriverKind.make("grok"),
+      assert.deepEqual(settings.providerInstances[piId], {
+        driver: ProviderDriverKind.make("pi"),
         enabled: false,
         config: {},
       });
@@ -1320,33 +1225,28 @@ it.layer(NodeServices.layer)("server settings", (it) => {
         enabled: true,
         config: { homePath: "~/.codex" },
       });
-
-      assert.deepEqual(settings.providerInstances[ProviderInstanceId.make("cursor")], {
-        driver: ProviderDriverKind.make("cursor"),
-        config: { enabled: "nope" },
-      });
     }).pipe(Effect.provide(layerServerSettings())),
   );
 
   it.effect("folds in-config enabled flags arriving through updates", () =>
     Effect.gen(function* () {
       const serverSettings = yield* ServerSettingsModule.ServerSettingsService;
-      const grokId = ProviderInstanceId.make("grok");
+      const piId = ProviderInstanceId.make("pi");
 
       const next = yield* serverSettings.updateSettings({
         providerInstances: {
-          [grokId]: {
-            driver: ProviderDriverKind.make("grok"),
+          [piId]: {
+            driver: ProviderDriverKind.make("pi"),
             enabled: true,
-            config: { enabled: false, binaryPath: "/opt/grok" },
+            config: { enabled: false, binaryPath: "/opt/pi" },
           },
         },
       });
 
-      assert.deepEqual(next.providerInstances[grokId], {
-        driver: ProviderDriverKind.make("grok"),
+      assert.deepEqual(next.providerInstances[piId], {
+        driver: ProviderDriverKind.make("pi"),
         enabled: false,
-        config: { binaryPath: "/opt/grok" },
+        config: { binaryPath: "/opt/pi" },
       });
     }).pipe(Effect.provide(layerServerSettings())),
   );
@@ -1578,193 +1478,6 @@ it.layer(NodeServices.layer)("server settings", (it) => {
           sensitiveLast ? "secret-last" : "",
         );
       }).pipe(Effect.provide(layerServerSettings())),
-  );
-
-  it.effect(
-    "uses the same secret lifecycle for provider config, environment, host tokens, and quota keys",
-    () =>
-      Effect.gen(function* () {
-        const service = yield* ServerSettingsModule.ServerSettingsService;
-        const config = yield* ServerConfig.ServerConfig;
-        const fs = yield* FileSystem.FileSystem;
-        const store = yield* ServerSecretStore.ServerSecretStore;
-        const instanceId = ProviderInstanceId.make("antigravity_secrets");
-        const saved = yield* service.updateSettings({
-          providerInstances: {
-            [instanceId]: {
-              driver: ProviderDriverKind.make("antigravity"),
-              config: { apiKey: "config-secret" },
-              environment: [
-                { name: "API_TOKEN", value: "env-secret", sensitive: true },
-                { name: "BASE_URL", value: "https://example.test", sensitive: false },
-              ],
-            },
-          },
-          sourceControlHosts: {
-            github: { tokens: { "github.com": "github-secret" } },
-            bitbucket: { email: "me@example.test", accessToken: "bitbucket-secret" },
-            gitcafe: { token: "gitcafe-secret" },
-          },
-          usageLimitSources: {
-            [UsageLimitSourceId.make("hub")]: {
-              kind: "cliproxy",
-              url: "https://hub.example.test",
-              managementKey: "quota-secret",
-              enabled: true,
-            },
-          },
-          easDeviceHosts: [
-            {
-              kind: "eas",
-              id: "eas",
-              label: "EAS Simulator",
-              accessToken: "expo-secret",
-              maxSessionMinutes: 30,
-              idleMinutes: 10,
-              maxConcurrentSessions: 2,
-            },
-          ],
-        });
-        const values = [
-          "config-secret",
-          "env-secret",
-          "github-secret",
-          "bitbucket-secret",
-          "gitcafe-secret",
-          "quota-secret",
-          "expo-secret",
-        ];
-        const client = ServerSettingsModule.redactServerSettingsForClient(saved);
-        const disk = yield* fs.readFileString(config.settingsPath);
-        for (const value of values) {
-          assert.include(JSON.stringify(saved), value);
-          assert.notInclude(JSON.stringify(client), value);
-          assert.notInclude(disk, value);
-        }
-        assert.include(JSON.stringify(client), "https://example.test");
-        assert.include(JSON.stringify(client), "me@example.test");
-        const echoed = yield* service.updateSettings({
-          providerInstances: client.providerInstances,
-          sourceControlHosts: client.sourceControlHosts,
-          usageLimitSources: client.usageLimitSources,
-          easDeviceHosts: client.easDeviceHosts,
-        });
-        for (const value of values) assert.include(JSON.stringify(echoed), value);
-        const renamed = yield* service.updateProviderInstance({
-          operation: "upsert",
-          instanceId,
-          instance: { ...client.providerInstances[instanceId]!, displayName: "Renamed" },
-        });
-        assert.propertyVal(
-          renamed.providerInstances[instanceId]?.config,
-          "apiKey",
-          "config-secret",
-        );
-
-        for (const apiKey of ["replacement-secret", ""]) {
-          const changed = yield* service.updateProviderInstance({
-            operation: "upsert",
-            instanceId,
-            instance: { ...client.providerInstances[instanceId]!, config: { apiKey } },
-          });
-          assert.propertyVal(changed.providerInstances[instanceId]?.config, "apiKey", apiKey);
-          const redacted = ServerSettingsModule.redactServerSettingsForClient(changed);
-          assert.propertyVal(
-            redacted.providerInstances[instanceId]?.config,
-            "apiKey",
-            apiKey ? "••••••" : "",
-          );
-        }
-
-        yield* service.updateProviderInstance({
-          operation: "upsert",
-          instanceId,
-          instance: saved.providerInstances[instanceId]!,
-        });
-
-        const secretNames = [
-          "provider-config-YW50aWdyYXZpdHlfc2VjcmV0cw-YW50aWdyYXZpdHk-YXBpS2V5",
-          "provider-env-YW50aWdyYXZpdHlfc2VjcmV0cw-QVBJX1RPS0VO",
-          sourceControlHostSecretName({
-            kind: "github",
-            field: "tokens",
-            serverHost: "github.com",
-          }),
-          sourceControlHostSecretName({
-            kind: "bitbucket",
-            field: "accessToken",
-            serverHost: null,
-          }),
-          sourceControlHostSecretName({ kind: "gitcafe", field: "token", serverHost: null }),
-          "usage-limit-source-aHVi",
-        ];
-        for (const name of secretNames) {
-          assert.isTrue(Option.isSome(yield* store.get(name)), name);
-        }
-        yield* service.updateSettings({
-          providerInstances: {},
-          sourceControlHosts: {
-            github: { tokens: {} },
-            bitbucket: { accessToken: "" },
-            gitcafe: { token: "" },
-          },
-          usageLimitSources: { [UsageLimitSourceId.make("hub")]: null },
-        });
-        for (const name of secretNames) {
-          assert.isTrue(Option.isNone(yield* store.get(name)));
-        }
-      }).pipe(Effect.provide(layerServerSettingsWithSecrets())),
-  );
-
-  it.effect("moves saved provider credentials to the secret store when settings load", () =>
-    Effect.gen(function* () {
-      const service = yield* ServerSettingsModule.ServerSettingsService;
-      const config = yield* ServerConfig.ServerConfig;
-      const fs = yield* FileSystem.FileSystem;
-      yield* fs.writeFileString(
-        config.settingsPath,
-        JSON.stringify({
-          providerInstances: {
-            antigravity: { driver: "antigravity", config: { apiKey: "legacy-api-key" } },
-            opencode: {
-              driver: "opencode",
-              config: { serverUrl: "http://127.0.0.1:4096", serverPassword: "legacy-password" },
-            },
-          },
-        }),
-      );
-      const saved = yield* service.getSettings;
-      const opencode = ProviderInstanceId.make("opencode");
-      assert.propertyVal(
-        saved.providerInstances[ProviderInstanceId.make("antigravity")]?.config,
-        "apiKey",
-        "legacy-api-key",
-      );
-      assert.propertyVal(
-        saved.providerInstances[opencode]?.config,
-        "serverPassword",
-        "legacy-password",
-      );
-      const client = ServerSettingsModule.redactServerSettingsForClient(saved);
-      for (const value of ["legacy-api-key", "legacy-password"]) {
-        assert.notInclude(yield* fs.readFileString(config.settingsPath), value);
-        assert.notInclude(JSON.stringify(client), value);
-      }
-      // Editing another field from the client's copy keeps the saved password.
-      const clientConfig = client.providerInstances[opencode]?.config as Record<string, unknown>;
-      const edited = yield* service.updateProviderInstance({
-        operation: "upsert",
-        instanceId: opencode,
-        instance: {
-          ...client.providerInstances[opencode]!,
-          config: { ...clientConfig, serverUrl: "http://127.0.0.1:4097" },
-        },
-      });
-      assert.deepInclude(edited.providerInstances[opencode]?.config, {
-        serverUrl: "http://127.0.0.1:4097",
-        serverPassword: "legacy-password",
-      });
-    }).pipe(Effect.provide(layerServerSettings())),
   );
 
   it.effect("stores sensitive provider instance environment values outside settings.json", () =>
@@ -2019,196 +1732,6 @@ it.layer(NodeServices.layer)("server settings", (it) => {
       assert.notInclude(persisted, "sk-terminal-secret");
       assert.include(persisted, '"valueRedacted": true');
     }).pipe(Effect.provide(layerServerSettings())),
-  );
-  it.effect("rolls back provider secret changes when the settings file commit fails", () =>
-    Effect.gen(function* () {
-      const fileSystem = yield* FileSystem.FileSystem;
-      let failRename = false;
-      let settingsPathToFail: string | undefined;
-      const writeFailure = PlatformError.systemError({
-        _tag: "PermissionDenied",
-        module: "FileSystem",
-        method: "rename",
-        description: "Forced settings write failure.",
-      });
-      const failingFileSystem = FileSystem.FileSystem.of({
-        ...fileSystem,
-        rename: (fromPath, toPath) =>
-          failRename && toPath === settingsPathToFail
-            ? Effect.fail(writeFailure)
-            : fileSystem.rename(fromPath, toPath),
-      });
-      const instanceId = ProviderInstanceId.make("antigravity_write_failure");
-      const layerSettings = layerServerSettings().pipe(
-        Layer.provideMerge(Layer.succeed(FileSystem.FileSystem, failingFileSystem)),
-      );
-
-      yield* Effect.gen(function* () {
-        const serverSettings = yield* ServerSettingsModule.ServerSettingsService;
-        settingsPathToFail = (yield* ServerConfig.ServerConfig).settingsPath;
-        yield* serverSettings.updateProviderInstance({
-          operation: "upsert",
-          instanceId,
-          instance: {
-            driver: ProviderDriverKind.make("antigravity"),
-            environment: [{ name: "OPENROUTER_API_KEY", value: "sk-kept", sensitive: true }],
-            config: { apiKey: "config-kept" },
-          },
-        });
-
-        failRename = true;
-        const failedUpdate = yield* serverSettings
-          .updateProviderInstance({
-            operation: "upsert",
-            instanceId,
-            instance: {
-              driver: ProviderDriverKind.make("antigravity"),
-              environment: [{ name: "OPENROUTER_API_KEY", value: "sk-new", sensitive: true }],
-              config: { apiKey: "config-new" },
-            },
-          })
-          .pipe(Effect.result);
-        assert.equal(failedUpdate._tag, "Failure");
-        assert.equal(
-          (yield* serverSettings.getSettings).providerInstances[instanceId]?.environment?.[0]
-            ?.value,
-          "sk-kept",
-        );
-        assert.propertyVal(
-          (yield* serverSettings.getSettings).providerInstances[instanceId]?.config,
-          "apiKey",
-          "config-kept",
-        );
-
-        const failed = yield* serverSettings
-          .updateProviderInstance({ operation: "remove", instanceId })
-          .pipe(Effect.result);
-        assert.equal(failed._tag, "Failure");
-        assert.equal(
-          (yield* serverSettings.getSettings).providerInstances[instanceId]?.environment?.[0]
-            ?.value,
-          "sk-kept",
-        );
-        assert.propertyVal(
-          (yield* serverSettings.getSettings).providerInstances[instanceId]?.config,
-          "apiKey",
-          "config-kept",
-        );
-      }).pipe(Effect.provide(layerSettings));
-    }),
-  );
-
-  it.effect.each(["response materialization", "partially committed write"] as const)(
-    "rolls back provider secret changes after %s fails",
-    (failure) => {
-      const textDecoder = new TextDecoder();
-      const secrets = new Map<string, Uint8Array>();
-      let rejectNewSecret = false;
-      const layerSecretStore = Layer.succeed(
-        ServerSecretStore.ServerSecretStore,
-        ServerSecretStore.ServerSecretStore.of({
-          get: (name) =>
-            Effect.suspend(() => {
-              const value = secrets.get(name);
-              if (
-                failure === "response materialization" &&
-                rejectNewSecret &&
-                value !== undefined &&
-                textDecoder.decode(value) === "sk-new"
-              ) {
-                return Effect.fail(
-                  new ServerSecretStore.SecretStoreReadError({
-                    resource: `secret ${name}`,
-                    cause: "Forced response materialization failure.",
-                  }),
-                );
-              }
-              return Effect.succeed(
-                value === undefined ? Option.none() : Option.some(Uint8Array.from(value)),
-              );
-            }),
-          set: (name, value) =>
-            Effect.suspend(() => {
-              secrets.set(name, Uint8Array.from(value));
-              return failure === "partially committed write" &&
-                rejectNewSecret &&
-                textDecoder.decode(value) === "sk-new"
-                ? Effect.fail(
-                    new ServerSecretStore.SecretStorePersistError({
-                      resource: `secret ${name}`,
-                      cause: "chmod failed after rename",
-                    }),
-                  )
-                : Effect.void;
-            }),
-          create: (name, value) =>
-            Effect.sync(() => {
-              secrets.set(name, Uint8Array.from(value));
-            }),
-          getOrCreateRandom: (name, bytes) =>
-            Effect.sync(() => {
-              const value = secrets.get(name) ?? new Uint8Array(bytes);
-              secrets.set(name, value);
-              return Uint8Array.from(value);
-            }),
-          remove: (name) =>
-            Effect.sync(() => {
-              secrets.delete(name);
-            }),
-        }),
-      );
-      const layerSettings = ServerSettingsModule.layer.pipe(
-        Layer.provideMerge(Layer.fresh(SqlitePersistence.layerMemory)),
-        Layer.provide(layerSecretStore),
-        Layer.provideMerge(
-          Layer.fresh(
-            ServerConfig.layerTest(process.cwd(), {
-              prefix: "t3code-server-settings-materialization-failure-test-",
-            }),
-          ),
-        ),
-      );
-      const instanceId = ProviderInstanceId.make("codex_materialization_failure");
-
-      return Effect.gen(function* () {
-        const serverSettings = yield* ServerSettingsModule.ServerSettingsService;
-        yield* serverSettings.updateSettings({
-          providerInstances: {
-            [instanceId]: {
-              driver: ProviderDriverKind.make("antigravity"),
-              environment: [{ name: "OPENROUTER_API_KEY", value: "sk-kept", sensitive: true }],
-              config: { apiKey: "config-kept" },
-            },
-          },
-        });
-
-        rejectNewSecret = true;
-        const failedUpdate = yield* serverSettings
-          .updateSettings({
-            providerInstances: {
-              [instanceId]: {
-                driver: ProviderDriverKind.make("antigravity"),
-                environment: [{ name: "OPENROUTER_API_KEY", value: "sk-new", sensitive: true }],
-                config: { apiKey: "config-new" },
-              },
-            },
-          })
-          .pipe(Effect.result);
-
-        assert.equal(failedUpdate._tag, "Failure");
-        rejectNewSecret = false;
-        assert.equal(
-          (yield* serverSettings.getSettings).providerInstances[instanceId]?.environment?.[0]
-            ?.value,
-          "sk-kept",
-        );
-        assert.propertyVal(
-          (yield* serverSettings.getSettings).providerInstances[instanceId]?.config,
-          "apiKey",
-          "config-kept",
-        );
-      }).pipe(Effect.provide(layerSettings));
-    },
   );
 
   it.effect("folds legacy project overrides into projectSettingsOverrides once", () =>

@@ -1621,7 +1621,6 @@ describe("EnvironmentSupervisor", () => {
       const relay = ManagedRelay.ManagedRelayClient.of({
         relayUrl: "https://relay.example.test",
         listEnvironments: unused,
-        listDevices: unused,
         createEnvironmentLinkChallenge: unused,
         linkEnvironment: unused,
         unlinkEnvironment: unused,
@@ -1642,10 +1641,6 @@ describe("EnvironmentSupervisor", () => {
             expiresAt: "2026-09-04T01:00:00.000Z",
           };
         }),
-        registerDevice: unused,
-        unregisterDevice: unused,
-        registerLiveActivity: unused,
-        getAgentActivitySnapshot: unused,
         resetTokenCache: Effect.void,
       });
       const layerHttp = RpcHttp.layerRemoteHttpClient(fetchFn);

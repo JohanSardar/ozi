@@ -59,11 +59,11 @@ const CONFIG = {
 
 const PRICING = { status: "unavailable" as const, source: "test", fetchedAt: null, knownModels: 0 };
 
-const cursorSource = (refreshing: boolean): UsageSource => ({
+const piSource = (refreshing: boolean): UsageSource => ({
   fingerprint: {
-    hostId: "cursor.com",
-    provider: "cursor",
-    resolvedHomePath: "cursor-account:abc",
+    hostId: "pi.test",
+    provider: "pi",
+    resolvedHomePath: "pi-session:abc",
     volumeId: "abc",
   },
   status: "ok",
@@ -233,7 +233,7 @@ const makeRefreshingHarness = Effect.fn("ServerUsageTest.makeRefreshingHarness")
       input.awaitRefresh === true
         ? Deferred.succeed(followUpStarted, undefined).pipe(Effect.andThen(followUp))
         : Effect.void,
-    (input) => [cursorSource(input.awaitRefresh !== true)],
+    (input) => [piSource(input.awaitRefresh !== true)],
   );
   return { ...harness, followUpStarted };
 });
@@ -335,50 +335,6 @@ it.effect("settles after one usage read when no source is refreshing", () =>
       const unmount = harness.registry.mount(summary);
       yield* settledSummary(harness.registry, summary);
       expect(harness.inputs()).toEqual([INPUT]);
-      unmount();
-    }),
-  ),
-);
-
-it.effect("shows the cached usage summary until one awaited refresh replaces it", () =>
-  Effect.scoped(
-    Effect.gen(function* () {
-      const refreshed = yield* Deferred.make<void>();
-      const harness = yield* makeRefreshingHarness(Deferred.await(refreshed));
-      const summary = harness.summary();
-      const unmount = harness.registry.mount(summary);
-      yield* Deferred.await(harness.followUpStarted);
-
-      const provisional = harness.registry.get(summary);
-      expect(AsyncResult.isSuccess(provisional) && provisional.waiting).toBe(true);
-      expect(Option.getOrNull(AsyncResult.value(provisional))?.sources).toEqual([
-        cursorSource(true),
-      ]);
-      expect(harness.inputs()).toEqual([INPUT, { ...INPUT, awaitRefresh: true }]);
-
-      yield* Deferred.succeed(refreshed, undefined);
-      expect((yield* settledSummary(harness.registry, summary)).sources).toEqual([
-        cursorSource(false),
-      ]);
-      expect(harness.requests()).toBe(2);
-      unmount();
-    }),
-  ),
-);
-
-it.effect("keeps the cached usage summary when the awaited refresh fails", () =>
-  Effect.scoped(
-    Effect.gen(function* () {
-      const harness = yield* makeRefreshingHarness(
-        Effect.fail(new UsageReadError({ reason: "scanFailed", detail: "Cursor is down" })),
-      );
-      const summary = harness.summary();
-      const unmount = harness.registry.mount(summary);
-      expect((yield* settledSummary(harness.registry, summary)).sources).toEqual([
-        cursorSource(true),
-      ]);
-      expect(AsyncResult.isSuccess(harness.registry.get(summary))).toBe(true);
-      expect(harness.requests()).toBe(2);
       unmount();
     }),
   ),

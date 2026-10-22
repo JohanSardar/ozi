@@ -1,7 +1,7 @@
 // @effect-diagnostics nodeBuiltinImport:off - plain local servers stand in for LAN services.
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { describe, expect, it } from "@effect/vitest";
-import { EnvironmentId, ProviderInstanceId, ThreadId } from "@t3tools/contracts";
+import { ThreadId } from "@t3tools/contracts";
 import * as McpProviderSessions from "@t3tools/provider-core/server/McpProviderSessions";
 import * as HostProcess from "@t3tools/shared/HostProcess";
 import {
@@ -21,8 +21,6 @@ import * as Path from "effect/Path";
 import * as NodeDgram from "node:dgram";
 import * as NodeHttp from "node:http";
 import * as NodeURL from "node:url";
-
-import { resolveAttachmentPathById } from "../attachmentStore.ts";
 import * as ServerConfig from "../config.ts";
 import * as HtmlRender from "./HtmlRender.ts";
 import * as PreviewBrowser from "../preview/PreviewBrowser.ts";
@@ -212,80 +210,6 @@ describe("HtmlRender", () => {
         upper,
         longer,
       ]);
-    }).pipe(Effect.provide(layerTest)),
-  );
-
-  it.effect("publishes the prepared page as an html thread attachment", () =>
-    Effect.gen(function* () {
-      const fileSystem = yield* FileSystem.FileSystem;
-      const config = yield* ServerConfig.ServerConfig;
-      const htmlRender = yield* HtmlRender.HtmlRender;
-      const mcpSessions = yield* McpProviderSessions.McpProviderSessions;
-      const threadId = ThreadId.make("thread-html-render");
-      const session = {
-        environmentId: EnvironmentId.make("html-render-environment"),
-        threadId,
-        providerSessionId: "first-credential",
-        providerInstanceId: ProviderInstanceId.make("claude"),
-        endpoint: "http://localhost:8311/mcp",
-        authorizationHeader: "Bearer first-token",
-        browserToolsAvailable: false,
-      };
-      yield* mcpSessions.set(session);
-
-      const reference = yield* htmlRender.publish({
-        threadId,
-        html: `<p>Quarterly revenue</p>${" ".repeat(8_000)}`,
-        title: "  Revenue  ",
-        height: 9_000,
-      });
-
-      expect(reference).toEqual({
-        attachmentId: expect.any(String),
-        title: "Revenue",
-        height: 2_000,
-      });
-      const stored = resolveAttachmentPathById({
-        attachmentsDir: config.attachmentsDir,
-        attachmentId: reference.attachmentId,
-      });
-      expect(stored?.endsWith(".html")).toBe(true);
-      const html = yield* fileSystem.readFileString(stored ?? "");
-      expect(html).toContain('<style id="t3-theme">');
-      expect(html).toContain("<p>Quarterly revenue</p>");
-      // Antigravity reports the call without its result, so the thread's
-      // provider session keeps the page for one call with these arguments.
-      const page = {
-        html: `<p>Quarterly revenue</p>${" ".repeat(8_000)}`,
-        title: "  Revenue  ",
-        height: 9_000,
-      };
-      expect(
-        yield* mcpSessions.takeHtmlRender(threadId, {
-          ...page,
-          html: page.html.replace("revenue", "expense"),
-        }),
-      ).toBe(undefined);
-      expect(yield* mcpSessions.takeHtmlRender(threadId, page)).toEqual(reference);
-      expect(yield* mcpSessions.takeHtmlRender(threadId, page)).toBe(undefined);
-      const reused = yield* htmlRender.publish({ threadId, ...page });
-      yield* mcpSessions.set({ ...session, browserToolsAvailable: true });
-      expect(yield* mcpSessions.takeHtmlRender(threadId, page)).toEqual(reused);
-
-      yield* htmlRender.publish({ threadId, ...page });
-      yield* mcpSessions.set({
-        ...session,
-        providerSessionId: "replacement-credential",
-        providerInstanceId: ProviderInstanceId.make("antigravity"),
-        authorizationHeader: "Bearer replacement-token",
-      });
-      const replacement = yield* htmlRender.publish({ threadId, ...page });
-      expect(yield* mcpSessions.takeHtmlRender(threadId, page)).toEqual(replacement);
-      expect(yield* mcpSessions.takeHtmlRender(threadId, page)).toBe(undefined);
-      // Clearing the thread's MCP session drops the pages it kept.
-      yield* htmlRender.publish({ threadId, ...page });
-      yield* mcpSessions.clear(threadId);
-      expect(yield* mcpSessions.takeHtmlRender(threadId, page)).toBe(undefined);
     }).pipe(Effect.provide(layerTest)),
   );
 

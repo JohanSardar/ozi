@@ -4,13 +4,10 @@ import * as Cloudflare from "alchemy/Cloudflare";
 import * as Drizzle from "alchemy/Drizzle/Postgres";
 import * as Config from "effect/Config";
 import * as Cause from "effect/Cause";
-import * as DateTime from "effect/DateTime";
 import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
-import * as Redacted from "effect/Redacted";
-import * as Stream from "effect/Stream";
 import * as Etag from "effect/http/Etag";
 import * as HttpMiddleware from "effect/http/HttpMiddleware";
 import * as HttpPlatform from "effect/http/HttpPlatform";
@@ -29,42 +26,19 @@ import * as RelayHttpApi from "./http/Api.ts";
 import { ManagedEndpointZone, RelayApiZone, RelayDeploymentConfig } from "./zone.ts";
 import { RelayObservability } from "./observability.ts";
 import * as Observability from "./observability.ts";
-import * as DeliveryAttempts from "./agentActivity/DeliveryAttempts.ts";
-import * as AgentActivityRows from "./agentActivity/AgentActivityRows.ts";
-import * as Devices from "./agentActivity/Devices.ts";
 import * as DpopProofs from "./auth/DpopProofs.ts";
 import * as RelayTokens from "./auth/RelayTokens.ts";
 import * as EnvironmentCredentials from "./environments/EnvironmentCredentials.ts";
 import * as EnvironmentLinks from "./environments/EnvironmentLinks.ts";
 import * as ManagedEndpointAllocations from "./environments/ManagedEndpointAllocations.ts";
-import * as LiveActivities from "./agentActivity/LiveActivities.ts";
 import * as RelayDb from "./db.ts";
-import {
-  RelayApnsDeliveryDeadLetterQueue,
-  RelayApnsDeliveryQueue,
-  RelayFcmDeliveryQueue,
-  RelayFcmDeliveryDeadLetterQueue,
-} from "./queues.ts";
-import * as WebCrypto from "./WebCrypto.ts";
-import * as FcmAssertionSigner from "./agentActivity/FcmAssertionSigner.ts";
-import * as FcmClient from "./agentActivity/FcmClient.ts";
-import * as FcmDeliveryQueueSender from "./agentActivity/FcmDeliveryQueueSender.ts";
-import * as FcmDeliveries from "./agentActivity/FcmDeliveries.ts";
-import * as FcmDeliveryQueueConsumer from "./agentActivity/FcmDeliveryQueueConsumer.ts";
 import * as RelayConfiguration from "./Config.ts";
-import * as AgentActivityPublisher from "./agentActivity/AgentActivityPublisher.ts";
-import * as ApnsClient from "./agentActivity/ApnsClient.ts";
-import * as ApnsProviderTokens from "./agentActivity/ApnsProviderTokens.ts";
-import * as ApnsDeliveryQueue from "./agentActivity/ApnsDeliveryQueue.ts";
-import * as ApnsDeliveries from "./agentActivity/ApnsDeliveries.ts";
 import * as CloudflareApiPause from "./environments/CloudflareApiPause.ts";
 import * as EnvironmentConnector from "./environments/EnvironmentConnector.ts";
 import * as EnvironmentLinker from "./environments/EnvironmentLinker.ts";
-import * as EnvironmentPublishSignatures from "./environments/EnvironmentPublishSignatures.ts";
 import * as ManagedEndpointProvider from "./environments/ManagedEndpointProvider.ts";
 import * as ManagedEndpointReaper from "./environments/ManagedEndpointReaper.ts";
 import * as ManagedTunnelLimits from "./environments/ManagedTunnelLimits.ts";
-import * as MobileRegistrations from "./agentActivity/MobileRegistrations.ts";
 import * as HookForwarder from "./hooks/HookForwarder.ts";
 import * as HeldHooks from "./hooks/HeldHooks.ts";
 import * as HookInbox from "./hooks/HookInbox.ts";
@@ -96,7 +70,6 @@ const layerHttpPlatformNotSupported = Layer.succeed(HttpPlatform.HttpPlatform, {
 const layerRelayApi = Layer.mergeAll(
   RelayHttpApi.layerHealthApi,
   RelayHttpApi.layerMetadataApi,
-  RelayHttpApi.layerMobileApi,
   RelayHttpApi.layerClientApi,
   RelayHttpApi.layerTokenApi,
   RelayHttpApi.layerDpopClientApi,
@@ -104,9 +77,6 @@ const layerRelayApi = Layer.mergeAll(
 );
 
 const CloudMintKeyPair = Alchemy.KeyPair("CloudMintKeyPair");
-const ApnsDeliveryJobSigningSecret = Alchemy.makeRandom("ApnsDeliveryJobSigningSecret", {
-  bytes: 32,
-});
 
 export class Api extends Cloudflare.Worker<Api, {}>()("Api") {}
 
@@ -128,35 +98,10 @@ export const layer = Api.make(
   ),
   Effect.gen(function* () {
     const { relayPublicOrigin, stage } = yield* RelayDeploymentConfig;
-    const apnsDeliveryQueue = yield* RelayApnsDeliveryQueue;
-    const apnsDeliveryDeadLetterQueue = yield* RelayApnsDeliveryDeadLetterQueue;
-    const fcmDeliveryQueue = yield* RelayFcmDeliveryQueue;
-    const fcmDeliveryDeadLetterQueue = yield* RelayFcmDeliveryDeadLetterQueue;
     const cloudMintKeyPair = yield* CloudMintKeyPair;
     const relayApiZone = yield* RelayApiZone;
     const managedEndpointZone = yield* ManagedEndpointZone;
-    const randomApnsDeliveryJobSigningSecret = yield* ApnsDeliveryJobSigningSecret;
     yield* RelayObservability;
-
-    const apnsEnabled = yield* Config.Boolean("APNS_ENABLED").pipe(Config.withDefault(true));
-    const apnsCredentials = apnsEnabled
-      ? {
-          environment: yield* Config.schema(RelayConfiguration.ApnsEnvironment, "APNS_ENVIRONMENT"),
-          teamId: yield* Config.String("APNS_TEAM_ID"),
-          keyId: yield* Config.String("APNS_KEY_ID"),
-          bundleId: yield* Config.String("APNS_BUNDLE_ID"),
-          privateKey: yield* Config.Redacted("APNS_PRIVATE_KEY"),
-        }
-      : null;
-    const fcmServiceAccount = Option.getOrUndefined(
-      Option.filter(
-        yield* Config.option(Config.Redacted("FCM_SERVICE_ACCOUNT")),
-        (value) => Redacted.value(value).trim().length > 0,
-      ),
-    );
-    const apnsDeliveryJobSigningSecret = yield* randomApnsDeliveryJobSigningSecret;
-    const apnsDeliveryQueueSender = yield* Cloudflare.Queues.WriteQueue(apnsDeliveryQueue);
-    const fcmDeliveryQueueSender = yield* Cloudflare.Queues.WriteQueue(fcmDeliveryQueue);
 
     const clerkSecretKey = yield* Config.Redacted("CLERK_SECRET_KEY");
     const clerkPublishableKey = yield* Config.String("CLERK_PUBLISHABLE_KEY");
@@ -207,9 +152,6 @@ export const layer = Api.make(
     const loadSettings = Effect.gen(function* () {
       return RelayConfiguration.RelayConfiguration.of({
         relayIssuer: relayPublicOrigin,
-        ...(fcmServiceAccount ? { fcmServiceAccount } : {}),
-        apns: apnsCredentials,
-        apnsDeliveryJobSigningSecret: yield* apnsDeliveryJobSigningSecret,
         clerkSecretKey,
         clerkPublishableKey,
         clerkJwtAudience,
@@ -248,17 +190,9 @@ export const layer = Api.make(
     });
 
     const layerRuntime = Layer.empty.pipe(
-      Layer.provideMerge(MobileRegistrations.layer),
-      Layer.provideMerge(AgentActivityPublisher.layer),
       Layer.provideMerge(EnvironmentConnector.layer),
       Layer.provideMerge(EnvironmentLinker.layer),
-      Layer.provideMerge(
-        Layer.mergeAll(
-          EnvironmentPublishSignatures.layer,
-          ManagedEndpointReaper.layer,
-          HeldHooks.layer,
-        ),
-      ),
+      Layer.provideMerge(Layer.mergeAll(ManagedEndpointReaper.layer, HeldHooks.layer)),
       Layer.provideMerge(
         ManagedEndpointProvider.layerCloudflareBindings(
           managedEndpointTunnelBinding,
@@ -267,32 +201,7 @@ export const layer = Api.make(
         ),
       ),
       Layer.provideMerge(DpopProofs.layer),
-      Layer.provideMerge(ApnsDeliveries.layer),
-      Layer.provideMerge(
-        FcmDeliveries.layer.pipe(
-          Layer.provide(
-            Layer.succeed(FcmDeliveryQueueSender.FcmDeliveryQueueSender, {
-              send: (body) =>
-                fcmDeliveryQueueSender
-                  .send(body)
-                  .pipe(Effect.provideService(Alchemy.RuntimeContext, alchemyRuntimeContext)),
-            }),
-          ),
-          Layer.provideMerge(
-            FcmClient.layer.pipe(
-              Layer.provide(FcmAssertionSigner.layer),
-              Layer.provide(
-                Layer.succeed(WebCrypto.WebCrypto, { subtle: globalThis.crypto.subtle }),
-              ),
-            ),
-          ),
-        ),
-      ),
-      Layer.provideMerge(ApnsClient.layer.pipe(Layer.provideMerge(ApnsProviderTokens.layer))),
-      Layer.provideMerge(
-        ApnsDeliveryQueue.layerCloudflareQueues(apnsDeliveryQueueSender, alchemyRuntimeContext),
-      ),
-      Layer.provideMerge(Layer.mergeAll(AgentActivityRows.layer, Devices.layer, layerHookInbox)),
+      Layer.provideMerge(Layer.mergeAll(layerHookInbox)),
       Layer.provideMerge(EnvironmentCredentials.layer),
       Layer.provideMerge(
         Layer.mergeAll(
@@ -302,8 +211,6 @@ export const layer = Api.make(
           ManagedTunnelLimits.layer,
         ),
       ),
-      Layer.provideMerge(LiveActivities.layer),
-      Layer.provideMerge(DeliveryAttempts.layer),
       Layer.provideMerge(RelayTokens.layer),
       Layer.provideMerge(
         RelayDb.RelayTransactions.layer.pipe(
@@ -348,59 +255,11 @@ export const layer = Api.make(
       Layer.provide(layerRuntime),
     );
 
-    yield* Cloudflare.Queues.consumeQueueMessages<unknown>(
-      apnsDeliveryQueue,
-      {
-        batchSize: 10,
-        maxRetries: 5,
-        maxWaitTime: "5 seconds",
-        retryDelay: "30 seconds",
-        deadLetterQueue: apnsDeliveryDeadLetterQueue.queueName as unknown as string,
-      },
-      (stream) =>
-        stream.pipe(
-          Stream.withSpan("relay.apn_delivery_queue.process_batch"),
-          Stream.runForEach((message) =>
-            ApnsDeliveries.ApnsDeliveries.pipe(
-              Effect.flatMap((deliveries) => deliveries.processSignedJob(message.body)),
-              Effect.withSpan("relay.apn_delivery_queue.process_message"),
-            ),
-          ),
-          Effect.provide(layerRuntime),
-        ),
-    );
-
-    yield* Cloudflare.Queues.consumeQueueMessages<unknown>(
-      fcmDeliveryQueue,
-      {
-        batchSize: 10,
-        maxRetries: 5,
-        maxWaitTime: "1 second",
-        retryDelay: "30 seconds",
-        deadLetterQueue: fcmDeliveryDeadLetterQueue.queueName as unknown as string,
-      },
-      (stream) =>
-        stream.pipe(
-          Stream.withSpan("relay.fcm_delivery_queue.process_batch"),
-          Stream.runForEach(FcmDeliveryQueueConsumer.processMessage),
-          Effect.provide(layerRuntime),
-        ),
-    );
-
     yield* Cloudflare.Workers.cron("*/5 * * * *", () =>
       Effect.all(
         [
           DpopProofs.DpopProofReplay.pipe(
             Effect.flatMap((dpopProofs) => dpopProofs.pruneExpired),
-            Effect.andThen(
-              Effect.all([AgentActivityRows.AgentActivityRows, DateTime.now]).pipe(
-                Effect.flatMap(([activityRows, now]) =>
-                  activityRows.pruneTerminal({
-                    updatedBefore: DateTime.formatIso(DateTime.subtract(now, { minutes: 30 })),
-                  }),
-                ),
-              ),
-            ),
             Effect.catchCause((cause) =>
               Cause.hasInterrupts(cause)
                 ? Effect.interrupt
@@ -418,14 +277,6 @@ export const layer = Api.make(
               Cause.hasInterrupts(cause)
                 ? Effect.interrupt
                 : Effect.logWarning("Failed to clean up inactive managed tunnels", { cause }),
-            ),
-          ),
-          AgentActivityPublisher.AgentActivityPublisher.pipe(
-            Effect.flatMap((publisher) => publisher.endIdleLiveActivities),
-            Effect.catchCause((cause) =>
-              Cause.hasInterrupts(cause)
-                ? Effect.interrupt
-                : Effect.logWarning("Failed to end idle Live Activities", { cause }),
             ),
           ),
         ],

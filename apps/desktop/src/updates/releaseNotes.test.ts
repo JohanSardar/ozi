@@ -15,7 +15,7 @@ describe("normalizeDesktopUpdateReleaseNotes", () => {
         "- fix: seventh change",
         "- fix: eighth change",
         "- fix(web): keep long task drawers usable on small screens by @human in #8313",
-        "- fix(opencode): handle child approvals, stops, and model catalogs by @human in #8480",
+        "- fix(pi): handle child approvals, stops, and model catalogs by @human in #8480",
         "## New Contributors",
         "- @human made their first contribution in #8435",
         "**Full Changelog**: https://github.com/pingdotgg/t3code/compare/old...new",
@@ -29,7 +29,7 @@ describe("normalizeDesktopUpdateReleaseNotes", () => {
         {
           version: "0.0.36-nightly.20260828.1213",
           items: [
-            "fix(opencode): handle child approvals, stops, and model catalogs by @human in #8480",
+            "fix(pi): handle child approvals, stops, and model catalogs by @human in #8480",
             "fix(web): keep long task drawers usable on small screens by @human in #8313",
             "fix: eighth change",
             "fix: seventh change",

@@ -258,7 +258,6 @@ export function SubagentElapsed({ agent }: { agent: Parameters<typeof AgentElaps
 function SubagentAvatar({
   driver,
   displayName,
-  iconUrl,
   status,
   className,
 }: {
@@ -280,7 +279,6 @@ function SubagentAvatar({
         <ProviderInstanceIcon
           driverKind={driver}
           displayName={displayName ?? driver}
-          acpRegistryIconUrl={iconUrl}
           className="z-auto"
           iconClassName="size-3.5"
         />
@@ -320,12 +318,7 @@ export function EnvironmentSubagentAvatar({
     (providers) =>
       providers?.find((provider) => provider.instanceId === providerInstanceId)?.displayName,
   );
-  const iconUrl = useAtomValue(
-    providersAtom,
-    (providers) =>
-      providers?.find((provider) => provider.instanceId === providerInstanceId)?.iconUrl,
-  );
-  return <SubagentAvatar {...props} displayName={displayName} iconUrl={iconUrl} />;
+  return <SubagentAvatar {...props} displayName={displayName} />;
 }
 
 const NOTIFICATION_OUTCOME_STATUS: Record<
@@ -662,8 +655,6 @@ function HandoffEndpoint(props: {
               driverKind={entry?.driverKind ?? ProviderDriverKind.make(props.instanceId)}
               displayName={entry?.displayName ?? props.instanceId}
               accentColor={entry?.accentColor}
-              acpRegistryAgentId={entry?.acpRegistryAgentId}
-              acpRegistryIconUrl={entry?.acpRegistryIconUrl}
               showBadge={showBadge}
               size="compact"
               iconClassName={cn(showBadge && "opacity-60")}

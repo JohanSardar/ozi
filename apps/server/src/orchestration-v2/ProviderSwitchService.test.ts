@@ -13,7 +13,6 @@ import * as Layer from "effect/Layer";
 
 import { CodexProviderCapabilitiesV2 } from "./Adapters/CodexAdapterV2.ts";
 import * as ProviderAdapterRegistry from "./ProviderAdapterRegistry.ts";
-import { acpSelectionTransition } from "@t3tools/provider-core/server/selectionTransition";
 import * as ProviderSwitch from "./ProviderSwitchService.ts";
 import type * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAdapter";
 
@@ -271,45 +270,6 @@ it.effect("hands off from a native provider thread after its session detaches", 
         [currentInstanceId]: { continuationKey: "codex:account:primary" },
         codex_other: { continuationKey: "codex:account:other" },
       }),
-    ),
-  ),
-);
-
-it.effect.each(["stopped", "error"] as const)(
-  "applies a model change on next turn when a %s session negotiated model switching",
-  (deadStatus) =>
-    Effect.gen(function* () {
-      const service = yield* ProviderSwitch.ProviderSwitchServiceV2;
-      const result = yield* service.plan({
-        projection: deadNativeThreadProjection(deadStatus, CodexProviderCapabilitiesV2),
-        targetModelSelection: { instanceId: currentInstanceId, model: "gpt-5.2-codex" },
-      });
-      assert.equal(result.transition.type, "switch_model_in_session");
-      assert.deepEqual(result.releaseProviderSessionIds, []);
-    }).pipe(
-      Effect.provide(
-        layerTest({ [currentInstanceId]: { continuationKey: "codex:account:primary" } }, (input) =>
-          Effect.succeed(acpSelectionTransition(input)),
-        ),
-      ),
-    ),
-);
-
-it.effect("rejects a model change the dead record never negotiated support for", () =>
-  Effect.gen(function* () {
-    const service = yield* ProviderSwitch.ProviderSwitchServiceV2;
-    const result = yield* service
-      .plan({
-        projection: deadNativeThreadProjection("stopped"),
-        targetModelSelection: { instanceId: currentInstanceId, model: "gpt-5.2-codex" },
-      })
-      .pipe(Effect.flip);
-    assert.instanceOf(result, ProviderSwitch.ProviderSwitchPlanError);
-  }).pipe(
-    Effect.provide(
-      layerTest({ [currentInstanceId]: { continuationKey: "codex:account:primary" } }, (input) =>
-        Effect.succeed(acpSelectionTransition(input)),
-      ),
     ),
   ),
 );

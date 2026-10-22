@@ -69,37 +69,6 @@ describe("stripUnservedToolOutputImageBytes", () => {
     });
   });
 
-  it("strips ACP image shapes: Grok's native ImageContent and an MCP result behind an error", () => {
-    const item = toolItem({
-      rawOutput: { type: "ReadFile", ImageContent: { data: PNG_BASE64, mime_type: "image/png" } },
-      failed: {
-        error: "partial result",
-        result: [{ type: "image", data: PADDED_BASE64, mimeType: "image/png" }],
-      },
-    });
-
-    expect(outputOf(stripUnservedToolOutputImageBytes(item))).toEqual({
-      rawOutput: {
-        type: "ReadFile",
-        ImageContent: { mime_type: "image/png", sizeBytes: PNG_BYTES },
-      },
-      failed: {
-        error: "partial result",
-        result: [{ type: "image", mimeType: "image/png", sizeBytes: PNG_BYTES + 1 }],
-      },
-    });
-  });
-
-  it("strips a Cursor image part that names no mime type", () => {
-    const item = toolItem({
-      content: [{ text: { text: "captured" } }, { image: { data: PNG_BASE64 } }],
-    });
-
-    expect(outputOf(stripUnservedToolOutputImageBytes(item))).toEqual({
-      content: [{ text: { text: "captured" } }, { image: { sizeBytes: PNG_BYTES } }],
-    });
-  });
-
   it("keeps the screenshots a tool-output-image asset serves", () => {
     const claudeImage = {
       type: "image",

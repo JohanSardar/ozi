@@ -28,7 +28,6 @@ import * as ModelManifest from "./ModelManifest.ts";
 import * as ProviderMaintenanceRunner from "./providerMaintenanceRunner.ts";
 import * as ProviderLatestVersions from "@t3tools/provider-core/server/ProviderLatestVersions";
 import {
-  enrichProviderSnapshotWithVersionAdvisory,
   makeProviderMaintenanceCapabilities,
   type ProviderMaintenanceCapabilities,
 } from "@t3tools/provider-core/server/maintenanceResolver";
@@ -36,10 +35,9 @@ const isServerProviderUpdateError = Schema.is(ServerProviderUpdateError);
 
 const CODEX_DRIVER = ProviderDriverKind.make("codex");
 const NATIVE_CLI_DRIVER = ProviderDriverKind.make("nativeCli");
-const OPENCODE_DRIVER = ProviderDriverKind.make("opencode");
+const PI_DRIVER = ProviderDriverKind.make("pi");
 const CODEX_INSTANCE_ID = ProviderInstanceId.make("codex");
 const NATIVE_CLI_INSTANCE_ID = ProviderInstanceId.make("nativeCli");
-const OPENCODE_INSTANCE_ID = ProviderInstanceId.make("opencode");
 const encoder = new TextEncoder();
 
 // Pin a non-win32 platform so `resolveSpawnCommand` is a no-op and the raw
@@ -60,11 +58,11 @@ function lifecycleFor(provider: ProviderDriverKind): ProviderMaintenanceCapabili
   }
   return makeProviderMaintenanceCapabilities({
     provider,
-    packageName: provider === OPENCODE_DRIVER ? "opencode-ai" : "@openai/codex",
+    packageName: provider === PI_DRIVER ? "@mariozechner/pi-coding-agent" : "@openai/codex",
     updateExecutable: "npm",
     updateArgs:
-      provider === OPENCODE_DRIVER
-        ? ["install", "-g", "opencode-ai@latest"]
+      provider === PI_DRIVER
+        ? ["install", "-g", "@mariozechner/pi-coding-agent@latest"]
         : ["install", "-g", "@openai/codex@latest"],
     updateLockKey: "npm-global",
   });
@@ -88,12 +86,6 @@ const baseNativeCliProvider: ServerProvider = {
   ...baseProvider,
   instanceId: NATIVE_CLI_INSTANCE_ID,
   driver: NATIVE_CLI_DRIVER,
-};
-
-const baseOpenCodeProvider: ServerProvider = {
-  ...baseProvider,
-  instanceId: OPENCODE_INSTANCE_ID,
-  driver: OPENCODE_DRIVER,
 };
 
 const layerLatestVersionHttpClient = (version: string) =>
@@ -219,7 +211,7 @@ const makeTestRunner = (
   manifest: ModelManifest.ModelManifestData = {
     version: 1,
     currentModels: {},
-    compatibility: [CODEX_DRIVER, OPENCODE_DRIVER].map((driver) => ({
+    compatibility: [CODEX_DRIVER, PI_DRIVER].map((driver) => ({
       driver,
       t3CodeRange: ">=0.0.42",
       ranges: [],
@@ -751,87 +743,6 @@ describe("providerMaintenanceRunner", () => {
     );
   });
 
-  it.effect("serializes different providers that share the same update lock key", () => {
-    const firstStartedLatch: { resolve: () => void } = { resolve: () => {} };
-    const releaseFirstLatch: { resolve: () => void } = { resolve: () => {} };
-    const firstStarted = new Promise<void>((resolve) => {
-      firstStartedLatch.resolve = resolve;
-    });
-    const releaseFirst = new Promise<void>((resolve) => {
-      releaseFirstLatch.resolve = resolve;
-    });
-    const calls: Array<string> = [];
-    return Effect.gen(function* () {
-      const { registry } = yield* makeRegistry([baseProvider, baseOpenCodeProvider]);
-      const updater = yield* makeTestRunner({
-        ...registry,
-        getProviderMaintenanceCapabilitiesForInstance: (_instanceId, provider) =>
-          Effect.succeed(
-            makeProviderMaintenanceCapabilities({
-              provider,
-              packageName: provider === OPENCODE_DRIVER ? "opencode-ai" : "@openai/codex",
-              updateExecutable: "npm",
-              updateArgs:
-                provider === OPENCODE_DRIVER
-                  ? ["install", "-g", "opencode-ai@latest"]
-                  : ["install", "-g", "@openai/codex@latest"],
-              updateLockKey: "npm-global",
-            }),
-          ),
-      });
-
-      const first = yield* updater.updateProvider(CODEX_DRIVER).pipe(Effect.forkScoped);
-      yield* Effect.promise(() => firstStarted);
-
-      const second = yield* updater.updateProvider(OPENCODE_DRIVER).pipe(Effect.forkScoped);
-      let providersWhileQueued: ReadonlyArray<ServerProvider> = [];
-      for (let attempt = 0; attempt < 20; attempt += 1) {
-        providersWhileQueued = yield* registry.getProviders;
-        const queuedStatus = providersWhileQueued.find(
-          (provider) => provider.instanceId === OPENCODE_INSTANCE_ID,
-        )?.updateState?.status;
-        if (queuedStatus === "queued") {
-          break;
-        }
-        yield* Effect.yieldNow;
-      }
-      assert.deepStrictEqual(calls, ["install -g @openai/codex@latest"]);
-      assert.strictEqual(
-        providersWhileQueued.find((provider) => provider.instanceId === OPENCODE_INSTANCE_ID)
-          ?.updateState?.status,
-        "queued",
-      );
-
-      releaseFirstLatch.resolve();
-      yield* Fiber.join(first);
-      yield* Fiber.join(second);
-      assert.deepStrictEqual(calls, [
-        "install -g @openai/codex@latest",
-        "install -g opencode-ai@latest",
-      ]);
-    }).pipe(
-      Effect.provide(
-        Layer.mergeAll(
-          layerNonWindowsPlatform,
-          layerLatestVersionHttpClient("2.0.0"),
-          layerMockSpawner((_command, args) => {
-            calls.push(args.join(" "));
-            if (calls.length === 1) {
-              firstStartedLatch.resolve();
-              return {
-                stdout: "updated",
-                exitCode: Effect.promise(() => releaseFirst).pipe(
-                  Effect.as(ChildProcessSpawner.ExitCode(0)),
-                ),
-              };
-            }
-            return { stdout: "updated" };
-          }),
-        ),
-      ),
-    );
-  });
-
   it.effect("accepts arbitrary driver-provided update lock keys", () => {
     const calls: Array<string> = [];
     return Effect.gen(function* () {
@@ -974,113 +885,6 @@ describe("providerMaintenanceRunner", () => {
     );
   });
 });
-
-it.effect.each([
-  {
-    mode: "default",
-    version: "1.14.19",
-    installation: { installedVersion: "1.14.20" },
-    status: "succeeded",
-  },
-  {
-    mode: "targeted",
-    version: "1.14.19",
-    installation: { installedVersion: "1.14.20" },
-    status: "succeeded",
-  },
-  {
-    mode: "unknown",
-    version: "1.14.20",
-    installation: { installedVersion: null },
-    status: "unchanged",
-  },
-  { mode: "legacy", version: "1.14.20", installation: {}, status: "succeeded" },
-] as const)(
-  "verifies the $mode OpenCode update using the refreshed installation",
-  ({ mode, version, installation, status }) => {
-    const calls: string[] = [];
-    const capabilities = lifecycleFor(OPENCODE_DRIVER);
-    const pinnedCapabilities = {
-      ...capabilities,
-      update: { ...capabilities.update!, lockKey: "npm-global:/fixture" },
-    };
-    const manifest: ModelManifest.ModelManifestData = {
-      version: 1,
-      currentModels: {},
-      compatibility: [
-        {
-          driver: OPENCODE_DRIVER,
-          t3CodeRange: ">=0.0.42",
-          recommendedVersion: "1.14.20",
-          ranges: [{ range: "=1.14.20", status: "supported" }],
-        },
-      ],
-    };
-    return Effect.gen(function* () {
-      const { registry, providersRef } = yield* makeRegistry({ ...baseOpenCodeProvider, version });
-      const httpClient = yield* HttpClient.HttpClient;
-      const latestVersions = yield* ProviderLatestVersions.ProviderLatestVersions;
-      const updater = yield* makeTestRunner(
-        {
-          ...registry,
-          getProviderMaintenanceCapabilitiesForInstance: () => Effect.succeed(pinnedCapabilities),
-          refreshAfterUpdate: () =>
-            Effect.gen(function* () {
-              assert.strictEqual(calls.length, 1);
-              const refreshed = yield* enrichProviderSnapshotWithVersionAdvisory(
-                { ...baseOpenCodeProvider, version, ...installation },
-                pinnedCapabilities,
-              ).pipe(
-                Effect.provideService(HttpClient.HttpClient, httpClient),
-                Effect.provideService(
-                  ProviderLatestVersions.ProviderLatestVersions,
-                  latestVersions,
-                ),
-              );
-              return yield* Ref.updateAndGet(providersRef, (providers) =>
-                providers.map((provider) => ({ ...provider, ...refreshed })),
-              );
-            }),
-        },
-        manifest,
-      );
-
-      const result = yield* updater.updateProvider({
-        provider: OPENCODE_DRIVER,
-        ...(mode === "default" ? {} : { targetVersion: "1.14.20" }),
-      });
-
-      assert.deepStrictEqual(calls, [
-        `npm install -g opencode-ai@${mode === "default" ? "latest" : "1.14.20"}`,
-      ]);
-      const provider = result.providers[0];
-      assert.ok(provider);
-      assert.strictEqual(provider.updateState?.status, status);
-      assert.strictEqual(provider.version, version);
-      assert.strictEqual("installedVersion" in provider, mode !== "legacy");
-      assert.strictEqual(
-        provider.versionAdvisory?.status,
-        mode === "unknown" ? "unknown" : "current",
-      );
-      assert.strictEqual(
-        provider.versionAdvisory?.currentVersion,
-        mode === "unknown" ? null : "1.14.20",
-      );
-    }).pipe(
-      Effect.provide(
-        Layer.mergeAll(
-          layerNonWindowsPlatform,
-          ProviderLatestVersions.layer,
-          layerLatestVersionHttpClient("1.14.20"),
-          layerMockSpawner((command, args) => {
-            calls.push([command, ...args].join(" "));
-            return { stdout: "installed" };
-          }),
-        ),
-      ),
-    );
-  },
-);
 
 it.effect(
   "uses fresh installer versions for post-update verification and compatibility checks",

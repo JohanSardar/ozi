@@ -9,11 +9,7 @@ import {
   rememberCheckoutIsRepo,
   threadShellHasStarted,
 } from "./ChatView.logic";
-import {
-  ANTIGRAVITY_DEFAULT_MODEL,
-  ProviderDriverKind,
-  type ServerProvider,
-} from "@t3tools/contracts";
+import { ProviderDriverKind, type ServerProvider } from "@t3tools/contracts";
 import { deriveProviderInstanceEntries, NO_PROVIDER_MODEL_SELECTION } from "../providerInstances";
 import { selectThreadDiffPanelSelection, useDiffPanelStore } from "../diffPanelStore";
 import {
@@ -25,7 +21,6 @@ import {
 import {
   CommandId,
   EnvironmentId,
-  EventId,
   MessageId,
   ProjectId,
   PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
@@ -43,7 +38,7 @@ import type { CodexArtifactTemplate } from "@t3tools/shared/codexArtifactTemplat
 import * as DateTime from "effect/DateTime";
 import * as Option from "effect/Option";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
-import { Atom, AsyncResult } from "effect/reactivity";
+import { Atom } from "effect/reactivity";
 import { appAtomRegistry } from "../rpc/atomRegistry";
 import { environmentThreadDetails } from "../state/threads";
 
@@ -52,10 +47,8 @@ import { makeThreadFixture, makeThreadProjectionFixture } from "../test-fixtures
 import {
   agentControlledBrowserCloseConfirmation,
   ENVIRONMENT_RECONNECT_WARNING_GRACE_MS,
-  getAntigravitySendBlockReason,
   resolveBackgroundDraftWorkspaceOptions,
   resolveComposerInteractionMode,
-  restorePlanFollowUpComposer,
   resolveComposerProviderSelection,
   resolveProactiveTurnDiffAction,
   resolveDraftHeroState,
@@ -101,7 +94,6 @@ import {
   shouldShowPlanFollowUpPrompt,
   shouldWriteThreadErrorToCurrentServerThread,
   waitForRevertedMessage,
-  prepareRevertedMessageAttachments,
 } from "./ChatView.logic";
 
 const environmentId = EnvironmentId.make("environment-local");
@@ -375,7 +367,7 @@ describe("getStartedThreadModelChangeBlockReason", () => {
       instanceId: ProviderInstanceId.make("codex"),
     },
     {
-      instanceId: ProviderInstanceId.make("grok"),
+      instanceId: ProviderInstanceId.make("pi"),
       requiresNewThreadForModelChange: true,
     },
   ];
@@ -386,12 +378,12 @@ describe("getStartedThreadModelChangeBlockReason", () => {
         providers,
         hasStartedSession: false,
         currentModelSelection: {
-          instanceId: ProviderInstanceId.make("grok"),
-          model: "grok-build",
+          instanceId: ProviderInstanceId.make("pi"),
+          model: "pi-build",
         },
         nextModelSelection: {
-          instanceId: ProviderInstanceId.make("grok"),
-          model: "grok-other",
+          instanceId: ProviderInstanceId.make("pi"),
+          model: "pi-other",
         },
       }),
     ).toBeNull();
@@ -403,12 +395,12 @@ describe("getStartedThreadModelChangeBlockReason", () => {
         providers,
         hasStartedSession: true,
         currentModelSelection: {
-          instanceId: ProviderInstanceId.make("grok"),
-          model: "grok-build",
+          instanceId: ProviderInstanceId.make("pi"),
+          model: "pi-build",
         },
         nextModelSelection: {
-          instanceId: ProviderInstanceId.make("grok"),
-          model: "grok-build",
+          instanceId: ProviderInstanceId.make("pi"),
+          model: "pi-build",
         },
       }),
     ).toBeNull();
@@ -420,12 +412,12 @@ describe("getStartedThreadModelChangeBlockReason", () => {
         providers,
         hasStartedSession: true,
         currentModelSelection: {
-          instanceId: ProviderInstanceId.make("grok"),
-          model: "grok-build",
+          instanceId: ProviderInstanceId.make("pi"),
+          model: "pi-build",
         },
         nextModelSelection: {
-          instanceId: ProviderInstanceId.make("grok"),
-          model: "grok-other",
+          instanceId: ProviderInstanceId.make("pi"),
+          model: "pi-other",
         },
       }),
     ).toEqual({
@@ -1372,10 +1364,6 @@ describe("environment reconnect warning grace", () => {
 });
 
 describe("resolveComposerProviderSelection", () => {
-  const catalogModels: ServerProvider["models"] = [
-    { slug: "gemini-pro", name: "Gemini Pro", isCustom: false, capabilities: null },
-  ];
-
   function entry(driver: string, instanceId = driver, overrides: Partial<ServerProvider> = {}) {
     return deriveProviderInstanceEntries([
       {
@@ -1493,10 +1481,10 @@ describe("resolveComposerProviderSelection", () => {
   });
 
   it("uses the custom instance's capability instead of the default instance", () => {
-    const defaultEntry = entry("antigravity", "antigravity", {
+    const defaultEntry = entry("pi", "pi", {
       showInteractionModeToggle: true,
     });
-    const customEntry = entry("antigravity", "google_work", {
+    const customEntry = entry("pi", "google_work", {
       showInteractionModeToggle: false,
     });
     const selection = resolveComposerProviderSelection({
@@ -1517,7 +1505,7 @@ describe("resolveComposerProviderSelection", () => {
   });
 
   it("uses the fallback provider's plan capability after the draft's instance is disabled", () => {
-    const disabledEntry = entry("antigravity", "antigravity", {
+    const disabledEntry = entry("pi", "pi", {
       enabled: false,
       showInteractionModeToggle: false,
     });
@@ -1539,116 +1527,9 @@ describe("resolveComposerProviderSelection", () => {
     ).toEqual({ enabled: true, interactionMode: "plan" });
   });
 
-  it("keeps a signed-out selection instead of silently switching providers", () => {
-    const signedOutEntry = entry("antigravity", "google_work", {
-      status: "error",
-      auth: { status: "unauthenticated" },
-      models: catalogModels,
-    });
-    const selection = resolveComposerProviderSelection({
-      entries: [entry("codex"), signedOutEntry],
-      candidateInstanceIds: [signedOutEntry.instanceId],
-      lockedProvider: null,
-      lockedInstanceId: null,
-    });
-
-    expect(selection.selectedProviderEntry?.instanceId).toBe(signedOutEntry.instanceId);
-    expect(
-      getAntigravitySendBlockReason(selection.selectedProviderEntry?.snapshot, "gemini-pro"),
-    ).toBe("Sign in to Antigravity in provider settings before sending.");
-  });
-
-  it("blocks sends until the selected Antigravity profile is installed", () => {
-    const provider = entry("antigravity", "google_work", {
-      installed: false,
-      models: catalogModels,
-    }).snapshot;
-
-    expect(getAntigravitySendBlockReason(provider, "gemini-pro")).toBe(
-      "Install Antigravity in provider settings before sending.",
-    );
-  });
-
-  it("lets Antigravity check saved credentials when resuming after a restart", () => {
-    const provider = entry("antigravity", "google_work", {
-      status: "warning",
-      auth: { status: "unknown" },
-      models: [],
-    }).snapshot;
-
-    expect(getAntigravitySendBlockReason(provider, "gemini-pro")).toBeNull();
-    expect(getAntigravitySendBlockReason(provider, ANTIGRAVITY_DEFAULT_MODEL)).toBeNull();
-    expect(
-      getAntigravitySendBlockReason({ ...provider, models: catalogModels }, "gemini-pro"),
-    ).toBeNull();
-    expect(getAntigravitySendBlockReason(provider, "")).toBe(
-      "Choose an Antigravity model before sending.",
-    );
-  });
-
-  it("blocks saved model sends until Antigravity loads its account catalog", () => {
-    expect(getAntigravitySendBlockReason(entry("antigravity").snapshot, "gemini-pro")).toBe(
-      "Refresh Antigravity models in provider settings before sending.",
-    );
-  });
-
-  it("blocks an empty Antigravity selection after the catalog has loaded", () => {
-    const provider = entry("antigravity", "google_work", { models: catalogModels }).snapshot;
-
-    expect(getAntigravitySendBlockReason(provider, "")).toBe(
-      "Choose an Antigravity model before sending.",
-    );
-  });
-
-  it("blocks a saved model that a ready catalog no longer lists", () => {
-    const provider = entry("antigravity", "google_work", {
-      status: "ready",
-      models: catalogModels,
-    }).snapshot;
-
-    expect(getAntigravitySendBlockReason(provider, "saved-model-not-in-current-catalog")).toBe(
-      "That Antigravity model is no longer available. Choose another model.",
-    );
-    expect(getAntigravitySendBlockReason(provider, "gemini-pro")).toBeNull();
-  });
-
-  it("allows a saved native model to retry after a provider error without changing it", () => {
-    const provider = entry("antigravity", "google_work", {
-      status: "error",
-      models: catalogModels,
-    }).snapshot;
-
-    expect(
-      getAntigravitySendBlockReason(provider, "saved-model-not-in-current-catalog"),
-    ).toBeNull();
-  });
-
-  it("keeps existing send behavior for other providers", () => {
-    const provider = entry("codex", "codex", {
-      installed: false,
-      auth: { status: "unknown" },
-      models: [],
-    }).snapshot;
-
-    expect(getAntigravitySendBlockReason(provider, "gpt-model")).toBeNull();
-  });
-
-  it("does not continue an existing Antigravity thread in another profile after deletion", () => {
-    const missingInstanceId = ProviderInstanceId.make("google_work");
-    const selection = resolveComposerProviderSelection({
-      entries: [entry("antigravity")],
-      candidateInstanceIds: [missingInstanceId],
-      lockedProvider: ProviderDriverKind.make("antigravity"),
-      lockedInstanceId: missingInstanceId,
-    });
-
-    expect(selection.selectedProviderEntry).toBeUndefined();
-    expect(selection.unavailableProviderInstanceId).toBe(missingInstanceId);
-  });
-
   it("does not treat the empty draft placeholder as a provider setup target", () => {
     const selection = resolveComposerProviderSelection({
-      entries: [entry("antigravity", "antigravity", { enabled: false })],
+      entries: [entry("pi", "pi", { enabled: false })],
       candidateInstanceIds: [NO_PROVIDER_MODEL_SELECTION.instanceId],
       lockedProvider: null,
       lockedInstanceId: null,
@@ -1659,17 +1540,17 @@ describe("resolveComposerProviderSelection", () => {
   });
 
   it("keeps the session's continuation group when another instance was selected", () => {
-    const sessionEntry = entry("antigravity", "google_work", {
+    const sessionEntry = entry("pi", "google_work", {
       enabled: false,
       continuation: { groupKey: "work-profile" },
     });
-    const anotherEntry = entry("antigravity", "google_personal", {
+    const anotherEntry = entry("pi", "google_personal", {
       continuation: { groupKey: "personal-profile" },
     });
     const selection = resolveComposerProviderSelection({
       entries: [sessionEntry, anotherEntry],
       candidateInstanceIds: [anotherEntry.instanceId, sessionEntry.instanceId],
-      lockedProvider: ProviderDriverKind.make("antigravity"),
+      lockedProvider: ProviderDriverKind.make("pi"),
       lockedInstanceId: sessionEntry.instanceId,
     });
 

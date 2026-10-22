@@ -715,7 +715,6 @@ describe("preferGitForWindowsBinary", () => {
   });
 });
 
-// Byte for byte what `npm install -g opencode-ai` writes as `opencode.cmd`.
 const NPM_OPENCODE_SHIM = [
   "@ECHO off",
   "GOTO start",
@@ -725,14 +724,14 @@ const NPM_OPENCODE_SHIM = [
   ":start",
   "SETLOCAL",
   "CALL :find_dp0",
-  '"%dp0%\\node_modules\\opencode-ai\\bin\\opencode.exe"   %*',
+  '"%dp0%\\node_modules\\test-agent\\bin\\test-agent.exe"   %*',
   "",
 ].join("\r\n");
 
 describe("npmShimExecutable", () => {
-  const shimPath = "C:\\Users\\me\\AppData\\Roaming\\npm\\opencode.cmd";
+  const shimPath = "C:\\Users\\me\\AppData\\Roaming\\npm\\test-agent.cmd";
   const executable =
-    "C:\\Users\\me\\AppData\\Roaming\\npm\\node_modules\\opencode-ai\\bin\\opencode.exe";
+    "C:\\Users\\me\\AppData\\Roaming\\npm\\node_modules\\test-agent\\bin\\test-agent.exe";
   const exists = (filePath: string) => filePath === executable;
 
   it("finds the executable npm's shim runs", () => {
@@ -749,8 +748,8 @@ describe("npmShimExecutable", () => {
     );
     expect(npmShimExecutable(shimPath, () => withSetting, exists)).toBeUndefined();
     const nodeScript = NPM_OPENCODE_SHIM.replace(
-      '"%dp0%\\node_modules\\opencode-ai\\bin\\opencode.exe"   %*',
-      '"%_prog%"  "%dp0%\\node_modules\\opencode-ai\\bin\\opencode.js" %*',
+      '"%dp0%\\node_modules\\test-agent\\bin\\test-agent.exe"   %*',
+      '"%_prog%"  "%dp0%\\node_modules\\test-agent\\bin\\test-agent.js" %*',
     );
     expect(
       npmShimExecutable(
@@ -775,8 +774,8 @@ describe("npmShimExecutable", () => {
       ).toBeUndefined();
     }
     const nonBreakingSeparator = NPM_OPENCODE_SHIM.replace(
-      'opencode.exe"   %*',
-      'opencode.exe"\u00a0%*',
+      'test-agent.exe"   %*',
+      'test-agent.exe"\u00a0%*',
     );
     expect(
       npmShimExecutable(
@@ -846,19 +845,19 @@ effectIt.layer(NodeServices.layer)("resolveSpawnCommand", (it) => {
           const fs = yield* FileSystem.FileSystem;
           const path = yield* Path.Path;
           const prefix = yield* fs.makeTempDirectoryScoped({ prefix: "t3-npm-shim-" });
-          const shim = path.join(prefix, "opencode.cmd");
+          const shim = path.join(prefix, "test-agent.cmd");
           const executable = path.join(
             prefix,
             "node_modules",
-            "opencode-ai",
+            "test-agent",
             "bin",
-            "opencode.exe",
+            "test-agent.exe",
           );
           yield* fs.makeDirectory(path.dirname(executable), { recursive: true });
           yield* fs.writeFileString(executable, "");
           yield* fs.writeFileString(shim, NPM_OPENCODE_SHIM);
           const resolve = (bypassNpmShim: boolean) =>
-            resolveSpawnCommand("opencode", ["serve", "--port=4096"], {
+            resolveSpawnCommand("test-agent", ["serve", "--port=4096"], {
               env: { PATH: "", PATHEXT: ".COM;.EXE;.BAT;.CMD" },
               bypassNpmShim,
             }).pipe(

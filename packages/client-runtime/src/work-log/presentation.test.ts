@@ -813,27 +813,6 @@ describe("command work-log details", () => {
       }),
     ).toBe(false);
   });
-
-  it("treats ACP command echoes as synthetic even without a tool kind", () => {
-    expect(
-      commandDetailRepeatsCommand({
-        detail: "pnpm test",
-        command: "pnpm test",
-        rawCommand: null,
-        toolName: undefined,
-        data: { toolCallId: "tool-1", command: "pnpm test" },
-      }),
-    ).toBe(true);
-    expect(
-      commandDetailRepeatsCommand({
-        detail: "pnpm test",
-        command: "pnpm test",
-        rawCommand: null,
-        toolName: undefined,
-        data: { command: "pnpm test" },
-      }),
-    ).toBe(false);
-  });
 });
 
 describe("workEntryViewedImagePath", () => {

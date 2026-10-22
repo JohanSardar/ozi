@@ -3,11 +3,8 @@ export type WizardNavigation =
   | { readonly kind: "blocked"; readonly step: number; readonly error: string };
 
 const IDENTITY_STEP = 1;
-const ACP_REGISTRY_IDENTITY_STEP = 1;
 
 export const ADD_PROVIDER_WIZARD_STEPS = ["Provider", "Identity", "Config"] as const;
-export const ACP_REGISTRY_WIZARD_STEPS = ["Provider", "Identity", "Sign in"] as const;
-export const LOCAL_ACP_WIZARD_STEPS = ["Provider", "Identity"] as const;
 
 export interface ProviderIdentityDraft {
   readonly label: string;
@@ -54,23 +51,6 @@ export function deriveAvailableInstanceId(
   }
 }
 
-export function isConfiguredAcpRegistryAgent(
-  instances: Readonly<Record<string, { readonly driver: string; readonly config?: unknown }>>,
-  agentId: string,
-): boolean {
-  return Object.values(instances).some((instance) => {
-    if (
-      instance.driver !== "acpRegistry" ||
-      !instance.config ||
-      typeof instance.config !== "object"
-    ) {
-      return false;
-    }
-    const config = instance.config as Record<string, unknown>;
-    return config.source !== "local" && config.agentId === agentId;
-  });
-}
-
 export function resolveWizardNavigation(
   currentStep: number,
   requestedStep: number,
@@ -108,19 +88,4 @@ export function resolveWizardNavigation(
   }
 
   return { kind: "navigate", step: targetStep };
-}
-
-export function resolveAcpRegistryWizardNavigation(
-  currentStep: number,
-  requestedStep: number,
-  validation: {
-    readonly instanceIdError: string | null;
-    readonly selectionError: string | null;
-  },
-): WizardNavigation {
-  return resolveWizardNavigation(currentStep, requestedStep, ACP_REGISTRY_WIZARD_STEPS.length, {
-    instanceIdError: validation.instanceIdError,
-    identityStep: ACP_REGISTRY_IDENTITY_STEP,
-    prerequisite: { step: 0, error: validation.selectionError },
-  });
 }

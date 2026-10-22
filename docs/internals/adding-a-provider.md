@@ -7,34 +7,10 @@ whether a turn runs. This page lists the decisions and evidence a new driver nee
 
 ## Choose the integration shape
 
-- **ACP agents** start as [ACP Registry](../user/providers-acp.md) entries, which follow the ACP
-  spec with no per-agent handling. An agent gets a dedicated driver only when it needs behavior the
-  spec does not cover, and then it is a small flavor over the
-  [shared ACP adapter](../../packages/provider-acp/src/server/adapter.ts), like Grok
-  and Antigravity. Never add agent-id checks to the generic registry adapter.
-- **Other protocols** get a native adapter that implements
-  [`ProviderAdapterV2`](../../packages/provider-core/src/server/ProviderAdapter.ts), like Codex,
-  Claude, Cursor, OpenCode, Pi, and Muse.
-
 Provider-specific behavior stays in the adapter and driver. Orchestration and clients read
 capabilities, never the driver kind.
 
 ## Report only what the provider does
-
-- **Capabilities.** Set every flag in `OrchestrationV2ProviderCapabilities` to what the provider
-  really does. Turn off fork, rollback, steering, or subagent support it lacks; orchestration then
-  falls back, for example to portable context handoff for forks. A capability left on that fails
-  at runtime is a bug.
-- **Permission modes.** Offer only modes the provider enforces natively, through
-  `supportedRuntimeModes` in the provider presentation ([Grok](../../packages/provider-grok/src/server/status.ts)
-  and [Pi](../../packages/provider-pi/src/server/status.ts) are examples). Do not imitate a missing
-  mode by answering approvals in T3: T3's check is weaker than the agent's own enforcement. The
-  server runs an unoffered stored mode as Supervised
-  ([`RuntimePolicy.ts`](../../apps/server/src/orchestration-v2/RuntimePolicy.ts)).
-- **Approval and question options.** Pass the provider's own option IDs through unchanged. Every
-  request needs a way to decline that the provider honors.
-- **Interaction modes.** Hide the plan toggle (`showInteractionModeToggle: false`) unless the
-  provider's plan output becomes T3's proposed-plan card.
 
 ## Process, account, and setup boundaries
 

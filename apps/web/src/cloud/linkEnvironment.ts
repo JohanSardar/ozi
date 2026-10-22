@@ -198,13 +198,11 @@ export const readPrimaryCloudLinkState: (input: {
 
 export const updatePrimaryCloudPreferences: (input: {
   readonly target: CloudLinkTarget;
-  readonly publishAgentActivity: boolean;
   readonly holdWebhooksWhileOffline?: boolean;
 }) => Effect.Effect<CloudLinkState, CloudEnvironmentLinkError, HttpClient.HttpClient> = Effect.fn(
   "linkEnvironment.updatePrimaryCloudPreferences",
 )(function* (input: {
   readonly target: CloudLinkTarget;
-  readonly publishAgentActivity: boolean;
   readonly holdWebhooksWhileOffline?: boolean;
 }) {
   const client = yield* makeEnvironmentHttpApiClient(input.target.httpBaseUrl);
@@ -288,8 +286,6 @@ export const linkPrimaryEnvironmentToCloud: (input: {
     .createEnvironmentLinkChallenge({
       clerkToken: input.clerkToken,
       payload: {
-        notificationsEnabled: true,
-        liveActivitiesEnabled: true,
         managedTunnelsEnabled,
       },
     })
@@ -320,8 +316,6 @@ export const linkPrimaryEnvironmentToCloud: (input: {
       clerkToken: input.clerkToken,
       payload: {
         proof,
-        notificationsEnabled: true,
-        liveActivitiesEnabled: true,
         managedTunnelsEnabled,
       },
     })

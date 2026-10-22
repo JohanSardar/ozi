@@ -70,12 +70,12 @@ it("checks revocation and regrant when a retained editor callback is invoked", a
 
 it("keeps the stored available editor for an authorized launch", async () => {
   state.allowed.add(secondary);
-  state.getPreference.mockReturnValue("cursor");
-  const open = useOpenInPreferredEditor(secondary, ["vscode", "cursor"]);
-  expect(await open("/work")).toMatchObject({ _tag: "Success", value: "cursor" });
+  state.getPreference.mockReturnValue("vscode");
+  const open = useOpenInPreferredEditor(secondary, ["vscode", "vscode"]);
+  expect(await open("/work")).toMatchObject({ _tag: "Success", value: "vscode" });
   expect(state.run).toHaveBeenCalledExactlyOnceWith({
     environmentId: secondary,
-    input: { cwd: "/work", editor: "cursor" },
+    input: { cwd: "/work", editor: "vscode" },
   });
   expect(state.setPreference).not.toHaveBeenCalled();
 });

@@ -50,7 +50,7 @@ describe("V2 context window presentation", () => {
     expect(snapshot?.totalProcessedTokens).toBe(10_000);
   });
 
-  it("prefers current provider usage and preserves ACP cost", () => {
+  it("prefers current provider usage and preserves provider cost", () => {
     const snapshot = deriveLatestContextWindowSnapshot([], undefined, {
       contextUsage: {
         usedTokens: 2_500,

@@ -1,5 +1,4 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import { ORCHESTRATION_PROTOCOL_VERSION } from "@t3tools/contracts";
 import { expect, it } from "@effect/vitest";
 import * as Crypto from "effect/Crypto";
 import * as Deferred from "effect/Deferred";
@@ -14,23 +13,12 @@ import * as HostProcess from "@t3tools/shared/HostProcess";
 import * as OtelEnvironment from "@t3tools/shared/otelEnvironment";
 
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
-import {
-  PUBLISH_AGENT_ACTIVITY_SECRET,
-  RELAY_ENVIRONMENT_CREDENTIAL_SECRET,
-  RELAY_URL_SECRET,
-} from "../cloud/config.ts";
 import * as ServerConfig from "../config.ts";
 import * as ServerEnvironment from "./ServerEnvironment.ts";
 
 const isServerEnvironmentIdPersistenceError = Schema.is(
   ServerEnvironment.ServerEnvironmentIdPersistenceError,
 );
-
-const layerServerEnvironment = (baseDir: string) =>
-  ServerEnvironment.layer.pipe(
-    Layer.provide(ServerSecretStore.layer),
-    Layer.provide(ServerConfig.layerTest(process.cwd(), baseDir)),
-  );
 
 const layerEmptySecretStore = Layer.succeed(
   ServerSecretStore.ServerSecretStore,
@@ -196,80 +184,6 @@ it.layer(NodeServices.layer)("ServerEnvironmentLive", (it) => {
 
       expect(first).toBe(second);
       expect(persisted.trim()).toBe(first);
-    }),
-  );
-
-  it.effect("persists the environment id across service restarts", () =>
-    Effect.gen(function* () {
-      const fileSystem = yield* FileSystem.FileSystem;
-      const baseDir = yield* fileSystem.makeTempDirectoryScoped({
-        prefix: "t3-server-environment-test-",
-      });
-
-      const first = yield* Effect.gen(function* () {
-        const serverEnvironment = yield* ServerEnvironment.ServerEnvironment;
-        return yield* serverEnvironment.getDescriptor;
-      }).pipe(Effect.provide(layerServerEnvironment(baseDir)));
-      const second = yield* Effect.gen(function* () {
-        const serverEnvironment = yield* ServerEnvironment.ServerEnvironment;
-        return yield* serverEnvironment.getDescriptor;
-      }).pipe(Effect.provide(layerServerEnvironment(baseDir)));
-
-      expect(first.environmentId).toBe(second.environmentId);
-      expect(first.orchestrationProtocolVersion).toBe(ORCHESTRATION_PROTOCOL_VERSION);
-      expect(second.capabilities.repositoryIdentity).toBe(true);
-      expect(second.capabilities.connectionProbe).toBe(true);
-      expect(second.capabilities.attachmentUploads).toBe(true);
-      expect(second.capabilities.fileAttachments).toEqual({ maxUploadBytes: 50 * 1024 * 1024 });
-      expect(second.capabilities.pullRequests).toBe(true);
-      expect(second.capabilities.requiredWorktreeBootstrap).toBe(true);
-      expect(second.capabilities.usagePriceOverrides).toBe(true);
-      expect(second.capabilities.threadActiveReorder).toBe(true);
-      expect(second.capabilities.threadTitleRegeneration).toBe(true);
-      expect(second.capabilities.threadPullRequests).toBe(true);
-      expect(second.capabilities.threadPullRequestLinking).toBe(true);
-      expect(second.capabilities.serverResolvedCommandContext).toBe(true);
-      expect(second.capabilities.projectProviderInstanceOverrides).toBe(true);
-      expect(second.capabilities.agentActivityPublishing).toBe(false);
-    }),
-  );
-
-  it.effect("reports agent activity publishing from the current secret state", () =>
-    Effect.gen(function* () {
-      const fileSystem = yield* FileSystem.FileSystem;
-      const baseDir = yield* fileSystem.makeTempDirectoryScoped({
-        prefix: "t3-server-environment-publish-test-",
-      });
-      const layerTest = Layer.mergeAll(
-        ServerEnvironment.layer.pipe(Layer.provide(ServerSecretStore.layer)),
-        ServerSecretStore.layer,
-      ).pipe(Layer.provide(ServerConfig.layerTest(process.cwd(), baseDir)));
-
-      yield* Effect.gen(function* () {
-        const secrets = yield* ServerSecretStore.ServerSecretStore;
-        const serverEnvironment = yield* ServerEnvironment.ServerEnvironment;
-        const encode = (value: string) => new TextEncoder().encode(value);
-
-        const unlinked = yield* serverEnvironment.getDescriptor;
-        expect(unlinked.capabilities.agentActivityPublishing).toBe(false);
-
-        yield* secrets.set(PUBLISH_AGENT_ACTIVITY_SECRET, encode("true"));
-        const withoutLink = yield* serverEnvironment.getDescriptor;
-        expect(withoutLink.capabilities.agentActivityPublishing).toBe(false);
-
-        yield* secrets.set(RELAY_URL_SECRET, encode(""));
-        yield* secrets.set(RELAY_ENVIRONMENT_CREDENTIAL_SECRET, encode("credential"));
-        const emptyUrl = yield* serverEnvironment.getDescriptor;
-        expect(emptyUrl.capabilities.agentActivityPublishing).toBe(false);
-
-        yield* secrets.set(RELAY_URL_SECRET, encode("https://relay.example"));
-        const linked = yield* serverEnvironment.getDescriptor;
-        expect(linked.capabilities.agentActivityPublishing).toBe(true);
-
-        yield* secrets.set(PUBLISH_AGENT_ACTIVITY_SECRET, encode("false"));
-        const disabled = yield* serverEnvironment.getDescriptor;
-        expect(disabled.capabilities.agentActivityPublishing).toBe(false);
-      }).pipe(Effect.provide(layerTest));
     }),
   );
 

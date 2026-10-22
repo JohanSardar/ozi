@@ -173,7 +173,7 @@ it("does not retry pure interrupt races where the turn is already gone", () => {
   assert.isTrue(
     EffectWorker.isNonRetryableProviderTurnControlFailure(
       "provider-turn.interrupt",
-      "ProviderAdapterInterruptError: ... ACP provider turn provider-turn:x is not active",
+      "ProviderAdapterInterruptError: ... Pi provider turn provider-turn:x is not active",
     ),
   );
   assert.isTrue(
@@ -197,7 +197,7 @@ it("does not retry pure interrupt races where the turn is already gone", () => {
   assert.isFalse(
     EffectWorker.isNonRetryableProviderTurnControlFailure(
       "provider-turn.interrupt",
-      "ACP hard teardown failed unexpectedly; the session is poisoned",
+      "Pi hard teardown failed unexpectedly; the session is poisoned",
     ),
   );
 });

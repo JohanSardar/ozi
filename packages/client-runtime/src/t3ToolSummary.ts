@@ -59,7 +59,6 @@ function readResult(value: unknown, depth = 0): ToolResult {
 
 function readInput(value: unknown): Record<string, unknown> | undefined {
   const input = readResult(value).data;
-  // Historical Cursor items retain the MCP args envelope.
   return input && typeof input.toolName === "string" ? asRecord(input.args) : input;
 }
 

@@ -17,7 +17,7 @@ import {
   spawnAndCollect,
 } from "./snapshotProbe.ts";
 
-const OPENCODE_CUSTOM_MODEL_CAPABILITIES: ModelCapabilities = createModelCapabilities({
+const CUSTOM_MODEL_CAPABILITIES: ModelCapabilities = createModelCapabilities({
   optionDescriptors: [
     {
       id: "variant",
@@ -38,18 +38,14 @@ const OPENCODE_CUSTOM_MODEL_CAPABILITIES: ModelCapabilities = createModelCapabil
 
 describe("providerModelsFromSettings", () => {
   it("applies the provided capabilities to custom models", () => {
-    const models = providerModelsFromSettings(
-      [],
-      ["openai/gpt-5"],
-      OPENCODE_CUSTOM_MODEL_CAPABILITIES,
-    );
+    const models = providerModelsFromSettings([], ["openai/gpt-5"], CUSTOM_MODEL_CAPABILITIES);
 
     expect(models).toEqual([
       {
         slug: "openai/gpt-5",
         name: "openai/gpt-5",
         isCustom: true,
-        capabilities: OPENCODE_CUSTOM_MODEL_CAPABILITIES,
+        capabilities: CUSTOM_MODEL_CAPABILITIES,
       },
     ]);
   });
@@ -61,7 +57,7 @@ describe("providerModelsFromSettings", () => {
     const models = providerModelsFromSettings(
       [],
       ["bare", { slug: "named", name: "Named", capabilities }],
-      OPENCODE_CUSTOM_MODEL_CAPABILITIES,
+      CUSTOM_MODEL_CAPABILITIES,
     );
 
     expect(models).toEqual([
@@ -69,7 +65,7 @@ describe("providerModelsFromSettings", () => {
         slug: "bare",
         name: "bare",
         isCustom: true,
-        capabilities: OPENCODE_CUSTOM_MODEL_CAPABILITIES,
+        capabilities: CUSTOM_MODEL_CAPABILITIES,
       },
       { slug: "named", name: "Named", isCustom: true, capabilities },
     ]);
@@ -120,7 +116,7 @@ describe("parseGenericCliVersion", () => {
   });
 
   it("parses a v-prefixed version", () => {
-    expect(parseGenericCliVersion("opencode v2.0.3")).toBe("2.0.3");
+    expect(parseGenericCliVersion("pi v2.0.3")).toBe("2.0.3");
     expect(parseGenericCliVersion("v22.19.0")).toBe("22.19.0");
   });
 

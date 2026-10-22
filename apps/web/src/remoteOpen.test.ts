@@ -142,8 +142,8 @@ describe("resolveRemoteOpenState", () => {
     expect(state.mode).toBe("remote-links");
     if (state.mode !== "remote-links") throw new Error("Expected a remote link");
     expect(
-      buildRemoteOpenUrl({ editor: "cursor", ...state.host, absolutePath: "/work/project" }),
-    ).toBe("cursor://vscode-remote/ssh-remote+admin-user%40server.tail1234.ts.net/work/project");
+      buildRemoteOpenUrl({ editor: "vscode", ...state.host, absolutePath: "/work/project" }),
+    ).toBe("vscode://vscode-remote/ssh-remote+admin-user%40server.tail1234.ts.net/work/project");
   });
 
   it("reports unavailable when a remote environment advertises no hosts", () => {
@@ -183,8 +183,8 @@ describe("buildRemoteOpenUrl", () => {
   });
 
   it("uses the fork's scheme", () => {
-    expect(buildRemoteOpenUrl({ editor: "cursor", host: "sol", absolutePath: "/tmp/x" })).toBe(
-      "cursor://vscode-remote/ssh-remote+sol/tmp/x",
+    expect(buildRemoteOpenUrl({ editor: "vscode", host: "sol", absolutePath: "/tmp/x" })).toBe(
+      "vscode://vscode-remote/ssh-remote+sol/tmp/x",
     );
   });
 
@@ -233,7 +233,7 @@ describe("buildRemoteOpenUrl", () => {
   it("adds a file position only for confirmed VS Code-family file targets", () => {
     const targets = [
       ["vscode", true, "vscode://vscode-remote/ssh-remote+sol/tmp/my%20file.md:1:1"],
-      ["cursor", true, "cursor://vscode-remote/ssh-remote+sol/tmp/my%20file.md:1:1"],
+      ["vscode", true, "vscode://vscode-remote/ssh-remote+sol/tmp/my%20file.md:1:1"],
       ["vscode", false, "vscode://vscode-remote/ssh-remote+sol/tmp/my%20file.md"],
       ["vscode", undefined, "vscode://vscode-remote/ssh-remote+sol/tmp/my%20file.md"],
       ["zed", true, "zed://ssh/sol/tmp/my%20file.md"],

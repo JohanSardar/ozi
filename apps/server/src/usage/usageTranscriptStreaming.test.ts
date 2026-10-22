@@ -69,31 +69,6 @@ const codex = [
     },
   },
 ];
-const grok = {
-  timestamp: 1785578400,
-  params: {
-    sessionId: "s1",
-    _meta: { agentTimestampMs: 1785578400123 },
-    update: {
-      sessionUpdate: "turn_completed",
-      prompt_id: "p1",
-      usage: {
-        inputTokens: 100,
-        outputTokens: 99,
-        costUsdTicks: 2500000000,
-        modelUsage: {
-          "grok-4.5-build": {
-            inputTokens: 100,
-            outputTokens: 99,
-            cachedReadTokens: 20,
-            cacheCreationTokens: 5,
-            reasoningTokens: 10,
-          },
-        },
-      },
-    },
-  },
-};
 
 async function scan(
   lines: readonly unknown[],
@@ -173,15 +148,13 @@ describe("large usage records", () => {
     ]);
   });
 
-  it.each(["claude", "codex", "grok"] as const)(
+  it.each(["claude", "codex"] as const)(
     "matches ordinary %s records with large irrelevant fields in either order",
     async (provider) => {
       const small =
         provider === "codex"
           ? codex
-          : provider === "grok"
-            ? [grok]
-            : [{ ...claude(), message: { ...claude().message, content: [] } }];
+          : [{ ...claude(), message: { ...claude().message, content: [] } }];
       const expected = await scan(small, provider, "small");
       for (const first of [true, false]) {
         const large = small.map((record) =>
@@ -193,24 +166,6 @@ describe("large usage records", () => {
       }
     },
   );
-
-  it("preserves Grok model allocation, precise timestamp and prompt identity", async () => {
-    const result = await scan([{ padding: content, ...grok }], "grok");
-    expect(result.records[0]).toMatchObject({
-      timestampMs: 1785578400123,
-      model: "grok-4.5-build",
-      sessionId: "s1",
-      totals: {
-        uncachedInputTokens: 75,
-        cachedInputTokens: 20,
-        cacheCreationTokens: 5,
-        outputTokens: 99,
-        reasoningTokens: 10,
-      },
-      dedupeKey: "s1:p1:grok-4.5-build",
-      reportedCostUsd: 0.25,
-    });
-  });
 
   it("does not count usage-looking text or nested objects inside tool output", async () => {
     const result = await scan(
