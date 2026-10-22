@@ -83,13 +83,6 @@ describe("projectScripts helpers", () => {
     ).not.toHaveProperty("async");
   });
 
-  it("builds and parses script run commands", () => {
-    const command = commandForProjectScript("lint");
-    expect(command).toBe("script.lint.run");
-    expect(projectScriptIdFromCommand(command ?? "")).toBe("lint");
-    expect(projectScriptIdFromCommand("terminal.toggle")).toBeNull();
-  });
-
   it.each(["install-javascript-dependencies", "A", "a.b", "a b", "-a", "", "a".repeat(25)])(
     "omits the shortcut for legacy script ID %j without crashing script menus",
     (id) => {

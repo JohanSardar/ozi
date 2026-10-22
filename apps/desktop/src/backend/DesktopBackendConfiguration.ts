@@ -256,7 +256,7 @@ type WslPreflightRuntime =
       // Absolute path to the node binary the preflight validated after the
       // shared remote resolver repaired PATH. The launch must use this exact
       // path so it doesn't fall through to a different/old node than the one
-      // node-pty was probed with.
+      // Node.js was probed with.
       readonly nodePath: string;
       readonly linuxEntryPath: string;
     };
@@ -287,15 +287,11 @@ const parseWslRuntimeArchiveHash = (value: string): string | null => {
   return SHA256_HEX_PATTERN.test(trimmed) ? trimmed.toLowerCase() : null;
 };
 
-type FailedNodePtyResult = Extract<
-  DesktopWslEnvironment.EnsureWslNodePtyResult,
-  { readonly ok: false }
->;
+type FailedNodeResult = Extract<DesktopWslEnvironment.ResolveWslNodeResult, { readonly ok: false }>;
 
 const runWslPreflight = Effect.fn("desktop.backendConfiguration.wslPreflight")(function* (input: {
   readonly distro: string | null;
   readonly runtimeArchive: DesktopWslEnvironment.WslRuntimeArchive | null;
-  readonly allowBuild: boolean;
 }): Effect.fn.Return<
   WslPreflightSuccess | WslPreflightFailure,
   never,
@@ -348,14 +344,13 @@ const runWslPreflight = Effect.fn("desktop.backendConfiguration.wslPreflight")(f
     } as const;
   }
 
-  const nodePtyOptions = {
-    allowBuild: input.allowBuild,
+  const nodeOptions = {
     nodeEngineRange: serverPackageJson.engines.node,
   };
-  const failedNodePty = (result: FailedNodePtyResult) =>
+  const failedNode = (result: FailedNodeResult) =>
     ({
       _tag: "Failed",
-      reason: `WSL node-pty unavailable: ${result.reason}`,
+      reason: `WSL Node.js unavailable: ${result.reason}`,
       fatal: result.fatal,
       ...(result.retryLimit === undefined ? {} : { retryLimit: result.retryLimit }),
     }) as const;
@@ -397,7 +392,7 @@ const runWslPreflight = Effect.fn("desktop.backendConfiguration.wslPreflight")(f
   if (input.runtimeArchive !== null) {
     const runtime = yield* wslEnv.prepareRuntime(runningDistro, input.runtimeArchive);
     if (runtime.ok) {
-      // The staged runtime supplies its own Node and node-pty. Provider PATH
+      // The staged runtime supplies its own Node and Node.js. Provider PATH
       // discovery must not require either dependency for runtime readiness.
       const stagedProbe = yield* wslEnv.probeRuntime(runningDistro, runtime.linuxAppRoot);
       if (stagedProbe.ok) {
@@ -432,19 +427,13 @@ const runWslPreflight = Effect.fn("desktop.backendConfiguration.wslPreflight")(f
       : ({ _tag: "Failed", reason: mounted.reason, fatal: mounted.fatal } as const);
   }
 
-  const nodePtyResult = yield* wslEnv.ensureNodePty(
-    runningDistro,
-    mounted.linuxAppRoot,
-    nodePtyOptions,
-  );
-  if (!nodePtyResult.ok) {
+  const nodeResult = yield* wslEnv.resolveNode(runningDistro, mounted.linuxAppRoot, nodeOptions);
+  if (!nodeResult.ok) {
     // Substituting the staged verdict for a transient mounted failure would
     // turn a retryable failure into a fatal one, ending the WSL attempt (and,
     // in wsl-only mode, persisting Windows) before the slow /mnt path had a
     // chance to answer and clear the bad cache.
-    return stagedFailure && nodePtyResult.fatal
-      ? failedStaged(stagedFailure)
-      : failedNodePty(nodePtyResult);
+    return stagedFailure && nodeResult.fatal ? failedStaged(stagedFailure) : failedNode(nodeResult);
   }
 
   if (stagedFailure?.runtimeId) {
@@ -457,10 +446,10 @@ const runWslPreflight = Effect.fn("desktop.backendConfiguration.wslPreflight")(f
     windowsEntryPath: mounted.windowsEntryPath,
     runtime: {
       kind: "node-script",
-      nodePath: nodePtyResult.nodePath,
+      nodePath: nodeResult.nodePath,
       linuxEntryPath: `${mounted.linuxAppRoot}/apps/server/dist/bin.mjs`,
     },
-    resolvedPath: nodePtyResult.resolvedPath,
+    resolvedPath: nodeResult.resolvedPath,
   } as const;
 });
 
@@ -637,7 +626,6 @@ const resolveWslStartConfig = Effect.fn("desktop.backendConfiguration.resolveWsl
             runtimeId: `sha256-${archiveHash}`,
             sha256: archiveHash,
           },
-    allowBuild: !environment.isPackaged,
   });
 
   // Every operation after preflight uses the same concrete distro. In

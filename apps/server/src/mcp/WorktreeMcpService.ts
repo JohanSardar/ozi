@@ -6,7 +6,6 @@ import {
   type WorktreeMcpContinuationStatus,
   type WorktreeMcpHandoffInput,
   type WorktreeMcpHandoffResult,
-  type WorktreeMcpSetupScriptStatus,
   type WorktreeMcpStatusResult,
 } from "@t3tools/contracts";
 import * as Cause from "effect/Cause";
@@ -19,7 +18,6 @@ import * as Option from "effect/Option";
 import * as GitWorkflowService from "../git/GitWorkflowService.ts";
 import * as ThreadManagementService from "../orchestration-v2/ThreadManagementService.ts";
 import * as ProjectService from "../project/ProjectService.ts";
-import * as ProjectSetupScriptRunner from "../project/ProjectSetupScriptRunner.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as VcsStatusBroadcaster from "../vcs/VcsStatusBroadcaster.ts";
 import type { McpInvocationScope, McpThreadInvocationScope } from "./McpInvocationContext.ts";
@@ -60,7 +58,6 @@ const make = Effect.gen(function* () {
   const projects = yield* ProjectService.ProjectService;
   const serverSettings = yield* ServerSettings.ServerSettingsService;
   const gitWorkflow = yield* GitWorkflowService.GitWorkflowService;
-  const setupScriptRunner = yield* ProjectSetupScriptRunner.ProjectSetupScriptRunner;
   const vcsStatusBroadcaster = yield* VcsStatusBroadcaster.VcsStatusBroadcaster;
 
   // Serializes handoffs per thread: two concurrent calls could otherwise both
@@ -352,40 +349,11 @@ const make = Effect.gen(function* () {
           .refreshStatus(worktreePath)
           .pipe(Effect.ignoreCause({ log: true }), Effect.forkDetach);
 
-        let setupScript: WorktreeMcpSetupScriptStatus = { status: "skipped" };
-        if (input.runSetupScript ?? true) {
-          setupScript = yield* setupScriptRunner
-            .runForThread({
-              threadId: scope.thread.threadId,
-              projectId: projection.thread.projectId,
-              projectCwd,
-              worktreePath,
-              project: {
-                id: project.id,
-                workspaceRoot: project.workspaceRoot,
-                scripts: project.scripts,
-              },
-            })
-            .pipe(
-              Effect.map((result): WorktreeMcpSetupScriptStatus =>
-                result.status === "started"
-                  ? {
-                      status: "started",
-                      scriptName: result.scriptName,
-                      terminalId: result.terminalId,
-                    }
-                  : { status: "no-script" },
-              ),
-              reportFailed("worktree handoff setup script failed"),
-            );
-        }
-
         const result: WorktreeMcpHandoffResult = {
           worktreePath,
           branch: worktree.worktree.refName,
           baseRef,
           startedFromOrigin,
-          setupScript,
           continuation,
           note:
             continuation.status === "scheduled"
@@ -458,6 +426,5 @@ export const layer: Layer.Layer<
   | ProjectService.ProjectService
   | ServerSettings.ServerSettingsService
   | GitWorkflowService.GitWorkflowService
-  | ProjectSetupScriptRunner.ProjectSetupScriptRunner
   | VcsStatusBroadcaster.VcsStatusBroadcaster
 > = Layer.effect(WorktreeMcpService, make);

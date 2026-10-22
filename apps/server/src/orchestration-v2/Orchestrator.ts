@@ -3652,18 +3652,6 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         { concurrency: 1, discard: true },
       );
     }
-
-    if (command.type === "thread.archive") {
-      yield* Ref.update(effects, (existing) => [
-        ...existing,
-        {
-          id: `effect:${command.commandId}:terminal.cleanup`,
-          commandId: command.commandId,
-          threadId: command.threadId,
-          request: { type: "terminal.cleanup" },
-        } satisfies PendingOrchestrationEffectV2,
-      ]);
-    }
   });
 
   const dispatchProviderSessionDetach = Effect.fn("orchestrationV2.dispatch.providerSessionDetach")(

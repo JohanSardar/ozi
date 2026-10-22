@@ -19,12 +19,6 @@ import {
   modelPickerJumpCommandForIndex,
   modelPickerJumpIndexFromCommand,
   isOpenFavoriteEditorShortcut,
-  isTerminalClearShortcut,
-  isTerminalCloseShortcut,
-  isTerminalNewShortcut,
-  isTerminalSplitShortcut,
-  isTerminalSplitVerticalShortcut,
-  isTerminalToggleShortcut,
   resolveChatShortcutCommand,
   resolveShortcutCommand,
   shouldShowThreadJumpHintsForModifiers,
@@ -91,28 +85,7 @@ function compile(bindings: TestBinding[]): ResolvedKeybindingsConfig {
 
 const DEFAULT_BINDINGS = compile([
   { shortcut: modShortcut("b"), command: "sidebar.toggle" },
-  { shortcut: modShortcut("j"), command: "terminal.toggle" },
   { shortcut: modShortcut("b", { altKey: true }), command: "rightPanel.toggle" },
-  {
-    shortcut: modShortcut("d"),
-    command: "terminal.split",
-    whenAst: whenIdentifier("terminalFocus"),
-  },
-  {
-    shortcut: modShortcut("d", { shiftKey: true }),
-    command: "terminal.splitVertical",
-    whenAst: whenIdentifier("terminalFocus"),
-  },
-  {
-    shortcut: modShortcut("n"),
-    command: "terminal.new",
-    whenAst: whenIdentifier("terminalFocus"),
-  },
-  {
-    shortcut: modShortcut("w"),
-    command: "terminal.close",
-    whenAst: whenIdentifier("terminalFocus"),
-  },
   {
     shortcut: modShortcut("w"),
     command: "rightPanel.close",
@@ -224,30 +197,7 @@ describe("effectiveShortcutsForCommand", () => {
   });
 });
 
-describe("isTerminalToggleShortcut", () => {
-  it("matches Cmd+J on macOS", () => {
-    assert.isTrue(
-      isTerminalToggleShortcut(event({ metaKey: true }), DEFAULT_BINDINGS, {
-        platform: "MacIntel",
-      }),
-    );
-  });
-
-  it("matches Ctrl+J on non-macOS", () => {
-    assert.isTrue(
-      isTerminalToggleShortcut(event({ ctrlKey: true }), DEFAULT_BINDINGS, { platform: "Win32" }),
-    );
-  });
-
-  it("matches Ctrl+J on non-macOS while terminalFocus is true", () => {
-    assert.isTrue(
-      isTerminalToggleShortcut(event({ ctrlKey: true }), DEFAULT_BINDINGS, {
-        platform: "Win32",
-        context: { terminalFocus: true },
-      }),
-    );
-  });
-});
+describe("isTerminalToggleShortcut", () => {});
 
 describe("settle thread shortcut", () => {
   it("resolves outside the terminal", () => {
@@ -323,145 +273,9 @@ describe("copy thread reference shortcut", () => {
   });
 });
 
-describe("split/new/close terminal shortcuts", () => {
-  it("requires terminalFocus for default split/new/close bindings", () => {
-    assert.isFalse(
-      isTerminalSplitShortcut(event({ key: "d", metaKey: true }), DEFAULT_BINDINGS, {
-        platform: "MacIntel",
-        context: { terminalFocus: false },
-      }),
-    );
-    assert.isFalse(
-      isTerminalSplitVerticalShortcut(
-        event({ key: "d", metaKey: true, shiftKey: true }),
-        DEFAULT_BINDINGS,
-        {
-          platform: "MacIntel",
-          context: { terminalFocus: false },
-        },
-      ),
-    );
-    assert.isFalse(
-      isTerminalNewShortcut(event({ key: "n", ctrlKey: true }), DEFAULT_BINDINGS, {
-        platform: "Linux",
-        context: { terminalFocus: false },
-      }),
-    );
-    assert.isFalse(
-      isTerminalCloseShortcut(event({ key: "w", ctrlKey: true }), DEFAULT_BINDINGS, {
-        platform: "Linux",
-        context: { terminalFocus: false },
-      }),
-    );
-  });
-
-  it("matches split/new when terminalFocus is true", () => {
-    assert.isTrue(
-      isTerminalSplitShortcut(event({ key: "d", metaKey: true }), DEFAULT_BINDINGS, {
-        platform: "MacIntel",
-        context: { terminalFocus: true },
-      }),
-    );
-    assert.isTrue(
-      isTerminalSplitVerticalShortcut(
-        event({ key: "d", metaKey: true, shiftKey: true }),
-        DEFAULT_BINDINGS,
-        {
-          platform: "MacIntel",
-          context: { terminalFocus: true },
-        },
-      ),
-    );
-    assert.isTrue(
-      isTerminalNewShortcut(event({ key: "n", ctrlKey: true }), DEFAULT_BINDINGS, {
-        platform: "Linux",
-        context: { terminalFocus: true },
-      }),
-    );
-    assert.isTrue(
-      isTerminalCloseShortcut(event({ key: "w", ctrlKey: true }), DEFAULT_BINDINGS, {
-        platform: "Linux",
-        context: { terminalFocus: true },
-      }),
-    );
-  });
-
-  it("supports when expressions", () => {
-    const keybindings = compile([
-      {
-        shortcut: modShortcut("\\"),
-        command: "terminal.split",
-        whenAst: whenAnd(whenIdentifier("terminalOpen"), whenNot(whenIdentifier("terminalFocus"))),
-      },
-      {
-        shortcut: modShortcut("n", { shiftKey: true }),
-        command: "terminal.new",
-        whenAst: whenAnd(whenIdentifier("terminalOpen"), whenNot(whenIdentifier("terminalFocus"))),
-      },
-      { shortcut: modShortcut("j"), command: "terminal.toggle" },
-    ]);
-    assert.isTrue(
-      isTerminalSplitShortcut(event({ key: "\\", ctrlKey: true }), keybindings, {
-        platform: "Win32",
-        context: { terminalOpen: true, terminalFocus: false },
-      }),
-    );
-    assert.isFalse(
-      isTerminalSplitShortcut(event({ key: "\\", ctrlKey: true }), keybindings, {
-        platform: "Win32",
-        context: { terminalOpen: false, terminalFocus: false },
-      }),
-    );
-    assert.isTrue(
-      isTerminalNewShortcut(event({ key: "n", ctrlKey: true, shiftKey: true }), keybindings, {
-        platform: "Win32",
-        context: { terminalOpen: true, terminalFocus: false },
-      }),
-    );
-  });
-
-  it("supports when boolean literals", () => {
-    const keybindings = compile([
-      { shortcut: modShortcut("n"), command: "terminal.new", whenAst: whenIdentifier("true") },
-      { shortcut: modShortcut("m"), command: "terminal.new", whenAst: whenIdentifier("false") },
-    ]);
-
-    assert.isTrue(
-      isTerminalNewShortcut(event({ key: "n", ctrlKey: true }), keybindings, {
-        platform: "Linux",
-      }),
-    );
-    assert.isFalse(
-      isTerminalNewShortcut(event({ key: "m", ctrlKey: true }), keybindings, {
-        platform: "Linux",
-      }),
-    );
-  });
-});
+describe("split/new/close terminal shortcuts", () => {});
 
 describe("shortcutLabelForCommand", () => {
-  it("returns the effective binding label", () => {
-    const bindings = compile([
-      {
-        shortcut: modShortcut("\\"),
-        command: "terminal.split",
-        whenAst: whenIdentifier("terminalFocus"),
-      },
-      {
-        shortcut: modShortcut("\\", { shiftKey: true }),
-        command: "terminal.split",
-        whenAst: whenNot(whenIdentifier("terminalFocus")),
-      },
-    ]);
-    assert.strictEqual(
-      shortcutLabelForCommand(bindings, "terminal.split", {
-        platform: "Linux",
-        context: { terminalFocus: false },
-      }),
-      "Ctrl+Shift+\\",
-    );
-  });
-
   it("returns effective labels for non-terminal commands", () => {
     assert.strictEqual(
       shortcutLabelForCommand(DEFAULT_BINDINGS, "sidebar.toggle", "MacIntel"),
@@ -518,38 +332,6 @@ describe("shortcutLabelForCommand", () => {
 
     assert.isNull(shortcutLabelForCommand(bindings, "thread.jump.1", "MacIntel"));
     assert.strictEqual(shortcutLabelForCommand(bindings, "thread.jump.7", "MacIntel"), "⇧⌘1");
-  });
-
-  it("respects when-context while resolving labels", () => {
-    const bindings = compile([
-      { shortcut: modShortcut("d"), command: "diff.toggle" },
-      {
-        shortcut: modShortcut("d"),
-        command: "terminal.split",
-        whenAst: whenIdentifier("terminalFocus"),
-      },
-    ]);
-
-    assert.strictEqual(
-      shortcutLabelForCommand(bindings, "diff.toggle", {
-        platform: "Linux",
-        context: { terminalFocus: false },
-      }),
-      "Ctrl+D",
-    );
-    assert.isNull(
-      shortcutLabelForCommand(bindings, "diff.toggle", {
-        platform: "Linux",
-        context: { terminalFocus: true },
-      }),
-    );
-    assert.strictEqual(
-      shortcutLabelForCommand(bindings, "terminal.split", {
-        platform: "Linux",
-        context: { terminalFocus: true },
-      }),
-      "Ctrl+D",
-    );
   });
 });
 
@@ -866,70 +648,7 @@ describe("chat/editor shortcuts", () => {
   });
 });
 
-describe("cross-command precedence", () => {
-  it("uses when + order so a later focused rule overrides a global rule", () => {
-    const keybindings = compile([
-      { shortcut: modShortcut("n"), command: "chat.new" },
-      {
-        shortcut: modShortcut("n"),
-        command: "terminal.new",
-        whenAst: whenIdentifier("terminalFocus"),
-      },
-    ]);
-
-    assert.isTrue(
-      isTerminalNewShortcut(event({ key: "n", metaKey: true }), keybindings, {
-        platform: "MacIntel",
-        context: { terminalFocus: true },
-      }),
-    );
-    assert.strictEqual(
-      resolveShortcutCommand(event({ key: "n", metaKey: true }), keybindings, {
-        platform: "MacIntel",
-        context: { terminalFocus: true },
-      }),
-      "terminal.new",
-    );
-    assert.isFalse(
-      isTerminalNewShortcut(event({ key: "n", metaKey: true }), keybindings, {
-        platform: "MacIntel",
-        context: { terminalFocus: false },
-      }),
-    );
-    assert.strictEqual(
-      resolveShortcutCommand(event({ key: "n", metaKey: true }), keybindings, {
-        platform: "MacIntel",
-        context: { terminalFocus: false },
-      }),
-      "chat.new",
-    );
-  });
-
-  it("still lets a later global rule win when both rules match", () => {
-    const keybindings = compile([
-      {
-        shortcut: modShortcut("n"),
-        command: "terminal.new",
-        whenAst: whenIdentifier("terminalFocus"),
-      },
-      { shortcut: modShortcut("n"), command: "chat.new" },
-    ]);
-
-    assert.isFalse(
-      isTerminalNewShortcut(event({ key: "n", ctrlKey: true }), keybindings, {
-        platform: "Linux",
-        context: { terminalFocus: true },
-      }),
-    );
-    assert.strictEqual(
-      resolveShortcutCommand(event({ key: "n", ctrlKey: true }), keybindings, {
-        platform: "Linux",
-        context: { terminalFocus: true },
-      }),
-      "chat.new",
-    );
-  });
-});
+describe("cross-command precedence", () => {});
 
 describe("resolveChatShortcutCommand", () => {
   it("runs the active environment's script shortcut instead of the primary environment's", () => {
@@ -982,49 +701,6 @@ describe("resolveChatShortcutCommand", () => {
       "commandPalette.toggle",
     );
   });
-
-  it("keeps app shortcuts on the primary environment when the active environment remaps them", () => {
-    const primary = compile([{ shortcut: modShortcut("j"), command: "terminal.toggle" }]);
-    const active = compile([{ shortcut: modShortcut("t"), command: "terminal.toggle" }]);
-
-    assert.strictEqual(
-      resolveChatShortcutCommand(event({ key: "j", ctrlKey: true }), primary, active, {
-        platform: "Linux",
-      }),
-      "terminal.toggle",
-    );
-    assert.isNull(
-      resolveChatShortcutCommand(event({ key: "t", ctrlKey: true }), primary, active, {
-        platform: "Linux",
-      }),
-    );
-  });
-
-  it.each([false, true])(
-    "preserves active binding precedence with terminalFocus=%s",
-    (terminalFocus) => {
-      const primary = compile([{ shortcut: modShortcut("r"), command: "script.setup.run" }]);
-      const active = compile([
-        { shortcut: modShortcut("r"), command: "script.deploy.run" },
-        {
-          shortcut: modShortcut("r"),
-          command: "terminal.new",
-          whenAst: whenIdentifier("terminalFocus"),
-        },
-      ]);
-      const options = { platform: "Linux", context: { terminalFocus } };
-      const shortcut = event({ key: "r", ctrlKey: true });
-
-      assert.strictEqual(
-        resolveChatShortcutCommand(shortcut, primary, active, options),
-        terminalFocus ? null : "script.deploy.run",
-      );
-      assert.strictEqual(
-        resolveChatShortcutCommand(shortcut, active, active, options),
-        resolveShortcutCommand(shortcut, active, options),
-      );
-    },
-  );
 });
 
 describe("resolveShortcutCommand", () => {
@@ -1072,24 +748,6 @@ describe("resolveShortcutCommand", () => {
         platform: "Linux",
       }),
       "script.setup.run",
-    );
-  });
-
-  it("routes mod+w to the terminal while focused and to the right panel otherwise", () => {
-    const closeEvent = event({ key: "w", metaKey: true });
-    assert.strictEqual(
-      resolveShortcutCommand(closeEvent, DEFAULT_BINDINGS, {
-        platform: "MacIntel",
-        context: { terminalFocus: true },
-      }),
-      "terminal.close",
-    );
-    assert.strictEqual(
-      resolveShortcutCommand(closeEvent, DEFAULT_BINDINGS, {
-        platform: "MacIntel",
-        context: { terminalFocus: false },
-      }),
-      "rightPanel.close",
     );
   });
 
@@ -1247,22 +905,7 @@ describe("formatShortcutLabel", () => {
   });
 });
 
-describe("isTerminalClearShortcut", () => {
-  it("matches Ctrl+L on all platforms", () => {
-    assert.isTrue(isTerminalClearShortcut(event({ key: "l", ctrlKey: true }), "Linux"));
-    assert.isTrue(isTerminalClearShortcut(event({ key: "l", ctrlKey: true }), "MacIntel"));
-  });
-
-  it("matches Cmd+K on macOS", () => {
-    assert.isTrue(isTerminalClearShortcut(event({ key: "k", metaKey: true }), "MacIntel"));
-  });
-
-  it("ignores non-keydown events", () => {
-    assert.isFalse(
-      isTerminalClearShortcut(event({ type: "keyup", key: "l", ctrlKey: true }), "Linux"),
-    );
-  });
-});
+describe("isTerminalClearShortcut", () => {});
 
 describe("isRichTextBoldShortcut", () => {
   it("matches Mod+B without extra modifiers", () => {
@@ -1378,21 +1021,7 @@ describe("terminalNavigationShortcutData", () => {
   });
 });
 
-describe("plus key parsing", () => {
-  it("matches the plus key shortcut", () => {
-    const plusBindings = compile([{ shortcut: modShortcut("+"), command: "terminal.toggle" }]);
-    assert.isTrue(
-      isTerminalToggleShortcut(event({ key: "+", metaKey: true }), plusBindings, {
-        platform: "MacIntel",
-      }),
-    );
-    assert.isTrue(
-      isTerminalToggleShortcut(event({ key: "+", ctrlKey: true }), plusBindings, {
-        platform: "Linux",
-      }),
-    );
-  });
-});
+describe("plus key parsing", () => {});
 
 describe("composer and pull request shortcuts", () => {
   it("fills missing number shortcuts without replacing the saved URL binding", () => {

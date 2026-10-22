@@ -34,12 +34,6 @@ export const DEFAULT_THREAD_TERMINAL_ID = "term-1";
 export const MAX_TERMINALS_PER_GROUP = 4;
 export type ProjectScript = ContractProjectScript;
 
-export interface ThreadTerminalGroup {
-  id: string;
-  terminalIds: string[];
-  splitDirection?: "horizontal" | "vertical";
-}
-
 export interface ChatImageAttachment extends ContractChatImageAttachment {
   readonly previewUrl?: string;
 }

@@ -69,20 +69,6 @@
       ]
     },
     {
-      "bundles": ["assets", "web"],
-      "license": "MIT",
-      "name": "libghostty-vt",
-      "noticeFile": "native/libghostty-vt/LICENSE",
-      "sourceUrl": "https://github.com/ghostty-org/ghostty"
-    },
-    {
-      "bundles": ["assets", "web"],
-      "license": "MIT",
-      "name": "Symbols Nerd Font Mono",
-      "noticeFile": "apps/web/src/terminal/ghostty/fonts/LICENSE",
-      "sourceUrl": "https://github.com/ryanoasis/nerd-fonts"
-    },
-    {
       "bundles": ["assets"],
       "license": "Apache-2.0",
       "name": "MesloLGS NF",

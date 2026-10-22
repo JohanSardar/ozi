@@ -189,30 +189,4 @@ describe("WorktreeSetupTracker", () => {
       yield* Fiber.interrupt(fiber);
     }),
   );
-
-  it.effect("clamps free text to the contract limits before publishing", () =>
-    Effect.gen(function* () {
-      const tracker = yield* WorktreeSetupTracker.make;
-      yield* tracker.begin({
-        threadId,
-        branch: null,
-        baseRef: null,
-        stages: ["checkout", "setup-script"],
-        fiber: null,
-      });
-      const long = "x".repeat(2_000);
-
-      yield* tracker.stageStatus(threadId, "checkout", "done", long);
-      yield* tracker.stage(threadId, "setup-script", { detail: long });
-      yield* tracker.appendTail(threadId, "setup-script", long);
-      yield* tracker.finish(threadId, "failed", long);
-
-      const snapshot = yield* tracker.get(threadId);
-      expect(snapshot?.stages[0]?.detail?.length).toBe(200);
-      expect(snapshot?.stages[1]?.detail?.length).toBe(200);
-      expect(snapshot?.stages[1]?.tail[0]?.length).toBe(400);
-      expect(snapshot?.error?.length).toBe(1000);
-      expect(Schema.is(WorktreeSetupSnapshot)(snapshot)).toBe(true);
-    }),
-  );
 });

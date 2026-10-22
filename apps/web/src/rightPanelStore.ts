@@ -17,7 +17,6 @@ const RIGHT_PANEL_KINDS = [
   "files",
   "file",
   "preview",
-  "terminal",
   "pull-request",
   "pull-requests",
 ] as const;
@@ -28,14 +27,6 @@ export type PullRequestDetailTab = "summary" | "guide" | "timeline" | "code";
 export type RightPanelSurface =
   | { id: `browser:${string}`; kind: "preview"; resourceId: string }
   | { id: "browser:new"; kind: "preview"; resourceId: null }
-  | {
-      id: `terminal:${string}`;
-      kind: "terminal";
-      resourceId: string;
-      terminalIds: string[];
-      activeTerminalId: string;
-      splitDirection?: "horizontal" | "vertical";
-    }
   | { id: "diff"; kind: "diff" }
   | {
       id: "files";
@@ -117,10 +108,7 @@ interface RightPanelStoreState {
     expectedUserActionRevision: number,
     activateExisting?: boolean,
   ) => boolean;
-  open: (
-    ref: ScopedThreadRef,
-    kind: Exclude<RightPanelKind, "file" | "terminal" | "pull-request">,
-  ) => void;
+  open: (ref: ScopedThreadRef, kind: Exclude<RightPanelKind, "file" | "pull-request">) => void;
   openBrowser: (ref: ScopedThreadRef, tabId: string | null) => void;
   openFile: (ref: ScopedThreadRef, relativePath: string, line?: number) => void;
   /**
@@ -154,15 +142,6 @@ interface RightPanelStoreState {
     surfaceId: string,
     detailTab: PullRequestDetailTab,
   ) => void;
-  openTerminal: (ref: ScopedThreadRef, terminalId: string) => void;
-  splitTerminal: (
-    ref: ScopedThreadRef,
-    surfaceId: string,
-    terminalId: string,
-    direction?: "horizontal" | "vertical",
-  ) => void;
-  activateTerminal: (ref: ScopedThreadRef, surfaceId: string, terminalId: string) => void;
-  closeTerminal: (ref: ScopedThreadRef, surfaceId: string, terminalId: string) => void;
   activateSurface: (ref: ScopedThreadRef, surfaceId: string) => void;
   closeSurface: (ref: ScopedThreadRef, surfaceId: string) => void;
   closeOtherSurfaces: (ref: ScopedThreadRef, surfaceId: string) => void;
@@ -179,10 +158,7 @@ interface RightPanelStoreState {
   close: (ref: ScopedThreadRef) => void;
   setMaximized: (ref: ScopedThreadRef, maximized: boolean) => void;
   toggleVisibility: (ref: ScopedThreadRef) => void;
-  toggle: (
-    ref: ScopedThreadRef,
-    kind: Exclude<RightPanelKind, "file" | "terminal" | "pull-request">,
-  ) => void;
+  toggle: (ref: ScopedThreadRef, kind: Exclude<RightPanelKind, "file" | "pull-request">) => void;
   setThreadPanelOpen: (
     ref: ScopedThreadRef,
     presentation: ThreadPanelPresentation,
@@ -204,7 +180,7 @@ const DEFAULT_THREAD_PANEL_VISIBILITY: ThreadPanelVisibility = {
 };
 
 const singletonSurface = (
-  kind: Exclude<RightPanelKind, "file" | "preview" | "terminal" | "pull-request">,
+  kind: Exclude<RightPanelKind, "file" | "preview" | "pull-request">,
 ): RightPanelSurface => {
   switch (kind) {
     case "diff":
@@ -240,14 +216,6 @@ const attachmentSurface = (attachment: ChatFileAttachment): RightPanelSurface =>
   revealLine: null,
   revealRequestId: 0,
   attachment,
-});
-
-const terminalSurface = (terminalId: string): RightPanelSurface => ({
-  id: `terminal:${terminalId}`,
-  kind: "terminal",
-  resourceId: terminalId,
-  terminalIds: [terminalId],
-  activeTerminalId: terminalId,
 });
 
 export type PullRequestSurface = Extract<RightPanelSurface, { kind: "pull-request" }>;
@@ -473,38 +441,7 @@ export function migratePersistedRightPanelState(persistedState: unknown): {
                         }),
                       ];
                     }
-                    if (surface.kind !== "terminal") return [surface];
-                    if (
-                      !("resourceId" in surface) ||
-                      typeof surface.resourceId !== "string" ||
-                      surface.id !== `terminal:${surface.resourceId}`
-                    ) {
-                      return [];
-                    }
-                    const terminalIds =
-                      "terminalIds" in surface && Array.isArray(surface.terminalIds)
-                        ? [
-                            ...new Set(
-                              surface.terminalIds.filter(
-                                (terminalId): terminalId is string =>
-                                  typeof terminalId === "string",
-                              ),
-                            ),
-                          ]
-                        : [surface.resourceId];
-                    const activeTerminalId =
-                      "activeTerminalId" in surface &&
-                      typeof surface.activeTerminalId === "string" &&
-                      terminalIds.includes(surface.activeTerminalId)
-                        ? surface.activeTerminalId
-                        : (terminalIds[0] ?? surface.resourceId);
-                    return [
-                      {
-                        ...surface,
-                        terminalIds: terminalIds.length > 0 ? terminalIds : [surface.resourceId],
-                        activeTerminalId,
-                      },
-                    ];
+                    return [surface];
                   })
                 : [];
               const rawActiveSurfaceId = validThreadState?.activeSurfaceId;
@@ -739,85 +676,6 @@ export const useRightPanelStore = create<RightPanelStoreState>()(
               { ...current, surfaces: withoutStandaloneExplorer },
               attachmentSurface(attachment),
             );
-          }),
-        ),
-      openTerminal: (ref, terminalId) =>
-        set((state) =>
-          userAction(state, scopedThreadKey(ref), (current) =>
-            upsertSurface(current, terminalSurface(terminalId)),
-          ),
-        ),
-      splitTerminal: (ref, surfaceId, terminalId, direction = "horizontal") =>
-        set((state) =>
-          userAction(state, scopedThreadKey(ref), (current) => ({
-            ...current,
-            isOpen: true,
-            activeSurfaceId: surfaceId,
-            surfaces: current.surfaces.map((surface) => {
-              if (surface.id !== surfaceId || surface.kind !== "terminal") return surface;
-              const { splitDirection: _splitDirection, ...baseSurface } = surface;
-              return {
-                ...baseSurface,
-                terminalIds: surface.terminalIds.includes(terminalId)
-                  ? surface.terminalIds
-                  : [...surface.terminalIds, terminalId],
-                activeTerminalId: terminalId,
-                ...(direction === "vertical" ? { splitDirection: "vertical" as const } : {}),
-              };
-            }),
-          })),
-        ),
-      activateTerminal: (ref, surfaceId, terminalId) =>
-        set((state) =>
-          userAction(state, scopedThreadKey(ref), (current) => ({
-            ...current,
-            activeSurfaceId: surfaceId,
-            surfaces: current.surfaces.map((surface) =>
-              surface.id === surfaceId &&
-              surface.kind === "terminal" &&
-              surface.terminalIds.includes(terminalId)
-                ? { ...surface, activeTerminalId: terminalId }
-                : surface,
-            ),
-          })),
-        ),
-      closeTerminal: (ref, surfaceId, terminalId) =>
-        set((state) =>
-          closeAction(state, scopedThreadKey(ref), (current) => {
-            const surface = current.surfaces.find(
-              (entry) => entry.id === surfaceId && entry.kind === "terminal",
-            );
-            if (!surface || surface.kind !== "terminal") return current;
-            const terminalIds = surface.terminalIds.filter((id) => id !== terminalId);
-            if (terminalIds.length === 0) {
-              const index = current.surfaces.findIndex((entry) => entry.id === surfaceId);
-              const surfaces = current.surfaces.filter((entry) => entry.id !== surfaceId);
-              const fallback = surfaces[Math.min(index, surfaces.length - 1)] ?? null;
-              return {
-                ...current,
-                isOpen: surfaces.length > 0 && current.isOpen,
-                surfaces,
-                activeSurfaceId:
-                  current.activeSurfaceId === surfaceId
-                    ? (fallback?.id ?? null)
-                    : current.activeSurfaceId,
-              };
-            }
-            return {
-              ...current,
-              surfaces: current.surfaces.map((entry) =>
-                entry.id === surfaceId && entry.kind === "terminal"
-                  ? {
-                      ...entry,
-                      terminalIds,
-                      activeTerminalId:
-                        entry.activeTerminalId === terminalId
-                          ? (terminalIds.at(-1) ?? terminalIds[0]!)
-                          : entry.activeTerminalId,
-                    }
-                  : entry,
-              ),
-            };
           }),
         ),
       activateSurface: (ref, surfaceId) =>
@@ -1077,11 +935,7 @@ useRightPanelStore.subscribe((next, previous) => {
       ...removed.filter((surface) => surface.id === before.activeSurfaceId),
     ];
     for (const surface of closedInOrder) {
-      if (
-        surface.kind === "terminal" ||
-        (surface.kind === "preview" && surface.resourceId !== null)
-      )
-        continue;
+      if (surface.kind === "preview" && surface.resourceId !== null) continue;
       useClosedViewStore.getState().remember({ kind: "panel-tab", threadRef, surface });
     }
   }

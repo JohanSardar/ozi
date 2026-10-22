@@ -988,10 +988,6 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
   --sidebar-stage-fade: var(--sidebar);
   --code-background: color-mix(in srgb, var(--card) 90%, var(--background));
   --code-foreground: var(--foreground);
-  --terminal-background: var(--background);
-  --terminal-foreground: var(--foreground);
-  --terminal-cursor: rgb(38 56 78);
-  --terminal-selection-background: rgb(37 63 99 / 20%);
 
   @variant dark {
     color-scheme: dark;
@@ -1029,8 +1025,6 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
     --sidebar-row-active: var(--accent);
     --sidebar-row-selected: var(--muted);
     --sidebar-stage-fade: var(--card);
-    --terminal-cursor: rgb(180 203 255);
-    --terminal-selection-background: rgb(180 203 255 / 25%);
   }
 }
 
@@ -1149,10 +1143,6 @@ html[data-theme-id]:not([data-theme-id=""]) {
   --sidebar-stage-fade: var(--app-theme-sidebar);
   --code-background: var(--app-theme-code-background);
   --code-foreground: var(--app-theme-code-foreground);
-  --terminal-background: var(--app-theme-terminal-background);
-  --terminal-foreground: var(--app-theme-terminal-foreground);
-  --terminal-cursor: var(--app-theme-terminal-cursor);
-  --terminal-selection-background: var(--app-theme-terminal-selection-background);
 }
 
 /* Theme-token dependency probes are restored synchronously, before paint. Keep

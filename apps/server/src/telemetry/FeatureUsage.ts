@@ -58,7 +58,6 @@ const METHOD_FEATURES: Readonly<Record<string, (payload: Payload) => FeatureUsag
         : undefined,
     );
   },
-  [WS_METHODS.terminalOpen]: () => ({ feature: "terminal.open" }),
   [WS_METHODS.previewOpen]: () => ({ feature: "preview.open" }),
   [WS_METHODS.shellOpenInEditor]: (payload) => use("editor.open", literal(payload, "editor")),
   [WS_METHODS.vcsCreateWorktree]: () => ({ feature: "worktree.create" }),

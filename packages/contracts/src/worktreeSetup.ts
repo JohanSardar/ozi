@@ -7,13 +7,7 @@ export const WORKTREE_SETUP_DETAIL_MAX_LENGTH = 200;
 export const WORKTREE_SETUP_TAIL_LINE_MAX_LENGTH = 400;
 export const WORKTREE_SETUP_ERROR_MAX_LENGTH = 1000;
 
-export const WorktreeSetupStageId = Schema.Literals([
-  "fetch",
-  "checkout",
-  "submodules",
-  "setup-script",
-  "agent",
-]);
+export const WorktreeSetupStageId = Schema.Literals(["fetch", "checkout", "submodules", "agent"]);
 export type WorktreeSetupStageId = typeof WorktreeSetupStageId.Type;
 
 export const WorktreeSetupStageStatus = Schema.Literals([
@@ -48,13 +42,6 @@ export const WorktreeSetupSnapshot = Schema.Struct({
   branch: Schema.NullOr(TrimmedNonEmptyString),
   baseRef: Schema.NullOr(TrimmedNonEmptyString),
   worktreePath: Schema.NullOr(TrimmedNonEmptyString),
-  setupScript: Schema.NullOr(
-    Schema.Struct({
-      name: TrimmedNonEmptyString,
-      command: TrimmedNonEmptyString,
-      terminalId: TrimmedNonEmptyString,
-    }),
-  ),
   stages: Schema.Array(WorktreeSetupStage),
   error: Schema.NullOr(Schema.String.check(Schema.isMaxLength(WORKTREE_SETUP_ERROR_MAX_LENGTH))),
   sequence: NonNegativeInt,
@@ -85,7 +72,6 @@ export const WORKTREE_SETUP_STAGE_ORDER: ReadonlyArray<WorktreeSetupStageId> = [
   "fetch",
   "checkout",
   "submodules",
-  "setup-script",
   "agent",
 ];
 
@@ -97,8 +83,6 @@ export function worktreeSetupStageLabel(id: WorktreeSetupStageId): string {
       return "Check out files";
     case "submodules":
       return "Init submodules";
-    case "setup-script":
-      return "Run setup script";
     case "agent":
       return "Start agent";
   }

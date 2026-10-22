@@ -14,7 +14,6 @@ allowBuilds:
   esbuild: true
   msgpackr-extract: true
   msw: false
-  node-pty: true
   objc-js: false
   sharp: true
   tsc-rs: true
@@ -184,7 +183,6 @@ patchedDependencies:
   "@ff-labs/fff-node@0.11.0": patches/@ff-labs__fff-node@0.11.0.patch
   "@pierre/diffs@1.5.2": patches/@pierre%2Fdiffs@1.5.2.patch
   dbus-next@0.10.2: patches/dbus-next@0.10.2.patch
-  node-pty@1.2.0-beta.15: patches/node-pty@1.2.0-beta.15.patch
   app-builder-lib@26.16.1: patches/app-builder-lib@26.16.1.patch
 peerDependencyRules:
   allowAny:

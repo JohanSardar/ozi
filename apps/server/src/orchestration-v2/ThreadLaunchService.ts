@@ -1,6 +1,5 @@
 import * as WorktreeSetupTracker from "../project/WorktreeSetupTracker.ts";
 import * as ProjectCloneTracker from "../project/ProjectCloneTracker.ts";
-import * as TerminalManager from "../terminal/Manager.ts";
 import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
 import {
   CommandId,
@@ -39,7 +38,6 @@ import {
 
 import * as GitWorkflow from "../git/GitWorkflowService.ts";
 import * as ProjectService from "../project/ProjectService.ts";
-import * as ProjectSetupScriptRunner from "../project/ProjectSetupScriptRunner.ts";
 import * as ManagedProjectFolders from "../project/ManagedProjectFolders.ts";
 import * as ProviderRegistry from "../provider/ProviderRegistry.ts";
 import * as ServerSettings from "../serverSettings.ts";
@@ -125,7 +123,6 @@ export class ThreadLaunchError extends Schema.TaggedError<ThreadLaunchError>()(
       "read-receipt",
       "generate-metadata",
       "provision-worktree",
-      "run-setup-script",
       "create-thread",
       "update-thread",
       "dispatch-message",
@@ -199,9 +196,7 @@ const make = Effect.gen(function* () {
   const projects = yield* ProjectService.ProjectService;
   const setupTracker = yield* WorktreeSetupTracker.WorktreeSetupTracker;
   const cloneTracker = yield* ProjectCloneTracker.ProjectCloneTracker;
-  const terminals = yield* TerminalManager.TerminalManager;
   const git = yield* GitWorkflow.GitWorkflowService;
-  const setupScripts = yield* ProjectSetupScriptRunner.ProjectSetupScriptRunner;
   const providerRegistry = yield* ProviderRegistry.ProviderRegistry;
   const serverSettings = yield* ServerSettings.ServerSettingsService;
   const textGeneration = yield* TextGeneration.TextGeneration;
@@ -305,7 +300,6 @@ const make = Effect.gen(function* () {
     const reused = input.reusedWorktree;
     const tracked = input.workspaceStrategy.type === "worktree" || reused !== undefined;
     let createdWorktreePath: string | null = null;
-    let setupTerminalId: string | null = null;
     let workspaceRecorded = false;
     let runReleased = false;
     // The background branch rename records the worktree again when it lands,
@@ -316,7 +310,7 @@ const make = Effect.gen(function* () {
         threadId,
         branch: input.workspaceStrategy.branch ?? null,
         baseRef: input.workspaceStrategy.baseRef,
-        stages: ["fetch", "checkout", "setup-script", "agent"],
+        stages: ["fetch", "checkout", "agent"],
         fiber: yield* Effect.fiber,
       });
     } else if (reused !== undefined) {
@@ -324,7 +318,7 @@ const make = Effect.gen(function* () {
         threadId,
         branch: input.workspaceStrategy.branch ?? null,
         baseRef: reused.baseRef,
-        stages: ["setup-script", "agent"],
+        stages: ["agent"],
         fiber: yield* Effect.fiber,
       });
     }
@@ -566,75 +560,6 @@ const make = Effect.gen(function* () {
           })
           .pipe(Effect.mapError(mapError(input, "update-thread", threadId)));
       }
-      yield* setupTracker.stageStatus(threadId, "setup-script", "running");
-      const setup =
-        worktreePath === null
-          ? ({ status: "no-script" } as const)
-          : yield* setupScripts
-              .runForThread({
-                threadId,
-                projectId: input.projectId,
-                projectCwd: project.workspaceRoot,
-                worktreePath,
-                ...(tracked
-                  ? {
-                      observeCompletion: {
-                        onOutputLine: (line: string) =>
-                          setupTracker.appendTail(threadId, "setup-script", line),
-                      },
-                    }
-                  : {}),
-                project: {
-                  id: project.id,
-                  workspaceRoot: project.workspaceRoot,
-                  scripts: project.scripts,
-                },
-              })
-              .pipe(Effect.mapError(mapError(input, "run-setup-script", threadId)));
-
-      let awaitAsyncSetup = Effect.void;
-      if (setup.status === "started") {
-        setupTerminalId = setup.terminalId;
-        yield* setupTracker.update(threadId, (snapshot) => ({
-          ...snapshot,
-          setupScript: {
-            name: setup.scriptName,
-            command: setup.scriptCommand,
-            terminalId: setup.terminalId,
-          },
-        }));
-        if (setup.completion) {
-          const awaitCompletion = Effect.gen(function* () {
-            const completion = yield* setup.completion!;
-            yield* setupTracker.stage(threadId, "setup-script", {
-              status: completion.exitCode === 0 ? "done" : "failed",
-              detail: `exited with ${completion.exitCode ?? "no exit code"}`,
-            });
-            if (completion.exitCode !== 0 && !setup.async)
-              return yield* mapError(
-                input,
-                "run-setup-script",
-                threadId,
-              )(`Setup script exited with ${completion.exitCode ?? "no exit code"}.`);
-          });
-          if (setup.async) {
-            awaitAsyncSetup = awaitCompletion.pipe(
-              Effect.catchCause((cause) =>
-                setupTracker.stage(threadId, "setup-script", {
-                  status: "failed",
-                  detail: failureDetail(Cause.squash(cause)),
-                }),
-              ),
-            );
-          } else {
-            yield* awaitCompletion;
-          }
-        } else {
-          yield* setupTracker.stageStatus(threadId, "setup-script", "done");
-        }
-      } else {
-        yield* setupTracker.stageStatus(threadId, "setup-script", "skipped");
-      }
       yield* setupTracker.markUncancellable(threadId);
       yield* setupTracker.stageStatus(threadId, "agent", "running");
       if (runId !== null) {
@@ -656,7 +581,6 @@ const make = Effect.gen(function* () {
           );
       }
       yield* setupTracker.stageStatus(threadId, "agent", "done");
-      yield* awaitAsyncSetup;
       yield* setupTracker.finish(threadId, "done");
     }).pipe(
       Effect.onError((cause) =>
@@ -667,10 +591,6 @@ const make = Effect.gen(function* () {
             cancelled ? "cancelled" : "failed",
             cancelled ? null : failureDetail(Cause.squash(cause)),
           );
-          if (cancelled && setupTerminalId)
-            yield* terminals
-              .close({ threadId, terminalId: setupTerminalId, deleteHistory: true })
-              .pipe(Effect.ignore);
           if (
             tracked &&
             createdWorktreePath &&

@@ -24,12 +24,6 @@ export const WorktreeMcpHandoffInput = Schema.Struct({
         "Fetch the remote baseRef belongs to and start the worktree branch from its remote-tracking commit instead of the local ref. Defaults to the server's 'new worktrees start from remote' setting.",
     }),
   ),
-  runSetupScript: Schema.optional(
-    Schema.Boolean.annotate({
-      description:
-        "Run the project's configured setup script in the new worktree after handoff. Defaults to true.",
-    }),
-  ),
   continuationPrompt: Schema.optional(
     TrimmedNonEmptyString.check(Schema.isMaxLength(120_000)).annotate({
       description:
@@ -38,25 +32,6 @@ export const WorktreeMcpHandoffInput = Schema.Struct({
   ),
 });
 export type WorktreeMcpHandoffInput = typeof WorktreeMcpHandoffInput.Type;
-
-export const WorktreeMcpSetupScriptStatus = Schema.Union([
-  Schema.Struct({
-    status: Schema.Literal("started"),
-    scriptName: TrimmedNonEmptyString,
-    terminalId: TrimmedNonEmptyString,
-  }),
-  Schema.Struct({
-    status: Schema.Literal("no-script"),
-  }),
-  Schema.Struct({
-    status: Schema.Literal("skipped"),
-  }),
-  Schema.Struct({
-    status: Schema.Literal("failed"),
-    detail: Schema.String,
-  }),
-]);
-export type WorktreeMcpSetupScriptStatus = typeof WorktreeMcpSetupScriptStatus.Type;
 
 export const WorktreeMcpContinuationStatus = Schema.Union([
   Schema.Struct({
@@ -78,7 +53,6 @@ export const WorktreeMcpHandoffResult = Schema.Struct({
   branch: TrimmedNonEmptyString,
   baseRef: TrimmedNonEmptyString,
   startedFromOrigin: Schema.Boolean,
-  setupScript: WorktreeMcpSetupScriptStatus,
   continuation: WorktreeMcpContinuationStatus,
   note: Schema.String,
 });

@@ -38,10 +38,8 @@ describe("environment themes", () => {
     const generated = environmentThemeDefinition(NIGHTFALL_THEME);
     const overridden = environmentThemeDefinition({
       ...NIGHTFALL_THEME,
-      colors: { terminalSelection: "#292e42", error: "#f7768e" },
+      colors: { error: "#f7768e" },
     });
-
-    expect(overridden.colors.terminalSelection).not.toBe(generated.colors.terminalSelection);
     expect(overridden.colors.error).not.toBe(generated.colors.error);
     expect(overridden.colors.sidebar).toBe(generated.colors.sidebar);
   });

@@ -77,11 +77,9 @@ type TypographySettings = Pick<
   | "fontFamilySans"
   | "fontFamilyComposer"
   | "fontFamilyCode"
-  | "fontFamilyTerminal"
   | "fontSizeInterface"
   | "fontSizePrompt"
   | "fontSizeCode"
-  | "fontSizeTerminal"
 >;
 
 export function getChangedTypographySettingLabels(settings: TypographySettings): string[] {
@@ -97,10 +95,6 @@ export function getChangedTypographySettingLabels(settings: TypographySettings):
     ...(settings.fontFamilyCode !== DEFAULT_UNIFIED_SETTINGS.fontFamilyCode ||
     settings.fontSizeCode !== DEFAULT_UNIFIED_SETTINGS.fontSizeCode
       ? ["Code font"]
-      : []),
-    ...(settings.fontFamilyTerminal !== DEFAULT_UNIFIED_SETTINGS.fontFamilyTerminal ||
-    settings.fontSizeTerminal !== DEFAULT_UNIFIED_SETTINGS.fontSizeTerminal
-      ? ["Terminal font"]
       : []),
   ];
 }

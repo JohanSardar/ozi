@@ -20,24 +20,6 @@ export const DEFAULT_CODE_FONT_STACK =
 
 export const TYPOGRAPHY_ADVANCED_STORAGE_KEY = "t3code:typography-advanced";
 
-export function resolveTerminalFontPreference(input: {
-  readonly advanced: boolean;
-  readonly code: string;
-  readonly terminal: string;
-}): string {
-  if (input.advanced) return input.terminal;
-  return input.code;
-}
-
-export function resolveTerminalFontSizePreference(input: {
-  readonly advanced: boolean;
-  readonly code: number;
-  readonly terminal: number;
-}): number {
-  if (input.advanced) return input.terminal;
-  return input.code;
-}
-
 function quoteFontFamilyName(name: string): string {
   const bare = name.trim();
   if (bare.length === 0) return "";
