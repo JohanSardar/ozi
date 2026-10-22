@@ -1,3 +1,13 @@
+import type { EnvironmentConnectionPhase } from "../connection/presentation.ts";
+export interface EnvironmentConnectionSummary {
+  readonly environmentId: EnvironmentId;
+  readonly environmentLabel: string;
+  readonly displayUrl: string;
+  readonly isEnabled: boolean;
+  readonly connectionState: EnvironmentConnectionPhase;
+  readonly connectionError: string | null;
+  readonly connectionErrorTraceId: string | null;
+}
 import {
   resolveEnvironmentMachineKind,
   type EnvironmentMachineKind,
@@ -12,13 +22,11 @@ import { AVAILABLE_CONNECTION_STATE, type SupervisorConnectionState } from "../c
 import {
   connectionCatalogDisplayUrl,
   presentEnvironmentConnection,
-  type EnvironmentConnectionPhase,
   type EnvironmentConnectionPresentation,
   type EnvironmentPresentation,
   type EnvironmentServerConfig,
 } from "../connection/presentation.ts";
 import { type EnvironmentCatalogState, enabledEnvironmentIds } from "./connections.ts";
-import { hasRelayRoute } from "../connection/routes.ts";
 
 function mapsEqual<K, V>(left: ReadonlyMap<K, V>, right: ReadonlyMap<K, V>): boolean {
   if (left.size !== right.size) {
@@ -183,17 +191,6 @@ export function createEnvironmentPresentationAtoms<E>(input: {
   };
 }
 
-export interface EnvironmentConnectionSummary {
-  readonly environmentId: EnvironmentId;
-  readonly environmentLabel: string;
-  readonly displayUrl: string;
-  readonly isRelayManaged: boolean;
-  readonly isEnabled: boolean;
-  readonly connectionState: EnvironmentConnectionPhase;
-  readonly connectionError: string | null;
-  readonly connectionErrorTraceId: string | null;
-}
-
 export function projectEnvironmentConnectionSummary(
   environmentId: EnvironmentId,
   environment: EnvironmentPresentation,
@@ -202,7 +199,6 @@ export function projectEnvironmentConnectionSummary(
     environmentId,
     environmentLabel: environment.entry.target.label,
     displayUrl: connectionCatalogDisplayUrl(environment.entry) ?? "",
-    isRelayManaged: hasRelayRoute(environment.entry),
     isEnabled: environment.entry.enabled,
     connectionState: environment.connection.phase,
     connectionError: environment.connection.error,
@@ -254,7 +250,6 @@ export function createEnvironmentSummaryAtoms(input: {
         previous.environmentId === next.environmentId &&
         previous.environmentLabel === next.environmentLabel &&
         previous.displayUrl === next.displayUrl &&
-        previous.isRelayManaged === next.isRelayManaged &&
         previous.isEnabled === next.isEnabled &&
         previous.connectionState === next.connectionState &&
         previous.connectionError === next.connectionError &&

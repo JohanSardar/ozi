@@ -5,7 +5,6 @@ import * as Schema from "effect/Schema";
 import {
   BearerConnectionTarget,
   PrimaryConnectionTarget,
-  RelayConnectionTarget,
   SshConnectionTarget,
   type ConnectionTarget,
 } from "./model.ts";
@@ -23,7 +22,6 @@ export class BearerConnectionProfile extends Schema.TaggedClass<BearerConnection
     httpBaseUrl: Schema.String,
     wsBaseUrl: Schema.String,
     learned: Schema.optionalKey(Schema.Literal(true)),
-    authorization: Schema.optionalKey(Schema.Literal("t3-connect")),
     /**
      * "tailscale" on a learned route the server found on its Tailscale
      * interface. A bare 100.64.0.0/10 address could belong to any VPN.
@@ -74,13 +72,6 @@ export class PrimaryConnectionRegistration extends Schema.TaggedClass<PrimaryCon
   },
 ) {}
 
-export class RelayConnectionRegistration extends Schema.TaggedClass<RelayConnectionRegistration>()(
-  "RelayConnectionRegistration",
-  {
-    target: RelayConnectionTarget,
-  },
-) {}
-
 export class BearerConnectionRegistration extends Schema.TaggedClass<BearerConnectionRegistration>()(
   "BearerConnectionRegistration",
   {
@@ -101,7 +92,6 @@ export class SshConnectionRegistration extends Schema.TaggedClass<SshConnectionR
 ) {}
 
 export const ConnectionRegistration = Schema.Union([
-  RelayConnectionRegistration,
   BearerConnectionRegistration,
   SshConnectionRegistration,
 ]);
@@ -122,20 +112,7 @@ export type PlatformConnectionRegistration = typeof PlatformConnectionRegistrati
 export function connectionRegistrationCatalogEntry(
   registration: ConnectionRegistration | PrimaryConnectionRegistration,
 ): ConnectionCatalogEntry {
-  switch (registration._tag) {
-    case "PrimaryConnectionRegistration":
-    case "RelayConnectionRegistration":
-      return {
-        target: registration.target,
-        profile: Option.none(),
-        enabled: true,
-      };
-    case "BearerConnectionRegistration":
-    case "SshConnectionRegistration":
-      return {
-        target: registration.target,
-        profile: Option.some(registration.profile),
-        enabled: true,
-      };
-  }
+  if (registration._tag === "PrimaryConnectionRegistration")
+    return { target: registration.target, profile: Option.none(), enabled: true };
+  return { target: registration.target, profile: Option.some(registration.profile), enabled: true };
 }

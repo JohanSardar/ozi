@@ -6,11 +6,8 @@
  */
 import * as Effect from "effect/Effect";
 import type { HttpClient } from "effect/http";
-
-import * as RemoteEnvironmentAuthorization from "../authorization/service.ts";
 import type { PreparedConnection } from "../connection/model.ts";
 import { environmentEndpointUrl } from "../environment/endpoint.ts";
-import * as ManagedRelay from "../relay/managedRelay.ts";
 import type { RemoteEnvironmentRequestError } from "../rpc/http.ts";
 import { executeAuthenticatedEnvironmentHttpRequest } from "./environmentHttpAuth.ts";
 import type { PreviewStreamAccess } from "../preview/streamAccess.ts";
@@ -30,16 +27,9 @@ export const resolvePreviewStreamAccess = Effect.fn(
   if (input.prepared.httpAuthorization === null) {
     return { httpBase, wsBase, query: {}, credentials: true };
   }
-  const signer = yield* Effect.serviceOption(ManagedRelay.ManagedRelayDpopSigner);
-  const remoteAuthorization = yield* Effect.serviceOption(
-    RemoteEnvironmentAuthorization.RemoteEnvironmentAuthorization,
-  );
   const ticket = yield* executeAuthenticatedEnvironmentHttpRequest({
     prepared: input.prepared,
-    signer,
-    remoteAuthorization,
     group: "auth",
-    method: "POST",
     url: (urls) => urls.webSocketTicket(),
     timeoutMs: TICKET_TIMEOUT_MS,
     request: ({ client, headers }) => client.webSocketTicket({ headers }),

@@ -10,12 +10,7 @@ import {
   AuthOrchestrationReadScope,
   AuthPreviewOperateScope,
   AuthProvidersManageScope,
-  AuthRelayReadScope,
-  AuthRelayWriteScope,
   AuthSettingsWriteScope,
-  AuthSourceControlWriteScope,
-  AuthTerminalOperateScope,
-  AuthTerminalReadScope,
 } from "@t3tools/contracts";
 
 export const AUTH_SCOPE_OPTIONS: ReadonlyArray<{
@@ -59,21 +54,6 @@ export const AUTH_SCOPE_OPTIONS: ReadonlyArray<{
     description: "Read process diagnostics, resource history, and usage totals.",
   },
   {
-    scope: AuthTerminalReadScope,
-    title: "View terminals",
-    description: "Read existing terminal output and status.",
-  },
-  {
-    scope: AuthTerminalOperateScope,
-    title: "Use terminals",
-    description: "Create terminals and send input to running shells.",
-  },
-  {
-    scope: AuthSourceControlWriteScope,
-    title: "Change source control",
-    description: "Commit, push, manage branches and repositories, and change pull requests.",
-  },
-  {
     scope: AuthFilesystemReadScope,
     title: "Read files",
     description: "Browse host files, search workspaces, and inspect local changes.",
@@ -92,15 +72,5 @@ export const AUTH_SCOPE_OPTIONS: ReadonlyArray<{
     scope: AuthAccessWriteScope,
     title: "Manage access",
     description: "Issue and revoke credentials for other clients.",
-  },
-  {
-    scope: AuthRelayReadScope,
-    title: "View relay",
-    description: "Inspect managed relay connectivity.",
-  },
-  {
-    scope: AuthRelayWriteScope,
-    title: "Manage relay",
-    description: "Change managed tunnel connectivity.",
   },
 ];

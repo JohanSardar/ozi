@@ -28,7 +28,6 @@ describe("authorization grants", () => {
     Schema.Literals([
       "orchestration:read",
       "orchestration:operate",
-      "terminal:operate",
       "review:write",
       "access:read",
       "access:write",
@@ -130,7 +129,7 @@ describe("authorization grants", () => {
 });
 
 describe("legacy permission notice", () => {
-  it.each(["orchestration:read", "orchestration:operate", "terminal:operate"] as const)(
+  it.each(["orchestration:read", "orchestration:operate"] as const)(
     "recognizes an old %s grant on an upgraded server",
     (scope) =>
       expect(sessionHasLegacyPermissions({ authenticated: true, permissions: [scope] })).toBe(true),

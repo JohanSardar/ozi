@@ -34,17 +34,10 @@ export const AuthProvidersManageScope = "providers:manage" as const;
 export const AuthEnvironmentMaintainScope = "environment:maintain" as const;
 export const AuthPreviewOperateScope = "preview:operate" as const;
 export const AuthDiagnosticsReadScope = "diagnostics:read" as const;
-export const AuthTerminalReadScope = "terminal:read" as const;
-export const AuthTerminalOperateScope = "terminal:operate" as const;
-export const AuthSourceControlWriteScope = "source-control:write" as const;
 export const AuthFilesystemReadScope = "filesystem:read" as const;
 export const AuthFilesystemWriteScope = "filesystem:write" as const;
-/** Retained for decoding existing credentials; grants no current RPC access. */
-const AuthReviewWriteScope = "review:write" as const;
 export const AuthAccessReadScope = "access:read" as const;
 export const AuthAccessWriteScope = "access:write" as const;
-export const AuthRelayReadScope = "relay:read" as const;
-export const AuthRelayWriteScope = "relay:write" as const;
 export const AuthEnvironmentScope = Schema.Literals([
   AuthOrchestrationReadScope,
   AuthOrchestrationOperateScope,
@@ -53,24 +46,16 @@ export const AuthEnvironmentScope = Schema.Literals([
   AuthEnvironmentMaintainScope,
   AuthPreviewOperateScope,
   AuthDiagnosticsReadScope,
-  AuthTerminalReadScope,
-  AuthTerminalOperateScope,
   AuthFilesystemReadScope,
   AuthFilesystemWriteScope,
-  AuthReviewWriteScope,
-  AuthSourceControlWriteScope,
   AuthAccessReadScope,
   AuthAccessWriteScope,
-  AuthRelayReadScope,
-  AuthRelayWriteScope,
 ]);
 export type AuthEnvironmentScope = typeof AuthEnvironmentScope.Type;
-export const AuthEnvironmentScopes = Schema.Array(AuthEnvironmentScope);
+export const AuthEnvironmentScopes = ForwardCompatibleArray(AuthEnvironmentScope);
 export type AuthEnvironmentScopes = typeof AuthEnvironmentScopes.Type;
 
-export const AuthGrantScope = Schema.Literals(
-  AuthEnvironmentScope.literals.filter((scope) => scope !== AuthReviewWriteScope),
-);
+export const AuthGrantScope = AuthEnvironmentScope;
 export type AuthGrantScope = typeof AuthGrantScope.Type;
 export const AuthGrantScopes = Schema.Array(AuthGrantScope);
 export type AuthGrantScopes = typeof AuthGrantScopes.Type;
@@ -78,12 +63,8 @@ export type AuthGrantScopes = typeof AuthGrantScopes.Type;
 const legacyScopes = new Set<AuthEnvironmentScope>([
   AuthOrchestrationReadScope,
   AuthOrchestrationOperateScope,
-  AuthTerminalOperateScope,
-  AuthReviewWriteScope,
   AuthAccessReadScope,
   AuthAccessWriteScope,
-  AuthRelayReadScope,
-  AuthRelayWriteScope,
 ]);
 
 export function authScopeResponse(scopes: ReadonlyArray<AuthEnvironmentScope>) {
@@ -104,9 +85,7 @@ const legacyParents: Partial<Record<AuthEnvironmentScope, AuthEnvironmentScope>>
   [AuthProvidersManageScope]: AuthOrchestrationOperateScope,
   [AuthEnvironmentMaintainScope]: AuthOrchestrationOperateScope,
   [AuthPreviewOperateScope]: AuthOrchestrationOperateScope,
-  [AuthSourceControlWriteScope]: AuthOrchestrationOperateScope,
   [AuthFilesystemWriteScope]: AuthOrchestrationOperateScope,
-  [AuthTerminalReadScope]: AuthTerminalOperateScope,
 };
 
 /** Keep permission denials decodable by clients with the original scope enum. */
@@ -145,8 +124,6 @@ export function sessionHasLegacyPermissions(session: SessionGrantInput): boolean
     Object.values(legacyParents).some((parent) => permissions.includes(parent))
   );
 }
-
-// Access and relay management are included because terminal:operate and
 // orchestration:operate already reach that authority through a shell or a
 // full-access agent. Narrowing a grant means choosing explicit scopes.
 export const AuthStandardClientScopes = [
@@ -157,15 +134,10 @@ export const AuthStandardClientScopes = [
   AuthEnvironmentMaintainScope,
   AuthPreviewOperateScope,
   AuthDiagnosticsReadScope,
-  AuthTerminalReadScope,
-  AuthTerminalOperateScope,
-  AuthSourceControlWriteScope,
   AuthFilesystemReadScope,
   AuthFilesystemWriteScope,
-  AuthRelayReadScope,
   AuthAccessReadScope,
   AuthAccessWriteScope,
-  AuthRelayWriteScope,
 ] as const;
 
 export const AuthTokenExchangeGrantType =

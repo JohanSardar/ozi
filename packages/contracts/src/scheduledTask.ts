@@ -73,16 +73,6 @@ export const ScheduledTaskWebhookSignature = Schema.Struct(
 ).annotate({ description: "Optional HMAC-SHA256 signature check over the raw request body." });
 export type ScheduledTaskWebhookSignature = typeof ScheduledTaskWebhookSignature.Type;
 
-/** Matches how long the relay holds a request for an offline environment. */
-export const MAX_WEBHOOK_DELIVERY_AGE_MINUTES = 24 * 60;
-
-const WebhookMaxDeliveryAgeMinutes = Schema.Int.check(
-  Schema.isBetween({ minimum: 1, maximum: MAX_WEBHOOK_DELIVERY_AGE_MINUTES }),
-).annotate({
-  description:
-    "Skip requests the relay held longer than this many minutes while the environment was offline. Null runs every request.",
-});
-
 export function isWebhookDedupeTemplate(template: string): boolean {
   const placeholders = /\{\{\s*(?:(?:body|headers|query)(?:\.[^{}.\s]+)*|request)\s*\}\}/g;
   const matches = [...template.matchAll(placeholders)];
@@ -151,7 +141,6 @@ const ScheduledTaskWebhookSchedule = Schema.Struct({
     description: "Run when the task's webhook URL receives a request.",
   }),
   signature: Schema.NullOr(ScheduledTaskWebhookSignature),
-  maxDeliveryAgeMinutes: Schema.optional(Schema.NullOr(WebhookMaxDeliveryAgeMinutes)),
   dedupe: Schema.optional(ScheduledTaskWebhookDedupe),
   filters: Schema.optional(ScheduledTaskWebhookFilters),
 }).annotate({
@@ -179,7 +168,6 @@ const ScheduledTaskUpsertWebhookSchedule = Schema.Struct({
   ).annotate({
     description: "Signature check; omit or null to accept requests by URL token only.",
   }),
-  maxDeliveryAgeMinutes: Schema.optional(Schema.NullOr(WebhookMaxDeliveryAgeMinutes)),
   dedupe: Schema.optional(ScheduledTaskWebhookDedupe),
   filters: Schema.optional(ScheduledTaskWebhookFilters),
 }).annotate({
@@ -321,7 +309,6 @@ export const ScheduledTaskWebhookDeliveryOutcome = Schema.Literals([
   "rejected_signature",
   "disabled",
   "rate_limited",
-  "expired",
   "filtered",
 ]);
 export type ScheduledTaskWebhookDeliveryOutcome = typeof ScheduledTaskWebhookDeliveryOutcome.Type;
