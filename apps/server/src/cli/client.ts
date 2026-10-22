@@ -234,19 +234,31 @@ const send = Effect.fn("ozi.send")(function* (
           ? { type: "queue_after_active" }
           : { type: "start_immediately" },
   });
-  yield* emit(OrchestrationV2DispatchCommandResult, result);
+  return result;
 });
 
 const sayCommand = Command.make("say", {
   ...locationFlags,
   text: Argument.String("text"),
   files: Flag.String("file").pipe(Flag.atLeast(0)),
-}).pipe(Command.withHandler((flags) => send(flags)));
+}).pipe(
+  Command.withHandler((flags) =>
+    send(flags).pipe(
+      Effect.flatMap((result) => emit(OrchestrationV2DispatchCommandResult, result)),
+    ),
+  ),
+);
 const steerCommand = Command.make("steer", {
   ...locationFlags,
   text: Argument.String("text"),
   thread: threadFlag,
-}).pipe(Command.withHandler((flags) => send(flags, true)));
+}).pipe(
+  Command.withHandler((flags) =>
+    send(flags, true).pipe(
+      Effect.flatMap((result) => emit(OrchestrationV2DispatchCommandResult, result)),
+    ),
+  ),
+);
 const stopCommand = Command.make("stop", { ...locationFlags, thread: threadFlag }).pipe(
   Command.withHandler((flags) =>
     Effect.gen(function* () {
@@ -266,16 +278,31 @@ const threadCommand = Command.make("thread", {
   id: Argument.String("id").pipe(Argument.withSchema(ThreadId)),
   provider: Flag.String("provider").pipe(Flag.withSchema(ProviderInstanceId), Flag.optional),
   model: Flag.String("model").pipe(Flag.optional),
+  fork: Flag.Boolean("fork").pipe(Flag.withDefault(false)),
+  message: Flag.String("message").pipe(Flag.optional),
 }).pipe(
   Command.withHandler((flags) =>
     Effect.gen(function* () {
       const { client } = yield* connect(flags.baseDir);
+      let threadId = flags.id;
+      if (flags.fork) {
+        threadId = ThreadId.make(yield* (yield* Crypto.Crypto).randomUUIDv4());
+        yield* client[O.dispatchCommand]({
+          type: "thread.fork",
+          commandId: CommandId.make(yield* (yield* Crypto.Crypto).randomUUIDv4()),
+          sourceThreadId: flags.id,
+          targetThreadId: threadId,
+          sourcePoint: { type: "latest_stable" },
+          createdBy: "user",
+          creationSource: "cli",
+        });
+      }
       if (Option.isSome(flags.provider) || Option.isSome(flags.model)) {
-        const current = yield* client[O.getThreadProjection]({ threadId: flags.id });
+        const current = yield* client[O.getThreadProjection]({ threadId });
         yield* client[O.dispatchCommand]({
           type: "thread.model-selection.set",
           commandId: CommandId.make(yield* (yield* Crypto.Crypto).randomUUIDv4()),
-          threadId: flags.id,
+          threadId,
           modelSelection: {
             instanceId: Option.getOrElse(
               flags.provider,
@@ -286,9 +313,15 @@ const threadCommand = Command.make("thread", {
           },
         });
       }
+      if (Option.isSome(flags.message))
+        yield* send({
+          baseDir: flags.baseDir,
+          thread: Option.some(threadId),
+          text: flags.message.value,
+        });
       yield* emit(
         OrchestrationV2ThreadProjection,
-        yield* client[O.getThreadProjection]({ threadId: flags.id }),
+        yield* client[O.getThreadProjection]({ threadId }),
       );
     }),
   ),
@@ -424,11 +457,12 @@ const waitCommand = Command.make("wait", {
         return;
       }
       const threadId = ThreadId.make(flags.id);
+      const { client: reader } = yield* connect(flags.baseDir);
       const result = yield* client[O.subscribeThread]({ threadId }).pipe(
         Stream.mapEffect((item) =>
           item.kind === "snapshot"
             ? Effect.succeed(item.projection)
-            : client[O.getThreadProjection]({ threadId }),
+            : reader[O.getThreadProjection]({ threadId }),
         ),
         Stream.filter((projection) => {
           const latest = projection.runs.findLast((run) => run.status !== "queued");

@@ -47,35 +47,35 @@ features:
     cli: [status]
     milestone: 1
     scenarios: [m1.fresh-install]
-    status: building
+    status: passing
   - id: main-loadout
     reqs: [main-pi, prompt, main-delegates, does-it-itself]
     module: ozi/Loadout.ts
     cli: [status, thread]
     milestone: 1
     scenarios: [m1.main-loadout, m1.main-cannot-execute]
-    status: building
+    status: passing
   - id: delegation
     reqs: [workers, firstmate, other-machines, main-delegates]
     module: main
     cli: [say, thread]
     milestone: 1
     scenarios: [m1.delegate-async, m1.responsive, m1.worker-choice]
-    status: building
+    status: passing
   - id: chat-controls
     reqs: [t3-keep]
     module: server
     cli: [say, steer, stop]
     milestone: 1
     scenarios: [m1.attachments, m1.steer-queue-stop]
-    status: building
+    status: passing
   - id: skills
     reqs: [prompt, info-tools]
     module: ozi/Skills.ts
     cli: [say]
     milestone: 1
     scenarios: [m1.read-skill]
-    status: building
+    status: passing
   - id: remote-client
     reqs: [desktop-remote]
     module: web

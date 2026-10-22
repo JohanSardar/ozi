@@ -155,7 +155,7 @@ it("m2.question-card routes a helper question and answer to its owner", async ()
   expect(request.threadId).not.toBe(card.jobId);
   await h.ozi("close", card.jobId, pending.eventId);
   expect((await wait(card.jobId, "done")).requests).toEqual(pending.requests);
-  await h.ozi("answer", request.id, "Blue");
+  await h.ozi("answer", request.id, "Ocean", "Blue");
   const helper = await h.ozi(
     "wait",
     "thread",
@@ -164,7 +164,7 @@ it("m2.question-card routes a helper question and answer to its owner", async ()
     "--timeout",
     "20",
   );
-  expect(JSON.stringify(helper)).toContain("Blue");
+  expect(JSON.stringify(helper)).toContain("Ocean Blue");
   expect((await wait(card.jobId, "running")).requests).toEqual([]);
 });
 
