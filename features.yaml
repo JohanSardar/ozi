@@ -12,7 +12,7 @@ requirements:
   mistake-log: Every mistake is one SQLite row with what and why.
   repair-trigger: A fix is made only on user correction or a repeat.
   replay: Fixes are tested by replaying from before the mistake with faked effects and an observer; pass ships, recurrence undoes.
-  protected: Self-repair can't change approvals, contacts rule, test cases, credentials.
+  protected: Self-repair can't change approvals, contacts rule, test cases, credentials. Host OAuth inference stays outside confinement and fails closed without a usable login.
   user-override: The user can change any rule by asking; Ozi never refuses the user.
   info-tools: Agents call tools on demand (MCP, CLI).
   schedules: Scheduled jobs by interval, time of day and webhook.
@@ -201,6 +201,13 @@ features:
     cli: [fixes, undo, wait]
     milestone: 6
     scenarios: [m6.publish, m6.recurrence-undo, m6.edit-conflict, m6.crash-publish]
+    status: passing
+  - id: desktop-identity
+    reqs: [for-everybody, t3-cut]
+    module: apps/desktop + apps/server/src/cli/config.ts + e2e/m6.audit.test.ts
+    cli: [serve, pair]
+    milestone: 6
+    scenarios: [m6.audit]
     status: passing
   - id: public-ready
     reqs: [for-everybody, minimal, t3-cut]

@@ -34,7 +34,7 @@ jobs:
       - uses: ./.github/actions/setup-ci-deps
       - name: Sandbox and browser
         run: |
-          sudo apt-get update && sudo apt-get install -y bubblewrap
+          sudo apt-get update && sudo apt-get install -y bubblewrap libsecret-1-dev
           sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0
           node e2e/node_modules/playwright/cli.js install --with-deps --only-shell chromium
       - run: vp test run --root e2e --shard ${{ matrix.shard }}/3

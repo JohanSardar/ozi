@@ -39,7 +39,6 @@ import * as ElectronWindow from "../electron/ElectronWindow.ts";
 import * as DesktopClerk from "./DesktopClerk.ts";
 import * as DesktopWebLinks from "./DesktopWebLinks.ts";
 import * as DesktopEnvironment from "./DesktopEnvironment.ts";
-import * as DesktopPreReadyFileSystem from "./DesktopPreReadyFileSystem.ts";
 
 const ignoreWebLinks = DesktopWebLinks.DesktopWebLinks.of({
   receive: () => Effect.void,
@@ -61,6 +60,7 @@ const layerDesktopClerk = (
   listeners = new Map<string, (...args: unknown[]) => void>(),
 ) => {
   const environment = DesktopEnvironment.DesktopEnvironment.of({
+    branding: { baseName: "Ozi", stageLabel: "Beta" },
     stateDir: "/tmp/t3-state",
     isDevelopment,
     appDataDirectory: "/tmp/app-data",
@@ -68,6 +68,7 @@ const layerDesktopClerk = (
   } as unknown as DesktopEnvironment.DesktopEnvironment["Service"]);
 
   const electronApp = {
+    setName: () => Effect.void,
     setPath: (name: string, value: string) =>
       Effect.sync(() => {
         events.push(`setPath:${name}:${value}`);
@@ -130,13 +131,13 @@ describe("DesktopClerk", () => {
             storage: storageAdapter,
             manageSingleInstanceLock: false,
             passkeys: true,
-            renderer: { scheme: "t3code-dev", host: "app" },
+            renderer: { scheme: "ozi-dev", host: "app" },
           },
         ],
       ]);
       assert.equal(cleanup.mock.calls.length, 1);
       assert.deepEqual(events, [
-        "setPath:userData:/tmp/app-data/t3code-dev",
+        "setPath:userData:/tmp/app-data/ozi-dev",
         "requestSingleInstanceLock",
         "on:second-instance",
         "createClerkBridge",
@@ -151,25 +152,25 @@ describe("DesktopClerk", () => {
       name: "packaged macOS",
       isDevelopment: false,
       platform: "darwin" as const,
-      userData: "/tmp/app-data/t3code-v2",
+      userData: "/tmp/app-data/ozi",
     },
     {
       name: "packaged Linux",
       isDevelopment: false,
       platform: "linux" as const,
-      userData: "/tmp/app-data/t3code-v2",
+      userData: "/tmp/app-data/ozi",
     },
     {
       name: "packaged Windows",
       isDevelopment: false,
       platform: "win32" as const,
-      userData: "/tmp/app-data/t3code-v2",
+      userData: "/tmp/app-data/ozi",
     },
     {
       name: "development",
       isDevelopment: true,
       platform: "win32" as const,
-      userData: "/tmp/app-data/t3code-dev",
+      userData: "/tmp/app-data/ozi-dev",
     },
   ])(
     "creates the bridge before startup can yield to the event loop ($name)",
@@ -182,11 +183,7 @@ describe("DesktopClerk", () => {
       });
       // oxlint-disable-next-line t3code/no-manual-effect-runtime-in-tests -- The assertion IS that the layer builds synchronously; it.effect would mask a regression to async.
       Effect.runSync(
-        Effect.scoped(
-          Layer.build(
-            layerDesktopClerk(isDevelopment, events, platform, DesktopPreReadyFileSystem.layer),
-          ),
-        ),
+        Effect.scoped(Layer.build(layerDesktopClerk(isDevelopment, events, platform))),
       );
 
       assert.deepEqual(events, [
@@ -256,6 +253,7 @@ describe("DesktopClerk", () => {
       const revealed = Promise.withResolvers<unknown>();
       const window = { id: 1 };
       const electronApp = {
+        setName: () => Effect.void,
         quit: Effect.sync(quit),
         on: (eventName: string, listener: (...args: unknown[]) => void) =>
           Effect.sync(() => {
@@ -290,11 +288,12 @@ describe("DesktopClerk", () => {
     createClerkBridgeMock.mockReturnValue({ cleanup: vi.fn(), isPrimaryInstance: true });
     const listeners = new Map<string, (...args: unknown[]) => void>();
     const received: string[] = [];
-    const first = "t3code://new?prompt=first";
-    const second = "t3code://threads/env-1/thread-1";
-    const later = "t3code://new?prompt=later";
+    const first = "ozi://new?prompt=first";
+    const second = "ozi://threads/env-1/thread-1";
+    const later = "ozi://new?prompt=later";
     const delivered = Promise.withResolvers<void>();
     const electronApp = {
+      setName: () => Effect.void,
       on: (name: string, listener: (...args: unknown[]) => void) =>
         Effect.sync(() => {
           listeners.set(name, listener);
@@ -354,7 +353,7 @@ describe("DesktopClerk", () => {
 
         assert.isTrue(Exit.hasInterrupts(exit));
         assert.deepEqual(events, [
-          "setPath:userData:/tmp/app-data/t3code-v2",
+          "setPath:userData:/tmp/app-data/ozi",
           "requestSingleInstanceLock",
           "quit",
         ]);
@@ -374,6 +373,7 @@ it.effect(
     const loadURL = vi.fn(async (_url: string) => undefined);
     const window = { loadURL };
     const electronApp = {
+      setName: () => Effect.void,
       on: (name: string, listener: (...args: unknown[]) => void) =>
         Effect.sync(() => {
           listeners.set(name, listener);
@@ -387,19 +387,17 @@ it.effect(
       const clerk = yield* DesktopClerk.DesktopClerk;
       yield* clerk.configure;
       const event = { preventDefault: vi.fn() };
-      listeners.get("open-url")!(event, "t3code-dev://app/auth/callback?code=clerk-code");
-      listeners.get("open-url")!(event, "t3code://app/welcome");
+      listeners.get("open-url")!(event, "ozi-dev://app/auth/callback?code=clerk-code");
+      listeners.get("open-url")!(event, "ozi://app/welcome");
       assert.equal(loadURL.mock.calls.length, 0);
       assert.equal(event.preventDefault.mock.calls.length, 0);
       listeners.get("second-instance")!({}, [
         "t3",
-        "t3code-dev://app/settings/providers?instanceId=work&code=never-forward",
+        "ozi-dev://app/settings/providers?instanceId=work&code=never-forward",
       ]);
       yield* Effect.promise(() => revealed.promise);
-      assert.deepEqual(loadURL.mock.calls, [
-        ["t3code-dev://app/settings/providers?instanceId=work"],
-      ]);
-      listeners.get("open-url")!(event, "t3code-dev://app/welcome#agents:machine-id");
+      assert.deepEqual(loadURL.mock.calls, [["ozi-dev://app/settings/providers?instanceId=work"]]);
+      listeners.get("open-url")!(event, "ozi-dev://app/welcome#agents:machine-id");
       assert.equal(event.preventDefault.mock.calls.length, 1);
     }).pipe(
       Effect.scoped,
@@ -436,7 +434,7 @@ it.effect.each(["startup", "open-url", "early-second-instance"] as const)(
       }).toString();
       const request = {
         authorizationUrl: authorize.toString(),
-        returnUrl: "https://app.t3.codes/welcome#agents:remote-one",
+        returnUrl: "https://app.ozi.codes/welcome#agents:remote-one",
         environmentId: EnvironmentId.make("remote-one"),
         instanceId: ProviderInstanceId.make("work"),
         flowId: "flow-one",
@@ -462,6 +460,7 @@ it.effect.each(["startup", "open-url", "early-second-instance"] as const)(
       });
       const listeners = new Map<string, (...args: unknown[]) => void>();
       const electronApp = {
+        setName: () => Effect.void,
         whenReady: Effect.void,
         on: (name: string, listener: (...args: unknown[]) => void) =>
           Effect.sync(() => {
@@ -503,6 +502,7 @@ it.effect("hands web and app links to the renderer and leaves other links alone"
     createClerkBridgeMock.mockReturnValue({ cleanup: vi.fn(), isPrimaryInstance: true });
     const listeners = new Map<string, (...args: unknown[]) => void>();
     const electronApp = {
+      setName: () => Effect.void,
       whenReady: Effect.void,
       on: (name: string, listener: (...args: unknown[]) => void) =>
         Effect.sync(() => {
@@ -520,16 +520,16 @@ it.effect("hands web and app links to the renderer and leaves other links alone"
       };
       assert.strictEqual(open("https://example.com/page"), 1);
       assert.strictEqual(open("http://localhost:3000/"), 1);
-      assert.strictEqual(open("t3code://new?prompt=hi"), 1);
-      assert.strictEqual(open("t3code://threads/env-1/thread-1"), 1);
+      assert.strictEqual(open("ozi://new?prompt=hi"), 1);
+      assert.strictEqual(open("ozi://threads/env-1/thread-1"), 1);
       assert.strictEqual(open("mailto:hello@example.com"), 0);
-      assert.strictEqual(open("t3code://somewhere-else"), 0);
+      assert.strictEqual(open("ozi://somewhere-else"), 0);
       yield* Effect.yieldNow;
       assert.deepStrictEqual(received, [
         "https://example.com/page",
         "http://localhost:3000/",
-        "t3code://new?prompt=hi",
-        "t3code://threads/env-1/thread-1",
+        "ozi://new?prompt=hi",
+        "ozi://threads/env-1/thread-1",
       ]);
     }).pipe(
       Effect.provide(layerDesktopClerk(true, [], "darwin", undefined, undefined, listeners)),
