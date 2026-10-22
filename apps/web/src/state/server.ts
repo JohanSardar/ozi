@@ -36,6 +36,13 @@ export const serverEnvironment = createServerEnvironmentAtoms(connectionAtomRunt
   usageLimitSources: true,
   usageLimitsCommand: true,
 });
+export const environmentKeybindingsAtom = Atom.family((environmentId: EnvironmentId) =>
+  Atom.make((get) =>
+    mergeWithDefaultKeybindings(
+      get(serverEnvironment.configValueAtom(environmentId))?.keybindings ?? [],
+    ),
+  ),
+);
 export const environmentServerConfigsAtom = createEnvironmentServerConfigsAtom({
   catalogValueAtom: environmentCatalog.catalogValueAtom,
   serverConfigValueAtom: serverEnvironment.configValueAtom,
