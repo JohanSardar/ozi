@@ -129,6 +129,14 @@
   ],
   "packageOverrides": [
     {
+      "name": "@earendil-works/pi-tui",
+      "version": "1.4.0",
+      "generatedNotice": {
+        "licenseId": "MIT",
+        "copyrights": ["Copyright (c) 2025 Mario Zechner"]
+      }
+    },
+    {
       "name": "change-case",
       "version": "5.4.4",
       "generatedNotice": {

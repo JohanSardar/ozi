@@ -95,7 +95,7 @@ Cases freeze the original message, native prefix, attachment bytes, expectation 
 - Built from Pi's `pi-tui` and the components and theme `pi-coding-agent` exports: user and assistant messages, editor, loader, borders, markdown and select-list themes. Main-screen mode keeps terminal scrollback. The status line follows Pi's footer style.
 - Main's conversation comes from `orchestration.subscribeThread` folded with the shared projection reducer; cards come from `ozi.jobs.subscribe`. Disconnects resubscribe; mutations wait for a current snapshot.
 - Layout: conversation, status line (main idle, working or checking; Needs you count; server and connection), editor.
-- Enter sends, queued after main's active turn. Alt+Enter steers it. Esc stops main. Ctrl+C clears the editor; twice exits. Slash commands autocomplete: `/jobs`, `/attach <path>`, `/stop`, `/quit`.
+- Keys follow Pi: Enter sends, steering main's active turn when it works; Alt+Enter queues a follow-up, shown until it starts. Esc stops main. Ctrl+C clears the editor; twice exits. Slash commands autocomplete: `/jobs`, `/attach <path>`, `/stop`, `/quit`.
 - `/jobs` lists cards by column. A card shows title, agent, report and requests. Questions pick an option or take text, approvals allow or deny, secrets use masked input that is never rendered, Blocked takes a reply. Close sends the displayed `eventId`; errors such as `StaleEvent` show as one line. Stop and Open are separate. Open shows the lead's conversation and the editor addresses the lead until Esc.
 - A card entering Needs you adds one line to the conversation. HTML replies, MCP apps, images and the shared browser show a one-line pointer to the desktop app.
 
@@ -258,11 +258,11 @@ Product descriptions and connection guidance use Ozi and self-hosted public URLs
 
 ### M7 Terminal
 
-The harness runs `ozi` in a real pseudo-terminal through util-linux `script`, types keys on stdin and reads the screen through `@xterm/headless`.
+The harness runs `ozi` in a real pseudo-terminal through util-linux `script`, types keys on stdin and reads its output with control sequences removed.
 
 - `m7.cli-text`: without `--json`, listing commands print short text with short IDs; a unique ID substring resolves and an ambiguous one fails in one line.
 - `m7.remote-cli`: a second home connects with a pairing URL; `say`, `jobs`, `answer` and `wait` reach the first server; a used or invalid token and a revoked session fail in one line; `disconnect` removes the saved remote.
-- `m7.tui-chat`: the app opens on main; a typed message reaches main and its markdown reply renders; a message sent while main works queues; Alt+Enter steers; Esc stops main; `/attach` sends a file; Ctrl+C twice exits.
+- `m7.tui-chat`: the app opens on main; a typed message reaches main and its markdown reply renders; Enter while main works steers it; Alt+Enter queues a follow-up that stays queued after Esc stops main; `/attach` sends a file; Ctrl+C twice exits.
 - `m7.tui-question`: a worker's question adds a Needs you line and count; picking an option in `/jobs` resumes the worker and the card reaches Ready.
 - `m7.tui-close`: closing a Ready card moves it to Done; closing a card whose event changed shows `StaleEvent` and changes nothing.
 - `m7.tui-secret`: a secret request takes masked input; the value never appears on screen or in card data.

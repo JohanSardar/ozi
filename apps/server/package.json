@@ -23,6 +23,7 @@
   },
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "^0.3.276",
+    "@earendil-works/pi-tui": "1.4.0",
     "@effect/platform-node": "catalog:",
     "@effect/platform-node-shared": "catalog:",
     "@modelcontextprotocol/sdk": "1.29.0",
@@ -41,6 +42,7 @@
     "yauzl": "^3.4.0"
   },
   "devDependencies": {
+    "@t3tools/client-runtime": "workspace:*",
     "@t3tools/contracts": "workspace:*",
     "@t3tools/shared": "workspace:*",
     "@t3tools/tailscale": "workspace:*",

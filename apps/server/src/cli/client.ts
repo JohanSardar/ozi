@@ -13,6 +13,7 @@ import {
   OZI_MAIN_THREAD_ID,
   OZI_WS_METHODS as J,
   OziJobCard,
+  type OziJobRequest,
   OziTodoSettings,
   OziTodos,
   OZI_MAIN_SELECTION,
@@ -190,7 +191,7 @@ const connectTransport = Effect.fn("ozi.connectTransport")(function* (
   return { context, state, token };
 });
 
-const connect = Effect.fn("ozi.connect")(function* (baseDir: Option.Option<string>) {
+export const connect = Effect.fn("ozi.connect")(function* (baseDir: Option.Option<string>) {
   const transport = yield* connectTransport(baseDir);
   const client = yield* makeClient.pipe(Effect.provide(transport.context));
   return { ...transport, client };
@@ -329,16 +330,13 @@ const pairCommand = Command.make("pair", locationFlags).pipe(
   ),
 );
 
-const send = Effect.fn("ozi.send")(function* (
-  flags: {
-    baseDir: Option.Option<string>;
-    text: string;
-    thread?: Option.Option<ThreadId>;
-    files?: ReadonlyArray<string>;
-  },
-  steer = false,
+export type Connection = Effect.Success<ReturnType<typeof connect>>;
+
+export const send = Effect.fn("ozi.send")(function* (
+  { client, state }: Connection,
+  flags: { text: string; thread?: Option.Option<ThreadId>; files?: ReadonlyArray<string> },
+  steer: boolean | "active" = false,
 ) {
-  const { client, state } = yield* connect(flags.baseDir);
   const threadId = yield* targetThread(client, flags.thread ?? Option.none());
   const attachments: ChatAttachment[] = [];
   const fs = yield* FileSystem.FileSystem;
@@ -369,7 +367,7 @@ const send = Effect.fn("ozi.send")(function* (
       ["preparing", "starting", "running", "waiting"].includes(run.status),
   );
   const pendingCheck = projection.runs.some((run) => run.completionCheck?.state === "checking");
-  if (steer && !active && !pendingCheck)
+  if (steer === true && !active && !pendingCheck)
     return yield* new ClientError({ operation: "has no active turn to steer" });
   const result = yield* client[O.dispatchCommand]({
     type: "message.dispatch",
@@ -397,7 +395,8 @@ const sayCommand = Command.make("say", {
   files: Flag.String("file").pipe(Flag.atLeast(0)),
 }).pipe(
   Command.withHandler((flags) =>
-    send(flags).pipe(
+    connect(flags.baseDir).pipe(
+      Effect.flatMap((connection) => send(connection, flags)),
       Effect.flatMap((result) => emit(OrchestrationV2DispatchCommandResult, result)),
     ),
   ),
@@ -408,7 +407,8 @@ const steerCommand = Command.make("steer", {
   thread: threadFlag,
 }).pipe(
   Command.withHandler((flags) =>
-    send(flags, true).pipe(
+    connect(flags.baseDir).pipe(
+      Effect.flatMap((connection) => send(connection, flags, true)),
       Effect.flatMap((result) => emit(OrchestrationV2DispatchCommandResult, result)),
     ),
   ),
@@ -437,7 +437,8 @@ const threadCommand = Command.make("thread", {
 }).pipe(
   Command.withHandler((flags) =>
     Effect.gen(function* () {
-      const { client } = yield* connect(flags.baseDir);
+      const connection = yield* connect(flags.baseDir);
+      const { client } = connection;
       let threadId = flags.id;
       if (flags.fork) {
         threadId = ThreadId.make(yield* (yield* Crypto.Crypto).randomUUIDv4());
@@ -468,11 +469,7 @@ const threadCommand = Command.make("thread", {
         });
       }
       if (Option.isSome(flags.message))
-        yield* send({
-          baseDir: flags.baseDir,
-          thread: Option.some(threadId),
-          text: flags.message.value,
-        });
+        yield* send(connection, { thread: Option.some(threadId), text: flags.message.value });
       yield* emit(
         OrchestrationV2ThreadProjection,
         yield* client[O.getThreadProjection]({ threadId }),
@@ -528,6 +525,51 @@ const closeCommand = Command.make("close", {
     }),
   ),
 );
+export const answerRequest = Effect.fn("ozi.answerRequest")(function* (
+  connection: Connection,
+  request: OziJobRequest,
+  values: ReadonlyArray<string>,
+) {
+  const { client } = connection;
+  const value = values.join(" ");
+  if (request.kind === "secret") {
+    yield* client[W.secretsAnswerRequest]({
+      threadId: request.threadId,
+      turnItemId: TurnItemId.make(request.id),
+      answer: { type: "save", secret: value },
+    });
+    return null;
+  }
+  if (request.kind === "blocked")
+    return yield* send(connection, { thread: Option.some(request.threadId), text: value });
+  if (request.kind !== "question" && request.kind !== "approval")
+    return yield* new ClientError({ operation: "requires the indicated human action" });
+  if (request.kind === "approval" && value !== "allow" && value !== "deny")
+    return yield* new ClientError({ operation: "approval requires allow or deny" });
+  const projection = yield* client[O.getThreadProjection]({ threadId: request.threadId });
+  const item = projection.turnItems.find(
+    (item) => item.type === "user_input_request" && item.requestId === request.id,
+  );
+  const answers =
+    item?.type === "user_input_request"
+      ? Object.fromEntries(
+          item.questions.map((question, index) => [
+            question.id,
+            item.questions.length === 1 ? value : (values[index] ?? ""),
+          ]),
+        )
+      : {};
+  return yield* client[O.dispatchCommand]({
+    type: "runtime-request.respond",
+    commandId: CommandId.make(yield* (yield* Crypto.Crypto).randomUUIDv4()),
+    threadId: request.threadId,
+    requestId: RuntimeRequestId.make(request.id),
+    ...(request.kind === "approval"
+      ? { decision: value === "allow" ? ("accept" as const) : ("decline" as const) }
+      : { answers }),
+  });
+});
+
 const answerCommand = Command.make("answer", {
   ...locationFlags,
   requestId: Argument.String("requestId"),
@@ -535,61 +577,14 @@ const answerCommand = Command.make("answer", {
 }).pipe(
   Command.withHandler((flags) =>
     Effect.gen(function* () {
-      const { client } = yield* connect(flags.baseDir);
-      const request = (yield* client[J.jobsGet]({}))
+      const connection = yield* connect(flags.baseDir);
+      const request = (yield* connection.client[J.jobsGet]({}))
         .flatMap((card) => card.requests)
         .find((request) => request.id === flags.requestId);
       if (!request) return yield* new ClientError({ operation: "found no such request" });
-      const value = flags.values.join(" ");
-      if (request.kind === "secret") {
-        yield* client[W.secretsAnswerRequest]({
-          threadId: request.threadId,
-          turnItemId: TurnItemId.make(request.id),
-          answer: { type: "save", secret: value },
-        });
-        yield* print({ answered: true });
-        return;
-      }
-      if (request.kind === "blocked") {
-        yield* emit(
-          OrchestrationV2DispatchCommandResult,
-          yield* send({
-            baseDir: flags.baseDir,
-            thread: Option.some(request.threadId),
-            text: value,
-          }),
-        );
-        return;
-      }
-      if (request.kind !== "question" && request.kind !== "approval")
-        return yield* new ClientError({ operation: "requires the indicated human action" });
-      if (request.kind === "approval" && value !== "allow" && value !== "deny")
-        return yield* new ClientError({ operation: "approval requires allow or deny" });
-      const projection = yield* client[O.getThreadProjection]({ threadId: request.threadId });
-      const item = projection.turnItems.find(
-        (item) => item.type === "user_input_request" && item.requestId === request.id,
-      );
-      const answers =
-        item?.type === "user_input_request"
-          ? Object.fromEntries(
-              item.questions.map((question, index) => [
-                question.id,
-                item.questions.length === 1 ? value : (flags.values[index] ?? ""),
-              ]),
-            )
-          : {};
-      yield* emit(
-        OrchestrationV2DispatchCommandResult,
-        yield* client[O.dispatchCommand]({
-          type: "runtime-request.respond",
-          commandId: CommandId.make(yield* (yield* Crypto.Crypto).randomUUIDv4()),
-          threadId: request.threadId,
-          requestId: RuntimeRequestId.make(request.id),
-          ...(request.kind === "approval"
-            ? { decision: value === "allow" ? ("accept" as const) : ("decline" as const) }
-            : { answers }),
-        }),
-      );
+      const result = yield* answerRequest(connection, request, flags.values);
+      if (result === null) yield* print({ answered: true });
+      else yield* emit(OrchestrationV2DispatchCommandResult, result);
     }),
   ),
 );
