@@ -1,6 +1,10 @@
 import { OZI_WS_METHODS, OziCheck } from "@t3tools/contracts";
 import {
+  AuthAccessTokenResult,
+  AuthAccessTokenType,
+  AuthEnvironmentBootstrapTokenType,
   AuthPairingCredentialResult,
+  AuthTokenExchangeGrantType,
   AuthWebSocketTicketResult,
   ChatAttachment,
   ChatAttachmentId,
@@ -62,6 +66,7 @@ type Client = Effect.Success<typeof makeClient>;
 const decodeRequestPayload = Schema.decodeUnknownEffect(Schema.fromJsonString(Schema.Unknown));
 const encodeJson = Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown));
 const encodePairing = Schema.encodeEffect(AuthPairingCredentialResult);
+const decodePairingUrl = Schema.decodeEffect(Schema.URLFromString);
 const decodeTodoSettings = Schema.decodeUnknownEffect(Schema.fromJsonString(OziTodoSettings));
 const decodeSchedule = Schema.decodeUnknownEffect(ScheduledTaskUpsertSchedule);
 const decodeWebhookFilter = Schema.decodeUnknownEffect(
@@ -111,12 +116,19 @@ const decodeRepairRow = Schema.decodeEffect(
   Schema.fromJsonString(Schema.NullOr(Schema.Union([Mistake, Replay, Fix]))),
 );
 
-const connectTransport = Effect.fn("ozi.connectTransport")(function* (
+const RemoteConnection = Schema.Struct({ origin: Schema.String, token: Schema.String });
+const remoteSessionError = (cause: unknown) =>
+  new ClientError({ operation: "remote session rejected; run ozi connect again", cause });
+const clientHome = Effect.fn("ozi.clientHome")(function* (baseDir: Option.Option<string>) {
+  return yield* resolveBaseDir(Option.getOrUndefined(baseDir) ?? (yield* homeConfig));
+});
+
+const resolveConnection = Effect.fn("ozi.resolveConnection")(function* (
   baseDir: Option.Option<string>,
 ) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  const home = yield* resolveBaseDir(Option.getOrUndefined(baseDir) ?? (yield* homeConfig));
+  const home = yield* clientHome(baseDir);
   for (const variant of ["userdata", "dev"]) {
     const dir = path.join(home, variant);
     const state = yield* readPersistedServerRuntimeState(path.join(dir, "server-runtime.json"));
@@ -124,28 +136,58 @@ const connectTransport = Effect.fn("ozi.connectTransport")(function* (
     const owner = yield* fs
       .readFileString(path.join(dir, "owner.json"))
       .pipe(Effect.flatMap(Schema.decodeUnknownEffect(Schema.fromJsonString(OwnerCredential))));
-    const { ticket } = yield* request(
-      state.value.origin,
-      owner.token,
-      "/api/auth/websocket-ticket",
-      AuthWebSocketTicketResult,
-    );
-    const url = new URL("/ws", state.value.origin);
-    url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-    url.searchParams.set("wsTicket", ticket);
-    url.searchParams.set("orchestrationProtocol", "2");
-    const protocol = RpcClient.layerProtocolSocket({
-      retryTransientErrors: false,
-      retryPolicy: Schedule.recurs(0),
-    }).pipe(
-      Layer.provide(Socket.layerWebSocket(url.toString())),
-      Layer.provide(Socket.layerWebSocketConstructorGlobal),
-      Layer.provide(RpcSerialization.layerJson),
-    );
-    const context = yield* Layer.build(protocol);
-    return { context, state: state.value, token: owner.token };
+    return { state: state.value, token: owner.token, remote: false };
+  }
+  const file = path.join(home, "remote.json");
+  if (yield* fs.exists(file)) {
+    const remote = yield* fs
+      .readFileString(file)
+      .pipe(
+        Effect.flatMap(Schema.decodeUnknownEffect(Schema.fromJsonString(RemoteConnection))),
+        Effect.mapError(remoteSessionError),
+      );
+    return {
+      state: { origin: remote.origin, devUrl: undefined },
+      token: remote.token,
+      remote: true,
+    };
   }
   return yield* new ClientError({ operation: "found no running server; start ozi serve" });
+});
+
+const connectTransport = Effect.fn("ozi.connectTransport")(function* (
+  baseDir: Option.Option<string>,
+) {
+  const { state, token, remote } = yield* resolveConnection(baseDir);
+  const { ticket } = yield* request(
+    state.origin,
+    token,
+    "/api/auth/websocket-ticket",
+    AuthWebSocketTicketResult,
+  ).pipe(
+    Effect.mapError((cause) =>
+      remote &&
+      cause._tag === "HttpClientError" &&
+      cause.reason._tag === "StatusCodeError" &&
+      (cause.reason.response.status === 401 || cause.reason.response.status === 403)
+        ? remoteSessionError(cause)
+        : cause,
+    ),
+  );
+  const url = new URL("/ws", state.origin);
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  url.searchParams.set("wsTicket", ticket);
+  url.searchParams.set("orchestrationProtocol", "2");
+  const protocol = RpcClient.layerProtocolSocket({
+    retryTransientErrors: false,
+    retryPolicy: Schedule.recurs(0),
+  }).pipe(
+    Layer.provide(Socket.layerWebSocket(url.toString())),
+    Layer.provide(Socket.layerWebSocketConstructorGlobal),
+    Layer.provide(RpcSerialization.layerJson),
+  );
+  const context = yield* Layer.build(protocol);
+  return { context, state, token };
 });
 
 const connect = Effect.fn("ozi.connect")(function* (baseDir: Option.Option<string>) {
@@ -179,6 +221,76 @@ const targetThread = Effect.fn("ozi.targetThread")(function* (
 const print = (value: unknown) => encodeJson(value).pipe(Effect.flatMap(Console.log));
 const emit = <A, E>(schema: Schema.Codec<A, E>, value: A) =>
   Schema.encodeEffect(schema)(value).pipe(Effect.flatMap(print));
+
+const connectCommand = Command.make("connect", {
+  ...locationFlags,
+  url: Argument.String("pairing-url"),
+}).pipe(
+  Command.withHandler((flags) =>
+    Effect.gen(function* () {
+      const invalid = (cause?: unknown) =>
+        new ClientError({
+          operation: "could not connect; run ozi connect with a new pairing URL",
+          cause,
+        });
+      const url = yield* decodePairingUrl(flags.url).pipe(Effect.mapError(invalid));
+      const credential = new URLSearchParams(url.hash.slice(1)).get("token");
+      if (
+        !credential ||
+        !["http:", "https:"].includes(url.protocol) ||
+        url.pathname !== "/pair" ||
+        url.username ||
+        url.password
+      )
+        return yield* invalid();
+      const http = yield* HttpClient.HttpClient;
+      const session = yield* http
+        .execute(
+          HttpClientRequest.post(new URL("/oauth/token", url.origin).toString()).pipe(
+            HttpClientRequest.bodyUrlParams({
+              grant_type: AuthTokenExchangeGrantType,
+              subject_token: credential,
+              subject_token_type: AuthEnvironmentBootstrapTokenType,
+              requested_token_type: AuthAccessTokenType,
+              client_label: "Ozi CLI",
+            }),
+          ),
+        )
+        .pipe(
+          Effect.flatMap(HttpClientResponse.filterStatusOk),
+          Effect.flatMap(HttpClientResponse.schemaBodyJson(AuthAccessTokenResult)),
+          Effect.timeout("10 seconds"),
+          Effect.mapError(invalid),
+        );
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const home = yield* clientHome(flags.baseDir);
+      yield* fs.makeDirectory(home, { recursive: true, mode: 0o700 });
+      const directory = yield* fs.makeTempDirectoryScoped({ directory: home, prefix: "remote-" });
+      const temporary = path.join(directory, "remote.json");
+      yield* fs.writeFileString(
+        temporary,
+        yield* encodeJson({ origin: url.origin, token: session.access_token }),
+        { mode: 0o600 },
+      );
+      yield* fs.rename(temporary, path.join(home, "remote.json"));
+      yield* flags.json
+        ? print({ origin: url.origin })
+        : Console.log(`Connected to ${url.origin}.`);
+    }),
+  ),
+);
+
+const disconnectCommand = Command.make("disconnect", locationFlags).pipe(
+  Command.withHandler((flags) =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      yield* fs.remove(path.join(yield* clientHome(flags.baseDir), "remote.json"), { force: true });
+      yield* flags.json ? print({ disconnected: true }) : Console.log("Disconnected.");
+    }),
+  ),
+);
 
 const statusSchema = Schema.Struct({
   server: ServerConfig,
@@ -941,6 +1053,8 @@ const requestCommand = Command.make("request", {
 );
 
 export const clientCommands = [
+  connectCommand,
+  disconnectCommand,
   requestCommand,
   checksCommand,
   todosCommand,
