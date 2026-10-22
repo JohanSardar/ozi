@@ -85,6 +85,7 @@ async function fileReady(path: string, pid: number, signal: AbortSignal) {
 export async function startHarness(
   options: {
     fresh?: boolean;
+    emptyDataRoot?: boolean;
     testClock?: string;
     publicUrl?: string;
     publicUrlEnv?: string;
@@ -104,7 +105,9 @@ export async function startHarness(
   const log = NodePath.join(root, "fake.jsonl");
   const port = await freePort();
   await NodeFSP.mkdir(NodePath.join(home, "userdata"), { recursive: true });
-  await NodeFSP.cp(NodePath.join(repo, "e2e/fixtures/data-root"), dataRoot, { recursive: true });
+  if (!options.fresh)
+    await NodeFSP.cp(NodePath.join(repo, "e2e/fixtures/data-root"), dataRoot, { recursive: true });
+  else if (options.emptyDataRoot) await NodeFSP.mkdir(dataRoot);
   await NodeFSP.writeFile(script, "[]");
   await NodeFSP.writeFile(log, "");
   const providerInstances = Object.fromEntries(
@@ -171,13 +174,16 @@ export async function startHarness(
   }
   await NodeFSP.writeFile(
     env.GIT_CONFIG_GLOBAL!,
-    "[user]\nname = Ozi E2E\nemail = e2e@example.invalid\n[init]\ndefaultBranch = main\n",
+    options.fresh
+      ? "[init]\ndefaultBranch = main\n[commit]\ngpgsign = true\n"
+      : "[user]\nname = Ozi E2E\nemail = e2e@example.invalid\n[init]\ndefaultBranch = main\n",
   );
-  await new Promise<void>((resolve, reject) =>
-    NodeChildProcess.execFile("git", ["init", dataRoot], { env }, (error) =>
-      error ? reject(error) : resolve(),
-    ),
-  );
+  if (!options.fresh)
+    await new Promise<void>((resolve, reject) =>
+      NodeChildProcess.execFile("git", ["init", dataRoot], { env }, (error) =>
+        error ? reject(error) : resolve(),
+      ),
+    );
   let browser: Browser | undefined;
   let page: Page | undefined;
   let server: NodeChildProcess.ChildProcess;
@@ -199,7 +205,7 @@ export async function startHarness(
         ...(options.publicUrl === undefined ? [] : ["--public-url", options.publicUrl]),
         "--json",
       ],
-      { cwd: dataRoot, env, stdio: ["ignore", "pipe", "pipe", "pipe"] },
+      { cwd: root, env, stdio: ["ignore", "pipe", "pipe", "pipe"] },
     );
     (server.stdio[3] as NodeStream.Writable).on("error", (error) => {
       output += String(error);
