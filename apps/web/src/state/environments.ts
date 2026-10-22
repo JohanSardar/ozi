@@ -10,6 +10,8 @@ import { environmentCatalog } from "../connection/catalog";
 import { environmentPresentations, useEnvironmentPresentation } from "./presentation";
 import { primaryEnvironmentIdAtom } from "./primaryEnvironment";
 import { usePreparedConnection } from "./session";
+import { isDesktopLocalConnectionTarget } from "../connection/desktopLocal";
+import { useUiStateStore } from "../uiStateStore";
 
 export interface EnvironmentPresentation extends BaseEnvironmentPresentation {
   readonly environmentId: EnvironmentId;
@@ -66,6 +68,21 @@ export function useEnvironment(
 
 export function usePrimaryEnvironment(): EnvironmentPresentation | null {
   return useEnvironment(usePrimaryEnvironmentId());
+}
+
+export function useOziEnvironment() {
+  const { environments, isReady } = useEnvironments();
+  const selected = useUiStateStore((state) => state.oziEnvironmentId);
+  const remotes = environments.filter(
+    ({ entry }) =>
+      entry.target._tag !== "PrimaryConnectionTarget" &&
+      !isDesktopLocalConnectionTarget(entry.target),
+  );
+  const choices = remotes.length > 0 ? remotes : environments;
+  const environment = isReady
+    ? (choices.find(({ environmentId }) => environmentId === selected) ?? choices[0] ?? null)
+    : null;
+  return { environment, choices, isReady, multiple: environments.length > 1 };
 }
 
 export function useEnvironmentHttpBaseUrl(environmentId: EnvironmentId | null): string | null {
