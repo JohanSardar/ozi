@@ -282,14 +282,7 @@ const layerSecretRequestsProvided = SecretRequests.layer.pipe(
   Layer.provide(layerThreadManagementProvided),
 );
 const layerScheduledTaskProvided = ScheduledTaskService.layer.pipe(
-  Layer.provide(
-    Layer.mergeAll(
-      layerThreadLaunchProvided,
-      layerThreadManagementProvided,
-      layerManagedProjectFoldersProvided,
-      layerSecretRequestsProvided,
-    ),
-  ),
+  Layer.provide(Layer.merge(layerThreadManagementProvided, layerSecretRequestsProvided)),
 );
 const layerProviderContinuationWorkerProvided = ProviderContinuationService.layer.pipe(
   Layer.provide(
