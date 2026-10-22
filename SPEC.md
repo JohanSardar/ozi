@@ -212,7 +212,7 @@ Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` 
 - `m4.webhook`: a signed POST wakes main; bad signature rejected; duplicate suppressed; filter applied.
 - `m4.base-url`: schedules report webhook URLs on the configured base URL.
 - `m4.todos`: external to-dos show labeled; offline/malformed source shows unavailable, not empty; no config hides them.
-- `m4.removed`: the real server rejects all retired RPC methods and Connect routes, CLI commands are absent, and removed packages, source paths and native resource-monitor bundling are gone. Ozi desktop metadata and macOS preflight have no T3 identity or Rust requirement.
+- `m4.removed`: the real server rejects all retired RPC methods and Connect routes, CLI commands are absent, and removed tracked package sources, paths and native resource-monitor bundling are gone. Ozi desktop metadata and macOS preflight have no T3 identity or Rust requirement.
 
 ### M5 Replay
 
