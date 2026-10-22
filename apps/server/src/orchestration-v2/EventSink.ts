@@ -331,17 +331,38 @@ const layerBase: Layer.Layer<
       );
       return Effect.forEach(
         events,
-        (event): Effect.Effect<OrchestrationV2DomainEvent, unknown> =>
-          event.type === "turn-item.updated"
-            ? turnItemPositions
-                .normalize(
-                  event.payload,
-                  event.payload.runId === null ? undefined : runOrdinals.get(event.payload.runId),
-                )
-                .pipe(Effect.map((payload) => ({ ...event, payload })))
-            : Effect.succeed(event),
+        (event) =>
+          Effect.gen(function* () {
+            if (event.type === "completion.updated") {
+              const current = (yield* projectionStore.getThreadRecords(event.threadId, ["runs"], {
+                runIds: [event.payload.runId],
+              })).runs[0]?.completionCheck;
+              if (
+                current &&
+                ((current.state !== "checking" &&
+                  !(current.state === "continued" && event.payload.state === "superseded")) ||
+                  current.rounds.length > event.payload.rounds.length)
+              )
+                return undefined;
+              return {
+                ...event,
+                payload: {
+                  ...event.payload,
+                  sourceCaptured: current?.sourceCaptured === true || event.payload.sourceCaptured,
+                },
+              };
+            }
+            if (event.type === "turn-item.updated") {
+              const payload = yield* turnItemPositions.normalize(
+                event.payload,
+                event.payload.runId === null ? undefined : runOrdinals.get(event.payload.runId),
+              );
+              return { ...event, payload };
+            }
+            return event;
+          }),
         { concurrency: 1 },
-      );
+      ).pipe(Effect.map((normalized) => normalized.filter((event) => event !== undefined)));
     };
 
     const applyStoredEvents =
@@ -400,7 +421,6 @@ const layerBase: Layer.Layer<
             `;
             if (owners.length > 0) return [];
           }
-          // Checkpoint capture can finish after a cohort writer reads its parent run.
           // Merge in this transaction so the event log and projection keep that completion.
           const events = input.updateDelegatedCompletionOnly
             ? yield* Effect.forEach(input.events, (event) =>

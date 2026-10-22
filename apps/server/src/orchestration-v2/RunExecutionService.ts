@@ -7,7 +7,6 @@ import {
   type ModelSelection,
   type NodeId,
   type OrchestrationV2AppThread,
-  type OrchestrationV2CheckpointScope,
   type OrchestrationV2DomainEvent,
   type OrchestrationV2ExecutionNode,
   type OrchestrationV2ProviderFailure,
@@ -40,7 +39,6 @@ import * as Stream from "effect/Stream";
 import * as McpSessionRegistry from "../mcp/McpSessionRegistry.ts";
 import * as McpAppModelContext from "../mcpApps/McpAppModelContext.ts";
 import * as ServerSettings from "../serverSettings.ts";
-import * as CheckpointService from "./CheckpointService.ts";
 import * as EventSink from "./EventSink.ts";
 import * as IdAllocator from "@t3tools/provider-core/server/IdAllocator";
 import * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAdapter";
@@ -50,7 +48,9 @@ import {
   makeProviderFailure,
   makeProviderFailureTurnItem,
 } from "@t3tools/provider-core/server/failure";
-import * as RunFinalizationService from "./RunFinalizationService.ts";
+import * as EventStore from "./EventStore.ts";
+import * as Completion from "../ozi/Completion.ts";
+import * as ProjectionStore from "./ProjectionStore.ts";
 import * as TurnItemPositionStore from "./TurnItemPositionStore.ts";
 
 export interface ProviderEventRoutingState {
@@ -558,7 +558,6 @@ export interface RunExecutionServiceV2StartRootRunInput {
   readonly session: ProviderAdapter.ProviderAdapterV2SessionRuntime;
   readonly run: OrchestrationV2Run;
   readonly rootNode: OrchestrationV2ExecutionNode;
-  readonly checkpointScope: OrchestrationV2CheckpointScope;
   readonly providerThread: OrchestrationV2ProviderThread;
   readonly attempt: OrchestrationV2RunAttempt;
   readonly attemptId: RunAttemptId;
@@ -592,7 +591,8 @@ export class RunExecutionServiceV2 extends Context.Service<
 export const layer: Layer.Layer<
   RunExecutionServiceV2,
   never,
-  | CheckpointService.CheckpointServiceV2
+  | ProjectionStore.ProjectionStoreV2
+  | EventStore.EventStoreV2
   | EventSink.EventSinkV2
   | IdAllocator.IdAllocatorV2
   | ProviderEventIngestor.ProviderEventIngestorV2
@@ -603,20 +603,19 @@ export const layer: Layer.Layer<
   RunExecutionServiceV2,
   Effect.gen(function* () {
     const scope = yield* Effect.scope;
-    const checkpointService = yield* CheckpointService.CheckpointServiceV2;
+    const projections = yield* ProjectionStore.ProjectionStoreV2;
+    const store = yield* EventStore.EventStoreV2;
     const eventSink = yield* EventSink.EventSinkV2;
     const idAllocator = yield* IdAllocator.IdAllocatorV2;
     const providerEventIngestor = yield* ProviderEventIngestor.ProviderEventIngestorV2;
     const serverSettings = yield* ServerSettings.ServerSettingsService;
     const mcpAppModelContext = yield* McpAppModelContext.McpAppModelContext;
     const turnItemPositions = yield* TurnItemPositionStore.TurnItemPositionStoreV2;
-    const finalizationObserver = yield* RunFinalizationService.RunFinalizationObserver;
 
     const writeFinalRunEvents = Effect.fn("RunExecutionService.writeFinalRunEvents")(
       function* (input: {
         readonly run: OrchestrationV2Run;
         readonly rootNode: OrchestrationV2ExecutionNode;
-        readonly checkpointScope: OrchestrationV2CheckpointScope;
         readonly providerThread: OrchestrationV2ProviderThread;
         readonly attempt: OrchestrationV2RunAttempt;
         readonly shouldFinalizeRun?: () => Effect.Effect<boolean, ProjectionStoreV2Error>;
@@ -625,7 +624,6 @@ export const layer: Layer.Layer<
         readonly terminal: ProviderTerminalEvent;
         readonly completedAt?: DateTime.Utc;
         readonly failureItemPersisted: boolean;
-        readonly refreshAfterTurn: Effect.Effect<void>;
         readonly writeIfRunCurrent?: {
           readonly activeAttemptId: RunAttemptId;
           readonly expectedStatus: OrchestrationV2Run["status"];
@@ -667,7 +665,6 @@ export const layer: Layer.Layer<
                   },
                 ],
               });
-              yield* input.refreshAfterTurn;
             }
           }
           return;
@@ -691,8 +688,7 @@ export const layer: Layer.Layer<
                 allocateEventId,
               })
             : [];
-        const persistedStatus =
-          input.terminal.status === "completed" ? "waiting" : input.terminal.status;
+        const persistedStatus = input.terminal.status;
         // Completion cohorts are advanced by Orchestrator while a provider
         // turn is in flight. Do not replay the run snapshot captured at start
         // over a newer acknowledgement, successor, or Stop barrier.
@@ -701,13 +697,12 @@ export const layer: Layer.Layer<
         const finalizedRun: OrchestrationV2Run = {
           ...runWithoutDelegatedCompletion,
           status: persistedStatus,
-          completedAt: input.terminal.status === "completed" ? null : completedAt,
+          completedAt,
         };
         const finalizedRootNode: OrchestrationV2ExecutionNode = {
           ...input.rootNode,
           status: persistedStatus,
-          completedAt: input.terminal.status === "completed" ? null : completedAt,
-          checkpointScopeId: input.checkpointScope.id,
+          completedAt,
         };
         const finalizedProviderThread: OrchestrationV2ProviderThread = {
           ...input.providerThread,
@@ -717,30 +712,18 @@ export const layer: Layer.Layer<
         const runEventId = yield* allocateEventId();
         const nodeEventId = yield* allocateEventId();
         const providerThreadEventId = yield* allocateEventId();
-        const checkpointCaptureCommandId = CommandId.make(
-          `command:effect:checkpoint.capture:${input.run.id}`,
-        );
-        // Stopped runs capture too: their checkpoint is the rollback point for
-        // the next message. The capture is enqueued with these terminal events,
-        // ahead of any later run's start on this thread's effect lane.
+        const claim =
+          input.terminal.status === "completed" ||
+          (yield* projections.getThreadRecords(input.run.threadId, [])).thread.role === "checker"
+            ? yield* Completion.capture({
+                run: finalizedRun,
+                projections,
+                now: completedAt,
+                eventId: runEventId,
+              }).pipe(Effect.provideService(EventStore.EventStoreV2, store))
+            : undefined;
         const finalization = {
-          effects:
-            input.terminal.status === "completed" ||
-            input.terminal.status === "interrupted" ||
-            input.terminal.status === "cancelled"
-              ? [
-                  {
-                    id: `effect:checkpoint.capture:${input.run.id}`,
-                    commandId: checkpointCaptureCommandId,
-                    threadId: input.run.threadId,
-                    request: {
-                      type: "checkpoint.capture" as const,
-                      runId: input.run.id,
-                      scopeId: input.checkpointScope.id,
-                    },
-                  },
-                ]
-              : [],
+          effects: claim === undefined ? [] : [claim.effect],
           events: [
             ...cascadedSubagentEvents,
             ...(finalizedAttempt === null
@@ -809,7 +792,10 @@ export const layer: Layer.Layer<
               nodeId: input.rootNode.id,
               providerInstanceId: input.run.providerInstanceId,
               occurredAt: completedAt,
-              payload: finalizedRun,
+              payload: {
+                ...finalizedRun,
+                ...(claim?.check === undefined ? {} : { completionCheck: claim.check }),
+              },
             },
             {
               id: nodeEventId,
@@ -832,38 +818,37 @@ export const layer: Layer.Layer<
           ],
         } satisfies Parameters<typeof eventSink.writeWithEffects>[0];
         if (input.writeIfRunCurrent !== undefined) {
-          const result = yield* eventSink.writeIfRunCurrent({
-            threadId: input.run.threadId,
-            runId: input.run.id,
-            activeAttemptId: input.writeIfRunCurrent.activeAttemptId,
-            expectedStatus: input.writeIfRunCurrent.expectedStatus,
-            events: finalization.events,
-            effects: finalization.effects,
-          });
+          const result = yield* eventSink
+            .writeIfRunCurrent({
+              threadId: input.run.threadId,
+              runId: input.run.id,
+              activeAttemptId: input.writeIfRunCurrent.activeAttemptId,
+              expectedStatus: input.writeIfRunCurrent.expectedStatus,
+              events: finalization.events,
+              effects: finalization.effects,
+            })
+            .pipe(
+              Effect.retry({
+                while: Completion.storageFailure,
+                schedule: Schedule.spaced("250 millis"),
+              }),
+            );
           if (!result.committed) {
             return;
           }
         } else {
-          yield* eventSink.writeWithEffects(finalization);
+          yield* eventSink.writeWithEffects(finalization).pipe(
+            Effect.retry({
+              while: Completion.storageFailure,
+              schedule: Schedule.spaced("250 millis"),
+            }),
+          );
         }
-        yield* input.refreshAfterTurn;
       },
     );
 
     return RunExecutionServiceV2.of({
       startRootRun: Effect.fn("RunExecutionService.startRootRun")(function* (input) {
-        // Startup failure and stream shutdown can report the same attempt.
-        const refreshAfterTurn = yield* Effect.cached(
-          finalizationObserver.refreshAfterTurn(input.appThread.projectId).pipe(
-            Effect.catchCause((cause) =>
-              Effect.logWarning("failed to refresh pull requests after run termination", {
-                threadId: input.run.threadId,
-                runId: input.run.id,
-                cause,
-              }),
-            ),
-          ),
-        );
         const makeFailedTerminalEvent = (
           failure: OrchestrationV2ProviderFailure,
           failureItemOrdinal: number,
@@ -891,21 +876,6 @@ export const layer: Layer.Layer<
                   .responseStreamingMode,
             ),
           );
-          yield* checkpointService
-            .captureBaseline({
-              scope: input.checkpointScope,
-              ordinalWithinScope: Math.max(0, input.run.ordinal - 1),
-            })
-            .pipe(
-              Effect.catchCause((cause) =>
-                Cause.hasInterruptsOnly(cause)
-                  ? Effect.failCause(cause)
-                  : Effect.logWarning(
-                      "orchestration V2 checkpoint baseline capture failed; starting provider without a baseline",
-                      { runId: input.run.id },
-                    ),
-              ),
-            );
           if (
             input.shouldStartProviderTurn !== undefined &&
             !(yield* input.shouldStartProviderTurn())
@@ -926,7 +896,6 @@ export const layer: Layer.Layer<
               yield* writeFinalRunEvents({
                 run: input.run,
                 rootNode: input.rootNode,
-                checkpointScope: input.checkpointScope,
                 providerThread: input.providerThread,
                 attempt: input.attempt,
                 terminal: makeFailedTerminalEvent(
@@ -938,7 +907,7 @@ export const layer: Layer.Layer<
                   input.providerTurnOrdinal * 100 + 1,
                 ),
                 failureItemPersisted: false,
-                refreshAfterTurn,
+
                 writeIfRunCurrent: {
                   activeAttemptId: input.attemptId,
                   expectedStatus: "running",
@@ -1021,7 +990,6 @@ export const layer: Layer.Layer<
           yield* writeFinalRunEvents({
             run: input.run,
             rootNode: input.rootNode,
-            checkpointScope: input.checkpointScope,
             providerThread,
             attempt: input.attempt,
             ...(input.shouldFinalizeRun === undefined
@@ -1029,7 +997,6 @@ export const layer: Layer.Layer<
               : {
                   shouldFinalizeRun: input.shouldFinalizeRun,
                   // Stop may commit between the ownership read and this
-                  // terminal write. Gate the events and checkpoint together.
                   writeIfRunCurrent: {
                     activeAttemptId: input.attempt.id,
                     expectedStatus: "running" as const,
@@ -1043,7 +1010,6 @@ export const layer: Layer.Layer<
             openRunOwnedSubagents: openSubagents,
             terminal,
             failureItemPersisted: terminal.status === "failed",
-            refreshAfterTurn,
           }).pipe(
             Effect.mapError((cause) => new RunExecutionIngestError({ runId: input.run.id, cause })),
           );
@@ -1442,7 +1408,6 @@ export const layer: Layer.Layer<
                 yield* writeFinalRunEvents({
                   run: input.run,
                   rootNode: input.rootNode,
-                  checkpointScope: input.checkpointScope,
                   providerThread,
                   attempt: input.attempt,
                   writeIfRunCurrent: {
@@ -1456,7 +1421,6 @@ export const layer: Layer.Layer<
                     latestItemOrdinal + 1,
                   ),
                   failureItemPersisted: false,
-                  refreshAfterTurn,
                 }).pipe(
                   // Storage failures can be defects; retry both failure channels.
                   Effect.catchCause((writeCause) =>
@@ -1595,7 +1559,6 @@ export const layer: Layer.Layer<
                         writeFinalRunEvents({
                           run: input.run,
                           rootNode: input.rootNode,
-                          checkpointScope: input.checkpointScope,
                           providerThread,
                           attempt: input.attempt,
                           writeIfRunCurrent: {
@@ -1611,7 +1574,6 @@ export const layer: Layer.Layer<
                             latestItemOrdinal + 1,
                           ),
                           failureItemPersisted: false,
-                          refreshAfterTurn,
                         }),
                       ),
                     ),

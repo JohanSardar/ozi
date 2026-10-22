@@ -53,8 +53,6 @@ import * as EventNdjsonLogger from "./provider/EventNdjsonLogger.ts";
 import * as ProviderLatestVersions from "@t3tools/provider-core/server/ProviderLatestVersions";
 import * as McpProviderSessions from "@t3tools/provider-core/server/McpProviderSessions";
 import * as ProviderHostLive from "./provider/ProviderHostLive.ts";
-import * as CheckpointDiffQuery from "./checkpointing/CheckpointDiffQuery.ts";
-import * as CheckpointStore from "./checkpointing/CheckpointStore.ts";
 import * as SourceControlBuiltInDrivers from "./sourceControl/builtInDrivers.ts";
 import * as TextGeneration from "./textGeneration/TextGeneration.ts";
 import * as ProviderInstanceRegistryHydration from "./provider/ProviderInstanceRegistryHydration.ts";
@@ -163,10 +161,8 @@ import * as CodexUsageHistory from "./usage/CodexUsageHistory.ts";
 import * as RuntimeLayer from "./orchestration-v2/runtimeLayer.ts";
 import * as ProjectStore from "./orchestration-v2/ProjectStore.ts";
 import * as ThreadSearch from "./orchestration-v2/ThreadSearch.ts";
-import * as ThreadSettlementService from "./orchestration-v2/ThreadSettlementService.ts";
 import * as IdleCompactionService from "./orchestration-v2/IdleCompactionService.ts";
 import * as ThreadPullRequestService from "./orchestration-v2/ThreadPullRequestService.ts";
-import * as RunFinalizationService from "./orchestration-v2/RunFinalizationService.ts";
 import * as EventStoreV2 from "./orchestration-v2/EventStore.ts";
 import * as ProjectionMaintenance from "./orchestration-v2/ProjectionMaintenance.ts";
 import * as ProjectionStoreV2 from "./orchestration-v2/ProjectionStore.ts";
@@ -390,17 +386,12 @@ const layerVcs = Layer.empty.pipe(
     VcsStatusBroadcaster.layer.pipe(
       Layer.provide(layerGitWorkflow),
       Layer.provide(VcsStatusBroadcaster.layerAutomaticFetchInterval),
-      // The orchestration runtime also consumes the broadcaster (run
-      // finalization), so the policy cannot read the store from the runtime's
-      // output.
       Layer.provide(
         VcsStatusBroadcaster.layerAutoPullPolicy.pipe(Layer.provide(ProjectStore.layer)),
       ),
     ),
   ),
 );
-
-const layerCheckpointStore = CheckpointStore.layer.pipe(Layer.provide(layerVcsDriverRegistry));
 
 const layerPortScanner = PortScanner.layer.pipe(Layer.provide(ProcessRunner.layer));
 
@@ -479,25 +470,10 @@ const layerScheduledTaskWebhookOrigin = Layer.effect(
 const layerOrchestrationV2Runtime = RuntimeLayer.layerProduction.pipe(
   Layer.provide(layerScheduledTaskWebhookOrigin),
   Layer.provide(ProviderEventIngestor.layerAnalytics),
-  Layer.provide(layerCheckpointStore),
   Layer.provide(layerGitWorkflow),
-  Layer.provide(
-    RunFinalizationService.layerObserver.pipe(
-      Layer.provide(ProjectionStoreV2.layer),
-      Layer.provide(layerPullRequestService),
-      Layer.provide(RuntimeLayer.layerProjectService),
-    ),
-  ),
 );
 
-const layerOrchestrationApplication = CheckpointDiffQuery.layer.pipe(
-  Layer.provideMerge(layerCheckpointStore),
-  Layer.provideMerge(layerOrchestrationV2Runtime),
-);
-
-const layerThreadSettlementWorker = Layer.effectDiscard(
-  ThreadSettlementService.make.pipe(Effect.flatMap((service) => service.start())),
-).pipe(Layer.provide(layerPullRequestService), Layer.provide(ProjectionStoreV2.layer));
+const layerOrchestrationApplication = layerOrchestrationV2Runtime;
 
 const layerIdleCompactionWorker = Layer.effectDiscard(
   IdleCompactionService.make.pipe(Effect.flatMap((service) => service.start())),
@@ -533,7 +509,6 @@ const layerProviderInstallationRefresh = Layer.effectDiscard(
 
 const layerRuntimeCoreDependenciesBase = Layer.mergeAll(
   HeldHooksWaker.layer,
-  layerThreadSettlementWorker,
   layerIdleCompactionWorker,
   StorageCleanup.layer.pipe(Layer.provide(ProjectionStoreV2.layer)),
   DatabaseStorage.layer.pipe(

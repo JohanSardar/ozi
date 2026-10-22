@@ -81,7 +81,6 @@ function records(
         requestedAt: at(-MINUTE_MS),
         startedAt: at(-MINUTE_MS),
         completedAt: at(),
-        checkpointId: null,
         contextHandoffId: null,
       },
     ],

@@ -50,7 +50,6 @@ function run(id: string, ordinal: number, status: OrchestrationV2RunStatus) {
     requestedAt: now,
     startedAt: status === "queued" ? null : now,
     completedAt: null,
-    checkpointId: null,
     contextHandoffId: null,
   };
 }
@@ -262,23 +261,6 @@ describe("thread execution presentation", () => {
     expect(threadRuntimeHasInterruptibleRun(runtime)).toBe(false);
   });
 
-  it("keeps checkpoint-wait activity visible without exposing a non-functional interrupt", () => {
-    const waitingRun = run("run-waiting", 1, "waiting");
-    const projection = { ...v2Projection, runs: [waitingRun], updatedAt: now };
-
-    expect(deriveThreadActivityRun(projection)).toMatchObject({
-      runId: waitingRun.id,
-      status: "waiting",
-    });
-
-    const runtime = deriveThreadRuntime(projection);
-    expect(runtime).toMatchObject({
-      status: "waiting",
-      activeRunId: null,
-    });
-    expect(threadRuntimeHasInterruptibleRun(runtime)).toBe(false);
-  });
-
   it("does not expose a stale active run after the runtime parks at idle", () => {
     const runtime = {
       status: "idle" as const,
@@ -324,7 +306,6 @@ describe("deriveRunlessWorkStartedAt", () => {
     providerTurnId: null,
     nativeItemRef: null,
     runtimeRequestId: null,
-    checkpointScopeId: null,
     startedAt,
     completedAt: null,
   });
@@ -378,7 +359,6 @@ describe("deriveProviderSubagentStatus", () => {
     providerTurnId: null,
     nativeItemRef: null,
     runtimeRequestId: null,
-    checkpointScopeId: null,
     startedAt: now,
     completedAt: now,
   };

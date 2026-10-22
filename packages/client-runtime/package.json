@@ -295,10 +295,6 @@
       "types": "./src/state/threadRelationships.ts",
       "default": "./src/state/threadRelationships.ts"
     },
-    "./state/thread-checkpoints": {
-      "types": "./src/state/threadCheckpoints.ts",
-      "default": "./src/state/threadCheckpoints.ts"
-    },
     "./state/thread-execution": {
       "types": "./src/state/threadExecution.ts",
       "default": "./src/state/threadExecution.ts"

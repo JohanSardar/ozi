@@ -2,10 +2,7 @@ import { remapComposerContextAttachments } from "@t3tools/shared/composerContext
 import {
   type ThreadLinkedPullRequest,
   CommandId,
-  CheckpointId,
-  CheckpointScopeId,
   ORCHESTRATION_V2_WS_METHODS,
-  OrchestrationV2CheckpointUnavailableError,
   WS_METHODS,
   type ChatAttachment,
   type MessageId,
@@ -195,13 +192,6 @@ export interface RespondToThreadUserInputInput extends ThreadCommandInput {
 
 export interface DismissThreadUserInputInput extends ThreadCommandInput {
   readonly requestId: RuntimeRequestId;
-}
-
-export interface RevertThreadCheckpointInput extends ThreadCommandInput {
-  readonly restoreFiles?: boolean;
-  readonly checkpointId?: string;
-  readonly scopeId?: string;
-  readonly turnCount?: number;
 }
 
 export type StopThreadSessionInput = ThreadCommandInput;
@@ -450,20 +440,6 @@ export const pinThread = Effect.fn("EnvironmentCommands.pinThread")(function* (
     commandId,
     threadId: input.threadId,
     ...(input.orderKey === undefined ? {} : { orderKey: input.orderKey }),
-  });
-});
-
-export interface SetThreadAutoSettleInput extends ThreadCommandInput {
-  readonly enabled: boolean;
-}
-export const setThreadAutoSettle = Effect.fn("EnvironmentCommands.setThreadAutoSettle")(function* (
-  input: SetThreadAutoSettleInput,
-) {
-  return yield* dispatch({
-    type: "thread.auto-settle.set",
-    commandId: yield* allocateCommandId(input),
-    threadId: input.threadId,
-    enabled: input.enabled,
   });
 });
 
@@ -877,53 +853,6 @@ export const dismissThreadUserInput = Effect.fn("EnvironmentCommands.dismissThre
       commandId: yield* allocateCommandId(input),
       threadId: input.threadId,
       requestId: input.requestId,
-    });
-  },
-);
-
-export const revertThreadCheckpoint = Effect.fn("EnvironmentCommands.revertThreadCheckpoint")(
-  function* (input: RevertThreadCheckpointInput) {
-    if (
-      input.checkpointId !== undefined &&
-      input.scopeId !== undefined &&
-      (yield* supportsServerResolvedCommandContext())
-    ) {
-      return yield* dispatch({
-        type: "checkpoint.rollback",
-        ...(input.restoreFiles === undefined ? {} : { restoreFiles: input.restoreFiles }),
-        commandId: yield* allocateCommandId(input),
-        threadId: input.threadId,
-        scopeId: CheckpointScopeId.make(input.scopeId),
-        checkpointId: CheckpointId.make(input.checkpointId),
-      });
-    }
-    const projection = yield* getProjection(input.threadId);
-    const checkpoint =
-      projection.checkpoints.find(
-        (candidate) => candidate.id === input.checkpointId && candidate.scopeId === input.scopeId,
-      ) ??
-      projection.checkpoints.findLast((candidate) =>
-        input.turnCount === 0
-          ? candidate.ordinalWithinScope === 0 && candidate.appRunOrdinal === null
-          : candidate.appRunOrdinal === input.turnCount,
-      );
-    if (checkpoint === undefined || checkpoint.status !== "ready") {
-      const target =
-        input.checkpointId === undefined
-          ? `run ordinal ${input.turnCount ?? "unknown"}`
-          : `checkpoint ${input.checkpointId}`;
-      return yield* new OrchestrationV2CheckpointUnavailableError({
-        threadId: input.threadId,
-        target,
-      });
-    }
-    return yield* dispatch({
-      type: "checkpoint.rollback",
-      ...(input.restoreFiles === undefined ? {} : { restoreFiles: input.restoreFiles }),
-      commandId: yield* allocateCommandId(input),
-      threadId: input.threadId,
-      scopeId: checkpoint.scopeId,
-      checkpointId: checkpoint.id,
     });
   },
 );

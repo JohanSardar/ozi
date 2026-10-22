@@ -247,7 +247,9 @@ export function delegatedTaskProgress(projection: {
     (run) => !monitorRuns.has(run.id) && run.status !== "rolled_back",
   );
   const active = workRuns.some(
-    (run) => !terminal(run.status) && !(run.status === "queued" && run.queueHeld === true),
+    (run) =>
+      (!terminal(run.status) && !(run.status === "queued" && run.queueHeld === true)) ||
+      (run.status === "completed" && run.completionCheck?.state !== "checked"),
   );
   const children =
     projection.subagents.some(
@@ -261,7 +263,12 @@ export function delegatedTaskProgress(projection: {
     ) ||
     projection.providerThreads.some((thread) => (thread.pendingBackgroundTasks?.length ?? 0) > 0);
   const resultRun = workRuns
-    .filter((run) => terminal(run.status) && (run.startedAt !== null || run.ordinal === 1))
+    .filter(
+      (run) =>
+        terminal(run.status) &&
+        (run.status !== "completed" || run.completionCheck?.state === "checked") &&
+        (run.startedAt !== null || run.ordinal === 1),
+    )
     .toSorted((a, b) => (runRanAfter(a, b) ? -1 : runRanAfter(b, a) ? 1 : 0))[0];
   return {
     state:

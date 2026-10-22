@@ -3,19 +3,9 @@ import * as DateTime from "effect/DateTime";
 import * as Schema from "effect/Schema";
 
 import {
-  CheckpointId,
-  CheckpointRef,
-  CheckpointScopeId,
-  ContextTransferId,
-  CommandId,
-  EventId,
-  MessageId,
   NodeId,
   NonNegativeInt,
-  ProjectId,
   ProviderInstanceId,
-  ProviderReplayTranscript,
-  ProviderThreadId,
   RunAttemptId,
   RunId,
   ThreadId,
@@ -24,12 +14,8 @@ import {
 } from "./index.ts";
 import {
   latestProviderTurnForAttempt,
-  OrchestrationV2Checkpoint,
-  OrchestrationV2CheckpointScope,
   OrchestrationV2Command,
   OrchestrationV2LimitRecoveryUpdate,
-  OrchestrationV2DomainEvent,
-  OrchestrationV2ProviderCapabilities,
   OrchestrationV2ProviderThread,
   OrchestrationV2ProviderThreadJson,
   OrchestrationV2RpcSchemas,
@@ -37,8 +23,6 @@ import {
   OrchestrationV2SubscribeThreadInput,
   OrchestrationV2Subagent,
   OrchestrationV2SubagentJson,
-  OrchestrationV2ThreadHistoryPage,
-  OrchestrationV2ThreadProjection,
   OrchestrationV2ThreadStreamItem,
   OrchestrationV2ThreadShell,
   OrchestrationV2TurnItem,
@@ -79,8 +63,6 @@ function emptyThreadProjection() {
     messages: [],
     plans: [],
     turnItems: [],
-    checkpointScopes: [],
-    checkpoints: [],
     contextHandoffs: [],
     contextTransfers: [],
     visibleTurnItems: [],
@@ -106,20 +88,8 @@ const decodeOrchestrationV2Command = Schema.decodeUnknownSync(OrchestrationV2Com
 const decodeOrchestrationV2TurnItem = Schema.decodeUnknownSync(OrchestrationV2TurnItem);
 const decodeOrchestrationV2TurnItemJson = Schema.decodeUnknownSync(OrchestrationV2TurnItemJson);
 const encodeOrchestrationV2TurnItemJson = Schema.encodeSync(OrchestrationV2TurnItemJson);
-const decodeOrchestrationV2CheckpointScope = Schema.decodeUnknownSync(
-  OrchestrationV2CheckpointScope,
-);
-const decodeOrchestrationV2Checkpoint = Schema.decodeUnknownSync(OrchestrationV2Checkpoint);
-const decodeOrchestrationV2DomainEvent = Schema.decodeUnknownSync(OrchestrationV2DomainEvent);
-const decodeProviderReplayTranscript = Schema.decodeUnknownSync(ProviderReplayTranscript);
 const decodeOrchestrationV2Subagent = Schema.decodeUnknownSync(OrchestrationV2Subagent);
 const encodeOrchestrationV2SubagentJson = Schema.encodeSync(OrchestrationV2SubagentJson);
-const decodeOrchestrationV2ThreadProjection = Schema.decodeUnknownSync(
-  OrchestrationV2ThreadProjection,
-);
-const decodeOrchestrationV2ThreadStreamItem = Schema.decodeUnknownSync(
-  OrchestrationV2ThreadStreamItem,
-);
 const decodeOrchestrationV2ProviderThreadJson = Schema.decodeUnknownSync(
   OrchestrationV2ProviderThreadJson,
 );
@@ -128,9 +98,6 @@ const encodeOrchestrationV2ProviderThreadJson = Schema.encodeSync(
 );
 const decodeOrchestrationV2ProviderThread = Schema.decodeUnknownSync(OrchestrationV2ProviderThread);
 const decodeOrchestrationV2ThreadShell = Schema.decodeUnknownSync(OrchestrationV2ThreadShell);
-const decodeOrchestrationV2ProviderCapabilities = Schema.decodeUnknownSync(
-  OrchestrationV2ProviderCapabilities,
-);
 
 const decodeOrchestrationV2SubscribeThreadInput = Schema.decodeUnknownSync(
   OrchestrationV2SubscribeThreadInput,
@@ -220,132 +187,6 @@ describe("orchestration V2 contracts", () => {
     ).toThrow();
   });
 
-  it("skips turn item types from a newer server in snapshots and turn-item events", () => {
-    const decodeWireItems = Schema.decodeUnknownSync(
-      Schema.toCodecJson(Schema.Array(OrchestrationV2RpcSchemas.subscribeThread.output)),
-    );
-    const decodeHistoryPage = Schema.decodeUnknownSync(
-      Schema.toCodecJson(OrchestrationV2ThreadHistoryPage),
-    );
-    const item = (id: string, type: string, extra: Record<string, unknown>) => ({
-      id,
-      type,
-      threadId: "thread-1",
-      runId: null,
-      nodeId: null,
-      providerThreadId: null,
-      providerTurnId: null,
-      nativeItemRef: null,
-      parentItemId: null,
-      ordinal: 1,
-      status: "completed",
-      title: null,
-      startedAt: null,
-      completedAt: null,
-      updatedAt: DateTime.formatIso(now),
-      ...extra,
-    });
-    const known = item("item-known", "system_notice", { message: "Hello" });
-    const future = item("item-future", "hologram", { beam: "ref-1" });
-    const projected = (position: number, turnItem: { readonly id: string }) => ({
-      position,
-      visibility: "local",
-      sourceThreadId: "thread-1",
-      sourceItemId: turnItem.id,
-      item: turnItem,
-    });
-    const projection = {
-      thread: {
-        createdBy: "user",
-        creationSource: "web",
-        id: "thread-1",
-        projectId: "project-1",
-        title: "Thread",
-        providerInstanceId: "codex",
-        modelSelection: { instanceId: "codex", model: "gpt-5-codex" },
-        runtimeMode: "full-access",
-        interactionMode: "default",
-        branch: null,
-        worktreePath: null,
-        activeProviderThreadId: null,
-        lineage: { parentThreadId: null, relationshipToParent: null, rootThreadId: "thread-1" },
-        forkedFrom: null,
-        createdAt: DateTime.formatIso(now),
-        updatedAt: DateTime.formatIso(now),
-        archivedAt: null,
-        deletedAt: null,
-      },
-      runs: [],
-      attempts: [],
-      nodes: [],
-      subagents: [],
-      providerSessions: [],
-      providerThreads: [],
-      providerTurns: [],
-      runtimeRequests: [],
-      messages: [],
-      plans: [],
-      turnItems: [future, known],
-      checkpointScopes: [],
-      checkpoints: [],
-      contextHandoffs: [],
-      contextTransfers: [],
-      visibleTurnItems: [projected(0, future), projected(1, known)],
-      updatedAt: DateTime.formatIso(now),
-    };
-    const turnItemEvent = (sequence: number, payload: unknown) => ({
-      kind: "event",
-      sequence,
-      event: {
-        id: `event-${sequence}`,
-        type: "turn-item.updated",
-        threadId: "thread-1",
-        occurredAt: DateTime.formatIso(now),
-        payload,
-      },
-    });
-
-    const [snapshot, futureEvent, knownEvent] = decodeWireItems([
-      { kind: "snapshot", snapshotSequence: 1, projection },
-      turnItemEvent(2, future),
-      turnItemEvent(3, known),
-    ]);
-
-    expect(snapshot).toMatchObject({ kind: "snapshot" });
-    if (snapshot?.kind !== "snapshot") throw new Error("expected a snapshot");
-    expect(snapshot.projection.turnItems.map((turnItem) => turnItem.id)).toEqual(["item-known"]);
-    expect(snapshot.projection.visibleTurnItems.map((row) => row.item.id)).toEqual(["item-known"]);
-    expect(futureEvent).toEqual({
-      kind: "unknown-event",
-      sequence: 2,
-      eventType: "turn-item.updated",
-    });
-    expect(knownEvent).toMatchObject({
-      kind: "event",
-      event: { type: "turn-item.updated", payload: { id: "item-known", type: "system_notice" } },
-    });
-    expect(
-      decodeHistoryPage({
-        snapshotSequence: 1,
-        items: [projected(0, future), projected(1, known)],
-        nextCursor: null,
-        hasMoreHistory: false,
-      }).items.map((row) => row.item.id),
-    ).toEqual(["item-known"]);
-
-    const broken = item("item-broken", "system_notice", {});
-    expect(() => decodeWireItems([turnItemEvent(4, broken)])).toThrow();
-    expect(() =>
-      decodeWireItems([
-        {
-          kind: "snapshot",
-          snapshotSequence: 1,
-          projection: { ...projection, turnItems: [broken] },
-        },
-      ]),
-    ).toThrow();
-  });
-
   it("negotiates bounded socket snapshots as an optional capability", () => {
     expect(
       decodeOrchestrationV2SubscribeThreadInput({
@@ -404,108 +245,6 @@ describe("orchestration V2 contracts", () => {
     ).toThrow();
   });
 
-  it("decodes persisted capability snapshots that predate runtimePolicy", () => {
-    const legacyCapabilities = {
-      sessions: {
-        supportsMultipleProviderThreadsPerSession: false,
-        supportsModelSwitchInSession: false,
-        supportsProviderSwitchingViaHandoff: true,
-        supportsRuntimeModeSwitchInSession: false,
-        pendingRequestsSurviveRestart: false,
-      },
-      threads: {
-        canCreateEmptyThread: true,
-        canReadThreadSnapshot: false,
-        canRollbackThread: true,
-        canForkThread: false,
-        canForkFromTurn: false,
-        canForkFromSubagentThread: false,
-        exposesNativeThreadId: true,
-      },
-      turns: {
-        exposesNativeTurnId: false,
-        emitsTurnStarted: true,
-        emitsTurnCompleted: true,
-        supportsInterrupt: true,
-        supportsActiveSteering: false,
-        supportsSteeringByInterruptRestart: true,
-        supportsQueuedMessages: true,
-        terminalStatusQuality: "strong",
-      },
-      streaming: {
-        streamsAssistantText: true,
-        streamsReasoning: true,
-        streamsToolOutput: true,
-        streamsPlanText: false,
-        emitsMessageCompleted: true,
-      },
-      tools: {
-        exposesToolItemIds: true,
-        emitsToolStarted: true,
-        emitsToolCompleted: true,
-        emitsToolOutput: true,
-        supportsMcpTools: false,
-        supportsDynamicToolCallbacks: false,
-      },
-      approvals: {
-        supportsCommandApproval: true,
-        supportsFileReadApproval: true,
-        supportsFileChangeApproval: true,
-        supportsApplyPatchApproval: false,
-        approvalsHaveNativeRequestIds: false,
-        approvalCallbacksAreLiveOnly: true,
-        approvalsCanOriginateFromSubagents: false,
-      },
-      planning: {
-        emitsPlanUpdated: true,
-        emitsTodoList: true,
-        emitsProposedPlan: false,
-        supportsStructuredQuestions: true,
-        planDeltasHaveItemIds: false,
-      },
-      subagents: {
-        supportsSubagents: false,
-        exposesSubagentThreadIds: false,
-        emitsSubagentLifecycle: false,
-        canWaitForSubagents: false,
-        canCloseSubagents: false,
-        canForkSubagentThread: false,
-      },
-      context: {
-        acceptsSystemContext: false,
-        acceptsDeveloperContext: false,
-        acceptsSyntheticUserContext: true,
-        canGenerateSummaries: true,
-        canConsumeHandoffSummaries: true,
-        supportsDeltaHandoff: true,
-        supportsFullThreadHandoff: true,
-        maxRecommendedHandoffChars: null,
-      },
-      checkpointing: {
-        appCanCheckpointFilesystem: true,
-        supportsNestedCheckpointScopes: true,
-        providerCanRollbackConversation: true,
-        providerRollbackReturnsSnapshot: true,
-        providerCanReadConversationSnapshot: false,
-      },
-      identity: {
-        nativeThreadIds: "strong",
-        nativeTurnIds: "weak",
-        nativeItemIds: "weak",
-        nativeRequestIds: "weak",
-      },
-    };
-
-    const decoded = decodeOrchestrationV2ProviderCapabilities(legacyCapabilities);
-    expect(decoded.runtimePolicy).toEqual({ enforcement: "client-boundary" });
-
-    const explicit = decodeOrchestrationV2ProviderCapabilities({
-      ...legacyCapabilities,
-      runtimePolicy: { enforcement: "native" },
-    });
-    expect(explicit.runtimePolicy).toEqual({ enforcement: "native" });
-  });
-
   it("lets legacy snapshot decoders ignore enrichment metadata", () => {
     const decoded = decodeLegacyShellStreamItem({
       kind: "snapshot",
@@ -521,108 +260,6 @@ describe("orchestration V2 contracts", () => {
 
     expect(decoded.kind).toBe("snapshot");
     expect("resolvedRepositoryIdentityRoots" in decoded).toBe(false);
-  });
-
-  it("decodes nested checkpoint scopes without making child scopes advance app run count", () => {
-    const rootScope = decodeOrchestrationV2CheckpointScope({
-      id: "scope-root-1",
-      threadId: "thread-1",
-      runId: "run-1",
-      nodeId: "node-root-1",
-      parentScopeId: null,
-      providerThreadId: "provider-thread-1",
-      kind: "root_run",
-      ordinalWithinParent: 1,
-      advancesAppRunCount: true,
-      cwd: "/tmp/project",
-      createdAt: now,
-    });
-    const childScope = decodeOrchestrationV2CheckpointScope({
-      id: "scope-child-1",
-      threadId: "thread-1",
-      runId: "run-1",
-      nodeId: "node-child-1",
-      parentScopeId: rootScope.id,
-      providerThreadId: "provider-thread-child-1",
-      kind: "subagent",
-      ordinalWithinParent: 1,
-      advancesAppRunCount: false,
-      cwd: "/tmp/project",
-      createdAt: now,
-    });
-
-    expect(rootScope.advancesAppRunCount).toBe(true);
-    expect(childScope.parentScopeId).toBe(rootScope.id);
-    expect(childScope.advancesAppRunCount).toBe(false);
-  });
-
-  it("decodes checkpoint captures that attach to scopes, nodes, and optional app run ordinals", () => {
-    const checkpoint = decodeOrchestrationV2Checkpoint({
-      id: "checkpoint-1",
-      threadId: "thread-1",
-      scopeId: "scope-child-1",
-      runId: "run-1",
-      nodeId: "node-child-1",
-      parentCheckpointId: "checkpoint-root-1",
-      ordinalWithinScope: 1,
-      appRunOrdinal: null,
-      ref: "git-ref-1",
-      status: "ready",
-      files: [{ path: "package.json", kind: "modified", additions: 2, deletions: 1 }],
-      capturedAt: now,
-    });
-
-    expect(checkpoint.appRunOrdinal).toBeNull();
-    expect(checkpoint.scopeId).toBe(CheckpointScopeId.make("scope-child-1"));
-    expect(checkpoint.parentCheckpointId).toBe(CheckpointId.make("checkpoint-root-1"));
-  });
-
-  it("decodes command and domain event shapes for command-to-projection tests", () => {
-    const command = decodeOrchestrationV2Command({
-      type: "message.dispatch",
-      createdBy: "user",
-      creationSource: "web",
-      commandId: "command-1",
-      threadId: "thread-1",
-      messageId: "message-1",
-      text: "hello",
-      attachments: [],
-      dispatchMode: { type: "start_immediately" },
-    });
-    const event = decodeOrchestrationV2DomainEvent({
-      id: "event-1",
-      type: "run.created",
-      threadId: "thread-1",
-      runId: "run-1",
-      occurredAt: now,
-      payload: {
-        id: "run-1",
-        threadId: "thread-1",
-        ordinal: 1,
-        providerInstanceId: "codex",
-        modelSelection: {
-          instanceId: "codex",
-          model: "gpt-5.4",
-        },
-        providerThreadId: "provider-thread-1",
-        userMessageId: "message-1",
-        rootNodeId: null,
-        activeAttemptId: null,
-        status: "queued",
-        requestedAt: now,
-        startedAt: null,
-        completedAt: null,
-        checkpointId: null,
-        contextHandoffId: null,
-      },
-    });
-
-    expect(command.commandId).toBe(CommandId.make("command-1"));
-    expect(event.id).toBe(EventId.make("event-1"));
-    if (event.type !== "run.created") {
-      throw new Error(`Expected run.created, received ${event.type}.`);
-    }
-    expect(event.payload.id).toBe(RunId.make("run-1"));
   });
 
   it("accepts a thread Stop without a client-resolved run", () => {
@@ -745,37 +382,6 @@ describe("orchestration V2 contracts", () => {
       throw new Error("expected thread_created");
     }
     expect(item.targetRunId).toBe(RunId.make("run-child-1"));
-  });
-
-  it("decodes provider-neutral replay transcripts", () => {
-    const transcript = decodeProviderReplayTranscript({
-      provider: "codex",
-      protocol: "codex.app-server",
-      version: "0.120.0",
-      scenario: "simple",
-      metadata: {
-        source: "real-probe",
-      },
-      entries: [
-        {
-          type: "expect_outbound",
-          label: "initialize",
-          frame: { id: 1, method: "initialize" },
-        },
-        {
-          type: "emit_inbound",
-          label: "initialize-result",
-          frame: { id: 1, result: { ok: true } },
-        },
-        {
-          type: "runtime_exit",
-          status: "success",
-        },
-      ],
-    });
-
-    expect(transcript.entries).toHaveLength(3);
-    expect(transcript.protocol).toBe("codex.app-server");
   });
 
   it("decodes strictly typed turn items for known tools and dynamic fallback tools", () => {
@@ -1029,119 +635,6 @@ describe("orchestration V2 contracts", () => {
     expect(() => decode({ ...appOwnedSubagent, completionWake: "sometimes" })).toThrow();
   });
 
-  it("decodes thread projections with an ordered turn item rendering stream", () => {
-    const projection = decodeOrchestrationV2ThreadProjection({
-      thread: {
-        createdBy: "user",
-        creationSource: "web",
-        id: "thread-1",
-        projectId: "project-1",
-        title: "Thread",
-        providerInstanceId: "codex",
-        modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5-codex" },
-        runtimeMode: "full-access",
-        interactionMode: "default",
-        branch: null,
-        worktreePath: null,
-        activeProviderThreadId: null,
-        lineage: {
-          parentThreadId: null,
-          relationshipToParent: null,
-          rootThreadId: "thread-1",
-        },
-        forkedFrom: null,
-        createdAt: now,
-        updatedAt: now,
-        archivedAt: null,
-        deletedAt: null,
-      },
-      runs: [],
-      attempts: [],
-      nodes: [],
-      subagents: [],
-      providerSessions: [],
-      providerThreads: [],
-      providerTurns: [],
-      runtimeRequests: [],
-      messages: [],
-      plans: [],
-      turnItems: [
-        {
-          id: "turn-item-command-1",
-          type: "command_execution",
-          threadId: "thread-1",
-          runId: "run-1",
-          nodeId: "node-command-1",
-          providerThreadId: "provider-thread-1",
-          providerTurnId: "provider-turn-1",
-          nativeItemRef: { driver: "codex", nativeId: "item-command-1", strength: "strong" },
-          parentItemId: null,
-          ordinal: 1,
-          status: "completed",
-          title: "Ran command",
-          input: "bun typecheck",
-          output: "Tasks: 10 successful",
-          exitCode: 0,
-          startedAt: now,
-          completedAt: now,
-          updatedAt: now,
-        },
-      ],
-      visibleTurnItems: [
-        {
-          position: 0,
-          visibility: "local",
-          sourceThreadId: "thread-1",
-          sourceItemId: "turn-item-command-1",
-          item: {
-            id: "turn-item-command-1",
-            type: "command_execution",
-            threadId: "thread-1",
-            runId: "run-1",
-            nodeId: "node-command-1",
-            providerThreadId: "provider-thread-1",
-            providerTurnId: "provider-turn-1",
-            nativeItemRef: { driver: "codex", nativeId: "item-command-1", strength: "strong" },
-            parentItemId: null,
-            ordinal: 1,
-            status: "completed",
-            title: "Ran command",
-            input: "bun typecheck",
-            output: "Tasks: 10 successful",
-            exitCode: 0,
-            startedAt: now,
-            completedAt: now,
-            updatedAt: now,
-          },
-        },
-      ],
-      checkpointScopes: [],
-      checkpoints: [],
-      contextHandoffs: [],
-      contextTransfers: [],
-      updatedAt: now,
-    });
-
-    expect(projection.turnItems.map((item) => item.type)).toEqual(["command_execution"]);
-
-    const boundedSnapshot = decodeOrchestrationV2ThreadStreamItem({
-      kind: "snapshot",
-      snapshotSequence: 12,
-      projection,
-      historyCursor: "older-page",
-      hasMoreHistory: true,
-      latestLocalTurnOrdinal: 1,
-      payloadBudgetExceeded: false,
-    });
-    expect(boundedSnapshot).toMatchObject({
-      kind: "snapshot",
-      historyCursor: "older-page",
-      hasMoreHistory: true,
-      latestLocalTurnOrdinal: 1,
-      payloadBudgetExceeded: false,
-    });
-  });
-
   it("decodes orchestration lifecycle turn items for compaction, handoff, and fork UI", () => {
     const compaction = decodeOrchestrationV2TurnItem({
       id: "turn-item-compaction-1",
@@ -1214,16 +707,6 @@ describe("orchestration V2 contracts", () => {
     }
     expect(handoff.toProviderInstanceId).toBe("claudeAgent");
     expect(fork.type).toBe("fork");
-  });
-
-  it("exports the V2 branded ids through the public contracts entrypoint", () => {
-    expect(ThreadId.make("thread-1")).toBe("thread-1");
-    expect(ProjectId.make("project-1")).toBe("project-1");
-    expect(MessageId.make("message-1")).toBe("message-1");
-    expect(NodeId.make("node-1")).toBe("node-1");
-    expect(ProviderThreadId.make("provider-thread-1")).toBe("provider-thread-1");
-    expect(CheckpointRef.make("git-ref-1")).toBe("git-ref-1");
-    expect(ContextTransferId.make("context-transfer-1")).toBe("context-transfer-1");
   });
 
   it("decodes historical provider-thread JSON without pendingBackgroundTasks as empty roster", () => {

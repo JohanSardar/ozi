@@ -119,8 +119,6 @@ export const layer: Layer.Layer<
           const throughSequence = yield* eventStore.latestSequence();
           yield* sql`DELETE FROM orchestration_v2_projection_context_transfers`;
           yield* sql`DELETE FROM orchestration_v2_projection_context_handoffs`;
-          yield* sql`DELETE FROM orchestration_v2_projection_checkpoints`;
-          yield* sql`DELETE FROM orchestration_v2_projection_checkpoint_scopes`;
           yield* sql`DELETE FROM orchestration_v2_projection_turn_items`;
           yield* sql`DELETE FROM orchestration_v2_projection_plans`;
           yield* sql`DELETE FROM orchestration_v2_projection_messages`;
@@ -207,7 +205,6 @@ export const layer: Layer.Layer<
       "thread.snoozed",
       "thread.unsnoozed",
       "thread.pinned",
-      "thread.auto-settle-set",
       "thread.unpinned",
       "thread.pin-reordered",
       "thread.active-reordered",
