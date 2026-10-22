@@ -203,4 +203,4 @@ Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` 
 - `m6.edit-conflict`: a revert conflicting with a user edit keeps the pre-fix build and posts a blocker.
 - `m6.crash-publish`: a crash mid-publish leaves either the old or the new build active.
 - `m6.audit`: no excluded T3 product paths, exports or dependencies remain.
-- `m6.public-ready`: MIT notices for T3, Pi and Firstmate present; no personal data in the tree.
+- `m6.public-ready`: MIT notices for T3, Pi and Firstmate present; public setup README; tracked files contain no personal home paths, personal emails, private Tailscale/LAN IPs, provider tokens or private keys. Exclude read-only third-party reference source in `.repos/`; allow obvious placeholders and upstream package author metadata.
