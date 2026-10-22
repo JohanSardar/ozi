@@ -27,11 +27,11 @@ vi.mock("@effect/atom-react", () => ({
 vi.mock("~/state/session", () => ({
   usePreparedConnection: () => ({ _tag: "Some", value: { httpBaseUrl: "https://host.test" } }),
 }));
-vi.mock("~/state/filesystem", async () => {
-  const { resolveFilesystemReadAccess } = await import("@t3tools/client-runtime/state/filesystem");
+vi.mock("~/state/fileAccess", async () => {
+  const { resolveFileReadAccess } = await import("@t3tools/client-runtime/state/file-access");
   return {
-    useFilesystemReadAccess: () =>
-      resolveFilesystemReadAccess({
+    useFileReadAccess: () =>
+      resolveFileReadAccess({
         isCatalogReady: true,
         connection: { phase: state.phase, error: null },
         session: state.session,

@@ -7,43 +7,6 @@ function completed(input: unknown, output?: unknown): T3ToolSummaryCall {
 }
 
 describe("summarizeT3ToolCalls", () => {
-  it("counts registered projects, repository destinations, and accepted thread launches", () => {
-    expect(
-      summarizeT3ToolCalls("project-create", [
-        completed({}, { id: "project-1" }),
-        completed({}, { id: "project-1" }),
-        completed({}, { id: "project-2" }),
-      ]).label,
-    ).toBe("Registered 2 projects");
-    expect(
-      summarizeT3ToolCalls("project-clone", [
-        completed({}, { cwd: "/tmp/first" }),
-        completed({}, { cwd: "/tmp/second" }),
-      ]).label,
-    ).toBe("Cloned 2 repositories");
-    expect(
-      summarizeT3ToolCalls("thread-create", [
-        completed({}, { threadId: "launched-thread", status: "preparing" }),
-      ]).label,
-    ).toBe("Created 1 thread");
-  });
-
-  it("reports review guides by outcome, and a call where none started as a failure", () => {
-    const guides = (...outcomes: ReadonlyArray<string>) => ({
-      guides: outcomes.map((outcome, index) => ({ number: index + 1, outcome })),
-    });
-    expect(
-      summarizeT3ToolCalls("write-pr-guides", [
-        completed({}, guides("started", "running", "failed")),
-      ]),
-    ).toEqual({ label: "Started 2 review guides, 1 failed", failedCount: 1 });
-    const allFailed = summarizeT3ToolCalls("write-pr-guides", [
-      completed({}, guides("failed", "failed")),
-    ]);
-    expect(allFailed.label).toBe("Could not start 2 review guides");
-    expect(allFailed.failedCount).toBe(2);
-  });
-
   it.each([
     ["queue-read", "Read 1 queued message"],
     ["queue-edit", "Edited 1 queued message"],
@@ -105,24 +68,6 @@ describe("summarizeT3ToolCalls", () => {
       ]).label,
     ).toBe("Requested 1 context merge");
   });
-
-  it.each([
-    "WorktreeMcpFailure",
-    "DeviceOperationError",
-    "PreviewAutomationExecutionError",
-    "PullRequestOperationError",
-  ])("treats a returned %s as a failed call even if the provider says completed", (_tag) => {
-    const output = [
-      {
-        type: "content",
-        content: { type: "text", text: JSON.stringify({ _tag, message: "Unavailable" }) },
-      },
-    ];
-    expect(summarizeT3ToolCalls("browser", [completed({}, output)])).toEqual({
-      label: "Tried to use browser 1 time",
-      failedCount: 1,
-    });
-  });
   it("counts messages and distinct destinations across delivery modes, deduplicating retries", () => {
     const calls = Array.from({ length: 5 }, (_, i) =>
       completed(
@@ -172,27 +117,6 @@ describe("summarizeT3ToolCalls", () => {
         completed(undefined, "Message sent"),
       ]).label,
     ).toBe("Sent 3 messages");
-  });
-
-  it("counts batch-created threads, excludes rollbacks, and deduplicates returned thread IDs", () => {
-    const threads = Array.from({ length: 4 }, (_, i) => ({
-      threadId: `thread-${i}`,
-      status: "running",
-    }));
-    expect(
-      summarizeT3ToolCalls("thread-create", [
-        completed(
-          {},
-          { threads: [...threads, { threadId: "rolled-back", status: "rolled_back" }] },
-        ),
-        completed({}, { threadId: "thread-0", status: "running" }),
-      ]).label,
-    ).toBe("Created 4 threads");
-    expect(
-      summarizeT3ToolCalls("thread-create", [
-        completed({ threads: [{ title: "Requested, not confirmed" }] }),
-      ]).label,
-    ).toBe("Requested thread creation 1 time");
   });
 
   it("excludes failed and unfinished sends even if the provider reports completed", () => {

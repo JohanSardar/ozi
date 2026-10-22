@@ -56,13 +56,6 @@ import {
   OrchestrationV2ThreadHistoryPage,
   OrchestrationV2ThreadTranscript,
 } from "./orchestrationV2.ts";
-import { Project, ProjectMutation, ProjectSnapshot } from "./project.ts";
-import {
-  PullRequestDiffInput,
-  PullRequestDiffResult,
-  PullRequestOperationError,
-  PullRequestUnavailableError,
-} from "./pullRequest.ts";
 import {
   RelayCloudEnvironmentHealthRequest,
   RelayCloudMintCredentialRequest,
@@ -353,10 +346,6 @@ const EnvironmentSessionRevokeErrors = [
   EnvironmentOperationForbiddenError,
   EnvironmentInternalError,
 ] as const;
-const EnvironmentProjectSnapshotErrors = [
-  EnvironmentScopeRequiredError,
-  EnvironmentInternalError,
-] as const;
 const EnvironmentOrchestrationSnapshotErrors = [
   EnvironmentScopeRequiredError,
   EnvironmentInternalError,
@@ -364,11 +353,6 @@ const EnvironmentOrchestrationSnapshotErrors = [
 const EnvironmentOrchestrationThreadSnapshotErrors = [
   EnvironmentScopeRequiredError,
   EnvironmentResourceNotFoundError,
-  EnvironmentInternalError,
-] as const;
-const EnvironmentProjectMutationErrors = [
-  EnvironmentRequestInvalidError,
-  EnvironmentScopeRequiredError,
   EnvironmentInternalError,
 ] as const;
 
@@ -716,38 +700,6 @@ class EnvironmentOrchestrationHttpApi extends HttpApiGroup.make("orchestration")
     }).middleware(EnvironmentAuthenticatedAuth),
   ) {}
 
-class EnvironmentProjectsHttpApi extends HttpApiGroup.make("projects")
-  .add(
-    HttpApiEndpoint.get("snapshot", "/api/projects", {
-      headers: OptionalBearerHeaders,
-      success: ProjectSnapshot,
-      error: EnvironmentProjectSnapshotErrors,
-    }).middleware(EnvironmentAuthenticatedAuth),
-  )
-  .add(
-    HttpApiEndpoint.post("mutate", "/api/projects/mutate", {
-      headers: OptionalBearerHeaders,
-      payload: ProjectMutation,
-      success: Project,
-      error: EnvironmentProjectMutationErrors,
-    }).middleware(EnvironmentAuthenticatedAuth),
-  ) {}
-
-class EnvironmentPullRequestsHttpApi extends HttpApiGroup.make("pullRequests").add(
-  HttpApiEndpoint.post("diff", "/api/pull-requests/diff", {
-    headers: OptionalBearerHeaders,
-    payload: PullRequestDiffInput,
-    success: PullRequestDiffResult,
-    error: [
-      PullRequestUnavailableError,
-      PullRequestOperationError,
-      EnvironmentAuthInvalidError,
-      EnvironmentScopeRequiredError,
-      EnvironmentInternalError,
-    ],
-  }).middleware(EnvironmentAuthenticatedAuth),
-) {}
-
 class EnvironmentConnectHttpApi extends HttpApiGroup.make("connect")
   .add(
     HttpApiEndpoint.post("linkProof", "/api/connect/link-proof", {
@@ -845,7 +797,5 @@ export class EnvironmentHttpApi extends HttpApi.make("environment")
   .add(EnvironmentAuthHttpApi)
   .add(EnvironmentMcpOAuthHttpApi)
   .add(EnvironmentOrchestrationHttpApi)
-  .add(EnvironmentPullRequestsHttpApi)
-  .add(EnvironmentProjectsHttpApi)
   .add(EnvironmentConnectHttpApi)
   .add(EnvironmentWebhooksHttpApi) {}

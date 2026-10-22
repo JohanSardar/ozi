@@ -2,12 +2,7 @@ import { assert, it } from "@effect/vitest";
 import * as Schema from "effect/Schema";
 import * as Effect from "effect/Effect";
 
-import {
-  KeybindingsConfig,
-  KeybindingRule,
-  ResolvedKeybindingRule,
-  ResolvedKeybindingsConfig,
-} from "./keybindings.ts";
+import { KeybindingRule } from "./keybindings.ts";
 
 const decode = <S extends Schema.Top>(
   schema: S,
@@ -18,9 +13,6 @@ const decode = <S extends Schema.Top>(
     Schema.SchemaError,
     never
   >;
-
-const decodeResolvedRule = Schema.decodeUnknownEffect(ResolvedKeybindingRule as never);
-const encodeResolvedKeybindings = Schema.encodeEffect(ResolvedKeybindingsConfig);
 
 it.effect("rejects invalid command values", () =>
   Effect.gen(function* () {
@@ -43,12 +35,3 @@ it.effect("accepts dynamic script run commands", () =>
     assert.strictEqual(parsed.command, "script.setup.run");
   }),
 );
-
-const shortcut = {
-  key: "p",
-  metaKey: false,
-  ctrlKey: false,
-  shiftKey: false,
-  altKey: false,
-  modKey: true,
-};

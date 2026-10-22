@@ -12,7 +12,6 @@ import {
   RuntimeRequestId,
   ThreadId,
   TurnItemId,
-  WS_METHODS,
   type OrchestrationV2Command,
   type OrchestrationV2ThreadLaunchInput,
   type OrchestrationV2ThreadProjection,
@@ -37,7 +36,6 @@ import { v2Now, v2Projection, v2ThreadId } from "../state/orchestrationV2TestFix
 import {
   archiveThread,
   cancelQueuedRun,
-  createProject,
   dismissThreadUserInput,
   editQueuedRun,
   forkThreadFromRun,
@@ -49,7 +47,6 @@ import {
   settleThread,
   startThreadTurn,
   unsettleThread,
-  updateProject,
   updateThreadMetadata,
 } from "./commands.ts";
 
@@ -99,23 +96,6 @@ const makeSupervisor = Effect.fn("TestEnvironmentCommands.makeSupervisor")(funct
           resumed: false,
         };
       }),
-    [WS_METHODS.projectsMutate]: (mutation: ProjectMutation) =>
-      Effect.sync(() => {
-        input.projects.push(mutation);
-        return {
-          id: mutation.projectId,
-          title: mutation.type === "project.create" ? mutation.title : "Project",
-          workspaceRoot:
-            mutation.type === "project.create" ? mutation.workspaceRoot : "/workspace/project",
-          repositoryIdentity: null,
-          faviconPath: null,
-          defaultModelSelection: null,
-          scripts: [],
-          createdAt: "2026-06-06T00:00:00.000Z",
-          updatedAt: "2026-06-06T00:00:00.000Z",
-          deletedAt: null,
-        };
-      }),
   } as unknown as WsRpcProtocolClient;
   const session: RpcSession.RpcSession = {
     client,
@@ -147,75 +127,6 @@ const makeSupervisor = Effect.fn("TestEnvironmentCommands.makeSupervisor")(funct
 });
 
 describe("V2 environment commands", () => {
-  it.effect("routes projects through the event-sourced project transport", () =>
-    Effect.gen(function* () {
-      const projects: ProjectMutation[] = [];
-      const supervisor = yield* makeSupervisor({ commands: [], projects });
-
-      yield* createProject({
-        projectId: ProjectId.make("project-1"),
-        title: "Project",
-        workspaceRoot: "/workspace/project",
-        createWorkspaceRootIfMissing: true,
-      }).pipe(Effect.provideService(EnvironmentSupervisor.EnvironmentSupervisor, supervisor));
-
-      expect(projects).toEqual([
-        {
-          type: "project.create",
-          commandId: "00000000-0000-4000-8000-000000000000",
-          projectId: "project-1",
-          title: "Project",
-          workspaceRoot: "/workspace/project",
-          createWorkspaceRootIfMissing: true,
-        },
-      ]);
-    }).pipe(Effect.provide(layerTestCrypto)),
-  );
-
-  it.effect("persists and clears project presentation and environment settings", () =>
-    Effect.gen(function* () {
-      const projects: ProjectMutation[] = [];
-      const supervisor = yield* makeSupervisor({ commands: [], projects });
-      const projectId = ProjectId.make("project-1");
-      const projectIcon = { kind: "emoji", emoji: "🌲" } as const;
-      yield* updateProject({
-        projectId,
-        autoPull: true,
-        projectIcon,
-        faviconPath: "/workspace/project/icon.png",
-        defaultThreadEnvMode: "worktree",
-      }).pipe(Effect.provideService(EnvironmentSupervisor.EnvironmentSupervisor, supervisor));
-      yield* updateProject({
-        projectId,
-        autoPull: false,
-        projectIcon: null,
-        faviconPath: null,
-        defaultThreadEnvMode: null,
-      }).pipe(Effect.provideService(EnvironmentSupervisor.EnvironmentSupervisor, supervisor));
-
-      expect(projects).toEqual([
-        {
-          type: "project.update",
-          commandId: "00000000-0000-4000-8000-000000000000",
-          projectId,
-          autoPull: true,
-          projectIcon,
-          faviconPath: "/workspace/project/icon.png",
-          defaultThreadEnvMode: "worktree",
-        },
-        {
-          type: "project.update",
-          commandId: "00000000-0000-4000-8000-000000000000",
-          projectId,
-          autoPull: false,
-          projectIcon: null,
-          faviconPath: null,
-          defaultThreadEnvMode: null,
-        },
-      ]);
-    }).pipe(Effect.provide(layerTestCrypto)),
-  );
-
   it.effect("preserves caller command ids for idempotent V2 commands", () =>
     Effect.gen(function* () {
       const commands: OrchestrationV2Command[] = [];
@@ -394,35 +305,10 @@ describe("V2 environment commands", () => {
 
   it.effect("Stop with no run left ends the thread's pull request watches", () =>
     Effect.gen(function* () {
-      const link = {
-        host: "github.com",
-        repository: "pingdotgg/t3code",
-        url: "https://github.com/pingdotgg/t3code/pull/7",
-        source: "agent" as const,
-        linkedAt: "2026-10-05T00:00:00.000Z",
-        snapshot: null,
-        stack: null,
-      };
-      const watch = {
-        startedAt: "2026-10-05T00:00:00.000Z",
-        headSha: null,
-        failedChecks: [],
-        passed: false,
-        passedChecks: [],
-        remarksThrough: "2026-10-05T00:00:00.000Z",
-        remarkIds: [],
-        conflicting: false,
-        wakes: 0,
-      };
       const projection: OrchestrationV2ThreadProjection = {
         ...v2Projection,
         thread: {
           ...v2Projection.thread,
-          pullRequests: [
-            { ...link, number: 7, watch },
-            { ...link, number: 8 },
-            { ...link, number: 9, source: "stack-dismissed", watch },
-          ],
         },
       };
       const commands: OrchestrationV2Command[] = [];

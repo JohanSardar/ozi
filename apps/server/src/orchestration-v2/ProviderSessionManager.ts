@@ -449,7 +449,7 @@ export const layerWithOptions = (
                 const browserToolsAvailable = !main && access.browser;
                 const capabilities = new Set<
                   import("../mcp/McpInvocationContext.ts").McpCapability
-                >(main ? ["orchestration"] : ["orchestration", "worktree", "pull-requests"]);
+                >(main ? ["orchestration"] : ["orchestration"]);
                 if (browserToolsAvailable) capabilities.add("preview");
                 const existing = yield* mcpSessions.read(threadId);
                 if (existing !== undefined) {

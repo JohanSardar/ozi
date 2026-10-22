@@ -16,7 +16,6 @@ import {
 } from "@t3tools/shared/t3McpToolPresentation";
 import { classifyMarkdownImageSource } from "@t3tools/client-runtime/markdown-images";
 import { resolveMediaSource } from "@t3tools/client-runtime/media-source";
-import { parseChangeRequestUrl } from "@t3tools/shared/changeRequestUrl";
 import { isWorkspaceImagePreviewPath } from "@t3tools/shared/filePreview";
 import { formatTokens } from "@t3tools/shared/usageFormat";
 import { classifyToolActivity } from "@t3tools/shared/toolActivity";
@@ -172,31 +171,9 @@ function resolveT3McpToolPresentation(
               ? `Stopped ${running.toLowerCase()}`
               : running;
 
-  const actionKind =
-    definition.summaryAction === "link-pr" ||
-    definition.summaryAction === "unlink-pr" ||
-    definition.summaryAction === "list-prs" ||
-    definition.summaryAction === "watch-pr" ||
-    definition.summaryAction === "unwatch-pr"
-      ? definition.summaryAction
-      : undefined;
-  const payload = asRecord(data);
-  const input =
-    asRecord(payload?.arguments) ?? asRecord(payload?.input) ?? asRecord(payload?.rawInput);
-  const urlTarget = typeof input?.url === "string" ? parseChangeRequestUrl(input.url) : null;
-  const number = urlTarget?.number ?? input?.number;
-  const target =
-    actionKind !== undefined &&
-    actionKind !== "list-prs" &&
-    typeof number === "number" &&
-    Number.isSafeInteger(number) &&
-    number > 0
-      ? `PR #${number}`
-      : detail;
   return {
-    displayName: `${verb} ${target}`,
+    displayName: `${verb} ${detail}`,
     icon: definition.icon,
-    ...(actionKind === undefined ? {} : { action: actionKind }),
   };
 }
 
@@ -418,7 +395,6 @@ function workLogEntryIsLocalCodeSearch(entry: WorkLogPresentationEntry): boolean
 export function toolGroupAction(entry: WorkLogPresentationEntry): ToolGroupAction {
   if (entry.itemType === "thread_created") return "thread-create";
   const presentation = resolveWorkEntryToolPresentation(entry);
-  if (presentation?.action !== undefined) return presentation.action;
   if (presentation?.icon === "browser") return "browser";
   if (entry.requestKind === "file-read" || entry.viewedImagePath !== undefined) return "read";
   if (entry.itemType === "approval_request" || entry.itemType === "user_input_request") {
@@ -608,11 +584,6 @@ function summaryActionPriority(action: ToolGroupAction | T3McpToolSummaryAction)
     case "queue-reorder":
     case "queue-steer":
     case "question-respond":
-    case "worktree-handoff":
-    case "project-create":
-    case "project-update":
-    case "project-delete":
-    case "project-clone":
     case "environment-update":
     case "attachment-prepare":
     case "attachment-discard":
@@ -718,11 +689,6 @@ export function toolGroupSummaryKind(
   const toolEntries = entries.filter((entry) => entry.itemType !== "reasoning");
   if (entries.length > 0 && toolEntries.length === 0) return "reasoning";
   entries = toolEntries;
-  if (
-    entries.length > 0 &&
-    entries.every((entry) => resolveWorkEntryToolPresentation(entry)?.icon === "pull-request")
-  )
-    return "pull-request";
   const actions = new Set(entries.map(toolGroupAction));
   if (actions.size !== 1) return "mixed";
   const action = actions.values().next().value!;

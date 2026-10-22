@@ -42,7 +42,6 @@ catalog:
   "@electron-webauthn/macos": 1.3.1
   "@noble/curves": 1.9.1
   "@noble/hashes": 1.8.0
-  "@pierre/diffs": 1.5.2
   "@tailwindcss/node": 4.3.3
   "@tailwindcss/oxide": 4.3.3
   "@tailwindcss/vite": 4.3.3
@@ -155,7 +154,6 @@ overrides:
   "@effect/sql-pg": "catalog:"
   "@effect/vitest": "catalog:"
   "@effect/vitest>vitest": "-"
-  "@pierre/diffs>@shikijs/transformers": ^4.2.0
   remark-math>micromark-extension-math: npm:micromark-extension-llm-math@3.1.0
   micromark-extension-gfm-table: 2.1.1
   "@tailwindcss/node": "catalog:"
@@ -185,7 +183,6 @@ patchedDependencies:
   alchemy@2.0.0-beta.80: patches/alchemy@2.0.0-beta.80.patch
   "@effect/vitest@4.0.5": patches/@effect__vitest@4.0.5.patch
   "@ff-labs/fff-node@0.11.0": patches/@ff-labs__fff-node@0.11.0.patch
-  "@pierre/diffs@1.5.2": patches/@pierre%2Fdiffs@1.5.2.patch
   dbus-next@0.10.2: patches/dbus-next@0.10.2.patch
   app-builder-lib@26.16.1: patches/app-builder-lib@26.16.1.patch
   pi-claude-bridge@0.9.3: patches/pi-claude-bridge@0.9.3.patch

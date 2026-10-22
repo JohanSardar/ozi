@@ -21,7 +21,6 @@ const LIST_TIMEOUT = Duration.seconds(8);
 const PRE_WARM_TIMEOUT = Duration.seconds(30);
 const WSLPATH_TIMEOUT = Duration.seconds(10);
 const PROBE_TIMEOUT = Duration.seconds(10);
-const TOOLCHAIN_TIMEOUT = Duration.seconds(10);
 const RUNTIME_INSTALL_TIMEOUT = Duration.minutes(2);
 const RUNTIME_PRUNE_TIMEOUT = Duration.seconds(30);
 const RUNTIME_INVALIDATE_TIMEOUT = Duration.seconds(15);
@@ -448,16 +447,6 @@ export const buildWslRuntimeProbeScript = (linuxAppRoot: string) =>
     `bash -lc ${shellQuote(`${buildWslNodeEnvPreamble()}${RESOLVED_PATH_LINE}`)} 2>/dev/null || ${RESOLVED_PATH_LINE}`,
     `${shellQuote(`${linuxAppRoot}/t3`)} --version >/dev/null 2>&1`,
   ].join("\n");
-
-const TOOLCHAIN_CHECK_SCRIPT = [
-  "for tool in node make g++ python3; do",
-  '  command -v "$tool" >/dev/null 2>&1 || echo "missing:$tool"',
-  "done",
-  "if command -v node >/dev/null 2>&1; then",
-  `  ver="$(node -p 'process.versions.node' 2>/dev/null)"`,
-  '  if [ -n "$ver" ]; then printf "nodeVersion:%s\\n" "$ver"; fi',
-  "fi",
-].join("\n");
 
 export interface ToolchainReport {
   readonly missingTools: ReadonlyArray<string>;

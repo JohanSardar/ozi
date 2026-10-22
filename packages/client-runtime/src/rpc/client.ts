@@ -62,21 +62,15 @@ export type EnvironmentSubscriptionRpcTag =
   | typeof WS_METHODS.subscribeServerConfig
   | typeof WS_METHODS.subscribeServerLifecycle
   | typeof WS_METHODS.scheduledTasksSubscribe
-  | typeof WS_METHODS.serverGetStorageCleanupReport
   | typeof WS_METHODS.serverGetDatabaseStorage
   | typeof WS_METHODS.subscribePreviewEvents
   | typeof WS_METHODS.subscribeDiscoveredLocalServers
-  | typeof WS_METHODS.subscribeResourceTelemetry
-  | typeof WS_METHODS.pullRequestsSubscribeRefreshes
-  | typeof WS_METHODS.subscribeVcsStatus
-  | typeof WS_METHODS.subscribeWorktreeSetup
-  | typeof WS_METHODS.subscribeProjectClones;
+  | typeof WS_METHODS.subscribeResourceTelemetry;
 
 export type EnvironmentStreamCommandRpcTag =
   | typeof WS_METHODS.chatGptHandoffSubscribe
   | typeof WS_METHODS.cloudInstallRelayClient
-  | typeof WS_METHODS.serverUpdateServerWithProgress
-  | typeof WS_METHODS.gitRunStackedAction;
+  | typeof WS_METHODS.serverUpdateServerWithProgress;
 
 export type EnvironmentStreamRpcTag =
   | EnvironmentSubscriptionRpcTag

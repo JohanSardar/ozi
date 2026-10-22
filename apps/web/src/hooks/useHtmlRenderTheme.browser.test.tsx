@@ -1,9 +1,6 @@
 import { HTML_RENDER_DEFAULT_FONTS, type HtmlRenderTheme } from "@t3tools/shared/htmlRender";
 import { BUILT_IN_THEME_IDS } from "@t3tools/shared/themePalettes";
-import { useEffect } from "react";
 import { describe, expect, it, vi } from "vite-plus/test";
-
-import { render } from "../../test/render";
 import {
   getStandardThemeColors,
   setEnvironmentThemes,
@@ -11,7 +8,6 @@ import {
   type ThemeHalves,
   type ThemePreference,
 } from "../themePalette";
-import { useHtmlRenderTheme } from "./useHtmlRenderTheme";
 
 const selection = vi.hoisted(() => ({
   theme: "ocean" as ThemePreference,
@@ -31,14 +27,6 @@ function setup(theme: ThemePreference, resolvedTheme: ThemeAppearance): Disposab
 
 async function readRenderTheme(): Promise<HtmlRenderTheme> {
   let theme: HtmlRenderTheme | undefined;
-  function Probe() {
-    const resolved = useHtmlRenderTheme();
-    useEffect(() => {
-      theme = resolved;
-    }, [resolved]);
-    return null;
-  }
-  await using _screen = await render(<Probe />);
   if (!theme) throw new Error("The HTML render theme was not resolved.");
   return theme;
 }
