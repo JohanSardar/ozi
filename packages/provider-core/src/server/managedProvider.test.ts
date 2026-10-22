@@ -102,7 +102,6 @@ const refreshedSnapshotSecond: ServerProvider = {
 };
 
 function layerProviderHost(input: {
-  readonly runBackgroundWork: boolean;
   readonly settings?: Pick<ProviderHost.ProviderHost["Service"], "settings">["settings"];
 }) {
   return Layer.succeed(
@@ -121,15 +120,14 @@ function layerProviderHost(input: {
         changes: Stream.empty,
         subscribe: Effect.succeed(Stream.empty),
       },
-      shouldRunBackgroundWork: () => Effect.succeed(input.runBackgroundWork),
       resolveAttachmentPath: () => null,
       credentials: () => Effect.die("unused"),
     }),
   );
 }
 
-const layerAlwaysRunTest = layerProviderHost({ runBackgroundWork: true });
-const layerNeverRunTest = layerProviderHost({ runBackgroundWork: false });
+const layerAlwaysRunTest = layerProviderHost({});
+const layerNeverRunTest = layerProviderHost({});
 
 const enrichedSnapshotSecond: ServerProvider = {
   ...refreshedSnapshotSecond,
@@ -442,9 +440,7 @@ describe("makeManagedServerProvider", () => {
             ),
             Effect.as(refreshedSnapshot),
           ),
-        }).pipe(
-          Effect.provide(layerProviderHost({ runBackgroundWork: true, settings: hostSettings })),
-        );
+        }).pipe(Effect.provide(layerProviderHost({ settings: hostSettings })));
 
         yield* Deferred.await(initialCheckDone);
         const nextServerSettings = {

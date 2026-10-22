@@ -32,20 +32,16 @@ import {
   createBuildConfig,
   DESKTOP_ELECTRON_LANGUAGES,
   DESKTOP_FILE_EXCLUSIONS,
-  DESKTOP_EXTRA_RESOURCES,
   LINUX_BROWSER_SECRET_EXTRA_RESOURCES,
   InvalidMacPasskeyRpDomainError,
   InvalidMacPasskeyPublishableKeyError,
   isMacPasskeySigningConfigurationError,
   LinuxIconResizeError,
   LinuxDesktopBuildPrerequisitesMissingError,
-  MacDesktopBuildPrerequisitesMissingError,
   MacPasskeySigningConfigurationResolutionError,
   MissingMacPasskeyProvisioningProfileError,
   packWindowsServerAsar,
   preflightLinuxDesktopBuild,
-  preflightMacDesktopBuild,
-  preflightWindowsDesktopBuild,
   renderMacPasskeyEntitlements,
   resolveMacWebAuthnEntitlements,
   resolveClerkPasskeyNativeArtifacts,
@@ -57,12 +53,9 @@ import {
   resolveDesktopProductName,
   resolveDesktopBrandChannel,
   resolveDesktopWebAssetBrand,
-  resolveResourceMonitorRustTargets,
-  resourceMonitorExecutableName,
   resolvePackageManagerUserAgent,
   stageLinuxIconSize,
   stageDesktopDmgBackground,
-  stageResourceMonitor,
   stageLinuxCaptureHelper,
   stageWslRuntimeArchive,
   bundlesWslRuntime,
@@ -74,7 +67,6 @@ import {
   validateWindowsPackagedPayload,
   verifyPackagedBundleIsSelfContained,
   WindowsPrimaryNativeProbeError,
-  WindowsDesktopBuildPrerequisitesMissingError,
   WindowsPackagedPayloadValidationError,
   WINDOWS_NATIVE_ASAR_UNPACK_GLOB,
   WINDOWS_PACKAGED_PAYLOAD_FILE_LIMIT,
@@ -955,48 +947,6 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
     ),
   );
 
-  it.effect("stages a cached resource monitor without invoking Cargo", () =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        const fs = yield* FileSystem.FileSystem;
-        const path = yield* Path.Path;
-        const repoRoot = yield* fs.makeTempDirectoryScoped({
-          prefix: "t3-resource-monitor-cache-test-",
-        });
-        const binaryPath = path.join(
-          repoRoot,
-          "native/resource-monitor/target/x86_64-unknown-linux-gnu/release/t3-resource-monitor",
-        );
-        const stageResourcesDir = path.join(repoRoot, "stage");
-        yield* fs.makeDirectory(path.dirname(binaryPath), { recursive: true });
-        yield* fs.writeFileString(binaryPath, "cached monitor");
-
-        yield* stageResourceMonitor({
-          repoRoot,
-          stageResourcesDir,
-          platform: "linux",
-          arch: "x64",
-          verbose: false,
-        }).pipe(
-          Effect.provide(
-            ConfigProvider.layer(
-              ConfigProvider.fromEnv({
-                env: { OZI_DESKTOP_REUSE_RESOURCE_MONITOR: "true" },
-              }),
-            ),
-          ),
-        );
-
-        assert.equal(
-          yield* fs.readFileString(
-            path.join(stageResourcesDir, "resource-monitor/t3-resource-monitor"),
-          ),
-          "cached monitor",
-        );
-      }),
-    ),
-  );
-
   it.effect("reports every missing Linux desktop build prerequisite with an install command", () =>
     Effect.scoped(
       Effect.gen(function* () {
@@ -1038,167 +988,6 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
               command.command === "rustc" && command.args.includes("aarch64-unknown-linux-gnu"),
           ),
         );
-      }),
-    ),
-  );
-
-  it.effect("reports missing macOS tools and Rust targets before building", () =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        const spawner = Layer.succeed(
-          ChildProcessSpawner.ChildProcessSpawner,
-          ChildProcessSpawner.make((command) => {
-            const childProcess = command as unknown as {
-              readonly command: string;
-              readonly args: ReadonlyArray<string>;
-            };
-            const fails =
-              childProcess.command === "rustc" ||
-              (childProcess.command === "xcrun" && childProcess.args.includes("iconutil"));
-            return Effect.succeed(mockProcess(fails ? 1 : 0));
-          }),
-        );
-        const error = yield* preflightMacDesktopBuild("universal").pipe(
-          Effect.provide(spawner),
-          Effect.flip,
-        );
-
-        assert.instanceOf(error, MacDesktopBuildPrerequisitesMissingError);
-        assert.deepStrictEqual(error.missing, ["rust", "iconutil"]);
-        assert.deepStrictEqual(error.rustTargets, ["aarch64-apple-darwin", "x86_64-apple-darwin"]);
-        assert.include(error.message, "xcode-select --install");
-        assert.include(error.message, "rustup target add aarch64-apple-darwin x86_64-apple-darwin");
-      }),
-    ),
-  );
-
-  it.effect("reports missing Windows toolchain capabilities before building", () =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        const fs = yield* FileSystem.FileSystem;
-        const path = yield* Path.Path;
-        const tempDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-windows-preflight-" });
-        const pythonPath = path.join(tempDir, "python.exe");
-        yield* fs.writeFileString(pythonPath, "python");
-        const spawner = Layer.succeed(
-          ChildProcessSpawner.ChildProcessSpawner,
-          ChildProcessSpawner.make((command) => {
-            const childProcess = command as unknown as { readonly command: string };
-            const fails =
-              childProcess.command === "rustc" ||
-              childProcess.command === "powershell.exe" ||
-              childProcess.command === pythonPath;
-            return Effect.succeed(mockProcess(fails ? 1 : 0));
-          }),
-        );
-        const error = yield* preflightWindowsDesktopBuild({
-          arch: "x64",
-          bundlesWslRuntime: true,
-        }).pipe(
-          Effect.provide(
-            Layer.merge(
-              spawner,
-              ConfigProvider.layer(
-                ConfigProvider.fromEnv({ env: { npm_config_python: pythonPath } }),
-              ),
-            ),
-          ),
-          Effect.flip,
-        );
-
-        assert.instanceOf(error, WindowsDesktopBuildPrerequisitesMissingError);
-        assert.deepStrictEqual(error.missing, ["rust", "python", "msvc"]);
-        assert.equal(error.rustTarget, "x86_64-pc-windows-msvc");
-        assert.include(error.message, "Visual Studio Build Tools components");
-      }),
-    ),
-  );
-
-  it.effect("does not require MSVC when reusing a prebuilt Windows resource monitor", () =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        const fs = yield* FileSystem.FileSystem;
-        const path = yield* Path.Path;
-        const tempDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-windows-preflight-" });
-        const pythonPath = path.join(tempDir, "python.exe");
-        yield* fs.writeFileString(pythonPath, "python");
-        const commands: string[] = [];
-        const spawner = Layer.succeed(
-          ChildProcessSpawner.ChildProcessSpawner,
-          ChildProcessSpawner.make((command) => {
-            const childProcess = command as unknown as { readonly command: string };
-            commands.push(childProcess.command);
-            return Effect.succeed(mockProcess(childProcess.command === "powershell.exe" ? 1 : 0));
-          }),
-        );
-
-        yield* preflightWindowsDesktopBuild({
-          arch: "x64",
-          bundlesWslRuntime: true,
-        }).pipe(
-          Effect.provide(
-            Layer.merge(
-              spawner,
-              ConfigProvider.layer(
-                ConfigProvider.fromEnv({
-                  env: {
-                    npm_config_python: pythonPath,
-                    OZI_DESKTOP_REUSE_RESOURCE_MONITOR: "true",
-                  },
-                }),
-              ),
-            ),
-          ),
-        );
-
-        assert.notInclude(commands, "powershell.exe");
-      }),
-    ),
-  );
-
-  it.effect("rejects a PATH-discovered Python executable that is not Python 3", () =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        const fs = yield* FileSystem.FileSystem;
-        const path = yield* Path.Path;
-        const tempDir = yield* fs.makeTempDirectoryScoped({ prefix: "t3-python2-preflight-" });
-        const pythonPath = path.join(tempDir, "python");
-        yield* fs.writeFileString(pythonPath, "python2");
-        const spawner = Layer.succeed(
-          ChildProcessSpawner.ChildProcessSpawner,
-          ChildProcessSpawner.make((command) => {
-            const childProcess = command as unknown as {
-              readonly command: string;
-              readonly args: ReadonlyArray<string>;
-            };
-            if (childProcess.command === "python") {
-              return Effect.succeed(mockProcess(0, `${pythonPath}\n`));
-            }
-            if (childProcess.command === pythonPath) {
-              return Effect.succeed(mockProcess(1));
-            }
-            return Effect.succeed(mockProcess(0));
-          }),
-        );
-        const error = yield* preflightWindowsDesktopBuild({
-          arch: "x64",
-          bundlesWslRuntime: false,
-        }).pipe(
-          Effect.provide(
-            Layer.merge(
-              spawner,
-              ConfigProvider.layer(
-                ConfigProvider.fromEnv({
-                  env: { OZI_DESKTOP_REUSE_RESOURCE_MONITOR: "true" },
-                }),
-              ),
-            ),
-          ),
-          Effect.flip,
-        );
-
-        assert.instanceOf(error, WindowsDesktopBuildPrerequisitesMissingError);
-        assert.deepStrictEqual(error.missing, ["python"]);
       }),
     ),
   );
@@ -1714,55 +1503,6 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
     ),
   );
 
-  it.effect("rejects directories in place of packaged executable files", () =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        const fs = yield* FileSystem.FileSystem;
-        const path = yield* Path.Path;
-        const fixture = yield* makeWindowsPayloadFixture({ copyUnpackedNatives: true });
-        const nativePath = path.join(
-          fixture.packagedAppDir,
-          "resources/server.asar.unpacked/node_modules/native/addon.node",
-        );
-        yield* fs.remove(nativePath);
-        yield* fs.makeDirectory(nativePath);
-
-        const nativeError = yield* validateWindowsPackagedPayload({
-          stageDistDir: fixture.stageDistDir,
-          appExecutableName: fixture.appExecutableName,
-          targetArch: "x64",
-          appVersion: WINDOWS_PAYLOAD_FIXTURE_VERSION,
-        }).pipe(Effect.flip);
-        assert.instanceOf(nativeError, WindowsPackagedPayloadValidationError);
-        assert.equal(nativeError.reason, "unpacked-native-missing");
-        assert.deepStrictEqual(nativeError.missingFiles, [
-          "server.asar.unpacked/node_modules/native/addon.node",
-        ]);
-
-        yield* fs.remove(nativePath, { recursive: true });
-        yield* fs.writeFileString(nativePath, "native-binary");
-        const resourceMonitorPath = path.join(
-          fixture.packagedAppDir,
-          "resources/resource-monitor/t3-resource-monitor.exe",
-        );
-        yield* fs.remove(resourceMonitorPath);
-        yield* fs.makeDirectory(resourceMonitorPath);
-
-        const resourceMonitorError = yield* validateWindowsPackagedPayload({
-          stageDistDir: fixture.stageDistDir,
-          appExecutableName: fixture.appExecutableName,
-          targetArch: "x64",
-          appVersion: WINDOWS_PAYLOAD_FIXTURE_VERSION,
-        }).pipe(Effect.flip);
-        assert.instanceOf(resourceMonitorError, WindowsPackagedPayloadValidationError);
-        assert.equal(resourceMonitorError.reason, "resource-monitor-missing");
-        assert.deepStrictEqual(resourceMonitorError.missingFiles, [
-          "resource-monitor/t3-resource-monitor.exe",
-        ]);
-      }),
-    ),
-  );
-
   it.effect("rejects a Windows payload that regresses above the file-count budget", () =>
     Effect.scoped(
       Effect.gen(function* () {
@@ -2206,27 +1946,6 @@ it.layer(NodeServices.layer)("build-desktop-artifact", (it) => {
       ),
     ),
   );
-
-  it("stages the resource monitor as an external executable resource", () => {
-    assert.deepStrictEqual(DESKTOP_EXTRA_RESOURCES, [
-      {
-        from: "apps/desktop/prod-resources/resource-monitor",
-        to: "resource-monitor",
-      },
-    ]);
-    assert.deepStrictEqual(resolveResourceMonitorRustTargets("mac", "universal"), [
-      "aarch64-apple-darwin",
-      "x86_64-apple-darwin",
-    ]);
-    assert.deepStrictEqual(resolveResourceMonitorRustTargets("linux", "x64"), [
-      "x86_64-unknown-linux-gnu",
-    ]);
-    assert.deepStrictEqual(resolveResourceMonitorRustTargets("win", "arm64"), [
-      "aarch64-pc-windows-msvc",
-    ]);
-    assert.equal(resourceMonitorExecutableName("mac"), "t3-resource-monitor");
-    assert.equal(resourceMonitorExecutableName("win"), "t3-resource-monitor.exe");
-  });
 
   it("ships the Linux CLI release archive as the WSL runtime", () => {
     assert.equal(WSL_RUNTIME_ARCHIVE_NAME, "wsl-runtime.tar.gz");

@@ -9,11 +9,10 @@ import { readCaller, unavailable } from "../../threadAccess.ts";
 import { EnvironmentToolkit } from "./tools.ts";
 
 export function preferences(settings: ServerSettings) {
-  const { defaultThreadEnvMode, enableProviderUpdateChecks, backgroundActivity } = settings;
+  const { defaultThreadEnvMode, enableProviderUpdateChecks } = settings;
   return {
     defaultThreadEnvMode,
     enableProviderUpdateChecks,
-    backgroundActivity: { profile: backgroundActivity.profile },
   };
 }
 const access = Effect.gen(function* () {

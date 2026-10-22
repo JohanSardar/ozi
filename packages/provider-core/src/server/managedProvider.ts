@@ -3,7 +3,6 @@ import {
   type ServerProvider,
   ServerSettingsError,
 } from "@t3tools/contracts";
-import { resolveServerBackgroundActivitySettings } from "@t3tools/shared/backgroundActivitySettings";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Equal from "effect/Equal";
@@ -218,29 +217,15 @@ export const makeManagedServerProvider = Effect.fn("makeManagedServerProvider")(
     return yield* applySnapshot(nextSettings, { forceRefresh: true });
   });
 
-  const hasProviderStatusDemand = Effect.gen(function* () {
-    const state = yield* Ref.get(snapshotStateRef);
-    // A disabled instance has nothing to probe; a periodic check would only
-    // republish a snapshot that differs in checkedAt.
-    if (!state.snapshot.enabled) {
-      return false;
-    }
-    const instanceId = state.snapshot.instanceId;
-    const [genericDemand, instanceDemand] = yield* Effect.all([
-      host.shouldRunBackgroundWork({ type: "provider-status" }),
-      host.shouldRunBackgroundWork({ type: "provider-status", instanceId }),
-    ]);
-    return genericDemand || instanceDemand;
-  });
+  const hasProviderStatusDemand = Ref.get(snapshotStateRef).pipe(
+    Effect.map((state) => state.snapshot.enabled),
+  );
 
   const getRefreshInterval =
     input.refreshInterval !== undefined
       ? Effect.succeed(input.refreshInterval)
       : host.settings.get.pipe(
-          Effect.map(
-            (settings) =>
-              resolveServerBackgroundActivitySettings(settings).providerHealthRefreshInterval,
-          ),
+          Effect.map((settings) => settings.providerHealthRefreshInterval),
           Effect.orElseSucceed(() => DEFAULT_PROVIDER_HEALTH_REFRESH_INTERVAL),
         );
 
@@ -248,11 +233,7 @@ export const makeManagedServerProvider = Effect.fn("makeManagedServerProvider")(
   if (input.refreshInterval === undefined) {
     const serverSettingsChanges = yield* host.settings.subscribe;
     yield* serverSettingsChanges.pipe(
-      Stream.map((settings) =>
-        Duration.toMillis(
-          resolveServerBackgroundActivitySettings(settings).providerHealthRefreshInterval,
-        ),
-      ),
+      Stream.map((settings) => Duration.toMillis(settings.providerHealthRefreshInterval)),
       Stream.changes,
       Stream.runForEach(() => Queue.offer(refreshIntervalChanges, undefined).pipe(Effect.asVoid)),
       Effect.forkScoped,

@@ -11,7 +11,6 @@ describe("resolveUserMessagePresentation", () => {
       resolveUserMessagePresentation({ role: "user", createdBy: "agent", text: legacyText }),
     ).toEqual({
       text: "Check for crashes.\n",
-      attribution: "automation",
       scheduledTaskId: undefined,
     });
   });
@@ -24,7 +23,7 @@ describe("resolveUserMessagePresentation", () => {
         scheduledTaskId: ScheduledTaskId.make("task-1"),
         text: legacyText,
       }),
-    ).toEqual({ text: legacyText, attribution: "automation", scheduledTaskId: "task-1" });
+    ).toEqual({ text: legacyText, scheduledTaskId: "task-1" });
   });
 
   it("preserves user-written and assistant-quoted schedule headers", () => {
@@ -35,7 +34,6 @@ describe("resolveUserMessagePresentation", () => {
     ]) {
       expect(resolveUserMessagePresentation({ ...message, text: legacyText })).toEqual({
         text: legacyText,
-        attribution: null,
         scheduledTaskId: undefined,
       });
     }
@@ -49,7 +47,6 @@ describe("resolveUserMessagePresentation", () => {
     ]) {
       expect(resolveUserMessagePresentation({ role: "user", createdBy: "agent", text })).toEqual({
         text,
-        attribution: "agent",
         scheduledTaskId: undefined,
       });
     }
@@ -64,11 +61,11 @@ describe("resolveUserMessagePresentation", () => {
         creationSource: "server",
         text,
       }),
-    ).toMatchObject({ attribution: "t3code" });
+    ).toMatchObject({});
     for (const creationSource of ["mcp", "provider"] as const) {
       expect(
         resolveUserMessagePresentation({ role: "user", createdBy: "agent", creationSource, text }),
-      ).toMatchObject({ attribution: "agent" });
+      ).toMatchObject({});
     }
   });
 
@@ -83,7 +80,6 @@ describe("resolveUserMessagePresentation", () => {
         }),
       ).toEqual({
         text: "Check for crashes.\n",
-        attribution: "automation",
         scheduledTaskId: "task:daily-audit",
       });
     }

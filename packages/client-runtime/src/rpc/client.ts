@@ -64,8 +64,7 @@ export type EnvironmentSubscriptionRpcTag =
   | typeof WS_METHODS.scheduledTasksSubscribe
   | typeof WS_METHODS.serverGetDatabaseStorage
   | typeof WS_METHODS.subscribePreviewEvents
-  | typeof WS_METHODS.subscribeDiscoveredLocalServers
-  | typeof WS_METHODS.subscribeResourceTelemetry;
+  | typeof WS_METHODS.subscribeDiscoveredLocalServers;
 
 export type EnvironmentStreamCommandRpcTag =
   | typeof WS_METHODS.chatGptHandoffSubscribe

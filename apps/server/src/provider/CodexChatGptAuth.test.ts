@@ -18,7 +18,6 @@ import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
 import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
 import * as ProviderCredentialStore from "./ProviderCredentialStore.ts";
 import * as ServerSettings from "../serverSettings.ts";
-import * as AnalyticsService from "../telemetry/AnalyticsService.ts";
 import { makeCodexChatGptAuth } from "./CodexChatGptAuth.ts";
 
 const assertSameCallback = (actual: string | null, expected: string | null) => {
@@ -212,22 +211,11 @@ const makeHarnessFor = Effect.fnUntraced(function* (
     event: string;
     properties: Readonly<Record<string, unknown>> | undefined;
   }[] = [];
-  const analytics = AnalyticsService.AnalyticsService.of({
-    record: (event, properties) =>
-      failAnalytics
-        ? Effect.die("analytics unavailable")
-        : Effect.sync(() => {
-            analyticsEvents.push({ event, properties });
-          }),
-    flush: Effect.void,
-    recordOwners: () => Effect.void,
-  });
   const auth = yield* makeCodexChatGptAuth({
     instanceId,
     discoveryUrl: `${origin}/discovery`,
     resource: `${origin}/v1`,
   }).pipe(
-    Effect.provideService(AnalyticsService.AnalyticsService, analytics),
     Effect.provideService(ServerSecretStore.ServerSecretStore, secrets),
     Effect.provideService(ServerEnvironment.ServerEnvironmentIdentity, environment),
   );
@@ -294,7 +282,7 @@ const makeHarnessFor = Effect.fnUntraced(function* (
         },
         "owner",
         { discoveryUrl: `${origin}/discovery`, resource: `${origin}/v1` },
-      ).pipe(Stream.provideService(AnalyticsService.AnalyticsService, analytics)),
+      ).pipe(),
     finishCallback: (state: { authorizationUrl: string | null }) =>
       Effect.promise(() => fetch(prepareCallback(state))),
     destination: Effect.gen(function* () {
@@ -316,7 +304,6 @@ const makeHarnessFor = Effect.fnUntraced(function* (
         discoveryUrl: `${origin}/discovery`,
         resource: `${origin}/v1`,
       }).pipe(
-        Effect.provideService(AnalyticsService.AnalyticsService, analytics),
         Effect.provideService(ServerSecretStore.ServerSecretStore, destinationStore),
         Effect.provideService(ServerEnvironment.ServerEnvironmentIdentity, environment),
       );

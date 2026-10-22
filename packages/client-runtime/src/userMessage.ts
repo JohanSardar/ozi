@@ -16,16 +16,14 @@ export function resolveUserMessagePresentation(message: {
   readonly scheduledTaskId?: ScheduledTaskId;
 }): {
   readonly text: string;
-  readonly attribution: "automation" | "agent" | "t3code" | null;
   readonly scheduledTaskId: ScheduledTaskId | undefined;
 } {
   if (message.role !== "user") {
-    return { text: message.text, attribution: null, scheduledTaskId: undefined };
+    return { text: message.text, scheduledTaskId: undefined };
   }
   if (message.scheduledTaskId !== undefined) {
     return {
       text: message.text,
-      attribution: "automation",
       scheduledTaskId: message.scheduledTaskId,
     };
   }
@@ -36,18 +34,11 @@ export function resolveUserMessagePresentation(message: {
   if (legacyPrefix !== null && (legacyTaskId !== undefined || message.createdBy === "agent")) {
     return {
       text: message.text.slice(legacyPrefix[0].length),
-      attribution: "automation",
       scheduledTaskId: legacyTaskId === undefined ? undefined : ScheduledTaskId.make(legacyTaskId),
     };
   }
   return {
     text: message.text,
-    attribution:
-      message.createdBy !== "agent"
-        ? null
-        : message.creationSource === "server"
-          ? "t3code"
-          : "agent",
     scheduledTaskId: undefined,
   };
 }

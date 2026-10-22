@@ -18,7 +18,6 @@ import * as ProviderInstanceRegistryMutator from "./ProviderInstanceRegistryMuta
 import * as ProviderOrchestrationAdapterInfrastructure from "./ProviderOrchestrationAdapterInfrastructure.ts";
 import * as ProviderHostLive from "./ProviderHostLive.ts";
 import type * as ProviderHost from "@t3tools/provider-core/server/ProviderHost";
-import type * as BackgroundPolicy from "../background/BackgroundPolicy.ts";
 import type * as ServerConfig from "../config.ts";
 
 type ProviderInstanceRegistryHydrationEnv =
@@ -28,7 +27,6 @@ type ProviderInstanceRegistryHydrationEnv =
       | ProviderHost.ProviderHost
     >
   | Settings.ServerSettingsService
-  | BackgroundPolicy.BackgroundPolicy
   | ServerConfig.ServerConfig;
 
 export const deriveProviderInstanceConfigMap = (

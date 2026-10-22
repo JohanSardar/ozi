@@ -16,16 +16,12 @@ import {
 import * as ProviderLatestVersions from "@t3tools/provider-core/server/ProviderLatestVersions";
 import * as McpProviderSessions from "@t3tools/provider-core/server/McpProviderSessions";
 import * as HostProcess from "@t3tools/shared/HostProcess";
-import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
-import * as Stream from "effect/Stream";
 import * as TestClock from "effect/testing/TestClock";
 import { HttpClient, HttpClientResponse } from "effect/http";
-
-import * as BackgroundPolicy from "../background/BackgroundPolicy.ts";
 import * as ServerConfig from "../config.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import { ClaudeDriver, type ClaudeDriverEnv } from "./Drivers/ClaudeDriver.ts";
@@ -48,37 +44,6 @@ const layerTestHttpClient = Layer.succeed(
 
 // The mock CLIs from makeTildeProviderFixtures are scripts Windows cannot execute.
 const windowsHost = HostProcess.Platform.defaultValue() === "win32";
-
-const TEST_EPOCH = DateTime.makeUnsafe("1970-01-01T00:00:00.000Z");
-
-const layerBackgroundPolicyAlwaysRun = Layer.mock(BackgroundPolicy.BackgroundPolicy)({
-  reportClientActivity: () => Effect.void,
-  removeRpcClient: () => Effect.void,
-  reportHostPowerState: () => Effect.void,
-  snapshot: Effect.succeed({
-    hostPower: {
-      source: "unknown",
-      idle: "unknown",
-      idleSeconds: null,
-      locked: "unknown",
-      suspended: false,
-      onBattery: "unknown",
-      lowPowerMode: "unknown",
-      thermalState: "unknown",
-      stale: true,
-      updatedAt: TEST_EPOCH,
-    },
-    leases: [],
-    activeForegroundLeaseCount: 0,
-    activeScopeKeys: [],
-    shouldRunOpportunisticWork: true,
-    updatedAt: TEST_EPOCH,
-  }),
-  streamChanges: Stream.empty,
-  hasDemand: () => Effect.succeed(true),
-  shouldRunScopeWork: () => Effect.succeed(true),
-  shouldRunOpportunisticWork: Effect.succeed(true),
-});
 
 const makeCodexConfig = (overrides: Partial<CodexSettings>): CodexSettings => ({
   enabled: false,
@@ -167,7 +132,6 @@ describe("ProviderInstanceRegistry — multi-instance codex slice", () => {
         ),
       }),
     ),
-    Layer.provideMerge(layerBackgroundPolicyAlwaysRun),
     Layer.provideMerge(ServerSettings.layerTest()),
     Layer.provideMerge(layerTestHttpClient),
     Layer.provideMerge(ServerSettings.layerTest()),

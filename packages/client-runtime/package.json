@@ -23,10 +23,6 @@
       "types": "./src/preview/serverBrowserStream.ts",
       "default": "./src/preview/serverBrowserStream.ts"
     },
-    "./load-balancing": {
-      "types": "./src/load-balancing.ts",
-      "default": "./src/load-balancing.ts"
-    },
     "./user-message": {
       "types": "./src/userMessage.ts",
       "default": "./src/userMessage.ts"

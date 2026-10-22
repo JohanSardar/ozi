@@ -166,44 +166,6 @@ const logBackendObservabilitySettingsReadFailure = (
   );
 };
 
-function resourceMonitorBinaryName(platform: NodeJS.Platform): string {
-  return platform === "win32" ? "t3-resource-monitor.exe" : "t3-resource-monitor";
-}
-
-const resolveResourceMonitorPath = Effect.fn(
-  "desktop.backendConfiguration.resolveResourceMonitorPath",
-)(function* () {
-  const environment = yield* DesktopEnvironment.DesktopEnvironment;
-  const fileSystem = yield* FileSystem.FileSystem;
-  const binaryName = resourceMonitorBinaryName(environment.platform);
-  const candidates = environment.isDevelopment
-    ? [
-        environment.path.join(
-          environment.rootDir,
-          "native/resource-monitor/target/release",
-          binaryName,
-        ),
-        environment.path.join(
-          environment.rootDir,
-          "native/resource-monitor/target/debug",
-          binaryName,
-        ),
-      ]
-    : environment.isPackaged
-      ? [environment.path.join(environment.resourcesPath, "resource-monitor", binaryName)]
-      : environment.resolveResourcePathCandidates(
-          environment.path.join("resource-monitor", binaryName),
-        );
-
-  for (const candidate of candidates) {
-    if (yield* fileSystem.exists(candidate).pipe(Effect.orElseSucceed(() => false))) {
-      return Option.some(candidate);
-    }
-  }
-
-  return Option.none<string>();
-});
-
 const readPersistedBackendObservabilitySettings = Effect.gen(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
@@ -488,7 +450,6 @@ const buildObservabilityFragment = (observabilitySettings: BackendObservabilityS
 const resolvePrimaryStartConfig = Effect.fn("desktop.backendConfiguration.resolvePrimary")(
   function* (
     input: SharedBootstrapInput & {
-      readonly resourceMonitorPath: Option.Option<string>;
       readonly cliPath: Option.Option<string>;
       readonly shellEnvironmentPrepared: boolean;
     },
@@ -513,14 +474,8 @@ const resolvePrimaryStartConfig = Effect.fn("desktop.backendConfiguration.resolv
       shellEnvironmentPrepared: input.shellEnvironmentPrepared,
       tailscaleServeEnabled: backendExposure.tailscaleServeEnabled,
       tailscaleServePort: backendExposure.tailscaleServePort,
-      desktopTelemetryFd: 4,
-      desktopTelemetryControlFd: 5,
       desktopBrowserFd: 6,
       desktopBrowserControlFd: 7,
-      ...Option.match(input.resourceMonitorPath, {
-        onNone: () => ({}),
-        onSome: (resourceMonitorPath) => ({ resourceMonitorPath }),
-      }),
       ...buildObservabilityFragment(input.observabilitySettings),
     };
 
@@ -803,10 +758,6 @@ export const make = Effect.gen(function* () {
 
   const buildWindowsPrimaryConfig = Effect.gen(function* () {
     const shared = yield* sharedInputs;
-    const resourceMonitorPath = yield* resolveResourceMonitorPath().pipe(
-      Effect.provideService(FileSystem.FileSystem, fileSystem),
-      Effect.provideService(DesktopEnvironment.DesktopEnvironment, environment),
-    );
     const cliPath = yield* DesktopCliShim.install.pipe(
       Effect.provideService(FileSystem.FileSystem, fileSystem),
       Effect.provideService(DesktopEnvironment.DesktopEnvironment, environment),
@@ -814,7 +765,6 @@ export const make = Effect.gen(function* () {
     const shellEnvironmentPrepared = yield* shellEnvironment.installIntoProcess;
     return yield* resolvePrimaryStartConfig({
       ...shared,
-      resourceMonitorPath,
       cliPath,
       shellEnvironmentPrepared,
     }).pipe(

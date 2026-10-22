@@ -27,7 +27,7 @@ import {
   ProviderOptionSelections,
 } from "./model.ts";
 import { ModelSelection } from "./modelSelection.ts";
-import { ProjectScript, type ProjectMutation } from "./project.ts";
+import { type ProjectMutation } from "./project.ts";
 import { DEFAULT_RUNTIME_MODE, RuntimeMode } from "./providerPolicy.ts";
 import { BrowserProfile, BrowserProfileId, DEFAULT_BROWSER_PROFILE_ID } from "./browserProfile.ts";
 import {
@@ -264,11 +264,6 @@ export const BrowserCustomSearchUrl = Schema.String.check(
   Schema.isMaxLength(BROWSER_CUSTOM_SEARCH_URL_MAX_LENGTH),
 );
 
-export const LoadBalancingWeights = Schema.Record(
-  TrimmedNonEmptyString,
-  Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 100 })),
-);
-
 export const DiffColorScheme = Schema.Literals(["red-green", "blue-orange"]);
 
 export const ChatWidth = Schema.Literals(["comfortable", "wide", "full"]);
@@ -297,8 +292,6 @@ export const ClientSettingsSchema = Schema.Struct({
   ),
   inAppNotificationsEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   chatWidth: ChatWidth.pipe(Schema.withDecodingDefault(Effect.succeed("comfortable" as const))),
-  loadBalancingEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
-  loadBalancingWeights: LoadBalancingWeights.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
   appearanceContrast: AppearanceContrast.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_APPEARANCE_CONTRAST)),
   ),
@@ -718,48 +711,7 @@ export interface BranchNamingOptions {
   prefix: string;
   instructions: string;
 }
-
-export const DEFAULT_AUTOMATIC_GIT_FETCH_INTERVAL = Duration.seconds(30);
 export const DEFAULT_PROVIDER_HEALTH_REFRESH_INTERVAL = Duration.minutes(5);
-
-export const BackgroundActivityProfile = Schema.Literals([
-  "balanced",
-  "performance",
-  "battery-saver",
-]);
-export type BackgroundActivityProfile = typeof BackgroundActivityProfile.Type;
-export const DEFAULT_BACKGROUND_ACTIVITY_PROFILE: BackgroundActivityProfile = "balanced";
-
-export const BackgroundActivityProfileSelection = Schema.Literals([
-  "balanced",
-  "performance",
-  "battery-saver",
-  "custom",
-]);
-export type BackgroundActivityProfileSelection = typeof BackgroundActivityProfileSelection.Type;
-
-export const BackgroundActivityOverrides = Schema.Struct({
-  automaticGitFetchInterval: Schema.optionalKey(Schema.DurationFromMillis),
-  providerHealthRefreshInterval: Schema.optionalKey(Schema.DurationFromMillis),
-  hostPowerMonitorActiveInterval: Schema.optionalKey(Schema.DurationFromMillis),
-  hostPowerMonitorIdleInterval: Schema.optionalKey(Schema.DurationFromMillis),
-  idleClientTtl: Schema.optionalKey(Schema.DurationFromMillis),
-  pauseWhenHostLocked: Schema.optionalKey(Schema.Boolean),
-  pauseWhenHostLowPower: Schema.optionalKey(Schema.Boolean),
-  pauseWhenClientLowPower: Schema.optionalKey(Schema.Boolean),
-  pauseWhenOnBattery: Schema.optionalKey(Schema.Boolean),
-});
-export type BackgroundActivityOverrides = typeof BackgroundActivityOverrides.Type;
-
-export const BackgroundActivitySettings = Schema.Struct({
-  schemaVersion: Schema.Literal(1).pipe(Schema.withDecodingDefault(Effect.succeed(1 as const))),
-  profile: BackgroundActivityProfileSelection.pipe(
-    Schema.withDecodingDefault(Effect.succeed(DEFAULT_BACKGROUND_ACTIVITY_PROFILE)),
-  ),
-  baseProfile: Schema.optionalKey(BackgroundActivityProfile),
-  overrides: BackgroundActivityOverrides.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
-}).pipe(Schema.withDecodingDefault(Effect.succeed({})));
-export type BackgroundActivitySettings = typeof BackgroundActivitySettings.Type;
 
 export const ResponseStreamingMode = Schema.Literals(["turn", "paragraph"]);
 export type ResponseStreamingMode = typeof ResponseStreamingMode.Type;
@@ -919,20 +871,10 @@ export const ServerSettings = Schema.Struct({
   compactIdleThreads: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   snoozeLimitedThreads: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   autoResumeLimitedThreads: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
-  backgroundActivity: BackgroundActivitySettings,
-
-  automaticGitFetchInterval: Schema.DurationFromMillis.pipe(
-    Schema.withDecodingDefault(
-      Effect.succeed(Duration.toMillis(DEFAULT_AUTOMATIC_GIT_FETCH_INTERVAL)),
-    ),
-  ),
   providerHealthRefreshInterval: Schema.DurationFromMillis.pipe(
     Schema.withDecodingDefault(
       Effect.succeed(Duration.toMillis(DEFAULT_PROVIDER_HEALTH_REFRESH_INTERVAL)),
     ),
-  ),
-  backgroundActivityProfile: BackgroundActivityProfile.pipe(
-    Schema.withDecodingDefault(Effect.succeed(DEFAULT_BACKGROUND_ACTIVITY_PROFILE)),
   ),
   defaultTheme: DefaultThemePreference.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
   /**
@@ -1141,17 +1083,7 @@ export const ServerSettingsPatch = Schema.Struct({
   compactIdleThreads: Schema.optionalKey(Schema.Boolean),
   autoResumeLimitedThreads: Schema.optionalKey(Schema.Boolean),
   snoozeLimitedThreads: Schema.optionalKey(Schema.Boolean),
-  backgroundActivity: Schema.optionalKey(
-    Schema.Struct({
-      schemaVersion: Schema.optionalKey(Schema.Literal(1)),
-      profile: Schema.optionalKey(BackgroundActivityProfileSelection),
-      baseProfile: Schema.optionalKey(BackgroundActivityProfile),
-      overrides: Schema.optionalKey(BackgroundActivityOverrides),
-    }),
-  ),
-  automaticGitFetchInterval: Schema.optionalKey(Schema.DurationFromMillis),
   providerHealthRefreshInterval: Schema.optionalKey(Schema.DurationFromMillis),
-  backgroundActivityProfile: Schema.optionalKey(BackgroundActivityProfile),
   environmentIcon: Schema.optionalKey(Schema.NullOr(EnvironmentMachineKind)),
   defaultThreadEnvMode: Schema.optionalKey(Schema.NullOr(ThreadEnvMode)),
   addProjectBaseDirectory: Schema.optionalKey(TrimmedString),
@@ -1221,8 +1153,6 @@ export const ClientSettingsPatch = Schema.Struct({
   notificationMode: Schema.optionalKey(NotificationMode),
   inAppNotificationsEnabled: Schema.optionalKey(Schema.Boolean),
   chatWidth: Schema.optionalKey(ChatWidth),
-  loadBalancingEnabled: Schema.optionalKey(Schema.Boolean),
-  loadBalancingWeights: Schema.optionalKey(LoadBalancingWeights),
   appearanceContrast: Schema.optionalKey(AppearanceContrast),
   panelAnimationDurationMs: Schema.optionalKey(PanelAnimationDurationMs),
   browserDefaultViewport: Schema.optionalKey(PreviewViewportSetting),

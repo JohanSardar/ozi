@@ -1,9 +1,4 @@
-import type {
-  BackgroundScope,
-  ChatAttachment,
-  ServerSettings,
-  ServerSettingsError,
-} from "@t3tools/contracts";
+import type { ChatAttachment, ServerSettings, ServerSettingsError } from "@t3tools/contracts";
 import * as Context from "effect/Context";
 import type * as Effect from "effect/Effect";
 import type * as Option from "effect/Option";
@@ -43,7 +38,6 @@ export class ProviderHost extends Context.Service<
       /** Changes buffered from the moment the scoped subscription is acquired. */
       readonly subscribe: Effect.Effect<Stream.Stream<ServerSettings>, never, Scope.Scope>;
     };
-    readonly shouldRunBackgroundWork: (scope: BackgroundScope) => Effect.Effect<boolean>;
     /**
      * Absolute path of a stored chat attachment, or `null` when its id does not
      * resolve inside the attachments directory.

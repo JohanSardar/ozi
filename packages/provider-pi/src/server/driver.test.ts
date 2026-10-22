@@ -25,7 +25,6 @@ const layerTest = Layer.mergeAll(
   TestProviderHost.layer({
     cwd: "/machine",
     settings: { ...DEFAULT_SERVER_SETTINGS, enableProviderUpdateChecks: false },
-    runBackgroundWork: false,
   }),
   IdAllocator.layer,
   McpProviderSessions.layer,

@@ -18,9 +18,6 @@ import * as Layer from "effect/Layer";
 import * as Stream from "effect/Stream";
 import { FetchHttpClient, HttpRouter, HttpServer } from "effect/http";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
-
-import * as BackgroundPolicy from "./background/BackgroundPolicy.ts";
-import * as HostPowerMonitor from "./background/HostPowerMonitor.ts";
 import * as ServerConfig from "./config.ts";
 import { withUntracedRequests } from "./http.ts";
 import * as ServerHttp from "./http.ts";
@@ -34,9 +31,6 @@ import * as AgentScopeLive from "./process/agentScope.ts";
 import * as ExternalLauncher from "./process/externalLauncher.ts";
 import * as SqlitePersistence from "./persistence/Sqlite.ts";
 import * as ServerLifecycleEvents from "./serverLifecycleEvents.ts";
-import * as AnalyticsService from "./telemetry/AnalyticsService.ts";
-import * as DelegatedTaskAnalytics from "./telemetry/DelegatedTaskAnalytics.ts";
-import * as ProviderEventIngestor from "./orchestration-v2/ProviderEventIngestor.ts";
 import * as ModelManifest from "./provider/ModelManifest.ts";
 import * as ResetCreditCoordinator from "./provider/resetCreditCoordinator.ts";
 import * as EventNdjsonLogger from "./provider/EventNdjsonLogger.ts";
@@ -108,16 +102,7 @@ import {
 import * as CloudCliTokenManager from "./cloud/CliTokenManager.ts";
 import * as CloudCliState from "./cloud/CliState.ts";
 import * as ServiceLauncherClient from "./cloud/serviceLauncherClient.ts";
-import * as ProcessDiagnostics from "./diagnostics/ProcessDiagnostics.ts";
-import * as HostResources from "./resourceTelemetry/HostResources.ts";
-import * as ProcessResourceMonitor from "./diagnostics/ProcessResourceMonitor.ts";
 import * as TraceDiagnostics from "./diagnostics/TraceDiagnostics.ts";
-import * as DesktopTelemetryReceiver from "./resourceTelemetry/DesktopTelemetryReceiver.ts";
-import * as NativeTelemetryClient from "./resourceTelemetry/NativeTelemetryClient.ts";
-import * as ResourceAttribution from "./resourceTelemetry/ResourceAttribution.ts";
-import * as ResourceMonitorBinary from "./resourceTelemetry/ResourceMonitorBinary.ts";
-import * as ProcessGroupMetrics from "./resourceTelemetry/ProcessGroupMetrics.ts";
-import * as ResourceTelemetry from "./resourceTelemetry/ResourceTelemetry.ts";
 import * as UsageService from "./usage/UsageService.ts";
 import * as CodexUsageHistory from "./usage/CodexUsageHistory.ts";
 import * as RuntimeLayer from "./orchestration-v2/runtimeLayer.ts";
@@ -145,10 +130,8 @@ const HTTP_ROUTER_CONFIG = {
 // T3's primary transport is long-lived WebSocket RPC, whose Effect scope finalizer
 // already closes the websocket gracefully.
 const HTTP_PREEMPTIVE_SHUTDOWN_GRACE_MS = 0;
-const layerResourceAttribution = ResourceAttribution.layer;
 const layerApplicationObservability = EventLoopMonitor.layer.pipe(
   Layer.provideMerge(Observability.layer),
-  Layer.provideMerge(layerResourceAttribution),
 );
 
 // One rotating store behind both logger views, so driver instances never race
@@ -157,10 +140,7 @@ const layerProviderEventLoggers = Layer.effect(
   ProviderEventLoggers.ProviderEventLoggers,
   Effect.gen(function* () {
     const { providerEventLogPath } = yield* ServerConfig.ServerConfig;
-    const attribution = yield* ResourceAttribution.ResourceAttribution;
-    const store = yield* EventNdjsonLogger.makeEventNdjsonLogStore(providerEventLogPath, {
-      attribution,
-    }).pipe(
+    const store = yield* EventNdjsonLogger.makeEventNdjsonLogStore(providerEventLogPath, {}).pipe(
       Effect.catch((error) =>
         Effect.logWarning(error.message, { error }).pipe(
           Effect.annotateLogs({ scope: "provider-observability" }),
@@ -179,27 +159,6 @@ const layerServerSettings = ServerSettings.layer.pipe(
   Layer.provideMerge(SqlitePersistence.layerConfig),
 );
 
-const layerNativeTelemetry = NativeTelemetryClient.layer.pipe(
-  Layer.provide(ResourceMonitorBinary.layer),
-);
-const layerDesktopTelemetryReceiver = DesktopTelemetryReceiver.layer.pipe(
-  Layer.provideMerge(layerServerSettings),
-);
-
-const layerResourceTelemetry = ResourceTelemetry.layer.pipe(
-  Layer.provideMerge(layerNativeTelemetry),
-  Layer.provideMerge(layerDesktopTelemetryReceiver),
-);
-
-const layerHostPowerMonitor = HostPowerMonitor.layer.pipe(
-  Layer.provide(layerDesktopTelemetryReceiver),
-);
-
-const layerBackground = BackgroundPolicy.layer.pipe(
-  Layer.provide(layerHostPowerMonitor),
-  Layer.provideMerge(layerServerSettings),
-);
-
 const layerUsage = UsageService.layer.pipe(
   Layer.provide(
     Layer.mergeAll(CodexUsageHistory.layer).pipe(
@@ -207,14 +166,6 @@ const layerUsage = UsageService.layer.pipe(
     ),
   ),
   Layer.provide(layerServerSettings),
-);
-
-const layerResourceDiagnostics = Layer.mergeAll(
-  HostResources.layer,
-  layerResourceTelemetry,
-  ProcessDiagnostics.layer.pipe(Layer.provide(layerResourceTelemetry)),
-  ProcessResourceMonitor.layer.pipe(Layer.provide(layerResourceTelemetry)),
-  ProcessGroupMetrics.layer.pipe(Layer.provide(layerResourceTelemetry)),
 );
 
 const layerRelayClient = Layer.unwrap(
@@ -292,7 +243,6 @@ const layerScheduledTaskWebhookOrigin = Layer.effect(
 
 const layerOrchestrationV2Runtime = RuntimeLayer.layerProduction.pipe(
   Layer.provide(layerScheduledTaskWebhookOrigin),
-  Layer.provide(ProviderEventIngestor.layerAnalytics),
 );
 
 const layerOrchestrationApplication = layerOrchestrationV2Runtime;
@@ -334,7 +284,6 @@ const layerRuntimeCoreDependenciesBase = Layer.mergeAll(
       Layer.merge(EventStoreV2.layerFromOrchestrationEventStore, ProjectionStoreV2.layer),
     ),
   ),
-  DelegatedTaskAnalytics.layer,
   Layer.effectDiscard(
     Effect.gen(function* () {
       const service = yield* DelegatedTaskQuestionReactor.DelegatedTaskQuestionReactor;
@@ -389,10 +338,8 @@ const layerRuntimeCoreDependencies = layerRuntimeCoreDependenciesBase.pipe(
 
 const layerRuntimeDependencies = layerRuntimeCoreDependencies.pipe(
   Layer.provideMerge(layerUsage),
-  Layer.provideMerge(layerBackground),
-  Layer.provideMerge(layerResourceDiagnostics),
+  Layer.provideMerge(layerServerSettings),
   Layer.provideMerge(TraceDiagnostics.layer),
-  Layer.provideMerge(AnalyticsService.layer),
   Layer.provideMerge(ExternalLauncher.layer),
   Layer.provideMerge(RemoteOpenTargets.layer),
   Layer.provideMerge(DirectEndpoints.layer),

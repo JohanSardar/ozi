@@ -9,7 +9,6 @@ import {
   requiredScopesForServerSettingsPatch,
   AuthSettingsWriteScope,
   AuthProvidersManageScope,
-  AuthEnvironmentMaintainScope,
   AuthFilesystemReadScope,
   AuthDiagnosticsReadScope,
   AuthOrchestrationOperateScope,
@@ -73,19 +72,8 @@ export const RPC_REQUIRED_SCOPES = {
   [WS_METHODS.serverGetSettings]: AuthOrchestrationReadScope,
   [WS_METHODS.serverUpdateSettings]: AuthSettingsWriteScope,
   [WS_METHODS.serverGetTraceDiagnostics]: AuthDiagnosticsReadScope,
-  [WS_METHODS.serverGetProcessDiagnostics]: AuthDiagnosticsReadScope,
-  // Load-balancing new threads reads host load; that is part of operating
-  // threads, not of inspecting diagnostics.
-  [WS_METHODS.serverGetHostResources]: AuthOrchestrationReadScope,
-  [WS_METHODS.serverGetProcessResourceHistory]: AuthDiagnosticsReadScope,
-  [WS_METHODS.serverGetResourceTelemetryHistory]: AuthDiagnosticsReadScope,
-  [WS_METHODS.serverRetryResourceTelemetry]: AuthDiagnosticsReadScope,
   [WS_METHODS.serverGetUsageSummary]: AuthDiagnosticsReadScope,
   [WS_METHODS.serverRefreshUsageRates]: AuthDiagnosticsReadScope,
-  [WS_METHODS.serverSignalProcess]: AuthEnvironmentMaintainScope,
-  [WS_METHODS.serverReportClientActivity]: AuthOrchestrationReadScope,
-  [WS_METHODS.serverReportHostPowerState]: AuthEnvironmentMaintainScope,
-  [WS_METHODS.serverGetBackgroundPolicy]: AuthOrchestrationReadScope,
   [WS_METHODS.scheduledTasksList]: AuthOrchestrationReadScope,
   [WS_METHODS.scheduledTasksSubscribe]: AuthOrchestrationReadScope,
   [WS_METHODS.secretsAnswerRequest]: AuthOrchestrationOperateScope,
@@ -104,7 +92,6 @@ export const RPC_REQUIRED_SCOPES = {
   [WS_METHODS.mcpAppsToolInfo]: AuthOrchestrationReadScope,
   [WS_METHODS.mcpAppsReadResource]: AuthOrchestrationReadScope,
   [WS_METHODS.mcpAppsUpdateModelContext]: AuthOrchestrationOperateScope,
-  [WS_METHODS.subscribeResourceTelemetry]: AuthDiagnosticsReadScope,
   [WS_METHODS.previewOpen]: AuthPreviewOperateScope,
   [WS_METHODS.previewNavigate]: AuthPreviewOperateScope,
   [WS_METHODS.previewResize]: AuthPreviewOperateScope,
@@ -120,7 +107,6 @@ export const RPC_REQUIRED_SCOPES = {
   [WS_METHODS.subscribeServerConfig]: AuthOrchestrationReadScope,
   [WS_METHODS.subscribeServerLifecycle]: AuthOrchestrationReadScope,
   [WS_METHODS.subscribeAuthAccess]: AuthAccessReadScope,
-  [WS_METHODS.subscribeBackgroundPolicy]: AuthOrchestrationReadScope,
   "ozi.checks.list": AuthOrchestrationReadScope,
   "ozi.checks.subscribe": AuthOrchestrationReadScope,
 } as const satisfies Readonly<Record<WsRpcMethod, AuthEnvironmentScope>>;
@@ -161,9 +147,6 @@ const requiredScopesForRpcCall = (
   method: string,
   payload: unknown,
 ): ReadonlyArray<AuthEnvironmentScope> => {
-  if (method === WS_METHODS.serverRetryResourceTelemetry) {
-    return [AuthEnvironmentMaintainScope, AuthDiagnosticsReadScope];
-  }
   if (method === WS_METHODS.assetsCreateUrl) {
     const { resource } = Schema.decodeUnknownSync(AssetCreateUrlInput)(payload);
     return [
@@ -180,20 +163,10 @@ const requiredScopesForRpcCall = (
   return [requiredScopeForRpcMethod(method)];
 };
 
-/**
- * `onAuthorized` runs once after an authorized request succeeds; for a stream
- * RPC, that is when the stream completes. Every RPC passes through here, so it
- * is the one place to observe requests without wrapping each handler.
- */
-export const layer = (
-  scopes: ReadonlyArray<AuthEnvironmentScope>,
-  onAuthorized?: (method: string, payload: unknown) => Effect.Effect<void>,
-) =>
+export const layer = (scopes: ReadonlyArray<AuthEnvironmentScope>) =>
   Layer.succeed(RpcScopeAuthorization)((effect, { rpc, payload }) => {
     const requiredScopes = requiredScopesForRpcCall(rpc._tag, payload);
     const requiredScope = requiredScopes.find((scope) => !scopes.includes(scope));
     if (requiredScope !== undefined) return Effect.fail(rpcAuthorizationError(requiredScope));
-    return onAuthorized === undefined
-      ? effect
-      : Effect.tap(effect, () => onAuthorized(rpc._tag, payload));
+    return effect;
   });
