@@ -189,7 +189,8 @@ export function interpreter(provider, hooks) {
                   !tools.some((tool) => /^(?:preview_|t3_project_|t3_terminal_)/.test(tool.name)))
               ? "main"
               : "worker");
-      log(provider, "prompt", { prompt, role, instructions });
+      const message = prompt.replace(/\n\n\[Ozi message ID: [^\]]+\]/g, "");
+      log(provider, "prompt", { prompt: message, role, instructions });
       const script = process.env.OZI_FAKE_SCRIPT
         ? JSON.parse(NodeFS.readFileSync(process.env.OZI_FAKE_SCRIPT, "utf8"))
         : [];
@@ -202,9 +203,7 @@ export function interpreter(provider, hooks) {
           (!rule.role || rule.role === role) &&
           (!rule.stage || rule.stage === process.env.OZI_REPAIR_STAGE) &&
           Boolean(rule.stage) === Boolean(process.env.OZI_REPAIR_STAGE) &&
-          new RegExp(rule.match ?? ".*", "s").test(
-            prompt.replace(/\n\n\[Ozi message ID: [^\]]+\]/g, ""),
-          ),
+          new RegExp(rule.match ?? ".*", "s").test(message),
       );
       if (index < 0 && role === "checker") {
         await hooks.say('{"verdict":"done","useful":true}');
