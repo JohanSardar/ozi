@@ -1,3 +1,6 @@
+import { OZI_WS_METHODS, OziCheckError } from "@t3tools/contracts";
+import * as Completion from "./ozi/Completion.ts";
+import * as EventSink from "./orchestration-v2/EventSink.ts";
 import { OrchestrationDispatchCommandError } from "@t3tools/contracts";
 import * as Crypto from "effect/Crypto";
 import * as Orchestrator from "./orchestration-v2/Orchestrator.ts";
@@ -40,10 +43,8 @@ import {
   type GitActionProgressEvent,
   type GitManagerServiceError,
   type MessageId,
-  OrchestrationGetFullThreadDiffError,
   OrchestrationSearchThreadsError,
   OrchestrationV2SearchThreadError,
-  OrchestrationGetTurnDiffError,
   ORCHESTRATION_V2_WS_METHODS,
   ORCHESTRATION_PROTOCOL_QUERY_PARAM,
   ORCHESTRATION_PROTOCOL_VERSION,
@@ -91,14 +92,11 @@ import {
   HttpServerResponse,
 } from "effect/http";
 import { RpcSerialization, RpcServer } from "effect/rpc";
-
-import * as CheckpointDiffQuery from "./checkpointing/CheckpointDiffQuery.ts";
 import * as ServerConfig from "./config.ts";
 import * as EnvironmentTheme from "./environmentTheme.ts";
 import * as Keybindings from "./keybindings.ts";
 import * as ExternalLauncher from "./process/externalLauncher.ts";
 import * as ThreadManagementService from "./orchestration-v2/ThreadManagementService.ts";
-import { OZI_WS_METHODS } from "@t3tools/contracts";
 import * as Jobs from "./ozi/Jobs.ts";
 import * as CommandOutputHub from "./orchestration-v2/CommandOutputHub.ts";
 import * as McpAppRequests from "./mcpApps/McpAppRequests.ts";
@@ -1177,10 +1175,13 @@ export const layerWsRpc = (
     Effect.gen(function* () {
       const currentSessionId = currentSession.sessionId;
       const sql = yield* SqlClient.SqlClient;
+      const completion = yield* Completion.Completion;
+      const completionEvents = yield* EventSink.EventSinkV2;
       const threadManagement = yield* ThreadManagementService.ThreadManagementService;
       const jobs = yield* Jobs.Jobs;
       const intakeContext = yield* Effect.context<
         | ThreadManagementService.ThreadManagementService
+        | Jobs.Jobs
         | ThreadLaunchService.ThreadLaunchService
         | FileSystem.FileSystem
         | ServerConfig.ServerConfig
@@ -1240,7 +1241,6 @@ export const layerWsRpc = (
       const projectEnrichment = yield* ProjectEnrichmentService.ProjectEnrichmentService;
       const agentSessionScanner = yield* AgentSessionScanner.AgentSessionScanner;
       const agentSessionImporter = yield* AgentSessionImporter.AgentSessionImporter;
-      const checkpointDiffQuery = yield* CheckpointDiffQuery.CheckpointDiffQuery;
       const keybindings = yield* Keybindings.Keybindings;
       const environmentTheme = yield* EnvironmentTheme.EnvironmentThemeService;
       const externalLauncher = yield* ExternalLauncher.ExternalLauncher;
@@ -1513,6 +1513,29 @@ export const layerWsRpc = (
                 ),
             ),
           ),
+        [OZI_WS_METHODS.checksList]: (input) =>
+          completion
+            .list(input.threadId)
+            .pipe(Effect.mapError((cause) => new OziCheckError({ detail: cause.operation }))),
+        [OZI_WS_METHODS.checksSubscribe]: (input) =>
+          Stream.unwrap(
+            Effect.gen(function* () {
+              const afterSequence = yield* completionEvents.latestSequence();
+              const initial = yield* completion.list(input.threadId);
+              return Stream.concat(
+                Stream.succeed(initial),
+                completionEvents.stream({ afterSequence }).pipe(
+                  Stream.filter(
+                    (stored) =>
+                      (stored.event.type === "completion.updated" ||
+                        stored.event.type === "run.updated") &&
+                      (!input.threadId || stored.event.threadId === input.threadId),
+                  ),
+                  Stream.mapEffect(() => completion.list(input.threadId)),
+                ),
+              );
+            }),
+          ).pipe(Stream.mapError((cause) => new OziCheckError({ detail: String(cause) }))),
         [ORCHESTRATION_V2_WS_METHODS.stopWorkflow]: (input) => threadManagement.stopWorkflow(input),
         [ORCHESTRATION_V2_WS_METHODS.getWorkflowScript]: (input) =>
           readWorkflowScript({ scriptPath: input.scriptPath }),
@@ -1523,26 +1546,6 @@ export const layerWsRpc = (
                 new OrchestrationV2GetThreadProjectionError({
                   threadId: input.threadId,
                   message: "Failed to load turn item",
-                  cause,
-                }),
-            ),
-          ),
-        [ORCHESTRATION_V2_WS_METHODS.getTurnDiff]: (input) =>
-          checkpointDiffQuery.getTurnDiff(input).pipe(
-            Effect.mapError(
-              (cause) =>
-                new OrchestrationGetTurnDiffError({
-                  message: "Failed to load turn diff",
-                  cause,
-                }),
-            ),
-          ),
-        [ORCHESTRATION_V2_WS_METHODS.getFullThreadDiff]: (input) =>
-          checkpointDiffQuery.getFullThreadDiff(input).pipe(
-            Effect.mapError(
-              (cause) =>
-                new OrchestrationGetFullThreadDiffError({
-                  message: "Failed to load full thread diff",
                   cause,
                 }),
             ),

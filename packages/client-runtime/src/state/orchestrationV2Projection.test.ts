@@ -36,7 +36,6 @@ const run = {
   requestedAt: now,
   startedAt: now,
   completedAt: now,
-  checkpointId: null,
   contextHandoffId: null,
 } satisfies OrchestrationV2Run;
 
@@ -97,8 +96,6 @@ const emptyProjection = {
   messages: [],
   plans: [],
   turnItems: [],
-  checkpointScopes: [],
-  checkpoints: [],
   contextHandoffs: [],
   contextTransfers: [],
   visibleTurnItems: [],

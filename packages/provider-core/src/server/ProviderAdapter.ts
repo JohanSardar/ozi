@@ -1,7 +1,6 @@
 import type { OrchestrationV2HistoricalMessage } from "@t3tools/contracts";
 import {
   ChatAttachment,
-  CheckpointId,
   MessageId,
   ModelSelection,
   NodeId,
@@ -53,6 +52,8 @@ export const ProviderAdapterV2RuntimePolicy = Schema.Struct({
   sandboxPolicy: Schema.optional(Schema.Unknown),
   reasoningEffort: Schema.optional(Schema.String),
   mainPromptPath: Schema.optional(Schema.String),
+  evidenceOnly: Schema.optional(Schema.Boolean),
+  systemPrompt: Schema.optional(Schema.String),
 });
 export type ProviderAdapterV2RuntimePolicy = typeof ProviderAdapterV2RuntimePolicy.Type;
 
@@ -254,20 +255,6 @@ export class ProviderAdapterReadThreadSnapshotError extends Schema.TaggedError<P
   }
 }
 
-export class ProviderAdapterRollbackThreadError extends Schema.TaggedError<ProviderAdapterRollbackThreadError>()(
-  "ProviderAdapterRollbackThreadError",
-  {
-    driver: ProviderDriverKind,
-    providerThreadId: ProviderThreadId,
-    checkpointId: Schema.optional(CheckpointId),
-    cause: Schema.optional(Schema.Defect()),
-  },
-) {
-  override get message(): string {
-    return `Failed to roll back ${this.driver} provider thread ${this.providerThreadId}.`;
-  }
-}
-
 export class ProviderAdapterForkThreadError extends Schema.TaggedError<ProviderAdapterForkThreadError>()(
   "ProviderAdapterForkThreadError",
   {
@@ -391,7 +378,6 @@ export const ProviderAdapterV2Error = Schema.Union([
   ProviderAdapterResumeThreadError,
   ProviderAdapterEnsureThreadError,
   ProviderAdapterReadThreadSnapshotError,
-  ProviderAdapterRollbackThreadError,
   ProviderAdapterForkThreadError,
   ProviderAdapterTurnStartError,
   ProviderAdapterSteerRunUnsupportedError,
@@ -470,25 +456,6 @@ export interface ProviderAdapterV2ThreadSnapshot {
 
 export interface ProviderAdapterV2ReadThreadSnapshotInput {
   readonly providerThread: OrchestrationV2ProviderThread;
-}
-
-export type ProviderAdapterV2RollbackTarget =
-  | {
-      readonly type: "thread_start";
-      readonly checkpointId: CheckpointId;
-      readonly appRunOrdinal: 0;
-    }
-  | {
-      readonly type: "provider_turn";
-      readonly checkpointId: CheckpointId;
-      readonly appRunOrdinal: number;
-      readonly providerTurn: OrchestrationV2ProviderTurn;
-    };
-
-export interface ProviderAdapterV2RollbackThreadInput {
-  readonly providerThread: OrchestrationV2ProviderThread;
-  readonly target: ProviderAdapterV2RollbackTarget;
-  readonly providerThreadTurns: ReadonlyArray<OrchestrationV2ProviderTurn>;
 }
 
 export interface ProviderAdapterV2ForkThreadInput {
@@ -636,9 +603,6 @@ export interface ProviderAdapterV2SessionRuntime {
    * calls stay plain tool rows.
    */
   readonly mcpApps?: ProviderAdapterV2McpApps;
-  readonly rollbackThread: (
-    input: ProviderAdapterV2RollbackThreadInput,
-  ) => Effect.Effect<ProviderAdapterV2ThreadSnapshot, ProviderAdapterV2Error>;
   readonly forkThread: (
     input: ProviderAdapterV2ForkThreadInput,
   ) => Effect.Effect<OrchestrationV2ProviderThread, ProviderAdapterV2Error>;

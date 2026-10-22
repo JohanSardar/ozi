@@ -1,12 +1,13 @@
+import * as Evidence from "../ozi/Evidence.ts";
+import * as FileSystem from "effect/FileSystem";
+import * as Path from "effect/Path";
+import * as Crypto from "effect/Crypto";
 import * as Cause from "effect/Cause";
 import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
-import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
-import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
-import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 import * as Sink from "effect/Sink";
 import * as Stream from "effect/Stream";
@@ -176,6 +177,9 @@ const makeMcpAuthMiddleware = Effect.gen(function* () {
     ThreadManagementService.ThreadManagementService,
   );
   const clients = yield* Effect.serviceOption(McpClientAuthenticator);
+  const evidenceFs = yield* FileSystem.FileSystem;
+  const evidencePath = yield* Path.Path;
+  const evidenceCrypto = yield* Crypto.Crypto;
   return Effect.fn("McpHttpServer.authenticateRequest")(function* (httpEffect) {
     const request = yield* HttpServerRequest.HttpServerRequest;
     const authorization = request.headers.authorization;
@@ -197,6 +201,89 @@ const makeMcpAuthMiddleware = Effect.gen(function* () {
         presentedToken: token.length > 0,
         offerOAuth: Option.isSome(clients) && !looksLikeProviderToken(token),
       });
+    }
+    if (invocation.thread?.role === "checker" && request.method === "POST") {
+      const decoded = yield* request.json.pipe(
+        Effect.flatMap(Schema.decodeUnknownEffect(MainMcpRequest)),
+        Effect.option,
+      );
+      if (Option.isNone(decoded))
+        return HttpServerResponse.jsonUnsafe({ error: "Invalid MCP request." }, { status: 400 });
+      const rpc = decoded.value;
+      const reply = (result: unknown) =>
+        HttpServerResponse.jsonUnsafe({ jsonrpc: "2.0", id: rpc.id, result });
+      const denied = (text = "Checker tools only read source evidence.") =>
+        reply({ isError: true, content: [{ type: "text", text }] });
+      if (rpc.method === "tools/list")
+        return reply({
+          tools: [
+            ...[...mcpTools.values()].filter((tool) => tool.name === "t3_thread_read"),
+            {
+              name: "completion_evidence",
+              description:
+                "Read a workspace file or a completed source action receipt and return verified evidence.",
+              inputSchema: {
+                type: "object",
+                properties: { path: { type: "string" }, actionId: { type: "string" } },
+                oneOf: [{ required: ["path"] }, { required: ["actionId"] }],
+                additionalProperties: false,
+              },
+            },
+          ],
+        });
+      if (rpc.method === "tools/call") {
+        if (Option.isNone(threadService)) return denied();
+        const current = yield* threadService.value
+          .getThreadProjection(invocation.thread.threadId)
+          .pipe(Effect.option);
+        if (Option.isNone(current)) return denied();
+        const args = rpc.params?.arguments ?? {};
+        if (rpc.params?.name === "completion_evidence") {
+          if (typeof args.actionId === "string" && current.value.thread.checkFor) {
+            const source = yield* threadService.value
+              .getThreadProjection(current.value.thread.checkFor.threadId)
+              .pipe(Effect.option);
+            if (Option.isNone(source)) return denied("Source evidence is unavailable.");
+            const result = yield* Evidence.action(source.value.turnItems, args.actionId).pipe(
+              Effect.provideService(Crypto.Crypto, evidenceCrypto),
+              Effect.result,
+            );
+            return result._tag === "Failure"
+              ? denied(String(result.failure))
+              : reply({
+                  content: [{ type: "text", text: result.success.text }],
+                  structuredContent: result.success,
+                });
+          }
+          const root =
+            current.value.thread.worktreePath ?? current.value.providerSessions.at(-1)?.cwd;
+          if (typeof args.path !== "string" || !root)
+            return denied("Checker workspace is unavailable.");
+          const result = yield* Evidence.read(root, args.path).pipe(
+            Effect.provideService(FileSystem.FileSystem, evidenceFs),
+            Effect.provideService(Path.Path, evidencePath),
+            Effect.provideService(Crypto.Crypto, evidenceCrypto),
+            Effect.result,
+          );
+          return result._tag === "Failure"
+            ? denied(String(result.failure))
+            : reply({
+                content: [{ type: "text", text: result.success.text }],
+                structuredContent: result.success,
+              });
+        }
+        if (
+          rpc.params?.name !== "t3_thread_read" ||
+          (args.threadId !== invocation.thread.threadId &&
+            args.threadId !== current.value.thread.lineage.parentThreadId)
+        )
+          return denied();
+      } else if (
+        rpc.method !== "initialize" &&
+        rpc.method !== "ping" &&
+        !rpc.method.startsWith("notifications/")
+      )
+        return denied();
     }
     if (invocation.thread?.role === "main" || invocation.thread?.role === "main-fork") {
       if (request.method === "POST") {

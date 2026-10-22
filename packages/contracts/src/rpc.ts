@@ -1,3 +1,5 @@
+import { OziCheck, OziCheckError } from "./ozi.ts";
+import { ThreadId } from "./baseSchemas.ts";
 import {
   OrchestrationV2DispatchCommandResult,
   OrchestrationV2SearchThreadError,
@@ -83,10 +85,6 @@ import {
   PersistChatAttachmentsInput,
   PersistChatAttachmentsResult,
 } from "./chatAttachment.ts";
-import {
-  OrchestrationGetFullThreadDiffError,
-  OrchestrationGetTurnDiffError,
-} from "./checkpointDiff.ts";
 import {
   WorktreeSetupCancelInput,
   WorktreeSetupCancelResult,
@@ -1519,21 +1517,6 @@ const WsOrchestrationV2DispatchCommandRpc = Rpc.make(ORCHESTRATION_V2_WS_METHODS
   error: Schema.Union([OrchestrationV2DispatchCommandError, EnvironmentAuthorizationError]),
 });
 
-const WsOrchestrationV2GetTurnDiffRpc = Rpc.make(ORCHESTRATION_V2_WS_METHODS.getTurnDiff, {
-  payload: OrchestrationV2RpcSchemas.getTurnDiff.input,
-  success: OrchestrationV2RpcSchemas.getTurnDiff.output,
-  error: Schema.Union([OrchestrationGetTurnDiffError, EnvironmentAuthorizationError]),
-});
-
-const WsOrchestrationV2GetFullThreadDiffRpc = Rpc.make(
-  ORCHESTRATION_V2_WS_METHODS.getFullThreadDiff,
-  {
-    payload: OrchestrationV2RpcSchemas.getFullThreadDiff.input,
-    success: OrchestrationV2RpcSchemas.getFullThreadDiff.output,
-    error: Schema.Union([OrchestrationGetFullThreadDiffError, EnvironmentAuthorizationError]),
-  },
-);
-
 const WsOrchestrationV2SearchThreadRpc = Rpc.make(ORCHESTRATION_V2_WS_METHODS.searchThread, {
   payload: OrchestrationV2SearchThreadInput,
   success: OrchestrationV2SearchThreadResult,
@@ -1789,6 +1772,17 @@ export const WsRpcGroup = RpcGroup.make(
     success: OrchestrationV2DispatchCommandResult,
     error: Schema.Union([OziJobError, EnvironmentAuthorizationError]),
   }),
+  Rpc.make(OZI_WS_METHODS.checksList, {
+    payload: { threadId: Schema.optional(ThreadId) },
+    success: Schema.Array(OziCheck),
+    error: Schema.Union([OziCheckError, EnvironmentAuthorizationError]),
+  }),
+  Rpc.make(OZI_WS_METHODS.checksSubscribe, {
+    payload: { threadId: Schema.optional(ThreadId) },
+    success: Schema.Array(OziCheck),
+    error: Schema.Union([OziCheckError, EnvironmentAuthorizationError]),
+    stream: true,
+  }),
   WsServerProbeRpc,
   WsServerGetConfigRpc,
   WsServerRefreshProvidersRpc,
@@ -1964,8 +1958,6 @@ export const WsRpcGroup = RpcGroup.make(
   WsOrchestrationV2GetWorkflowScriptRpc,
   WsOrchestrationV2StopWorkflowRpc,
   WsOrchestrationV2GetTurnItemRpc,
-  WsOrchestrationV2GetTurnDiffRpc,
-  WsOrchestrationV2GetFullThreadDiffRpc,
   WsOrchestrationV2SearchThreadsRpc,
   WsOrchestrationV2SearchThreadRpc,
   WsOrchestrationV2SearchThreadStreamRpc,

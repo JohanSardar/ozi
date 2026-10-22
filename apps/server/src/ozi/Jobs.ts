@@ -1,5 +1,8 @@
 import {
   OZI_MAIN_THREAD_ID,
+  type OrchestrationV2Command,
+  type OrchestrationV2StoredEvent,
+  type OziCheck,
   isOziMain,
   OziJobError,
   RuntimeRequestId,
@@ -28,6 +31,12 @@ import * as CommandReceiptStore from "../orchestration-v2/CommandReceiptStore.ts
 export class Jobs extends Context.Service<
   Jobs,
   {
+    readonly accept: (
+      command: Extract<OrchestrationV2Command, { type: "message.dispatch" }>,
+    ) => Effect.Effect<
+      { sequence: number; storedEvents: ReadonlyArray<OrchestrationV2StoredEvent> } | undefined,
+      OziJobError
+    >;
     readonly cards: (
       mainThreadId?: ThreadId,
     ) => Effect.Effect<ReadonlyArray<OziJobCard>, OziJobError>;
@@ -38,15 +47,25 @@ export class Jobs extends Context.Service<
   }
 >()("t3/ozi/Jobs") {}
 
+export const isAcceptance = (text: string) =>
+  /^(?:I accept (?:this|the|that) result|accepted|looks good(?:,? thanks)?|that works|approved)[.!\s]*$/i.test(
+    text.trim(),
+  );
+
 const significant = (event: OrchestrationV2DomainEvent) => {
   switch (event.type) {
+    case "completion.updated":
+      return event.payload.state !== "checking";
     case "thread.created":
     case "runtime-request.updated":
       return true;
     case "provider-thread.updated":
       return event.payload.goal?.status === "blocked";
     case "message.updated":
-      return !event.payload.streaming;
+      return (
+        !event.payload.streaming &&
+        !(event.payload.role === "user" && isAcceptance(event.payload.text))
+      );
     case "run.created":
       return true;
     case "run.updated":
@@ -113,6 +132,8 @@ const make = Effect.gen(function* () {
       if (!current) continue;
       const requests: OziJobRequest[] = [];
       let active = false;
+      let leadCheck: OziCheck | undefined;
+      let unchecked = false;
       for (const thread of threads) {
         const projection = yield* projections.getThreadRecords(
           thread.id,
@@ -126,6 +147,23 @@ const make = Effect.gen(function* () {
             ],
           },
         );
+        const check = projection.runs.at(-1)?.completionCheck;
+        if (thread.id === lead.id) leadCheck = check;
+        unchecked ||= projection.runs.at(-1)?.status === "completed" && check?.state !== "checked";
+        const verdict = check?.rounds.at(-1)?.verdict;
+        if (check?.state === "blocked" || check?.state === "needs_user")
+          requests.push({
+            id: RuntimeRequestId.make(check.id),
+            threadId: thread.id,
+            kind: "blocked",
+            prompt:
+              check.state === "blocked"
+                ? `Blocked: ${check.rounds.at(-1)?.misses.join("; ") ?? "No verified progress."}`
+                : verdict?.verdict === "needs_user"
+                  ? verdict.reason
+                  : "Human input required.",
+            options: [],
+          });
         active ||= projection.runs.some((run) =>
           ["queued", "preparing", "starting", "running", "waiting"].includes(run.status),
         );
@@ -213,7 +251,9 @@ const make = Effect.gen(function* () {
               mains.has(thread.lineage.parentThreadId),
           ) &&
           stored.event.payload.role === "user" &&
-          stored.event.payload.notification === undefined,
+          stored.event.payload.notification === undefined &&
+          stored.event.payload.createdBy !== "system" &&
+          !isAcceptance(stored.event.payload.text),
       );
       if (request?.event.type !== "message.updated" || request.event.payload.createdBy !== "user") {
         const parentId =
@@ -261,8 +301,18 @@ const make = Effect.gen(function* () {
           request;
       }
       const done = lead.handledEventId === current.event.id;
-      const checking = !active && !requests.length;
-      const column = done ? "done" : requests.length ? "needs_you" : "running";
+      const checkedEvent =
+        leadCheck?.state === "checked"
+          ? stored.findLast((entry) => entry.event.id === leadCheck.eventId)
+          : undefined;
+      const ready =
+        !active &&
+        !requests.length &&
+        !unchecked &&
+        checkedEvent !== undefined &&
+        checkedEvent.sequence >= current.sequence;
+      const checking = !done && !requests.length && !active && !ready;
+      const column = done ? "done" : requests.length ? "needs_you" : ready ? "ready" : "running";
       if (lead.visibility === "quiet" && column !== "needs_you" && column !== "done") continue;
       cards.push({
         jobId: lead.id,
@@ -275,10 +325,19 @@ const make = Effect.gen(function* () {
         },
         status: done
           ? "Closed"
-          : (requests[0]?.prompt.slice(0, 160) ?? (checking ? "Checking" : "Working")),
+          : (requests[0]?.prompt.slice(0, 160) ??
+            (ready ? "Ready" : checking ? "Checking" : "Working")),
         checking,
+        ...(leadCheck ? { checkState: leadCheck.state } : {}),
         requestEventId: request?.event.id ?? null,
-        report: null,
+        report:
+          ready && leadCheck
+            ? {
+                eventId: leadCheck.eventId,
+                text: leadCheck.report || "Completed.",
+                useful: leadCheck.rounds.at(-1)?.verdict?.useful ?? false,
+              }
+            : null,
         requests,
         handledEventId: lead.handledEventId ?? null,
         updatedAt: current.event.occurredAt,
@@ -296,11 +355,6 @@ const make = Effect.gen(function* () {
       );
   const handle: Jobs["Service"]["handle"] = Effect.fn("Jobs.handle")(
     function* (input) {
-      if (input.evidence.type !== "close")
-        return yield* new OziJobError({
-          reason: "InvalidEvidence",
-          detail: "A checked report is required for this evidence.",
-        });
       const previous = yield* receipts.getByCommandId(input.commandId);
       if (Option.isSome(previous)) {
         if (
@@ -314,8 +368,9 @@ const make = Effect.gen(function* () {
         const handled = yield* sink.readByCommandId({ commandId: input.commandId }).pipe(
           Stream.filter(
             ({ event }) =>
-              event.type === "thread.metadata-updated" &&
-              event.payload.handledEventId === input.eventId,
+              event.type === "job.handled" &&
+              event.payload.eventId === input.eventId &&
+              JSON.stringify(event.payload.evidence) === JSON.stringify(input.evidence),
           ),
           Stream.runHead,
         );
@@ -347,7 +402,38 @@ const make = Effect.gen(function* () {
           reason: "StaleEvent",
           detail: "The job has a newer event.",
         });
-      const thread = yield* projections.getThread(input.jobId);
+      if (input.evidence.type !== "close") {
+        if (card.column !== "ready" || !card.report || card.requests.length)
+          return yield* new OziJobError({
+            reason: "InvalidEvidence",
+            detail: "The report has unresolved or newer obligations.",
+          });
+        const evidence = input.evidence;
+        const proof = yield* events.read().pipe(
+          Stream.filter(({ event }) =>
+            evidence.type === "verified"
+              ? event.id === evidence.checkEventId &&
+                event.type === "completion.updated" &&
+                event.payload.state === "checked" &&
+                event.payload.threadId === input.jobId
+              : (event.threadId === input.jobId || event.threadId === OZI_MAIN_THREAD_ID) &&
+                event.type === "turn-item.updated" &&
+                event.payload.type === "user_message" &&
+                event.payload.id === evidence.userMessageId &&
+                event.payload.createdBy === "user" &&
+                isAcceptance(event.payload.text),
+          ),
+          Stream.runHead,
+        );
+        if (
+          Option.isNone(proof) ||
+          (Option.isSome(event) && proof.value.sequence < event.value.sequence)
+        )
+          return yield* new OziJobError({
+            reason: "InvalidEvidence",
+            detail: "No matching completion or user acceptance exists.",
+          });
+      }
       const now = yield* DateTime.now;
       const result = yield* sink.commitCommand({
         commandId: input.commandId,
@@ -358,9 +444,9 @@ const make = Effect.gen(function* () {
           {
             id: yield* ids.allocate.event({ threadId: input.jobId }),
             threadId: input.jobId,
-            type: "thread.metadata-updated",
+            type: "job.handled",
             occurredAt: now,
-            payload: { ...thread, handledEventId: input.eventId, updatedAt: now },
+            payload: input,
           },
         ],
         effects: [],
@@ -378,7 +464,123 @@ const make = Effect.gen(function* () {
           ),
         ),
   );
+  const accept: Jobs["Service"]["accept"] = Effect.fn("Jobs.accept")(
+    function* (command) {
+      if (
+        command.createdBy !== "user" ||
+        !isAcceptance(command.text) ||
+        (command.attachments?.length ?? 0) > 0
+      )
+        return undefined;
+      const previous = yield* receipts.getByCommandId(command.commandId);
+      if (Option.isSome(previous)) {
+        const storedEvents = yield* sink
+          .readByCommandId({ commandId: command.commandId })
+          .pipe(Stream.runCollect);
+        if (
+          storedEvents.some(({ event }) => event.type === "job.handled") &&
+          storedEvents.some(
+            ({ event }) =>
+              event.type === "message.updated" &&
+              event.payload.id === command.messageId &&
+              event.payload.text === command.text,
+          )
+        )
+          return { sequence: previous.value.resultSequence, storedEvents };
+        return undefined;
+      }
+      const thread = yield* projections.getThread(command.threadId);
+      if (thread.jobId !== thread.id) return undefined;
+      const card = (yield* readCards(OZI_MAIN_THREAD_ID)).find((card) => card.jobId === thread.id);
+      if (card?.column !== "ready") return undefined;
+      const now = yield* DateTime.now;
+      const userMessageId = ids.derive.userTurnItem({ messageId: command.messageId });
+      const result = yield* sink.commitCommand({
+        commandId: command.commandId,
+        threadId: thread.id,
+        commandType: "message.dispatch",
+        acceptedAt: now,
+        effects: [],
+        events: [
+          {
+            id: yield* ids.allocate.event({ threadId: thread.id }),
+            type: "message.updated",
+            threadId: thread.id,
+            occurredAt: now,
+            payload: {
+              id: command.messageId,
+              threadId: thread.id,
+              runId: null,
+              nodeId: null,
+              role: "user",
+              text: command.text,
+              attachments: [],
+              streaming: false,
+              createdBy: "user",
+              creationSource: command.creationSource,
+              createdAt: now,
+              updatedAt: now,
+            },
+          },
+          {
+            id: yield* ids.allocate.event({ threadId: thread.id }),
+            type: "turn-item.updated",
+            threadId: thread.id,
+            occurredAt: now,
+            payload: {
+              id: userMessageId,
+              type: "user_message",
+              threadId: thread.id,
+              runId: null,
+              nodeId: null,
+              providerThreadId: null,
+              providerTurnId: null,
+              nativeItemRef: null,
+              parentItemId: null,
+              ordinal: 0,
+              title: null,
+              inputIntent: "turn_start",
+              status: "completed",
+              startedAt: now,
+              completedAt: now,
+              updatedAt: now,
+              messageId: command.messageId,
+              text: command.text,
+              attachments: [],
+              createdBy: "user",
+              creationSource: command.creationSource,
+            },
+          },
+          {
+            id: yield* ids.allocate.event({ threadId: thread.id }),
+            type: "job.handled",
+            threadId: thread.id,
+            occurredAt: now,
+            payload: {
+              commandId: command.commandId,
+              jobId: thread.id,
+              eventId: card.eventId,
+              evidence: { type: "accepted", userMessageId },
+            },
+          },
+        ],
+      });
+      return { sequence: result.receipt.resultSequence, storedEvents: result.storedEvents };
+    },
+    (effect) =>
+      sql.withTransaction(effect).pipe(
+        Effect.mapError((cause) =>
+          isJobError(cause)
+            ? cause
+            : new OziJobError({
+                reason: "InvalidEvidence",
+                detail: "Could not record acceptance.",
+              }),
+        ),
+      ),
+  );
   return Jobs.of({
+    accept,
     cards,
     handle,
     subscribe: () =>
@@ -389,7 +591,10 @@ const make = Effect.gen(function* () {
             Stream.fromEffect(cards()),
             sink.stream({ afterSequence: sequence, bounded: true }).pipe(
               Stream.filter(
-                ({ event }) => significant(event) || event.type === "thread.metadata-updated",
+                ({ event }) =>
+                  significant(event) ||
+                  event.type === "thread.metadata-updated" ||
+                  event.type === "job.handled",
               ),
               Stream.mapEffect(() => cards()),
             ),

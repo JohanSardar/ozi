@@ -25,7 +25,6 @@ import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Predicate from "effect/Predicate";
 import * as Schema from "effect/Schema";
-import * as HostProcess from "@t3tools/shared/HostProcess";
 
 import * as ServerConfig from "../config.ts";
 import { withWorkspaceLease } from "../workspace/workspaceLease.ts";
@@ -125,7 +124,6 @@ export const layer: Layer.Layer<
     const fileSystem = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
     const serverConfig = yield* ServerConfig.ServerConfig;
-    const serverSettings = yield* ServerSettings.ServerSettingsService;
     const gitWorkflow = yield* GitWorkflowService.GitWorkflowService;
     const projects = yield* ProjectService.ProjectService;
     const providerAuth = yield* ProviderAuthService.ProviderAuthService;
@@ -252,9 +250,6 @@ export const layer: Layer.Layer<
         (candidate) => candidate.id === run.providerThreadId,
       );
       const message = projection.messages.find((candidate) => candidate.id === run.userMessageId);
-      const checkpointScope = projection.checkpointScopes.find(
-        (candidate) => candidate.id === rootNode?.checkpointScopeId,
-      );
       // Older versions also stored subagent replies as history handoffs. Their
       // queued completion messages carry the results without a history budget.
       const subagentResultTransfers = new Set(
@@ -296,8 +291,7 @@ export const layer: Layer.Layer<
         attempt === undefined ||
         providerThread === undefined ||
         providerThread.providerSessionId === null ||
-        message === undefined ||
-        checkpointScope === undefined
+        message === undefined
       ) {
         return yield* new ProviderTurnStartError({
           runId,
@@ -552,6 +546,14 @@ export const layer: Layer.Layer<
       );
       resolvedRuntimePolicy = {
         ...resolvedRuntimePolicy,
+        ...(projection.thread.role === "checker"
+          ? {
+              evidenceOnly: true,
+              systemPrompt: prepared.systemPrompt,
+              sandboxPolicy: { type: "readOnly" },
+              approvalPolicy: "never",
+            }
+          : {}),
         ...(prepared.mainPromptPath === undefined
           ? {}
           : { mainPromptPath: prepared.mainPromptPath }),
@@ -979,6 +981,30 @@ export const layer: Layer.Layer<
           payload: runningRootNode,
         },
       ];
+      if (projection.thread.role === "checker" && nativeForkTransfer !== undefined) {
+        const source = yield* projectionStore.getThreadRecords(nativeForkTransfer.sourceThreadId, [
+          "runs",
+        ]);
+        const check = source.runs.find(
+          (run) => run.id === nativeForkTransfer.sourcePoint.runId,
+        )?.completionCheck;
+        if (check?.state === "checking") {
+          const eventId = yield* idAllocator.allocate.event({ threadId: check.threadId });
+          events.push({
+            id: eventId,
+            type: "completion.updated",
+            threadId: check.threadId,
+            runId: check.runId,
+            occurredAt: now,
+            payload: {
+              ...check,
+              eventId,
+              sourceCaptured: true,
+              updatedAt: DateTime.formatIso(now),
+            },
+          });
+        }
+      }
       const runningWrite = yield* eventSink.writeIfRunCurrent({
         threadId: projection.thread.id,
         runId: run.id,
@@ -1266,7 +1292,6 @@ export const layer: Layer.Layer<
         session: deliverySession,
         run: runningRun,
         rootNode: runningRootNode,
-        checkpointScope,
         providerThread: runningProviderThread,
         attempt: runningAttempt,
         attemptId: attempt.id,

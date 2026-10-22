@@ -1,3 +1,4 @@
+import * as NodeCrypto from "node:crypto";
 import * as NodeFS from "node:fs";
 import * as NodePath from "node:path";
 
@@ -175,13 +176,15 @@ export function interpreter(provider, hooks) {
       if (endpoint) await initialize();
       const role =
         process.env.OZI_FAKE_ROLE ??
-        (/\[worker\]/i.test(prompt)
-          ? "worker"
-          : /(?:you are|role:) [^\n]*main agent/i.test(instructions) ||
-              (tools.some((tool) => tool.name === "read_skill") &&
-                !tools.some((tool) => /^(?:preview_|t3_project_|t3_terminal_)/.test(tool.name)))
-            ? "main"
-            : "worker");
+        (/OZI COMPLETION CHECK/.test(prompt) || /runtime completion checker/i.test(instructions)
+          ? "checker"
+          : /\[worker\]/i.test(prompt)
+            ? "worker"
+            : /(?:you are|role:) [^\n]*main agent/i.test(instructions) ||
+                (tools.some((tool) => tool.name === "read_skill") &&
+                  !tools.some((tool) => /^(?:preview_|t3_project_|t3_terminal_)/.test(tool.name)))
+              ? "main"
+              : "worker");
       log(provider, "prompt", { prompt, role, instructions });
       const script = process.env.OZI_FAKE_SCRIPT
         ? JSON.parse(NodeFS.readFileSync(process.env.OZI_FAKE_SCRIPT, "utf8"))
@@ -190,10 +193,16 @@ export function interpreter(provider, hooks) {
       const index = rules.findIndex(
         (rule) =>
           !used.has(rule.id ?? JSON.stringify(rule)) &&
+          (role !== "checker" || rule.role === "checker") &&
           (!rule.provider || rule.provider === provider) &&
           (!rule.role || rule.role === role) &&
           new RegExp(rule.match ?? ".*", "s").test(prompt),
       );
+      if (index < 0 && role === "checker") {
+        await hooks.say('{"verdict":"done","useful":true}');
+        await hooks.done();
+        return;
+      }
       if (index < 0) throw new Error(`No fake ${provider} rule matches: ${prompt.slice(0, 180)}`);
       if (!rules[index].repeat) used.add(rules[index].id ?? JSON.stringify(rules[index]));
       for (const step of rules[index].steps) {
@@ -243,4 +252,27 @@ export function sessionFile(provider, sessionId) {
       : root;
   NodeFS.mkdirSync(directory, { recursive: true });
   return NodePath.join(directory, `${sessionId}.jsonl`);
+}
+
+export const settled = (provider, nativeId, file) =>
+  log(provider, "native_settled", {
+    nativeId,
+    file,
+    sha256: NodeCrypto.createHash("sha256").update(NodeFS.readFileSync(file)).digest("hex"),
+  });
+export async function forkBarrier(provider) {
+  const script = process.env.OZI_FAKE_SCRIPT;
+  if (!script) return;
+  while (true) {
+    const watcher = NodeFS.watch(script);
+    const changed = new Promise((resolve) => watcher.once("change", resolve));
+    const config = JSON.parse(NodeFS.readFileSync(script, "utf8"));
+    if (!config.forkWait?.includes(provider)) {
+      watcher.close();
+      return;
+    }
+    log(provider, "fork_wait", {});
+    await changed;
+    watcher.close();
+  }
 }

@@ -68,7 +68,6 @@ it.effect.each(["sqlite", "memory"] as const)(
         requestedAt: now,
         startedAt: null,
         completedAt: null,
-        checkpointId: null,
         contextHandoffId: null,
       };
       const putThread = (value: OrchestrationV2AppThread) =>

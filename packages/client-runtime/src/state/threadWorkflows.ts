@@ -39,11 +39,6 @@ export function resolveActiveThreadRun(projection: Pick<Projection, "runs">): Ru
   return projection.runs.findLast((run) => ACTIVE_RUN_STATUSES.has(run.status)) ?? null;
 }
 
-/**
- * A successfully finished provider turn remains in `waiting` while its
- * checkpoint is captured. Keep that newest turn available for merge-back
- * instead of falling through to an older fully checkpointed run.
- */
 export function resolveLatestMergeBackRun(projection: Projection): Run | null {
   const latestProviderFinishedRun = projection.runs.reduce<Run | null>(
     (latest, run) =>

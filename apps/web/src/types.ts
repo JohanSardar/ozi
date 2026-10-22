@@ -19,10 +19,8 @@ import type {
 import type {
   EnvironmentProject,
   EnvironmentThreadShell,
-  ThreadRunSummary,
   ThreadRuntimeSummary,
 } from "@t3tools/client-runtime/state/shell";
-import type { ThreadCheckpointSummary } from "@t3tools/client-runtime/state/thread-checkpoints";
 import { videoMimeType } from "@t3tools/shared/video";
 
 export { videoMimeType } from "@t3tools/shared/video";
@@ -105,8 +103,6 @@ export interface ProposedPlan {
   readonly createdAt: string;
   readonly updatedAt: string;
 }
-export type TurnDiffFileChange = ThreadCheckpointSummary["files"][number];
-export type TurnDiffSummary = ThreadCheckpointSummary;
 
 export type Project = EnvironmentProject;
 export type Thread = EnvironmentThreadShell;

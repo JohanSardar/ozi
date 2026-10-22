@@ -234,7 +234,6 @@ export function applyOrchestrationV2ProjectionEvent(
     case "thread.unsettled":
     case "thread.snoozed":
     case "thread.unsnoozed":
-    case "thread.auto-settle-set":
     case "thread.pinned":
     case "thread.unpinned":
     case "thread.pin-reordered":
@@ -250,9 +249,32 @@ export function applyOrchestrationV2ProjectionEvent(
     case "thread.visited":
     case "thread.marked-unread":
       return { ...projection, thread: event.payload };
+    case "job.handled":
+      return {
+        ...base,
+        thread: {
+          ...base.thread,
+          handledEventId: event.payload.eventId,
+          updatedAt: event.occurredAt,
+        },
+      };
+    case "completion.updated":
+      return {
+        ...base,
+        runs: base.runs.map((run) =>
+          run.id === event.payload.runId ? { ...run, completionCheck: event.payload } : run,
+        ),
+      };
     case "run.created":
     case "run.updated": {
-      const next = { ...base, runs: upsertEntity(base.runs, event.payload) };
+      const recorded = base.runs.find((run) => run.id === event.payload.id)?.completionCheck;
+      const next = {
+        ...base,
+        runs: upsertEntity(base.runs, {
+          ...event.payload,
+          ...(recorded ? { completionCheck: recorded } : {}),
+        }),
+      };
       return { ...next, visibleTurnItems: activeVisibleTurnItems(next) };
     }
     case "run.background-work-cancelled":
@@ -344,12 +366,6 @@ export function applyOrchestrationV2ProjectionEvent(
           : removeVisibleItem(visible.visibleTurnItems, event.payload.id),
       };
     }
-    case "checkpoint-scope.created":
-      return { ...base, checkpointScopes: upsertEntity(base.checkpointScopes, event.payload) };
-    case "checkpoint.captured":
-      return { ...base, checkpoints: upsertEntity(base.checkpoints, event.payload) };
-    case "checkpoint.rollback-requested":
-      return base;
     case "context-handoff.updated":
       return { ...base, contextHandoffs: upsertEntity(base.contextHandoffs, event.payload) };
     case "context-transfer.created":

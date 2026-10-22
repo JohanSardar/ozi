@@ -1,6 +1,4 @@
 import {
-  CheckpointId,
-  CheckpointScopeId,
   CommandId,
   ContextHandoffId,
   ContextTransferId,
@@ -43,8 +41,6 @@ export const IdAllocatorV2Kind = Schema.Literals([
   "provider_turn",
   "runtime_request",
   "turn_item",
-  "checkpoint_scope",
-  "checkpoint",
   "context_handoff",
   "context_transfer",
   "plan",
@@ -101,14 +97,6 @@ export interface IdAllocatorV2Allocate {
     readonly providerTurnId?: ProviderTurnId;
     readonly nativeRequestId?: string;
   }) => Effect.Effect<RuntimeRequestId, IdAllocatorV2Error>;
-  readonly checkpointScope: (input: {
-    readonly threadId: ThreadId;
-    readonly name: string;
-  }) => Effect.Effect<CheckpointScopeId, IdAllocatorV2Error>;
-  readonly checkpoint: (input: {
-    readonly checkpointScopeId: CheckpointScopeId;
-    readonly name: string;
-  }) => Effect.Effect<CheckpointId, IdAllocatorV2Error>;
   readonly contextHandoff: (input: {
     readonly threadId: ThreadId;
     readonly fromProviderInstanceId: ProviderInstanceId;
@@ -373,18 +361,6 @@ export const layer: Layer.Layer<IdAllocatorV2> = Layer.succeed(
           ],
           make: RuntimeRequestId.make,
         })(input),
-      checkpointScope: (input) =>
-        Effect.succeed(
-          CheckpointScopeId.make(
-            joinId("checkpoint-scope", "thread", input.threadId, "name", input.name),
-          ),
-        ),
-      checkpoint: (input) =>
-        Effect.succeed(
-          CheckpointId.make(
-            joinId("checkpoint", "scope", input.checkpointScopeId, "name", input.name),
-          ),
-        ),
       contextHandoff: (input) =>
         randomId<ContextHandoffId, typeof input>({
           kind: "context_handoff",

@@ -268,7 +268,11 @@ it("m2.secret-card keeps the entered secret out of card and transcript data", as
 });
 
 it("m2.awaits-check keeps a completed lead running and checking", async () => {
-  const card = await start("finished-worker", [{ say: "finished result" }]);
+  const card = await start(
+    "finished-worker",
+    [{ say: "finished result" }],
+    [{ match: "Claim: finished result$", role: "checker", steps: [{ wait: true }] }],
+  );
   await h.wait(card.jobId, "completed");
   expect(await wait(card.jobId, "running")).toMatchObject({
     checking: true,

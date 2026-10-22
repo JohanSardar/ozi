@@ -79,7 +79,6 @@ function makeSourceRun(status: OrchestrationV2Run["status"]): OrchestrationV2Run
     requestedAt: sourceCreatedAt,
     startedAt: sourceCreatedAt,
     completedAt: snoozedAt,
-    checkpointId: null,
     contextHandoffId: null,
   };
 }
@@ -98,8 +97,6 @@ function makeSourceProjection(sourceRun: OrchestrationV2Run): OrchestrationV2Thr
     messages: [],
     plans: [],
     turnItems: [],
-    checkpointScopes: [],
-    checkpoints: [],
     contextHandoffs: [],
     contextTransfers: [],
     visibleTurnItems: [],

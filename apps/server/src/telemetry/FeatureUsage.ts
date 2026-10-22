@@ -26,10 +26,6 @@ const use = (feature: string, variant?: string): FeatureUsage =>
 const COMMAND_FEATURES: Partial<
   Record<OrchestrationV2Command["type"], (command: Payload) => FeatureUsage>
 > = {
-  "checkpoint.rollback": (command) => ({
-    feature: "checkpoint.rollback",
-    variant: command.restoreFiles === false ? "conversation_only" : "with_files",
-  }),
   "thread.fork": () => ({ feature: "thread.fork" }),
   "thread.merge_back": () => ({ feature: "thread.merge_back" }),
   "provider.switch": () => ({ feature: "provider.switch" }),

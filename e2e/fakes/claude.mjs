@@ -1,5 +1,15 @@
 import * as NodeFS from "node:fs";
-import { argv, id, interpreter, launch, lines, option, sessionFile, write } from "./agent.mjs";
+import {
+  argv,
+  id,
+  interpreter,
+  launch,
+  lines,
+  option,
+  sessionFile,
+  write,
+  settled,
+} from "./agent.mjs";
 
 if (launch("claude")) {
   if (argv[0] === "auth") {
@@ -11,9 +21,11 @@ if (launch("claude")) {
     const file = sessionFile("claude", sessionId);
     const model = argv.includes("--model") ? option("--model") : "claude-opus-5-5";
     let mcp = argv.includes("--mcp-config") ? JSON.parse(option("--mcp-config")).mcpServers : {};
-    let instructions = argv.includes("--append-system-prompt")
-      ? option("--append-system-prompt")
-      : "";
+    let instructions = argv.includes("--system-prompt")
+      ? option("--system-prompt")
+      : argv.includes("--append-system-prompt")
+        ? option("--append-system-prompt")
+        : "";
     let text = "";
     let running = false;
     let parentUuid = NodeFS.existsSync(file)
@@ -40,6 +52,7 @@ if (launch("claude")) {
       };
       parentUuid = frame.uuid;
       NodeFS.appendFileSync(file, `${JSON.stringify(frame)}\n`);
+      if (frame.type === "result") settled("claude", sessionId, file);
       write(frame);
     };
     const finish = (interrupted = false, error) => {
