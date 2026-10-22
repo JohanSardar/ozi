@@ -159,14 +159,14 @@ features:
     cli: [schedule]
     milestone: 4
     scenarios: [m4.webhook, m4.base-url]
-    status: building
+    status: passing
   - id: todos
     reqs: [todos]
     module: ozi/Todos.ts + components/ozi/JobPanel.tsx + e2e/m4.test.ts
     cli: [todos]
     milestone: 4
     scenarios: [m4.todos]
-    status: building
+    status: passing
   - id: cut-coding
     reqs: [t3-cut, minimal]
     module: server
