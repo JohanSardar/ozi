@@ -85,6 +85,11 @@ const buildCmd = Command.make(
         }),
       );
 
+      const defaultsTarget = path.join(serverDir, "dist/defaults");
+      yield* fs.copy(path.join(serverDir, "src/ozi/defaults"), defaultsTarget);
+      for (const directory of ["skills", "protected/cases"])
+        yield* fs.makeDirectory(path.join(defaultsTarget, directory), { recursive: true });
+
       const webDist = path.join(repoRoot, "apps/web/dist");
       const clientTarget = path.join(serverDir, "dist/client");
 
