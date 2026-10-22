@@ -234,6 +234,7 @@ export interface BackendInstanceSpec {
   // between "fired onReady" and "currentConfig already advanced".
   readonly onReady?: (httpBaseUrl: URL) => Effect.Effect<void>;
   readonly onShutdown?: () => Effect.Effect<void>;
+  readonly onFailure?: (reason: string) => Effect.Effect<void>;
   readonly onPreflightFailed?: (failure: PreflightFailure) => Effect.Effect<boolean>;
   readonly onStateDirOwned?: () => Effect.Effect<void>;
 }
@@ -632,7 +633,7 @@ export const makeBackendInstance = Effect.fn("makeBackendInstance")(function* (
           Effect.tapError((error) =>
             logInstanceError("failed to generate desktop backend configuration", {
               cause: error.message,
-            }),
+            }).pipe(Effect.andThen(spec.onFailure?.(error.message) ?? Effect.void)),
           ),
           Effect.option,
         );
@@ -875,6 +876,7 @@ export const makeBackendInstance = Effect.fn("makeBackendInstance")(function* (
               yield* backendOutputLog.persistFailureSnapshot({
                 details: error.message,
               });
+              yield* spec.onFailure?.(error.message) ?? Effect.void;
             },
           ),
           onOutput: (streamName, chunk) => backendOutputLog.writeOutputChunk(streamName, chunk),
@@ -919,6 +921,7 @@ export const makeBackendInstance = Effect.fn("makeBackendInstance")(function* (
     yield* Option.match(scheduled, {
       onNone: () => Effect.void,
       onSome: Effect.fn("desktop.backendInstance.scheduleRestartFiber")(function* (delay) {
+        yield* spec.onFailure?.(reason) ?? Effect.void;
         yield* logInstanceError("backend exited unexpectedly; restart scheduled", {
           reason,
           delayMs: Duration.toMillis(delay),

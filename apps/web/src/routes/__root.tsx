@@ -6,6 +6,7 @@ import { resolveServerBackedAppDisplayName } from "../branding.logic";
 import { resolveInitialServerAuthGateState } from "../environments/primary";
 import { isHostedStaticApp, hasHostedPairingRequest } from "../hostedPairing";
 import { isLocalEnvironmentDisabled } from "../localEnvironment";
+import { isElectron } from "../env";
 import { primaryServerConfigAtom } from "../state/server";
 import { useClientSettings } from "../hooks/useSettings";
 import { useEnvironmentThemeSync } from "../hooks/useEnvironmentTheme";
@@ -23,7 +24,9 @@ export const Route = createRootRoute({
     authGateState:
       location.pathname === "/pair" && hasHostedPairingRequest(new URL(window.location.href))
         ? { status: "hosted-pairing" as const }
-        : isLocalEnvironmentDisabled() || isHostedStaticApp(new URL(window.location.href))
+        : isElectron ||
+            isLocalEnvironmentDisabled() ||
+            isHostedStaticApp(new URL(window.location.href))
           ? { status: "hosted-static" as const }
           : await resolveInitialServerAuthGateState(),
   }),
