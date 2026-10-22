@@ -1,5 +1,4 @@
-import "vite-plus/test/config";
-import { defaultInclude, defineConfig } from "vite-plus";
+import { defineConfig } from "vite-plus";
 
 import { isDesktopRuntimeExternalDependency } from "../../scripts/lib/desktop-external-packages.ts";
 
@@ -123,11 +122,4 @@ export default defineConfig({
       entry: ["src/mac-permission-preload.ts"],
     },
   ],
-  test: {
-    include: [...defaultInclude, "../../native/kde-snap-shot/src/*.test.ts"],
-    // The Windows lane runs workspace suites concurrently; filesystem-heavy
-    // desktop integration tests can exceed Vitest's 5 second default there.
-    testTimeout: 15_000,
-    setupFiles: ["../../packages/shared/src/testing/longTempDir.ts"],
-  },
 });

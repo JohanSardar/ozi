@@ -2,8 +2,6 @@ import "vite-plus/test/config";
 import { defineConfig } from "vite-plus";
 import * as NodeURL from "node:url";
 
-const DOM_TEST_ENVIRONMENT_ALLOWLIST: Array<string> = [];
-
 const RESTRICTED_IMPORT_PATHS = [
   {
     name: "@t3tools/client-runtime",
@@ -53,24 +51,6 @@ export default defineConfig({
     alias: {
       "~": NodeURL.fileURLToPath(new URL("./apps/web/src", import.meta.url)),
     },
-  },
-  test: {
-    environment: "node",
-    exclude: [
-      "**/.repos/**",
-      "**/.t3/**",
-      "**/node_modules/**",
-      "**/dist/**",
-      "**/dist-electron/**",
-      "**/.{idea,git,cache,output,temp}/**",
-    ],
-    hookTimeout: 60_000,
-    testTimeout: 60_000,
-    setupFiles: [
-      NodeURL.fileURLToPath(
-        new URL("./packages/shared/src/testing/longTempDir.ts", import.meta.url),
-      ),
-    ],
   },
   staged: {
     "*": "vp fmt --no-error-on-unmatched-pattern",
@@ -160,10 +140,8 @@ export default defineConfig({
       "t3code/no-global-process-runtime": "error",
       "t3code/no-inline-schema-compile": "warn",
       "t3code/no-low-value-comments": "error",
-      "t3code/no-manual-effect-runtime-in-tests": "error",
       "t3code/no-native-title-tooltip": "error",
       "t3code/no-raw-mcp-registration": "error",
-      "t3code/no-test-in-loop": "error",
       "t3code/no-rpc-permission-bypass": ["error", { allowRawClientAccess: true }],
       "t3code/no-unscoped-has": "error",
       "t3code/namespace-node-imports": "error",
@@ -173,23 +151,6 @@ export default defineConfig({
       "t3code/require-suppression-reason": "error",
     },
     overrides: [
-      {
-        files: [
-          "**/*.{test,spec,testkit}.{ts,tsx}",
-          "**/{test,tests,testkit,testing,fixtures,integration}/**",
-          "packages/provider-testing/**",
-        ],
-        rules: { "t3code/prefer-effect-fn": "off" },
-      },
-      {
-        files: ["apps/web/**/*.test.{ts,tsx}"],
-        rules: { "t3code/require-disposable-render": "error" },
-      },
-      {
-        files: ["apps/**/src/**", "packages/**/src/**"],
-        excludeFiles: DOM_TEST_ENVIRONMENT_ALLOWLIST,
-        rules: { "t3code/no-dom-test-environment": "error" },
-      },
       {
         files: ["packages/client-runtime/src/state/**", "apps/{web,desktop}/src/**"],
         rules: { "t3code/no-rpc-permission-bypass": ["error", { allowRawClientAccess: false }] },

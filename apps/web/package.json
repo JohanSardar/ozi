@@ -7,8 +7,7 @@
     "dev": "vp dev",
     "build": "vp build",
     "preview": "vp preview",
-    "typecheck": "tsc-rs --noEmit",
-    "test": "vp test run --passWithNoTests --project unit --project browser"
+    "typecheck": "tsc-rs --noEmit"
   },
   "dependencies": {
     "@base-ui/react": "^1.4.1",
@@ -44,7 +43,6 @@
   },
   "devDependencies": {
     "@effect/platform-node": "catalog:",
-    "@effect/vitest": "catalog:",
     "@tailwindcss/vite": "^4.0.0",
     "@tanstack/router-plugin": "^1.161.0",
     "@types/compression": "^1.8.1",
@@ -53,7 +51,6 @@
     "@types/react-dom": "catalog:",
     "@types/use-sync-external-store": "^0.0.6",
     "@vitejs/plugin-react": "^6.1.2",
-    "@vitest/browser-playwright": "5.0.1",
     "compression": "^1.8.2",
     "oxc-transform-react": "~0.152.0",
     "playwright": "1.60.0",

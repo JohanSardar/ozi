@@ -218,7 +218,7 @@ features:
     status: passing
   - id: public-ready
     reqs: [for-everybody, minimal, t3-cut]
-    module: repo
+    module: repo + e2e/m6.audit.test.ts
     cli: []
     milestone: 6
     scenarios: [m6.audit, m6.public-ready]

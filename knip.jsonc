@@ -9,12 +9,6 @@
     ".": {
       "project": ["*.{js,mjs,cjs,ts,mts,cts}", ".github/**/*.cjs"],
       "entry": [".coderabbit.config.ts", ".github/scripts/thread-transfer-report.cjs"],
-      "vite": {
-        "entry": [".github/**/*.test.cjs"],
-      },
-      "vitest": {
-        "entry": [".github/**/*.test.cjs"],
-      },
     },
     "scripts": {
       "entry": ["knip-schemas.ts", "setup-worktree.ts", "verify-windows-desktop-artifact.ts"],
@@ -30,9 +24,7 @@
         "scripts/fetch-expo-schema.ts",
         "scripts/measure-pr-preview.ts",
         "scripts/probe-claude-fork-local-rollback-replay.ts",
-        "scripts/update-test-shard-weights.ts",
         "scripts/verify-background-live.ts",
-        "src/provider/testFixtures/*.mjs",
         "graphql.config.ts",
       ],
       "ignoreIssues": {
@@ -59,7 +51,7 @@
       "ignoreDependencies": ["playwright-core", "electron-builder"],
     },
     "apps/web": {
-      "entry": ["scripts/warm-dep-cache.ts", "test/fixtures/**/*.mjs"],
+      "entry": ["scripts/warm-dep-cache.ts"],
       "ignoreIssues": {
         "src/components/ui/*.tsx": ["exports", "nsExports", "duplicates"],
       },
@@ -69,7 +61,6 @@
     },
     "packages/effect-codex-app-server": {
       "includeEntryExports": true,
-      "entry": ["test/fixtures/*.ts"],
       "ignoreIssues": {
         "src/_generated/**": ["exports", "types"],
       },
