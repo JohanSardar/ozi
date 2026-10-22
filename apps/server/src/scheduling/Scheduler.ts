@@ -11,6 +11,7 @@ import { forkParked } from "../serverActivation.ts";
 export class Scheduler extends Context.Service<
   Scheduler,
   {
+    readonly tick: Effect.Effect<void>;
     readonly register: <E, R>(
       name: string,
       runDueWork: Effect.Effect<void, E, R>,
@@ -55,7 +56,7 @@ const make = Effect.gen(function* () {
     Effect.flatMap((current) => Effect.forEach(current.values(), (run) => run, { discard: true })),
   );
   yield* forkParked(Effect.sleep("5 seconds").pipe(Effect.andThen(tick), Effect.forever));
-  return Scheduler.of({ register });
+  return Scheduler.of({ register, tick });
 });
 
 export const layer = Layer.effect(Scheduler, make);

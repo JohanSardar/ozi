@@ -139,7 +139,64 @@ export class OziJobError extends Schema.TaggedError<OziJobError>()("OziJobError"
 }
 
 export const OZI_WS_METHODS = {
+  todosGet: "ozi.todos.get",
+  clockAdvance: "ozi.test.clock.advance",
   jobsGet: "ozi.jobs.get",
   jobsSubscribe: "ozi.jobs.subscribe",
   jobsHandle: "ozi.jobs.handle",
 } as const;
+
+export class OziClockError extends Schema.TaggedError<OziClockError>()("OziClockError", {
+  detail: Schema.String,
+}) {}
+
+const TodoField = Schema.String.check(Schema.isMinLength(1));
+const TodoUrl = Schema.String.check(Schema.isPattern(/^https?:\/\//));
+
+export const OziTodoSettings = Schema.Struct({
+  source: TodoField,
+  server: Schema.Union([
+    Schema.Struct({
+      type: Schema.Literal("stdio"),
+      command: TodoField,
+      args: Schema.optional(Schema.Array(Schema.String)),
+      env: Schema.optional(Schema.Record(Schema.String, Schema.String)),
+    }),
+    Schema.Struct({
+      type: Schema.Literal("http"),
+      url: TodoUrl,
+      headers: Schema.optional(Schema.Record(Schema.String, Schema.String)),
+    }),
+  ]),
+  tool: TodoField,
+  arguments: Schema.Record(Schema.String, Schema.Unknown),
+  itemsPath: Schema.String,
+  fields: Schema.Struct({
+    id: TodoField,
+    title: TodoField,
+    link: TodoField,
+    status: TodoField,
+    due: Schema.optional(TodoField),
+  }),
+});
+export type OziTodoSettings = typeof OziTodoSettings.Type;
+
+export const OziTodo = Schema.Struct({
+  id: TodoField,
+  title: TodoField,
+  link: Schema.NullOr(TodoUrl),
+  status: Schema.String,
+  due: Schema.NullOr(Schema.String),
+});
+export type OziTodo = typeof OziTodo.Type;
+
+export const OziTodos = Schema.NullOr(
+  Schema.Struct({
+    source: Schema.String,
+    state: Schema.Literals(["available", "stale", "unavailable"]),
+    items: Schema.NullOr(Schema.Array(OziTodo)),
+    fetchedAt: Schema.NullOr(Schema.String),
+    attemptedAt: Schema.String,
+  }),
+);
+export type OziTodos = typeof OziTodos.Type;

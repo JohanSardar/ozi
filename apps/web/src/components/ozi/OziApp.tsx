@@ -15,6 +15,7 @@ import { usePrimaryEnvironment } from "../../state/environments";
 import { PreviewPanel } from "../preview/PreviewPanel";
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { usePreviewSession } from "../preview/usePreviewSession";
+import { useOziTodos } from "./useOziTodos";
 
 export function OziApp() {
   const environment = usePrimaryEnvironment();
@@ -34,6 +35,7 @@ function OziWorkspace({
   environment: NonNullable<ReturnType<typeof usePrimaryEnvironment>>;
 }) {
   const jobs = useOziJobs(environment.environmentId);
+  const todos = useOziTodos(environment.environmentId);
   const cards = jobs.cards;
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const [opened, setOpened] = useState<OziJobCard | null>(null);
@@ -116,6 +118,9 @@ function OziWorkspace({
       >
         <Conversation environmentId={environment.environmentId} threadId={OZI_MAIN_THREAD_ID} />
         <JobPanel
+          todos={todos.todos}
+          todosLoading={todos.loading}
+          onRefreshTodos={todos.refresh}
           cards={cards}
           connected={environment.connection.phase === "connected"}
           unavailable={jobs.unavailable}

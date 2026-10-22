@@ -201,6 +201,7 @@ export interface CliServerFlags {
   readonly host: Option.Option<string>;
   readonly baseDir: Option.Option<string>;
   readonly dataRoot?: Option.Option<string>;
+  readonly publicUrl?: Option.Option<string>;
   readonly json?: boolean;
   readonly cwd: Option.Option<string>;
   readonly devUrl: Option.Option<URL>;
@@ -223,6 +224,7 @@ export const sharedServerCommandFlags = {
   host: hostFlag,
   baseDir: baseDirFlag,
   dataRoot: Flag.String("data-root").pipe(Flag.optional),
+  publicUrl: Flag.String("public-url").pipe(Flag.optional),
   json: Flag.Boolean("json"),
   cwd: Argument.String("cwd").pipe(
     Argument.withDescription(
@@ -472,6 +474,10 @@ export const resolveServerConfig = Effect.fn("config.resolveServerConfig")(funct
     cwd,
     baseDir,
     dataRoot,
+    publicUrl:
+      Option.getOrUndefined(flags.publicUrl ?? Option.none()) ??
+      Option.getOrUndefined(yield* Config.String("OZI_PUBLIC_URL").pipe(Config.option)),
+    testClock: Option.getOrUndefined(yield* Config.String("OZI_TEST_CLOCK").pipe(Config.option)),
     jsonOutput: flags.json ?? false,
     ...derivedPaths,
     serverTracePath,

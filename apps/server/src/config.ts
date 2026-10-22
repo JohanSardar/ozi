@@ -68,6 +68,8 @@ export class ServerConfig extends Context.Service<
     readonly cwd: string;
     readonly baseDir: string;
     readonly dataRoot: string;
+    readonly publicUrl?: string | undefined;
+    readonly testClock?: string | undefined;
     readonly jsonOutput?: boolean;
     readonly staticDir: string | undefined;
     readonly devUrl: URL | undefined;

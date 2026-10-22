@@ -148,25 +148,25 @@ features:
     status: planned
   - id: schedules
     reqs: [schedules, quiet-cards]
-    module: server
+    module: scheduledTasks/ScheduledTaskService.ts + ozi/Clock.ts + cli/client.ts + e2e/m4.test.ts
     cli: [schedules, schedule]
     milestone: 4
     scenarios: [m4.interval, m4.time-of-day, m4.useful-card]
-    status: planned
+    status: building
   - id: webhooks
     reqs: [watchers]
-    module: server
+    module: scheduledTasks + e2e/m4.test.ts
     cli: [schedule]
     milestone: 4
     scenarios: [m4.webhook, m4.base-url]
-    status: planned
+    status: building
   - id: todos
     reqs: [todos]
-    module: JobPanel
+    module: ozi/Todos.ts + components/ozi/JobPanel.tsx + e2e/m4.test.ts
     cli: [todos]
     milestone: 4
     scenarios: [m4.todos]
-    status: planned
+    status: building
   - id: cut-coding
     reqs: [t3-cut, minimal]
     module: server
