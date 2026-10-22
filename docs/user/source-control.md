@@ -81,10 +81,10 @@ If no credentials are saved, T3 Code falls back to these variables in the server
 Restart the server after changing them:
 
 ```bash
-export T3CODE_BITBUCKET_ACCESS_TOKEN="your-access-token"
+export OZI_BITBUCKET_ACCESS_TOKEN="your-access-token"
 # or
-export T3CODE_BITBUCKET_EMAIL="you@example.com"
-export T3CODE_BITBUCKET_API_TOKEN="your-token"
+export OZI_BITBUCKET_EMAIL="you@example.com"
+export OZI_BITBUCKET_API_TOKEN="your-token"
 ```
 
 For a background service, put these `KEY=VALUE` entries in

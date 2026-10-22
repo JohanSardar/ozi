@@ -202,6 +202,13 @@ features:
     milestone: 6
     scenarios: [m6.publish, m6.recurrence-undo, m6.edit-conflict, m6.crash-publish]
     status: planned
+  - id: desktop-identity
+    reqs: [for-everybody, t3-cut]
+    module: apps/desktop + apps/server/src/cli/config.ts + e2e/m6.audit.test.ts
+    cli: [serve, pair]
+    milestone: 6
+    scenarios: [m6.audit]
+    status: passing
   - id: public-ready
     reqs: [for-everybody, minimal, t3-cut]
     module: repo

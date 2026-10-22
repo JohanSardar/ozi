@@ -87,13 +87,16 @@ export async function startHarness(
     testClock?: string;
     publicUrl?: string;
     publicUrlEnv?: string;
+    desktopArgv?: string[];
     bundled?: boolean;
     pi?: { binaryPath: string; env: NodeJS.ProcessEnv };
   } = {},
 ) {
   const entry = options.bundled ? NodePath.join(repo, "apps/server/dist/bin.mjs") : cli;
   const root = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "ozi-e2e-"));
-  const home = NodePath.join(root, "home");
+  const home = options.desktopArgv
+    ? NodePath.join(root, "account", ".ozi")
+    : NodePath.join(root, "home");
   const dataRoot = NodePath.join(root, "data-root");
   const script = NodePath.join(root, "script.json");
   const log = NodePath.join(root, "fake.jsonl");
@@ -138,7 +141,8 @@ export async function startHarness(
     XDG_CONFIG_HOME: NodePath.join(root, "config"),
     XDG_CACHE_HOME: NodePath.join(root, "cache"),
     XDG_DATA_HOME: NodePath.join(root, "data"),
-    OZI_HOME: home,
+    OZI_HOME: options.desktopArgv ? undefined : home,
+    T3CODE_HOME: NodePath.join(root, "account", ".t3"),
     OZI_DATA_ROOT: dataRoot,
     OZI_FAKE_SCRIPT: script,
     OZI_FAKE_LOG: log,
@@ -148,15 +152,20 @@ export async function startHarness(
     CODEX_HOME: NodePath.join(root, "codex"),
     CLAUDE_CONFIG_DIR: NodePath.join(root, "claude"),
     PI_CODING_AGENT_DIR: NodePath.join(root, "pi"),
-    T3CODE_LOG_LEVEL: "Error",
-    T3CODE_TRACE_TIMING_ENABLED: "false",
-    T3CODE_NO_BROWSER: "true",
+    OZI_LOG_LEVEL: "Error",
+    OZI_TRACE_TIMING_ENABLED: "false",
+    OZI_NO_BROWSER: "true",
     CI: "1",
     GIT_CONFIG_NOSYSTEM: "1",
     GIT_CONFIG_GLOBAL: NodePath.join(root, "gitconfig"),
     ...options.pi?.env,
   };
   await NodeFSP.mkdir(env.HOME!, { recursive: true });
+  if (options.desktopArgv) {
+    const legacy = NodePath.join(env.T3CODE_HOME!, "bin");
+    await NodeFSP.mkdir(legacy, { recursive: true });
+    await NodeFSP.writeFile(NodePath.join(legacy, "t3"), "T3 sentinel");
+  }
   await NodeFSP.writeFile(
     env.GIT_CONFIG_GLOBAL!,
     "[user]\nname = Ozi E2E\nemail = e2e@example.invalid\n[init]\ndefaultBranch = main\n",
@@ -175,14 +184,9 @@ export async function startHarness(
     server = NodeChildProcess.spawn(
       process.execPath,
       [
-        entry,
-        "serve",
-        "--mode",
-        "web",
-        "--bootstrap-fd",
-        "3",
-        "--home",
-        home,
+        ...(options.desktopArgv
+          ? [NodePath.join(repo, "apps/server/dist/bin.mjs"), ...options.desktopArgv]
+          : [entry, "serve", "--mode", "web", "--bootstrap-fd", "3", "--home", home]),
         "--data-root",
         dataRoot,
         "--host",
@@ -203,7 +207,7 @@ export async function startHarness(
         noBrowser: true,
         port,
         host: "0.0.0.0",
-        t3Home: home,
+        ...(options.desktopArgv ? {} : { oziHome: home }),
         desktopBootstrapToken: NodeCrypto.randomBytes(32).toString("hex"),
         shellEnvironmentPrepared: true,
         tailscaleServeEnabled: false,
