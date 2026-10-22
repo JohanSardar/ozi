@@ -17,11 +17,12 @@ if (launch("pi")) {
   let sessionId = id();
   let file = sessionFile("pi", sessionId);
   let entries = [];
+  let partialHistory = false;
   let active = false;
   let model = {
     id: "claude-opus-5-5",
     name: "Claude Opus 5.5",
-    provider: "anthropic",
+    provider: option("--provider") ?? "anthropic",
     api: "anthropic-messages",
     reasoning: true,
     input: ["text", "image"],
@@ -30,6 +31,12 @@ if (launch("pi")) {
     thinkingLevelMap: { off: "off", high: "high", low: "low" },
   };
   let thinkingLevel = "high";
+  const models = argv.some((arg) => arg.includes("pi-claude-bridge"))
+    ? [
+        { ...model, provider: "claude-bridge", id: "claude-sonnet-5-5", name: "Claude Sonnet 5.5" },
+        { ...model, provider: "claude-bridge" },
+      ]
+    : [];
   const source = argv.includes("--fork")
     ? option("--fork")
     : argv.includes("--session")
@@ -44,7 +51,9 @@ if (launch("pi")) {
   const save = () =>
     NodeFS.writeFileSync(
       file,
-      `${[JSON.stringify({ type: "session", version: 3, id: sessionId, timestamp: new Date().toISOString(), cwd: process.cwd() }), ...entries.map((entry) => JSON.stringify(entry))].join("\n")}\n`,
+      partialHistory
+        ? "{"
+        : `${[JSON.stringify({ type: "session", version: 3, id: sessionId, timestamp: new Date().toISOString(), cwd: process.cwd() }), ...entries.map((entry) => JSON.stringify(entry))].join("\n")}\n`,
     );
   const append = (message) => {
     entries.push({
@@ -74,6 +83,8 @@ if (launch("pi")) {
     },
   });
   const finish = () => {
+    partialHistory = false;
+    save();
     active = false;
     settled("pi", file, file);
     write({ type: "turn_end", message: entries.at(-1)?.message, toolResults: [] });
@@ -84,6 +95,10 @@ if (launch("pi")) {
     write({ type: "agent_settled" });
   };
   const engine = interpreter("pi", {
+    history() {
+      partialHistory = true;
+      save();
+    },
     tool(tool, result) {
       const toolCallId = id();
       append({
@@ -164,7 +179,7 @@ if (launch("pi")) {
         });
         break;
       case "get_available_models":
-        reply({ models: [model] });
+        reply({ models });
         break;
       case "get_commands":
         reply({ commands: [] });

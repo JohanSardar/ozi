@@ -40,6 +40,7 @@
     "@t3tools/source-control-gitlab": "workspace:*",
     "effect": "catalog:",
     "jose": "catalog:",
+    "pi-claude-bridge": "0.9.3",
     "playwright-core": "1.60.0",
     "proper-lockfile": "4.1.2",
     "stream-chain": "^4.2.5",

@@ -16,7 +16,8 @@ import * as ThreadManagement from "../orchestration-v2/ThreadManagementService.t
 
 export const JobsToolkit = Toolkit.make(
   Tool.make("job_cards", {
-    description: "Read current job cards and their exact report event IDs.",
+    description:
+      "Read current job cards and exact report event IDs. Retries and follow-ups pass the card's jobId to delegate_task, or send to its lead.",
     parameters: Tool.EmptyParams,
     success: Schema.Array(OziJobCard),
     failure: Schema.Union([OziJobError, OrchestratorMcpFailure]),

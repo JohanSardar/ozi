@@ -158,7 +158,12 @@ export type OrchestratorMcpTerminalDelegatedTaskStatus =
   typeof OrchestratorMcpTerminalDelegatedTaskStatus.Type;
 
 export const OrchestratorMcpDelegateTaskInput = Schema.Struct({
-  jobId: Schema.optional(ThreadId),
+  jobId: Schema.optional(
+    ThreadId.annotate({
+      description:
+        "Existing job for retries and related follow-ups. Main only; a failed lead is reused.",
+    }),
+  ),
   task: OrchestratorMcpPrompt.annotate({
     description: "Self-contained task for one delegated child agent/subagent.",
   }),
