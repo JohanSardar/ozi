@@ -444,7 +444,10 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
           description: `${card.agent.provider} · ${card.status}`,
         })),
     );
-    const list = new SelectList(items, 12, selectList);
+    const list = new SelectList(items, 12, selectList, {
+      minPrimaryColumnWidth: 20,
+      maxPrimaryColumnWidth: 80,
+    });
     list.onSelect = (item) => {
       const card = cards?.find((candidate) => candidate.jobId === item.value);
       if (card) openCard(card);
