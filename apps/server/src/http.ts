@@ -31,7 +31,6 @@ import { OtlpTracer, OtlpSerialization } from "effect/observability";
 
 import * as ServerConfig from "./config.ts";
 import { ASSET_ROUTE_PREFIX, readMcpAppHtml, resolveAsset } from "./assets/AssetAccess.ts";
-import { githubMediaResponse } from "./assets/GitHubMediaFetch.ts";
 import { statMediaFile, streamMediaFile, type OpenMediaFile } from "./assets/MediaFile.ts";
 import {
   ATTACHMENT_UPLOAD_ROUTE_PREFIX,
@@ -40,7 +39,6 @@ import {
 } from "./assets/AttachmentUpload.ts";
 import * as BrowserTraceCollector from "./observability/BrowserTraceCollector.ts";
 import * as EnvironmentAuth from "./auth/EnvironmentAuth.ts";
-import { traceRelayRequest } from "./cloud/traceRelayRequest.ts";
 import {
   annotateEnvironmentRequest,
   failEnvironmentScopeRequired,
@@ -76,7 +74,7 @@ const isSafeInlineMediaMimeType = (mimeType: string): boolean =>
 const isSafeInlineDocumentMimeType = (mimeType: string): boolean =>
   mimeType.toLowerCase() === "application/pdf" || mimeType.toLowerCase() === "text/html";
 
-export function downloadContentDisposition(fileName?: string): string {
+function downloadContentDisposition(fileName?: string): string {
   if (fileName === undefined) {
     return "attachment";
   }
@@ -161,7 +159,7 @@ function assetByteRange(header: string, size: bigint) {
   };
 }
 
-export const assetFileResponse = Effect.fn("assetFileResponse")(function* (
+const assetFileResponse = Effect.fn("assetFileResponse")(function* (
   asset: {
     readonly path: string;
     readonly download?: boolean;
@@ -275,7 +273,7 @@ export const layerBrowserApiCors = Layer.unwrap(
   }),
 );
 
-export function isLoopbackHostname(hostname: string): boolean {
+function isLoopbackHostname(hostname: string): boolean {
   const normalizedHostname = hostname
     .trim()
     .toLowerCase()
@@ -283,7 +281,7 @@ export function isLoopbackHostname(hostname: string): boolean {
   return LOOPBACK_HOSTNAMES.has(normalizedHostname);
 }
 
-export function resolveDevRedirectUrl(devUrl: URL, requestUrl: URL): string {
+function resolveDevRedirectUrl(devUrl: URL, requestUrl: URL): string {
   const redirectUrl = new URL(devUrl.toString());
   redirectUrl.pathname = requestUrl.pathname;
   redirectUrl.search = requestUrl.search;
@@ -324,7 +322,7 @@ export const layerServerEnvironmentHttpApi = HttpApiBuilder.group(
       Effect.fn("environment.metadata.descriptor")(function* (args) {
         yield* annotateEnvironmentRequest(args.endpoint.name);
         return yield* serverEnvironment.getDescriptor;
-      }, traceRelayRequest),
+      }),
     );
   }),
 );
@@ -431,19 +429,6 @@ export const layerAssetRoute = HttpRouter.add(
         contentType: asset.mimeType,
         headers: { "cache-control": "private, max-age=3600", "x-content-type-options": "nosniff" },
       });
-    }
-    if (asset.kind === "github-media") {
-      return yield* githubMediaResponse(asset, request.headers).pipe(
-        Effect.tapError((cause) =>
-          Effect.logWarning("Failed to fetch GitHub media.", { url: asset.url, cause }),
-        ),
-        Effect.orElseSucceed(() =>
-          HttpServerResponse.empty({
-            status: 502,
-            headers: { "cache-control": "private, no-store", "x-content-type-options": "nosniff" },
-          }),
-        ),
-      );
     }
     return yield* assetFileResponse(
       asset,
@@ -567,6 +552,9 @@ const handleStaticAndDevRequest = Effect.fn("handleStaticAndDevRequest")(
     if (Option.isNone(url)) {
       return HttpServerResponse.text("Bad Request", { status: 400 });
     }
+
+    if (url.value.pathname.startsWith("/api/"))
+      return HttpServerResponse.text("Not Found", { status: 404 });
 
     const config = yield* ServerConfig.ServerConfig;
     if (config.devUrl && isDevProxiedPath(url.value.pathname)) {

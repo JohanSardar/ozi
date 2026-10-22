@@ -43,13 +43,6 @@ import {
   parseKeybindingShortcut,
 } from "@t3tools/shared/keybindings";
 
-export {
-  DEFAULT_KEYBINDINGS,
-  compileResolvedKeybindingRule,
-  compileResolvedKeybindingsConfig,
-  parseKeybindingShortcut,
-};
-
 export const ResolvedKeybindingFromConfig = KeybindingRule.pipe(
   Schema.decodeTo(
     Schema.toType(ResolvedKeybindingRule),
@@ -246,7 +239,7 @@ export class Keybindings extends Context.Service<
       input: ServerRemoveKeybindingInput,
     ) => Effect.Effect<ResolvedKeybindingsConfig, KeybindingsConfigError>;
   }
->()("t3/keybindings") {}
+>()("ozi/keybindings") {}
 
 const make = Effect.gen(function* () {
   const { keybindingsConfigPath } = yield* ServerConfig.ServerConfig;

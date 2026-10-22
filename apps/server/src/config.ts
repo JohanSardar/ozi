@@ -28,14 +28,12 @@ export interface ServerDerivedPaths {
   readonly settingsPath: string;
   readonly environmentThemesDir: string;
   readonly providerStatusCacheDir: string;
-  readonly worktreesDir: string;
   readonly attachmentsDir: string;
   readonly browserArtifactsDir: string;
   readonly logsDir: string;
   readonly serverTracePath: string;
   readonly providerLogsDir: string;
   readonly providerEventLogPath: string;
-  readonly terminalLogsDir: string;
   readonly anonymousIdPath: string;
   readonly environmentIdPath: string;
   readonly serverRuntimeStatePath: string;
@@ -80,24 +78,20 @@ export class ServerConfig extends Context.Service<
     readonly desktopBootstrapToken: string | undefined;
     readonly desktopBootstrapSecret?: string | undefined;
     readonly shellEnvironmentPrepared?: boolean | undefined;
-    readonly desktopTelemetryFd?: number | undefined;
-    readonly desktopTelemetryControlFd?: number | undefined;
     readonly desktopBrowserFd?: number | undefined;
     readonly desktopBrowserControlFd?: number | undefined;
-    readonly resourceMonitorPath?: string | undefined;
-    readonly autoBootstrapProjectFromCwd: boolean;
     readonly logWebSocketEvents: boolean;
     readonly tailscaleServeEnabled: boolean;
     readonly tailscaleServePort: number;
   }
->()("t3/config/ServerConfig") {
+>()("ozi/config/ServerConfig") {
   static readonly layerTest = (
     cwd: string,
     baseDirOrPrefix: string | { readonly prefix: string },
   ) => layerTest(cwd, baseDirOrPrefix);
 }
 
-export const make = (config: ServerConfig["Service"]) => ServerConfig.of(config);
+const make = (config: ServerConfig["Service"]) => ServerConfig.of(config);
 
 export const otlpResource = (
   config: Pick<ServerConfig["Service"], "mode" | "otelEnvironment">,
@@ -106,7 +100,7 @@ export const otlpResource = (
   serviceName: "t3code-server",
   serviceVersion: packageJson.version,
   attributes: {
-    "service.namespace": "t3code",
+    "service.namespace": "ozi",
     "service.runtime": "t3-server",
     "service.mode": config.mode,
     "host.name": config.otelEnvironment.resourceAttributes["host.name"] || hostName,
@@ -137,14 +131,12 @@ export const deriveServerPaths = Effect.fn(function* (
     settingsPath: join(stateDir, "settings.json"),
     environmentThemesDir: join(stateDir, "themes"),
     providerStatusCacheDir,
-    worktreesDir: join(baseDir, "worktrees"),
     attachmentsDir,
     browserArtifactsDir: join(stateDir, "browser-artifacts"),
     logsDir,
     serverTracePath: join(logsDir, "server.trace.ndjson"),
     providerLogsDir,
     providerEventLogPath: join(providerLogsDir, "events.log"),
-    terminalLogsDir: join(logsDir, "terminals"),
     anonymousIdPath: join(stateDir, "anonymous-id"),
     environmentIdPath: join(stateDir, "environment-id"),
     serverRuntimeStatePath: join(stateDir, "server-runtime.json"),
@@ -161,9 +153,7 @@ export const ensureServerDirectories = Effect.fn(function* (derivedPaths: Server
       fs.makeDirectory(derivedPaths.stateDir, { recursive: true }),
       fs.makeDirectory(derivedPaths.logsDir, { recursive: true }),
       fs.makeDirectory(derivedPaths.providerLogsDir, { recursive: true }),
-      fs.makeDirectory(derivedPaths.terminalLogsDir, { recursive: true }),
       fs.makeDirectory(derivedPaths.attachmentsDir, { recursive: true }),
-      fs.makeDirectory(derivedPaths.worktreesDir, { recursive: true }),
       fs.makeDirectory(path.dirname(derivedPaths.keybindingsConfigPath), { recursive: true }),
       fs.makeDirectory(path.dirname(derivedPaths.settingsPath), { recursive: true }),
       fs.makeDirectory(derivedPaths.providerStatusCacheDir, { recursive: true }),
@@ -214,18 +204,14 @@ const makeTest = Effect.fn("ServerConfig.makeTest")(function* (
     dataRoot: `${baseDir}/data`,
     ...derivedPaths,
     mode: "web",
-    autoBootstrapProjectFromCwd: false,
     logWebSocketEvents: false,
     tailscaleServeEnabled: false,
     tailscaleServePort: 443,
     port: 0,
     host: undefined,
     desktopBootstrapToken: undefined,
-    desktopTelemetryFd: undefined,
-    desktopTelemetryControlFd: undefined,
     desktopBrowserFd: undefined,
     desktopBrowserControlFd: undefined,
-    resourceMonitorPath: undefined,
     staticDir: undefined,
     devUrl,
     devAllowedOrigins: [],
@@ -234,7 +220,7 @@ const makeTest = Effect.fn("ServerConfig.makeTest")(function* (
   });
 });
 
-export const layerTest = (cwd: string, baseDirOrPrefix: string | { readonly prefix: string }) =>
+const layerTest = (cwd: string, baseDirOrPrefix: string | { readonly prefix: string }) =>
   Layer.effect(ServerConfig, makeTest(cwd, baseDirOrPrefix));
 
 export const resolveStaticDir = Effect.fn(function* () {

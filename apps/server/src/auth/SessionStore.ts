@@ -419,7 +419,7 @@ export class SessionStore extends Context.Service<
       },
     ) => Effect.Effect<void, never>;
   }
->()("t3/auth/SessionStore") {}
+>()("ozi/auth/SessionStore") {}
 
 const SIGNING_SECRET_NAME = "server-signing-key";
 const DEFAULT_SESSION_TTL = Duration.days(30);
@@ -482,7 +482,7 @@ function toAuthClientSession(input: Omit<AuthClientSession, "current">): AuthCli
   };
 }
 
-export const make = Effect.gen(function* () {
+const make = Effect.gen(function* () {
   const crypto = yield* Crypto.Crypto;
   const serverConfig = yield* ServerConfig.ServerConfig;
   const serverEnvironment = yield* ServerEnvironment.ServerEnvironmentIdentity;

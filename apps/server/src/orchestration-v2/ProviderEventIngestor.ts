@@ -5,11 +5,8 @@ import {
   OrchestrationV2StoredEvent,
   type OrchestrationV2PlanArtifact,
   type OrchestrationV2Run,
-  type OrchestrationV2ProviderTurn,
   type OrchestrationV2Subagent,
   type ModelSelection,
-  type RuntimeMode,
-  type ProviderInteractionMode,
   ProviderInstanceId,
   ProviderSessionId,
   ProviderThreadId,
@@ -26,10 +23,7 @@ import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 
 import { AgentScope } from "@t3tools/shared/AgentScope";
-import { isTemporaryWorktreeBranch } from "@t3tools/shared/git";
-import { getModelSelectionStringOptionValue, modelSelectionsEqual } from "@t3tools/shared/model";
-import * as AnalyticsService from "../telemetry/AnalyticsService.ts";
-import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
+import { modelSelectionsEqual } from "@t3tools/shared/model";
 import * as EventSink from "./EventSink.ts";
 import * as ProjectionStore from "./ProjectionStore.ts";
 import * as IdAllocator from "@t3tools/provider-core/server/IdAllocator";
@@ -71,71 +65,6 @@ export const ProviderEventIngestorV2Error = Schema.Union([
   ProviderEventPublishError,
 ]);
 export type ProviderEventIngestorV2Error = typeof ProviderEventIngestorV2Error.Type;
-
-export interface ProviderTurnAnalyticsContext {
-  readonly modelSelection: ModelSelection;
-  readonly runtimeMode?: RuntimeMode;
-  readonly interactionMode?: ProviderInteractionMode;
-}
-
-export class ProviderTurnAnalytics extends Context.Reference<{
-  readonly record: (properties: Readonly<Record<string, unknown>>) => Effect.Effect<void>;
-}>("t3/orchestration-v2/ProviderTurnAnalytics", {
-  defaultValue: () => ({ record: () => Effect.void }),
-}) {}
-
-export const layerAnalytics = Layer.effect(
-  ProviderTurnAnalytics,
-  Effect.gen(function* () {
-    const analytics = yield* AnalyticsService.AnalyticsService;
-    return {
-      record: (properties: Readonly<Record<string, unknown>>) =>
-        analytics.record("provider.turn.completed", properties),
-    };
-  }),
-);
-
-function providerTurnAnalyticsProperties(input: {
-  readonly driver: ProviderAdapter.ProviderAdapterV2Event["driver"];
-  readonly providerTurn: OrchestrationV2ProviderTurn;
-  readonly context?: ProviderTurnAnalyticsContext;
-}): Readonly<Record<string, unknown>> {
-  const usage = input.providerTurn.turnTokenUsage;
-  const modelSelection = input.context?.modelSelection;
-  const effort = modelSelection
-    ? (getModelSelectionStringOptionValue(modelSelection, "reasoningEffort") ??
-      getModelSelectionStringOptionValue(modelSelection, "effort"))
-    : undefined;
-  return {
-    provider: input.driver,
-    terminalStatus: input.providerTurn.status,
-    usageStatus: usage?.usageStatus ?? "unavailable",
-    usageScope: usage?.usageScope ?? "main_agent",
-    ...(usage ? { hasSubagents: usage.hasSubagents } : {}),
-    ...(usage?.inputTokens === undefined ? {} : { inputTokens: usage.inputTokens }),
-    ...(usage?.cachedInputTokens === undefined
-      ? {}
-      : { cachedInputTokens: usage.cachedInputTokens }),
-    ...(usage?.cacheCreationTokens === undefined
-      ? {}
-      : { cacheCreationTokens: usage.cacheCreationTokens }),
-    ...(usage?.outputTokens === undefined ? {} : { outputTokens: usage.outputTokens }),
-    ...(usage?.reasoningTokens === undefined ? {} : { reasoningTokens: usage.reasoningTokens }),
-    ...(modelSelection ? { model: modelSelection.model, mixedModels: false } : {}),
-    ...(effort ? { effort } : {}),
-    ...(input.context?.runtimeMode ? { runtimeMode: input.context.runtimeMode } : {}),
-    ...(input.context?.interactionMode ? { interactionMode: input.context.interactionMode } : {}),
-    ...(input.providerTurn.startedAt && input.providerTurn.completedAt
-      ? {
-          durationMs: Math.max(
-            0,
-            DateTime.toEpochMillis(input.providerTurn.completedAt) -
-              DateTime.toEpochMillis(input.providerTurn.startedAt),
-          ),
-        }
-      : {}),
-  };
-}
 
 type TodoListPlan = Extract<OrchestrationV2PlanArtifact, { readonly kind: "todo_list" }>;
 
@@ -210,7 +139,6 @@ export interface ProviderEventIngestInput {
   readonly nodeId?: NodeId;
   readonly rawEventId?: RawEventId;
   readonly event: ProviderAdapter.ProviderAdapterV2Event;
-  readonly analyticsContext?: ProviderTurnAnalyticsContext;
 }
 
 export interface ProviderEventIngestorV2Shape {
@@ -237,7 +165,7 @@ export interface ProviderEventIngestorV2Shape {
 export class ProviderEventIngestorV2 extends Context.Service<
   ProviderEventIngestorV2,
   ProviderEventIngestorV2Shape
->()("t3/orchestration-v2/ProviderEventIngestor/ProviderEventIngestorV2") {}
+>()("ozi/orchestration-v2/ProviderEventIngestor/ProviderEventIngestorV2") {}
 
 function compactUndefined<T extends Record<string, unknown>>(record: T): T {
   return Object.fromEntries(Object.entries(record).filter(([, value]) => value !== undefined)) as T;
@@ -249,7 +177,6 @@ export const layer: Layer.Layer<
   ProviderEventIngestorV2,
   never,
   | EventSink.EventSinkV2
-  | GitVcsDriver.GitVcsDriver
   | IdAllocator.IdAllocatorV2
   | ProjectionStore.ProjectionStoreV2
   | ThreadCommandExecutor.ThreadCommandExecutor
@@ -257,13 +184,10 @@ export const layer: Layer.Layer<
   ProviderEventIngestorV2,
   Effect.gen(function* () {
     const eventSink = yield* EventSink.EventSinkV2;
-    const git = yield* GitVcsDriver.GitVcsDriver;
     const projections = yield* ProjectionStore.ProjectionStoreV2;
     const idAllocator = yield* IdAllocator.IdAllocatorV2;
     const threadCommands = yield* ThreadCommandExecutor.ThreadCommandExecutor;
-    const analytics = yield* ProviderTurnAnalytics;
     const agentScope = yield* AgentScope;
-    const completedTurnAnalytics = new Set<string>();
 
     const makeDomainEvent =
       /* This helper runs for individual orchestration events; the enclosing operation owns the span. */
@@ -645,45 +569,6 @@ export const layer: Layer.Layer<
           (effect, input) =>
             effect.pipe(
               Effect.flatMap((storedEvents) =>
-                Effect.gen(function* () {
-                  if (input.event.type !== "app_thread.created") return storedEvents;
-                  const created = storedEvents.find(
-                    (stored) => stored.event.type === "thread.created",
-                  );
-                  if (created?.event.type !== "thread.created") return storedEvents;
-                  const child = created.event.payload;
-                  if (
-                    child.worktreePath === null ||
-                    child.branch === null ||
-                    !isTemporaryWorktreeBranch(child.branch)
-                  )
-                    return storedEvents;
-                  // Git renames before scanning committed threads. If that scan missed this
-                  // creation, HEAD already has the new name, even if the parent moved away.
-                  const branch = yield* git.resolveBranchName(child.worktreePath, "HEAD");
-                  if (branch === null || branch === child.branch) return storedEvents;
-                  const now = yield* DateTime.now;
-                  const event = yield* makeDomainEvent(input, {
-                    type: "thread.metadata-updated",
-                    threadId: child.id,
-                    payload: { ...child, branch, updatedAt: now },
-                    occurredAt: now,
-                  });
-                  const synced = yield* eventSink.write({ events: [event] });
-                  return [...storedEvents, ...synced];
-                }).pipe(
-                  Effect.catchCause((cause) =>
-                    Effect.logWarning("Native thread worktree branch recheck failed", {
-                      threadId:
-                        input.event.type === "app_thread.created"
-                          ? input.event.appThread.id
-                          : input.threadId,
-                      cause,
-                    }).pipe(Effect.as(storedEvents)),
-                  ),
-                ),
-              ),
-              Effect.flatMap((storedEvents) =>
                 storedEvents.length === 0 || input.event.type !== "subagent.updated"
                   ? Effect.succeed(storedEvents)
                   : syncSubagentThreadModel(input, input.event.subagent).pipe(
@@ -697,36 +582,6 @@ export const layer: Layer.Layer<
                           }),
                       ),
                     ),
-              ),
-              Effect.tap((storedEvents) =>
-                Effect.gen(function* () {
-                  if (storedEvents.length === 0 || input.event.type !== "provider_turn.updated")
-                    return;
-                  const providerTurn = input.event.providerTurn;
-                  if (
-                    providerTurn.status !== "completed" &&
-                    providerTurn.status !== "failed" &&
-                    providerTurn.status !== "interrupted" &&
-                    providerTurn.status !== "cancelled"
-                  )
-                    return;
-                  const key = `${input.providerInstanceId}:${providerTurn.id}`;
-                  if (completedTurnAnalytics.has(key)) return;
-                  completedTurnAnalytics.add(key);
-                  if (completedTurnAnalytics.size > 4096) {
-                    const oldest = completedTurnAnalytics.values().next().value;
-                    if (oldest !== undefined) completedTurnAnalytics.delete(oldest);
-                  }
-                  yield* analytics.record(
-                    providerTurnAnalyticsProperties({
-                      driver: input.event.driver,
-                      providerTurn,
-                      ...(input.analyticsContext === undefined
-                        ? {}
-                        : { context: input.analyticsContext }),
-                    }),
-                  );
-                }),
               ),
               (effect) =>
                 input.event.type === "app_thread.created"

@@ -1,5 +1,5 @@
 import { makeAssistantStreamingFilter } from "./assistantStreaming.ts";
-import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
+
 import {
   isOrchestrationV2WorkActive,
   CommandId,
@@ -318,13 +318,13 @@ export const cascadeTerminalizeRunOwnedSubagents = Effect.fn(
   return events;
 });
 
-export function finalProviderThreadStatus(
+function finalProviderThreadStatus(
   disposition: ProviderTerminalEvent["threadDisposition"],
 ): OrchestrationV2ProviderThread["status"] {
   return disposition === "broken" ? "error" : "idle";
 }
 
-export function makeProviderEventRoutingState(input: {
+function makeProviderEventRoutingState(input: {
   readonly identity: ProviderEventRouteIdentity;
   readonly inheritedBackgroundTurnItems?: ReadonlyArray<InheritedBackgroundTurnItemRoute>;
   readonly providerTurnId: ProviderTurnId | null;
@@ -350,7 +350,7 @@ export function makeProviderEventRoutingState(input: {
   };
 }
 
-export function routeProviderEvent(
+function routeProviderEvent(
   event: ProviderAdapter.ProviderAdapterV2Event,
   input: ProviderEventRouteIdentity,
   state: ProviderEventRoutingState,
@@ -586,7 +586,7 @@ export interface RunExecutionServiceV2Shape {
 export class RunExecutionServiceV2 extends Context.Service<
   RunExecutionServiceV2,
   RunExecutionServiceV2Shape
->()("t3/orchestration-v2/RunExecutionService/RunExecutionServiceV2") {}
+>()("ozi/orchestration-v2/RunExecutionService/RunExecutionServiceV2") {}
 
 export const layer: Layer.Layer<
   RunExecutionServiceV2,
@@ -870,11 +870,7 @@ export const layer: Layer.Layer<
         });
         const responseStreamingMode = yield* Effect.gen(function* () {
           const responseStreamingMode = yield* serverSettings.getSettings.pipe(
-            Effect.map(
-              (settings) =>
-                resolveProjectSettings(settings, input.appThread.projectId).settings
-                  .responseStreamingMode,
-            ),
+            Effect.map((settings) => settings.responseStreamingMode),
           );
           if (
             input.shouldStartProviderTurn !== undefined &&
@@ -1295,11 +1291,6 @@ export const layer: Layer.Layer<
                   event.type === "provider_thread.updated" &&
                   event.providerThread.id === input.providerThread.id;
                 const storedEvents = yield* providerEventIngestor.ingestNormalized({
-                  analyticsContext: {
-                    modelSelection: input.modelSelection,
-                    runtimeMode: input.runtimePolicy.runtimeMode,
-                    interactionMode: input.runtimePolicy.interactionMode,
-                  },
                   providerSessionId: input.providerSessionId,
                   providerInstanceId: input.run.providerInstanceId,
                   threadId: input.run.threadId,

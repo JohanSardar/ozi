@@ -246,7 +246,7 @@ export async function startHarness(
         },
         (error, stdout, stderr) => {
           if (error) {
-            const message = `ozi ${args.join(" ")}: ${stdout || stderr || error.message}`;
+            const message = `ozi ${args.join(" ")}: ${[stdout, stderr].filter(Boolean).join("\n") || error.message}`;
             if (args[0] === "wait")
               void ozi<import("@t3tools/contracts").OziCheck[]>("checks").then(
                 async (checks) => {
@@ -393,8 +393,9 @@ export async function startHarness(
       spawnServer();
       await ready();
     },
-    async restart(environment: Record<string, string> = {}) {
+    async restart(environment: Record<string, string> = {}, prepare?: () => Promise<void>) {
       await stopServer();
+      await prepare?.();
       Object.assign(env, environment);
       spawnServer();
       await ready();

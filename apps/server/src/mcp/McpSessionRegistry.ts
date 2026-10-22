@@ -43,7 +43,7 @@ export interface McpSessionRegistryShape {
 export class McpSessionRegistry extends Context.Service<
   McpSessionRegistry,
   McpSessionRegistryShape
->()("t3/mcp/McpSessionRegistry") {}
+>()("ozi/mcp/McpSessionRegistry") {}
 
 interface CredentialRecord {
   readonly tokenHash: string;
@@ -115,9 +115,6 @@ const makeWithOptions = Effect.fn("McpSessionRegistry.make")(function* (
         client: undefined,
         capabilities: new Set<McpInvocationContext.McpCapability>([
           "orchestration",
-          ...(request.role === "checker" || request.role === "main" || request.role === "main-fork"
-            ? []
-            : (["worktree", "pull-requests"] as const)),
           ...(request.role === "checker"
             ? []
             : (request.capabilities ?? (browserToolsAvailable ? (["preview"] as const) : []))),
@@ -218,18 +215,9 @@ const make = Effect.acquireRelease(
 
 export const layer = Layer.effect(McpSessionRegistry, make);
 
-export const issueActiveMcpCredential = (
-  request: McpCredentialRequest,
-): Effect.Effect<McpIssuedCredential | undefined> =>
-  activeMcpSessionRegistry
-    ? activeMcpSessionRegistry
-        .revokeThread(request.threadId)
-        .pipe(Effect.andThen(activeMcpSessionRegistry.issue(request)))
-    : Effect.undefined;
-
 export const touchActiveMcpThread = (threadId: ThreadId): Effect.Effect<void> =>
   activeMcpSessionRegistry ? activeMcpSessionRegistry.touch(threadId) : Effect.void;
 
-export const __testing = {
+const __testing = {
   make: makeWithOptions,
 };

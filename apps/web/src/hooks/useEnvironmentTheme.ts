@@ -1,17 +1,15 @@
 import type { EnvironmentTheme } from "@t3tools/contracts";
 import { useAtomValue } from "@effect/atom-react";
 import * as Equal from "effect/Equal";
-import { useEffect, useRef, useSyncExternalStore } from "react";
+import { useEffect, useRef } from "react";
 
 import { primaryServerEnvironmentThemesAtom } from "../state/server";
 import {
   createVividThemeColors,
   getDefaultThemeColors,
-  getEnvironmentThemes,
   isReservedThemeId,
   lenientThemeColorOverrides,
   setEnvironmentThemes,
-  subscribeToCustomThemes,
   type ThemeAppearance,
   type ThemeColors,
   type ThemeDefinition,
@@ -33,7 +31,7 @@ function publishedThemeColors(
   return { ...base, ...lenientThemeColorOverrides(colors ?? {}) };
 }
 
-export function environmentThemeDefinition(theme: EnvironmentTheme): ThemeDefinition {
+function environmentThemeDefinition(theme: EnvironmentTheme): ThemeDefinition {
   const variants: Partial<Record<ThemeAppearance, ThemeColors>> = {};
   for (const [variantAppearance, variantColors] of Object.entries(theme.variants ?? {})) {
     if (variantAppearance === theme.appearance) continue;
@@ -69,7 +67,7 @@ export function environmentThemeDefinition(theme: EnvironmentTheme): ThemeDefini
  * card while "Use" resolved the built-in, and a published `dark.json` would
  * capture everyone whose stored preference is the stock `"dark"`.
  */
-export function publishedThemeDefinitions(
+function publishedThemeDefinitions(
   themes: ReadonlyArray<EnvironmentTheme>,
 ): ReadonlyArray<ThemeDefinition> {
   return themes
@@ -83,10 +81,6 @@ export function publishedThemeDefinitions(
       );
     })
     .map(environmentThemeDefinition);
-}
-
-export function useEnvironmentThemeDefinitions(): ReadonlyArray<ThemeDefinition> {
-  return useSyncExternalStore(subscribeToCustomThemes, getEnvironmentThemes, () => []);
 }
 
 export function useEnvironmentThemeSync(): void {

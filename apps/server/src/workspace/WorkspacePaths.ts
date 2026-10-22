@@ -101,13 +101,13 @@ export class WorkspacePaths extends Context.Service<
       WorkspacePathOutsideRootError
     >;
   }
->()("t3/workspace/WorkspacePaths") {}
+>()("ozi/workspace/WorkspacePaths") {}
 
 function toPosixRelativePath(input: string): string {
   return input.replaceAll("\\", "/");
 }
 
-export const make = Effect.gen(function* () {
+const make = Effect.gen(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
 

@@ -58,12 +58,6 @@ const bootstrapFdFlag = Flag.Int("bootstrap-fd").pipe(
   Flag.withDescription("Read one-time bootstrap secrets from the given file descriptor."),
   Flag.optional,
 );
-const autoBootstrapProjectFromCwdFlag = Flag.Boolean("auto-bootstrap-project-from-cwd").pipe(
-  Flag.withDescription(
-    "Create a project for the current working directory on startup when missing.",
-  ),
-  Flag.optional,
-);
 const logWebSocketEventsFlag = Flag.Boolean("log-websocket-events").pipe(
   Flag.withDescription(
     "Emit server-side logs for outbound WebSocket push traffic (equivalent to OZI_LOG_WS_EVENTS).",
@@ -88,11 +82,11 @@ export const homeConfig = Config.String("OZI_HOME").pipe(
   Config.map(Option.getOrUndefined),
 );
 
-export const traceFileConfig = Config.String("OZI_TRACE_FILE").pipe(
+const traceFileConfig = Config.String("OZI_TRACE_FILE").pipe(
   Config.option,
   Config.map(Option.getOrUndefined),
 );
-export const traceMaxFilesConfig = Config.Int("OZI_TRACE_MAX_FILES").pipe(Config.withDefault(10));
+const traceMaxFilesConfig = Config.Int("OZI_TRACE_MAX_FILES").pipe(Config.withDefault(10));
 
 const EnvServerConfig = Config.all({
   logLevel: Config.LogLevel("OZI_LOG_LEVEL").pipe(Config.withDefault("Info")),
@@ -147,10 +141,6 @@ const EnvServerConfig = Config.all({
     Config.option,
     Config.map(Option.getOrUndefined),
   ),
-  autoBootstrapProjectFromCwd: Config.Boolean("OZI_AUTO_BOOTSTRAP_PROJECT_FROM_CWD").pipe(
-    Config.option,
-    Config.map(Option.getOrUndefined),
-  ),
   logWebSocketEvents: Config.Boolean("OZI_LOG_WS_EVENTS").pipe(
     Config.option,
     Config.map(Option.getOrUndefined),
@@ -197,7 +187,6 @@ export interface CliServerFlags {
   readonly devUrl: Option.Option<URL>;
   readonly noBrowser: Option.Option<boolean>;
   readonly bootstrapFd: Option.Option<number>;
-  readonly autoBootstrapProjectFromCwd: Option.Option<boolean>;
   readonly logWebSocketEvents: Option.Option<boolean>;
   readonly tailscaleServeEnabled: Option.Option<boolean>;
   readonly tailscaleServePort: Option.Option<number>;
@@ -225,7 +214,6 @@ export const sharedServerCommandFlags = {
   devUrl: devUrlFlag,
   noBrowser: noBrowserFlag,
   bootstrapFd: bootstrapFdFlag,
-  autoBootstrapProjectFromCwd: autoBootstrapProjectFromCwdFlag,
   logWebSocketEvents: logWebSocketEventsFlag,
   tailscaleServeEnabled: tailscaleServeFlag,
   tailscaleServePort: tailscaleServePortFlag,
@@ -251,7 +239,6 @@ export const resolveServerConfig = Effect.fn("config.resolveServerConfig")(funct
   cliLogLevel: Option.Option<LogLevel.LogLevel>,
   options?: {
     readonly startupPresentation?: ServerConfig.StartupPresentation;
-    readonly forceAutoBootstrapProjectFromCwd?: boolean;
     readonly rejectRunningServer?: boolean;
   },
 ) {
@@ -268,7 +255,6 @@ export const resolveServerConfig = Effect.fn("config.resolveServerConfig")(funct
     devUrl: flags.devUrl ?? Option.none(),
     noBrowser: flags.noBrowser ?? Option.none(),
     bootstrapFd: flags.bootstrapFd ?? Option.none(),
-    autoBootstrapProjectFromCwd: flags.autoBootstrapProjectFromCwd ?? Option.none(),
     logWebSocketEvents: flags.logWebSocketEvents ?? Option.none(),
     tailscaleServeEnabled: flags.tailscaleServeEnabled ?? Option.none(),
     tailscaleServePort: flags.tailscaleServePort ?? Option.none(),
@@ -368,20 +354,8 @@ export const resolveServerConfig = Effect.fn("config.resolveServerConfig")(funct
   const desktopBootstrapToken = bootstrap?.desktopBootstrapToken;
   const desktopBootstrapSecret = bootstrap?.desktopBootstrapSecret;
   const shellEnvironmentPrepared = bootstrap?.shellEnvironmentPrepared;
-  const desktopTelemetryFd = bootstrap?.desktopTelemetryFd;
-  const desktopTelemetryControlFd = bootstrap?.desktopTelemetryControlFd;
   const desktopBrowserFd = bootstrap?.desktopBrowserFd;
   const desktopBrowserControlFd = bootstrap?.desktopBrowserControlFd;
-  const resourceMonitorPath = bootstrap?.resourceMonitorPath;
-  const autoBootstrapProjectFromCwd = Option.getOrElse(
-    resolveOptionPrecedence(
-      Option.fromUndefinedOr(options?.forceAutoBootstrapProjectFromCwd),
-      isHeadlessStartup ? Option.some(false) : Option.none(),
-      normalizedFlags.autoBootstrapProjectFromCwd,
-      Option.fromUndefinedOr(env.autoBootstrapProjectFromCwd),
-    ),
-    () => mode === "web",
-  );
   const logWebSocketEvents = Option.getOrElse(
     resolveOptionPrecedence(
       normalizedFlags.logWebSocketEvents,
@@ -481,12 +455,8 @@ export const resolveServerConfig = Effect.fn("config.resolveServerConfig")(funct
     desktopBootstrapToken,
     ...(desktopBootstrapSecret === undefined ? {} : { desktopBootstrapSecret }),
     ...(shellEnvironmentPrepared === undefined ? {} : { shellEnvironmentPrepared }),
-    desktopTelemetryFd,
-    desktopTelemetryControlFd,
     desktopBrowserFd,
     desktopBrowserControlFd,
-    resourceMonitorPath,
-    autoBootstrapProjectFromCwd,
     logWebSocketEvents,
     tailscaleServeEnabled,
     tailscaleServePort,
@@ -509,7 +479,6 @@ export const resolveCliAuthConfig = (
       devUrl: flags.devUrl ?? Option.none(),
       noBrowser: Option.none(),
       bootstrapFd: Option.none(),
-      autoBootstrapProjectFromCwd: Option.none(),
       logWebSocketEvents: Option.none(),
       tailscaleServeEnabled: Option.none(),
       tailscaleServePort: Option.none(),

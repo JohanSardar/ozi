@@ -156,7 +156,7 @@ const decodeManifestCache = Schema.decodeUnknownEffect(
     ManifestCacheFile as unknown as Schema.Codec<typeof ManifestCacheFile.Type>,
   ),
 );
-export const encodeManifestCache = Schema.encodeEffect(
+const encodeManifestCache = Schema.encodeEffect(
   Schema.fromJsonString(
     ManifestCacheFile as unknown as Schema.Codec<typeof ManifestCacheFile.Type>,
   ),
@@ -174,18 +174,9 @@ export class ModelManifest extends Context.Service<
      * the teardown of whichever instance happened to trigger it. */
     readonly refreshInBackground: Effect.Effect<void>;
   }
->()("t3/provider/ModelManifest") {}
+>()("ozi/provider/ModelManifest") {}
 
-const BundledOnlyModelManifest: ModelManifest["Service"] = {
-  current: Effect.succeed(BUNDLED_MODEL_MANIFEST),
-  refresh: Effect.succeed(BUNDLED_MODEL_MANIFEST),
-  forceRefresh: Effect.succeed(BUNDLED_MODEL_MANIFEST),
-  refreshInBackground: Effect.void,
-};
-
-const layerBundledOnly = Layer.succeed(ModelManifest, BundledOnlyModelManifest);
-
-export const make = Effect.gen(function* () {
+const make = Effect.gen(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const config = yield* ServerConfig;
@@ -271,10 +262,6 @@ export const make = Effect.gen(function* () {
 });
 
 export const layer = Layer.effect(ModelManifest, make);
-
-export const layerTest = Layer.suspend(() =>
-  layerModelCatalog.pipe(Layer.provideMerge(layerBundledOnly)),
-);
 
 export const layerModelCatalog = Layer.effect(
   ModelCatalog.ModelCatalog,

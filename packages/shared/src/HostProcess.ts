@@ -64,15 +64,6 @@ export const Arguments = Context.Reference<ReadonlyArray<string>>(
   },
 );
 
-/**
- * The command the shell was given, before Node resolved it to the binary:
- * `t3` for a PATH lookup, `./t3` or the launcher symlink for an explicit
- * path. `process.argv[0]` and `execPath` are always the resolved binary.
- */
-export const InvokedAs = Context.Reference<string>("@t3tools/shared/HostProcess/InvokedAs", {
-  defaultValue: () => process.argv0,
-});
-
 export const IsExecutable = Context.Reference<boolean>("@t3tools/shared/HostProcess/IsExecutable", {
   defaultValue: () => NodeSea.isSea(),
 });
@@ -108,5 +99,3 @@ export const Addresses = Context.Reference<Effect.Effect<ReadonlySet<string>>>(
 export const UserId = Context.Reference<number | undefined>("@t3tools/shared/HostProcess/UserId", {
   defaultValue: () => process.getuid?.(),
 });
-
-export const isWindows = Effect.map(Platform, (platform) => platform === "win32");

@@ -20,7 +20,7 @@ import {
   MenuSubTrigger,
 } from "../ui/menu";
 
-export function resolveEnvironmentIconPickerLock(input: {
+function resolveEnvironmentIconPickerLock(input: {
   readonly serverConfig: Pick<ServerConfig, "environment"> | null;
   readonly operateAccess: "granted" | "denied" | "pending";
 }): string | null {

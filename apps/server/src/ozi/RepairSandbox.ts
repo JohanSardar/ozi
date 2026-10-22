@@ -53,7 +53,7 @@ export class RepairSandbox extends Context.Service<
       workerPrompt: string;
     }) => Effect.Effect<{ evidence: ReplayEvidence; command: ReadonlyArray<string> }, RepairError>;
   }
->()("t3/ozi/RepairSandbox") {}
+>()("ozi/ozi/RepairSandbox") {}
 
 const isRepairError = Schema.is(RepairError);
 const encodeJson = Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown));

@@ -7,22 +7,15 @@ import {
   type AuthEnvironmentScope,
 } from "@t3tools/contracts";
 import { encodeOAuthScope } from "@t3tools/shared/oauthScope";
-import { hashTelemetryId } from "@t3tools/shared/telemetryId";
 import * as Effect from "effect/Effect";
-import * as Option from "effect/Option";
 import { environmentEndpointUrl } from "../environment/endpoint.ts";
-import * as ClientCapabilities from "../platform/capabilities.ts";
 import {
   executeEnvironmentHttpRequest,
   makeEnvironmentHttpApiGroupClient,
   type RemoteEnvironmentRequestError,
 } from "../rpc/http.ts";
 
-export {
-  RemoteEnvironmentAuthInvalidJsonError,
-  RemoteEnvironmentAuthTimeoutError,
-  RemoteEnvironmentAuthUndeclaredStatusError,
-} from "../rpc/http.ts";
+export { RemoteEnvironmentAuthUndeclaredStatusError } from "../rpc/http.ts";
 export type RemoteEnvironmentAuthError = RemoteEnvironmentRequestError;
 
 const DEFAULT_REMOTE_REQUEST_TIMEOUT_MS = 10_000;
@@ -40,31 +33,10 @@ const clientMetadataTokenExchangeFields = (
   };
 };
 
-/** Hashes of who is connecting. Only hashes leave the client. */
-export interface ClientOwnerParams {
-  readonly connect?: string;
-  readonly device?: string;
-}
-
-/**
- * Tells the environment, for analytics, which T3 Connect account and device
- * are connecting, so it can count the environment as theirs.
- */
-export const readClientOwnerParams = Effect.gen(function* () {
-  const session = yield* Effect.serviceOption(ClientCapabilities.CloudSession);
-  const account = Option.isSome(session) ? yield* session.value.identity : Option.none();
-  const device = yield* (yield* ClientCapabilities.AnalyticsDevice).id;
-  return {
-    ...(Option.isSome(account) ? { connect: hashTelemetryId(account.value.accountId) } : {}),
-    ...(Option.isSome(device) ? { device: hashTelemetryId(device.value) } : {}),
-  } satisfies ClientOwnerParams;
-});
-
 export const appendClientConnectionParams = (
   url: URL,
   clientMetadata: AuthClientPresentationMetadata | undefined,
   connectionMethod?: ClientConnectionMethod,
-  owners?: ClientOwnerParams,
 ): void => {
   if (clientMetadata?.surface) {
     url.searchParams.set("clientSurface", clientMetadata.surface);
@@ -95,42 +67,7 @@ export const appendClientConnectionParams = (
   if (connectionMethod) {
     url.searchParams.set("connectionMethod", connectionMethod);
   }
-  if (owners?.connect) {
-    url.searchParams.set("clientOwner", owners.connect);
-  }
-  if (owners?.device) {
-    url.searchParams.set("clientDevice", owners.device);
-  }
 };
-
-export const exchangeRemoteDpopAccessToken = Effect.fn(
-  "clientRuntime.authorization.exchangeRemoteDpopAccessToken",
-)(function* (input: {
-  readonly httpBaseUrl: string;
-  readonly credential: string;
-  readonly scopes?: ReadonlyArray<AuthEnvironmentScope>;
-  readonly clientMetadata?: AuthClientPresentationMetadata;
-  readonly dpopProof: string;
-  readonly timeoutMs?: number;
-}) {
-  const client = yield* makeEnvironmentHttpApiGroupClient(input.httpBaseUrl, "auth");
-  const response = yield* executeEnvironmentHttpRequest(
-    environmentEndpointUrl(input.httpBaseUrl, "/oauth/token"),
-    input.timeoutMs ?? DEFAULT_REMOTE_REQUEST_TIMEOUT_MS,
-    client.token({
-      headers: { dpop: input.dpopProof },
-      payload: {
-        grant_type: AuthTokenExchangeGrantType,
-        subject_token: input.credential,
-        subject_token_type: AuthEnvironmentBootstrapTokenType,
-        requested_token_type: AuthAccessTokenType,
-        ...(input.scopes ? { scope: encodeOAuthScope(input.scopes) } : {}),
-        ...clientMetadataTokenExchangeFields(input.clientMetadata),
-      },
-    }),
-  );
-  return response;
-});
 
 export const bootstrapRemoteBearerSession = Effect.fn(
   "clientRuntime.authorization.bootstrapRemoteBearerSession",
@@ -197,27 +134,6 @@ export const issueRemoteWebSocketTicket = Effect.fn(
   );
 });
 
-export const issueRemoteDpopWebSocketTicket = Effect.fn(
-  "clientRuntime.authorization.issueRemoteDpopWebSocketTicket",
-)(function* (input: {
-  readonly httpBaseUrl: string;
-  readonly accessToken: string;
-  readonly dpopProof: string;
-  readonly timeoutMs?: number;
-}) {
-  const client = yield* makeEnvironmentHttpApiGroupClient(input.httpBaseUrl, "auth");
-  return yield* executeEnvironmentHttpRequest(
-    environmentEndpointUrl(input.httpBaseUrl, "/api/auth/websocket-ticket"),
-    input.timeoutMs ?? DEFAULT_REMOTE_REQUEST_TIMEOUT_MS,
-    client.webSocketTicket({
-      headers: {
-        authorization: `DPoP ${input.accessToken}`,
-        dpop: input.dpopProof,
-      },
-    }),
-  );
-});
-
 export const resolveRemoteWebSocketConnectionUrl = Effect.fn(
   "clientRuntime.authorization.resolveRemoteWebSocketConnectionUrl",
 )(function* (input: {
@@ -239,42 +155,6 @@ export const resolveRemoteWebSocketConnectionUrl = Effect.fn(
     url.pathname = "/ws";
   }
   url.searchParams.set("wsTicket", issued.ticket);
-  appendClientConnectionParams(
-    url,
-    input.clientMetadata,
-    input.connectionMethod,
-    yield* readClientOwnerParams,
-  );
-  return url.toString();
-});
-
-export const resolveRemoteDpopWebSocketConnectionUrl = Effect.fn(
-  "clientRuntime.authorization.resolveRemoteDpopWebSocketConnectionUrl",
-)(function* (input: {
-  readonly wsBaseUrl: string;
-  readonly httpBaseUrl: string;
-  readonly accessToken: string;
-  readonly dpopProof: string;
-  readonly clientMetadata?: AuthClientPresentationMetadata;
-  readonly connectionMethod?: ClientConnectionMethod;
-  readonly timeoutMs?: number;
-}) {
-  const issued = yield* issueRemoteDpopWebSocketTicket({
-    httpBaseUrl: input.httpBaseUrl,
-    accessToken: input.accessToken,
-    dpopProof: input.dpopProof,
-    ...(input.timeoutMs ? { timeoutMs: input.timeoutMs } : {}),
-  });
-  const url = new URL(input.wsBaseUrl);
-  if (url.pathname === "" || url.pathname === "/") {
-    url.pathname = "/ws";
-  }
-  url.searchParams.set("wsTicket", issued.ticket);
-  appendClientConnectionParams(
-    url,
-    input.clientMetadata,
-    input.connectionMethod,
-    yield* readClientOwnerParams,
-  );
+  appendClientConnectionParams(url, input.clientMetadata, input.connectionMethod);
   return url.toString();
 });

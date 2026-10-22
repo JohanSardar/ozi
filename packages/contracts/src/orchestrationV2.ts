@@ -38,15 +38,6 @@ import {
 import { ChatAttachment } from "./chatAttachment.ts";
 import { ModelSelection } from "./modelSelection.ts";
 import {
-  ThreadLinkedPullRequest,
-  ThreadPullRequestLink,
-  ThreadPullRequestKey,
-  ThreadPullRequestLinkSource,
-  ThreadPullRequestSnapshot,
-  ThreadPullRequestStack,
-  ThreadPullRequestWatch,
-} from "./threadPullRequest.ts";
-import {
   ProviderApprovalDecision,
   ProviderApprovalOption,
   ProviderInteractionMode,
@@ -325,7 +316,6 @@ export const OrchestrationV2LimitRecovery = Schema.Struct({
   runId: RunId,
   resetAt: IsoDateTime,
   autoResume: Schema.Boolean,
-  snooze: Schema.optional(Schema.Boolean),
 });
 export type OrchestrationV2LimitRecovery = typeof OrchestrationV2LimitRecovery.Type;
 
@@ -333,13 +323,9 @@ export const OrchestrationV2LimitRecoveryUpdate = Schema.Struct({
   runId: RunId,
   resetAt: IsoDateTime,
   autoResume: Schema.optional(Schema.Boolean),
-  snooze: Schema.optional(Schema.Boolean),
 }).check(
   Schema.makeFilter(
-    (update) =>
-      update.autoResume !== undefined ||
-      update.snooze !== undefined ||
-      "A recovery update must include autoResume or snooze.",
+    (update) => update.autoResume !== undefined || "A recovery update must include autoResume.",
   ),
 );
 export type OrchestrationV2LimitRecoveryUpdate = typeof OrchestrationV2LimitRecoveryUpdate.Type;
@@ -363,9 +349,6 @@ export const OrchestrationV2AppThread = Schema.Struct({
   interactionMode: ProviderInteractionMode,
   branch: Schema.NullOr(TrimmedNonEmptyString),
   worktreePath: Schema.NullOr(TrimmedNonEmptyString),
-  linkedPullRequest: Schema.optional(Schema.NullOr(ThreadLinkedPullRequest)),
-  pullRequests: Schema.optional(Schema.Array(ThreadPullRequestLink)),
-  branchPullRequest: Schema.optional(Schema.NullOr(ThreadLinkedPullRequest)),
   activeProviderThreadId: Schema.NullOr(ProviderThreadId),
   historyOrigin: Schema.optional(OrchestrationV2ThreadHistoryOrigin),
   lineage: OrchestrationV2AppThreadLineage,
@@ -390,9 +373,6 @@ export const OrchestrationV2AppThread = Schema.Struct({
     Schema.withDecodingDefault(Effect.succeed(null)),
   ),
   unsettledAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtc)),
-  snoozedUntil: Schema.optional(Schema.NullOr(Schema.DateTimeUtc)),
-  snoozedAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtc)),
-  lastSnoozeWakeAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtc)),
   limitRecovery: Schema.optional(Schema.NullOr(OrchestrationV2LimitRecovery)),
   pinnedAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtc)),
   pinOrderKey: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
@@ -413,7 +393,7 @@ export const OrchestrationV2AppThread = Schema.Struct({
 export type OrchestrationV2AppThread = typeof OrchestrationV2AppThread.Type;
 
 /**
- * The provider owns its conversation, so it cannot take messages; T3 delegate_task children
+ * The provider owns its conversation, so it cannot take messages; Ozi delegate_task children
  * (`creationSource: "mcp"`) can.
  */
 export function isProviderNativeSubagentThread(
@@ -484,28 +464,6 @@ export const OrchestrationV2RunBackgroundWorkCancelled = Schema.Struct({
 export type OrchestrationV2RunBackgroundWorkCancelled =
   typeof OrchestrationV2RunBackgroundWorkCancelled.Type;
 
-export const OrchestrationV2ThreadLaunchWorkspaceStrategy = Schema.Union([
-  Schema.Struct({
-    type: Schema.Literal("root"),
-    branch: Schema.optional(TrimmedNonEmptyString),
-  }),
-  Schema.Struct({
-    type: Schema.Literal("existing_worktree"),
-    worktreePath: TrimmedNonEmptyString,
-    branch: Schema.optional(TrimmedNonEmptyString),
-  }),
-  Schema.Struct({
-    type: Schema.Literal("worktree"),
-    baseRef: TrimmedNonEmptyString,
-    branch: Schema.optional(TrimmedNonEmptyString),
-    startFromOrigin: Schema.optional(Schema.Boolean),
-  }),
-]);
-export type OrchestrationV2ThreadLaunchWorkspaceStrategy =
-  typeof OrchestrationV2ThreadLaunchWorkspaceStrategy.Type;
-
-export const ORCHESTRATION_V2_WORKSPACE_PREPARATION_FAILURE_CODE = "workspace_preparation_failed";
-
 export const OrchestrationV2Run = Schema.Struct({
   id: RunId,
   threadId: ThreadId,
@@ -537,7 +495,6 @@ export const OrchestrationV2Run = Schema.Struct({
   ),
   completionCheck: Schema.optional(OziCheck),
   delegatedCompletion: Schema.optional(OrchestrationV2DelegatedCompletionCohort),
-  workspacePreparation: Schema.optional(OrchestrationV2ThreadLaunchWorkspaceStrategy),
 });
 export type OrchestrationV2Run = typeof OrchestrationV2Run.Type;
 
@@ -1514,8 +1471,6 @@ export const OrchestrationV2DomainEvent = Schema.Union([
       "thread.deleted",
       "thread.settled",
       "thread.unsettled",
-      "thread.snoozed",
-      "thread.unsnoozed",
       "thread.pinned",
       "thread.unpinned",
       "thread.pin-reordered",
@@ -1523,18 +1478,12 @@ export const OrchestrationV2DomainEvent = Schema.Union([
       "thread.visited",
       "thread.marked-unread",
       "thread.metadata-updated",
-      "thread.pull-request-synced",
       "thread.runtime-mode-updated",
       "thread.interaction-mode-updated",
       "thread.model-selection-updated",
       "thread.provider-switched",
     ]),
     payload: OrchestrationV2AppThread,
-  }),
-  Schema.Struct({
-    ...OrchestrationV2EventBase.fields,
-    type: Schema.Literal("thread.pull-request-link-updated"),
-    payload: ThreadPullRequestLink,
   }),
   Schema.Struct({
     ...OrchestrationV2EventBase.fields,
@@ -1722,9 +1671,6 @@ export const OrchestrationV2ThreadShell = Schema.Struct({
   interactionMode: ProviderInteractionMode,
   branch: Schema.NullOr(TrimmedNonEmptyString),
   worktreePath: Schema.NullOr(TrimmedNonEmptyString),
-  linkedPullRequest: Schema.optional(Schema.NullOr(ThreadLinkedPullRequest)),
-  pullRequests: Schema.optional(Schema.Array(ThreadPullRequestLink)),
-  branchPullRequest: Schema.optional(Schema.NullOr(ThreadLinkedPullRequest)),
   lineage: OrchestrationV2AppThreadLineage,
   forkedFrom: Schema.NullOr(OrchestrationV2AppThread.fields.forkedFrom),
   activeProviderThreadId: Schema.NullOr(ProviderThreadId),
@@ -1767,8 +1713,6 @@ export const OrchestrationV2ThreadShell = Schema.Struct({
   settledOverride: Schema.NullOr(Schema.Literals(["settled", "active"])),
   settledAt: Schema.NullOr(Schema.DateTimeUtc),
   unsettledAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtc)),
-  snoozedUntil: Schema.optional(Schema.NullOr(Schema.DateTimeUtc)),
-  snoozedAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtc)),
   limitRecovery: Schema.optional(Schema.NullOr(OrchestrationV2LimitRecovery)),
   pinnedAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtc)),
   pinOrderKey: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
@@ -1807,7 +1751,6 @@ export const OrchestrationV2ShellStreamItem = Schema.Union([
   Schema.Struct({
     kind: Schema.Literal("snapshot"),
     snapshot: OrchestrationV2ShellSnapshot,
-    resolvedRepositoryIdentityRoots: Schema.optionalKey(Schema.Array(Schema.String)),
   }),
   Schema.Struct({
     kind: Schema.Literal("project.updated"),
@@ -1850,9 +1793,6 @@ export const OrchestrationV2AppThreadJson = OrchestrationV2AppThread.mapFields((
     Schema.withDecodingDefault(Effect.succeed(null)),
   ),
   unsettledAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtcFromString)),
-  snoozedUntil: Schema.optional(Schema.NullOr(Schema.DateTimeUtcFromString)),
-  snoozedAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtcFromString)),
-  lastSnoozeWakeAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtcFromString)),
   pinnedAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtcFromString)),
   lastVisitedAt: Schema.NullOr(Schema.DateTimeUtcFromString).pipe(
     Schema.withDecodingDefault(Effect.succeed(null)),
@@ -2244,8 +2184,6 @@ export const OrchestrationV2ThreadShellJson = OrchestrationV2ThreadShell.mapFiel
   archivedAt: Schema.NullOr(Schema.DateTimeUtcFromString),
   settledAt: Schema.NullOr(Schema.DateTimeUtcFromString),
   unsettledAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtcFromString)),
-  snoozedUntil: Schema.optional(Schema.NullOr(Schema.DateTimeUtcFromString)),
-  snoozedAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtcFromString)),
   pinnedAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtcFromString)),
   lastVisitedAt: Schema.optional(Schema.NullOr(Schema.DateTimeUtcFromString)),
   titleRegeneration: Schema.optional(
@@ -2296,15 +2234,12 @@ export const OrchestrationV2DomainEventJson = Schema.Union([
       "thread.deleted",
       "thread.settled",
       "thread.unsettled",
-      "thread.snoozed",
-      "thread.unsnoozed",
       "thread.pinned",
       "thread.unpinned",
       "thread.pin-reordered",
       "thread.active-reordered",
       "thread.visited",
       "thread.marked-unread",
-      "thread.pull-request-synced",
       "thread.metadata-updated",
       "thread.runtime-mode-updated",
       "thread.interaction-mode-updated",
@@ -2312,11 +2247,6 @@ export const OrchestrationV2DomainEventJson = Schema.Union([
       "thread.provider-switched",
     ]),
     payload: OrchestrationV2AppThreadJson,
-  }),
-  Schema.Struct({
-    ...OrchestrationV2JsonEventBaseFields,
-    type: Schema.Literal("thread.pull-request-link-updated"),
-    payload: ThreadPullRequestLink,
   }),
   Schema.Struct({
     ...OrchestrationV2JsonEventBaseFields,
@@ -2491,18 +2421,6 @@ export const OrchestrationV2Command = Schema.Union([
     reason: Schema.Literal("user"),
   }),
   Schema.Struct({
-    type: Schema.Literal("thread.snooze"),
-    commandId: CommandId,
-    threadId: ThreadId,
-    snoozedUntil: IsoDateTime,
-  }),
-  Schema.Struct({
-    type: Schema.Literal("thread.unsnooze"),
-    commandId: CommandId,
-    threadId: ThreadId,
-    reason: Schema.Literal("user"),
-  }),
-  Schema.Struct({
     type: Schema.Literal("thread.pin"),
     commandId: CommandId,
     threadId: ThreadId,
@@ -2549,61 +2467,6 @@ export const OrchestrationV2Command = Schema.Union([
     /** Reject unless no message or run has landed on this thread. */
     expectedEmpty: Schema.optional(Schema.Boolean),
     limitRecovery: Schema.optional(Schema.NullOr(OrchestrationV2LimitRecoveryUpdate)),
-    /** Link (object) or unlink (null) a pull request (#8160); absent leaves it unchanged. */
-    linkedPullRequest: Schema.optional(Schema.NullOr(ThreadLinkedPullRequest)),
-  }),
-  Schema.Struct({
-    type: Schema.Literal("thread.pull-request.link"),
-    commandId: CommandId,
-    threadId: ThreadId,
-    ...ThreadPullRequestKey.fields,
-    url: TrimmedNonEmptyString,
-    source: ThreadPullRequestLinkSource,
-    repositoryWebUrl: Schema.optional(TrimmedNonEmptyString),
-  }),
-  Schema.Struct({
-    type: Schema.Literal("thread.pull-request.unlink"),
-    commandId: CommandId,
-    threadId: ThreadId,
-    ...ThreadPullRequestKey.fields,
-  }),
-  Schema.Struct({
-    type: Schema.Literal("thread.pull-request-link.sync"),
-    commandId: CommandId,
-    threadId: ThreadId,
-    ...ThreadPullRequestKey.fields,
-    snapshot: ThreadPullRequestSnapshot,
-    stack: Schema.NullOr(ThreadPullRequestStack),
-  }),
-  Schema.Struct({
-    type: Schema.Literal("thread.pull-request.watch"),
-    commandId: CommandId,
-    threadId: ThreadId,
-    ...ThreadPullRequestKey.fields,
-    watching: Schema.Boolean,
-    link: Schema.optional(
-      Schema.Struct({
-        url: TrimmedNonEmptyString,
-        source: ThreadPullRequestLinkSource,
-        repositoryWebUrl: Schema.optional(TrimmedNonEmptyString),
-      }),
-    ),
-  }),
-  Schema.Struct({
-    type: Schema.Literal("thread.pull-request.sync"),
-    commandId: CommandId,
-    threadId: ThreadId,
-    projectId: ProjectId,
-    snapshotSequence: NonNegativeInt,
-    expected: Schema.Struct({
-      workspaceRoot: TrimmedNonEmptyString,
-      branch: Schema.NullOr(TrimmedNonEmptyString),
-      worktreePath: Schema.NullOr(TrimmedNonEmptyString),
-      linkedPullRequest: Schema.NullOr(ThreadLinkedPullRequest),
-      branchPullRequest: Schema.NullOr(ThreadLinkedPullRequest),
-    }),
-    branchPullRequest: Schema.NullOr(ThreadLinkedPullRequest),
-    linkedPullRequest: Schema.optional(ThreadLinkedPullRequest),
   }),
   Schema.Struct({
     type: Schema.Literal("thread.title.regeneration.complete"),
@@ -2665,10 +2528,6 @@ export const OrchestrationV2Command = Schema.Union([
       }),
     ),
     dispatchMode: Schema.Union([
-      Schema.Struct({
-        type: Schema.Literal("defer_start"),
-        workspaceStrategy: Schema.optional(OrchestrationV2ThreadLaunchWorkspaceStrategy),
-      }),
       Schema.Struct({ type: Schema.Literal("steer_active"), targetRunId: RunId }),
       Schema.Struct({ type: Schema.Literal("restart_active"), targetRunId: RunId }),
       Schema.Struct({ type: Schema.Literal("queue_after_active") }),
@@ -2676,36 +2535,10 @@ export const OrchestrationV2Command = Schema.Union([
     ]),
   }),
   Schema.Struct({
-    type: Schema.Literal("prepared-run.release"),
-    commandId: CommandId,
-    threadId: ThreadId,
-    runId: RunId,
-  }),
-  Schema.Struct({
     type: Schema.Literal("notification.delivery.accept"),
     commandId: CommandId,
     threadId: ThreadId,
     messageId: MessageId,
-  }),
-  Schema.Struct({
-    type: Schema.Literal("prepared-run.progress"),
-    commandId: CommandId,
-    threadId: ThreadId,
-    runId: RunId,
-    phase: Schema.Literals(["worktree", "setup"]),
-  }),
-  Schema.Struct({
-    type: Schema.Literal("prepared-run.fail"),
-    commandId: CommandId,
-    threadId: ThreadId,
-    runId: RunId,
-    failure: OrchestrationV2ProviderFailure,
-  }),
-  Schema.Struct({
-    type: Schema.Literal("prepared-run.retry"),
-    commandId: CommandId,
-    threadId: ThreadId,
-    runId: RunId,
   }),
   Schema.Struct({
     type: Schema.Literal("subagent.stop"),
@@ -2806,7 +2639,6 @@ export const OrchestrationV2Command = Schema.Union([
     modelSelection: ModelSelection,
     runtimeMode: RuntimeMode,
     interactionMode: ProviderInteractionMode,
-    workspaceStrategy: Schema.optional(OrchestrationV2ThreadLaunchWorkspaceStrategy),
     // Omitted behaves as "settled_only" (no wake while the parent has a live
     // run); producers that want fire-and-forget wakes must set "always".
     completionWake: Schema.optional(Schema.Literals(["always", "settled_only"])),
@@ -2873,23 +2705,6 @@ const OrchestrationV2InternalCommand = Schema.Union([
     checkId: EventId,
   }),
   Schema.Struct({
-    type: Schema.Literal("thread.pull-request-watch.sync"),
-    commandId: CommandId,
-    threadId: ThreadId,
-    ...ThreadPullRequestKey.fields,
-    startedAt: IsoDateTime,
-    watch: Schema.NullOr(ThreadPullRequestWatch),
-    /** With `watch: null`, the state the ended watch keeps instead of its last saved one. */
-    endedWatch: Schema.optional(ThreadPullRequestWatch),
-    wake: Schema.optional(
-      Schema.Struct({
-        messageId: MessageId,
-        text: Schema.String,
-        notification: OrchestrationV2Notification,
-      }),
-    ),
-  }),
-  Schema.Struct({
     type: Schema.Literal("thread.background-work.settle"),
     commandId: CommandId,
     threadId: ThreadId,
@@ -2938,7 +2753,6 @@ export const ORCHESTRATION_V2_WS_METHODS = {
   getWorkflowScript: "orchestration.getWorkflowScript",
   stopWorkflow: "orchestration.stopWorkflow",
   getTurnItem: "orchestration.getTurnItem",
-  launchThread: "orchestration.launchThread",
   subscribeArchivedShell: "orchestration.subscribeArchivedShell",
   subscribeShell: "orchestration.subscribeShell",
   subscribeThread: "orchestration.subscribeThread",
@@ -3006,36 +2820,6 @@ export const OrchestrationV2ArchivedShellStreamItem = Schema.Union([
 ]);
 export type OrchestrationV2ArchivedShellStreamItem =
   typeof OrchestrationV2ArchivedShellStreamItem.Type;
-
-export const OrchestrationV2ThreadLaunchInput = Schema.Struct({
-  commandId: CommandId,
-  creationSource: Schema.optional(OrchestrationV2CreationSource),
-  threadId: Schema.optional(ThreadId),
-  reuseExistingThread: Schema.optional(Schema.Boolean),
-  projectId: ProjectId,
-  title: TrimmedNonEmptyString,
-  generateTitle: Schema.optional(Schema.Boolean),
-  modelSelection: ModelSelection,
-  runtimeMode: RuntimeMode,
-  interactionMode: ProviderInteractionMode,
-  workspaceStrategy: OrchestrationV2ThreadLaunchWorkspaceStrategy,
-  initialMessage: Schema.optional(
-    Schema.Struct({
-      messageId: Schema.optional(MessageId),
-      text: Schema.String,
-      context: Schema.optional(OrchestrationMessageContext),
-      attachments: Schema.Array(ChatAttachment),
-    }),
-  ),
-});
-export type OrchestrationV2ThreadLaunchInput = typeof OrchestrationV2ThreadLaunchInput.Type;
-
-export const OrchestrationV2ThreadLaunchResult = Schema.Struct({
-  threadId: ThreadId,
-  projection: OrchestrationV2ThreadProjection,
-  resumed: Schema.Boolean,
-});
-export type OrchestrationV2ThreadLaunchResult = typeof OrchestrationV2ThreadLaunchResult.Type;
 
 export const OrchestrationV2DispatchCommandResult = Schema.Struct({
   sequence: NonNegativeInt,
@@ -3211,16 +2995,6 @@ export class OrchestrationV2GetShellSnapshotError extends Schema.TaggedError<Orc
   },
 ) {}
 
-export class OrchestrationV2ThreadLaunchError extends Schema.TaggedError<OrchestrationV2ThreadLaunchError>()(
-  "OrchestrationV2ThreadLaunchError",
-  {
-    commandId: CommandId,
-    projectId: ProjectId,
-    message: Schema.String,
-    cause: Schema.optional(Schema.Defect()),
-  },
-) {}
-
 export const OrchestrationV2StopWorkflowInput = Schema.Struct({
   threadId: ThreadId,
   subagentId: NodeId,
@@ -3254,7 +3028,6 @@ export const OrchestrationV2RpcError = Schema.Union([
   OrchestrationV2DispatchCommandError,
   OrchestrationV2GetThreadProjectionError,
   OrchestrationV2GetShellSnapshotError,
-  OrchestrationV2ThreadLaunchError,
   OrchestrationV2StopWorkflowError,
 ]);
 export type OrchestrationV2RpcError = typeof OrchestrationV2RpcError.Type;
@@ -3432,10 +3205,6 @@ export const OrchestrationV2RpcSchemas = {
   getTurnItem: {
     input: OrchestrationV2GetTurnItemInput,
     output: OrchestrationV2GetTurnItemResult,
-  },
-  launchThread: {
-    input: OrchestrationV2ThreadLaunchInput,
-    output: OrchestrationV2ThreadLaunchResult,
   },
   subscribeArchivedShell: {
     input: Schema.Struct({}),

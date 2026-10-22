@@ -45,9 +45,9 @@ export class Jobs extends Context.Service<
       input: OziJobHandleInput,
     ) => Effect.Effect<OrchestrationV2DispatchCommandResult, OziJobError>;
   }
->()("t3/ozi/Jobs") {}
+>()("ozi/ozi/Jobs") {}
 
-export const isAcceptance = (text: string) =>
+const isAcceptance = (text: string) =>
   /^(?:I accept (?:this|the|that) result|accepted|looks good(?:,? thanks)?|that works|approved)[.!\s]*$/i.test(
     text.trim(),
   );

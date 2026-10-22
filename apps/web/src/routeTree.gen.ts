@@ -12,7 +12,6 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as PairRouteImport } from './routes/pair'
 import { Route as ConnectAgentRouteImport } from './routes/connect-agent'
-import { Route as ConnectRouteImport } from './routes/connect'
 import { Route as ChatRouteImport } from './routes/_chat'
 import { Route as ChatIndexRouteImport } from './routes/_chat.index'
 import { Route as SettingsScheduledTasksRouteImport } from './routes/settings.scheduled-tasks'
@@ -35,11 +34,6 @@ const PairRoute = PairRouteImport.update({
 const ConnectAgentRoute = ConnectAgentRouteImport.update({
   id: '/connect-agent',
   path: '/connect-agent',
-  getParentRoute: () => rootRouteImport,
-} as any)
-const ConnectRoute = ConnectRouteImport.update({
-  id: '/connect',
-  path: '/connect',
   getParentRoute: () => rootRouteImport,
 } as any)
 const ChatRoute = ChatRouteImport.update({
@@ -85,7 +79,6 @@ const SettingsAppearanceRoute = SettingsAppearanceRouteImport.update({
 
 export interface FileRoutesByFullPath {
   '/': typeof ChatIndexRoute
-  '/connect': typeof ConnectRoute
   '/connect-agent': typeof ConnectAgentRoute
   '/pair': typeof PairRoute
   '/settings': typeof SettingsRouteWithChildren
@@ -97,7 +90,6 @@ export interface FileRoutesByFullPath {
   '/settings/scheduled-tasks': typeof SettingsScheduledTasksRoute
 }
 export interface FileRoutesByTo {
-  '/connect': typeof ConnectRoute
   '/connect-agent': typeof ConnectAgentRoute
   '/pair': typeof PairRoute
   '/settings': typeof SettingsRouteWithChildren
@@ -112,7 +104,6 @@ export interface FileRoutesByTo {
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
   '/_chat': typeof ChatRouteWithChildren
-  '/connect': typeof ConnectRoute
   '/connect-agent': typeof ConnectAgentRoute
   '/pair': typeof PairRoute
   '/settings': typeof SettingsRouteWithChildren
@@ -128,7 +119,6 @@ export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
     | '/'
-    | '/connect'
     | '/connect-agent'
     | '/pair'
     | '/settings'
@@ -140,7 +130,6 @@ export interface FileRouteTypes {
     | '/settings/scheduled-tasks'
   fileRoutesByTo: FileRoutesByTo
   to:
-    | '/connect'
     | '/connect-agent'
     | '/pair'
     | '/settings'
@@ -154,7 +143,6 @@ export interface FileRouteTypes {
   id:
     | '__root__'
     | '/_chat'
-    | '/connect'
     | '/connect-agent'
     | '/pair'
     | '/settings'
@@ -169,7 +157,6 @@ export interface FileRouteTypes {
 }
 export interface RootRouteChildren {
   ChatRoute: typeof ChatRouteWithChildren
-  ConnectRoute: typeof ConnectRoute
   ConnectAgentRoute: typeof ConnectAgentRoute
   PairRoute: typeof PairRoute
   SettingsRoute: typeof SettingsRouteWithChildren
@@ -196,13 +183,6 @@ declare module '@tanstack/react-router' {
       path: '/connect-agent'
       fullPath: '/connect-agent'
       preLoaderRoute: typeof ConnectAgentRouteImport
-      parentRoute: typeof rootRouteImport
-    }
-    '/connect': {
-      id: '/connect'
-      path: '/connect'
-      fullPath: '/connect'
-      preLoaderRoute: typeof ConnectRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/_chat': {
@@ -298,7 +278,6 @@ const SettingsRouteWithChildren = SettingsRoute._addFileChildren(
 
 const rootRouteChildren: RootRouteChildren = {
   ChatRoute: ChatRouteWithChildren,
-  ConnectRoute: ConnectRoute,
   ConnectAgentRoute: ConnectAgentRoute,
   PairRoute: PairRoute,
   SettingsRoute: SettingsRouteWithChildren,

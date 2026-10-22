@@ -10,7 +10,6 @@ import {
 } from "@t3tools/contracts";
 
 import { createOptimisticThreadLifecycle } from "./threadLifecycle.ts";
-import * as DateTime from "effect/DateTime";
 
 import {
   createAtomCommandScheduler,
@@ -21,7 +20,6 @@ import {
   type ThreadCommandInput,
   type ArchiveThreadInput,
   type CancelQueuedRunInput,
-  type RetryWorkspacePreparationInput,
   type CreateThreadInput,
   type DeleteThreadInput,
   type EditQueuedRunInput,
@@ -31,7 +29,6 @@ import {
   type MergeThreadBackInput,
   type PromoteQueuedRunInput,
   type ReorderQueuedRunInput,
-  type LinkThreadPullRequestInput,
   type RespondToThreadApprovalInput,
   type RespondToThreadUserInputInput,
   type DismissThreadUserInputInput,
@@ -41,15 +38,11 @@ import {
   type ReorderPinnedThreadInput,
   type ReorderActiveThreadInput,
   type SettleThreadInput,
-  type SnoozeThreadInput,
   type StartThreadTurnInput,
   type StopThreadSessionInput,
   type UnarchiveThreadInput,
-  type UnlinkThreadPullRequestInput,
   type UnpinThreadInput,
-  type WatchThreadPullRequestInput,
   type UnsettleThreadInput,
-  type UnsnoozeThreadInput,
   type UpdateThreadMetadataInput,
   type VisitThreadInput,
   archiveThread,
@@ -64,8 +57,6 @@ import {
   promoteQueuedRun,
   reorderQueuedRun,
   resumeThreadQueue,
-  retryWorkspacePreparation,
-  linkThreadPullRequest,
   respondToThreadApproval,
   respondToThreadUserInput,
   dismissThreadUserInput,
@@ -75,17 +66,13 @@ import {
   reorderPinnedThread,
   reorderActiveThread,
   settleThread,
-  snoozeThread,
   startThreadTurn,
   stopThreadSession,
   unarchiveThread,
-  unlinkThreadPullRequest,
   unpinThread,
   unsettleThread,
-  unsnoozeThread,
   updateThreadMetadata,
   visitThread,
-  watchThreadPullRequest,
 } from "../operations/commands.ts";
 import type { EnvironmentRegistry } from "../connection/registry.ts";
 import * as EnvironmentSupervisor from "../connection/supervisor.ts";
@@ -108,29 +95,23 @@ export type {
   MergeThreadBackInput,
   PromoteQueuedRunInput,
   ReorderQueuedRunInput,
-  LinkThreadPullRequestInput,
   RespondToThreadApprovalInput,
   RespondToThreadUserInputInput,
   DismissThreadUserInputInput,
-  RetryWorkspacePreparationInput,
   SetThreadInteractionModeInput,
   SetThreadRuntimeModeInput,
   PinThreadInput,
   ReorderPinnedThreadInput,
   ReorderActiveThreadInput,
   SettleThreadInput,
-  SnoozeThreadInput,
   StartThreadTurnInput,
   StopThreadSessionInput,
   ThreadCommandInput,
   UnarchiveThreadInput,
-  UnlinkThreadPullRequestInput,
   UnpinThreadInput,
   UnsettleThreadInput,
-  UnsnoozeThreadInput,
   UpdateThreadMetadataInput,
   VisitThreadInput,
-  WatchThreadPullRequestInput,
 } from "../operations/commands.ts";
 
 export function createThreadEnvironmentAtoms<R, E>(
@@ -197,18 +178,6 @@ export function createThreadEnvironmentAtoms<R, E>(
       scheduler,
       concurrency,
     }),
-    snooze: createEnvironmentCommand(runtime, {
-      label: "environment-data:commands:thread:snooze",
-      execute: (input: SnoozeThreadInput) => snoozeThread(input),
-      scheduler,
-      concurrency,
-    }),
-    unsnooze: createEnvironmentCommand(runtime, {
-      label: "environment-data:commands:thread:unsnooze",
-      execute: (input: UnsnoozeThreadInput) => unsnoozeThread(input),
-      scheduler,
-      concurrency,
-    }),
     pin: createEnvironmentCommand(runtime, {
       label: "environment-data:commands:thread:pin",
       execute: (input: PinThreadInput) => pinThread(input),
@@ -249,24 +218,6 @@ export function createThreadEnvironmentAtoms<R, E>(
     updateMetadata: createEnvironmentCommand(runtime, {
       label: "environment-data:commands:thread:update-metadata",
       execute: (input: UpdateThreadMetadataInput) => updateThreadMetadata(input),
-      scheduler,
-      concurrency,
-    }),
-    linkPullRequest: createEnvironmentCommand(runtime, {
-      label: "environment-data:commands:thread:link-pull-request",
-      execute: (input: LinkThreadPullRequestInput) => linkThreadPullRequest(input),
-      scheduler,
-      concurrency,
-    }),
-    unlinkPullRequest: createEnvironmentCommand(runtime, {
-      label: "environment-data:commands:thread:unlink-pull-request",
-      execute: (input: UnlinkThreadPullRequestInput) => unlinkThreadPullRequest(input),
-      scheduler,
-      concurrency,
-    }),
-    watchPullRequest: createEnvironmentCommand(runtime, {
-      label: "environment-data:commands:thread:watch-pull-request",
-      execute: (input: WatchThreadPullRequestInput) => watchThreadPullRequest(input),
       scheduler,
       concurrency,
     }),
@@ -361,12 +312,6 @@ export function createThreadEnvironmentAtoms<R, E>(
       scheduler,
       concurrency,
     }),
-    retryWorkspacePreparation: createEnvironmentCommand(runtime, {
-      label: "environment-data:commands:thread:retry-workspace-preparation",
-      execute: (input: RetryWorkspacePreparationInput) => retryWorkspacePreparation(input),
-      scheduler,
-      concurrency,
-    }),
     editQueuedRun: createEnvironmentCommand(runtime, {
       label: "environment-data:commands:thread:edit-queued-run",
       execute: (input: EditQueuedRunInput) => editQueuedRun(input),
@@ -407,8 +352,6 @@ export function createThreadEnvironmentAtoms<R, E>(
             activeOrderKey: null,
             pinnedAt: null,
             pinOrderKey: null,
-            snoozedAt: null,
-            snoozedUntil: null,
           },
     ),
     unsettle: optimistic.wrap(commands.unsettle, (thread, input, now) => ({
@@ -416,24 +359,6 @@ export function createThreadEnvironmentAtoms<R, E>(
       settledOverride: input.reason === "user" ? "active" : null,
       settledAt: null,
       unsettledAt: thread.settledOverride === "active" ? (thread.unsettledAt ?? null) : now,
-    })),
-    snooze: optimistic.wrap(commands.snooze, (thread, input, now, accepted) =>
-      (!accepted &&
-        (thread.pendingRuntimeRequest !== null ||
-          ["preparing", "queued", "starting"].includes(thread.status))) ||
-      !(Date.parse(input.snoozedUntil) > DateTime.toEpochMillis(now))
-        ? thread
-        : {
-            ...thread,
-            pendingRuntimeRequest: null,
-            snoozedUntil: DateTime.makeUnsafe(input.snoozedUntil),
-            snoozedAt: now,
-          },
-    ),
-    unsnooze: optimistic.wrap(commands.unsnooze, (thread) => ({
-      ...thread,
-      snoozedUntil: null,
-      snoozedAt: null,
     })),
 
     pin: optimistic.wrap(commands.pin, (thread, input, now) => ({
@@ -447,8 +372,6 @@ export function createThreadEnvironmentAtoms<R, E>(
             unsettledAt: now,
           }
         : {}),
-      snoozedUntil: null,
-      snoozedAt: null,
     })),
     unpin: optimistic.wrap(commands.unpin, (thread) => ({
       ...thread,

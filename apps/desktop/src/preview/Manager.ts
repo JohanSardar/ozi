@@ -62,7 +62,6 @@ import * as Scope from "effect/Scope";
 import * as SynchronizedRef from "effect/SynchronizedRef";
 
 import * as DesktopEnvironment from "../app/DesktopEnvironment.ts";
-import * as DesktopRendererHistory from "../telemetry/DesktopRendererHistory.ts";
 import { MENU_ACTION_CHANNEL, PREVIEW_PICTURE_IN_PICTURE_FRAME_CHANNEL } from "../ipc/channels.ts";
 import * as DesktopBrowserHost from "./DesktopBrowserHost.ts";
 import * as PreviewPasskeys from "./Passkeys.ts";
@@ -187,7 +186,7 @@ const buildPreviewPictureInPictureDataUrl = (): string => {
   return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
 };
 
-export const fitPictureInPictureContentSize = (
+const fitPictureInPictureContentSize = (
   current: ReadonlyArray<number>,
   aspectRatio: number,
 ): readonly [width: number, height: number] => {
@@ -206,7 +205,7 @@ export const fitPictureInPictureContentSize = (
   return [Math.round(width), Math.round(height)];
 };
 
-export const recordingFileExtension = (mimeType: string): string => {
+const recordingFileExtension = (mimeType: string): string => {
   const subtype = mimeType.split(";", 1)[0]?.trim().toLowerCase().split("/")[1] ?? "";
   const extension = subtype.replace(/^x-/, "").replace(/[^a-z0-9]/g, "");
   return extension || "video";
@@ -481,7 +480,7 @@ const POPUP_WINDOW_OPTIONS = {
  * popup cannot be hardened for keep loading in place, and so does a form POST with a body,
  * which a new tab could only reopen as a GET.
  */
-export const previewWindowOpenAction = (details: {
+const previewWindowOpenAction = (details: {
   readonly url: string;
   readonly disposition: Electron.HandlerDetails["disposition"];
   readonly postBody?: Electron.PostBody;
@@ -495,17 +494,14 @@ export const previewWindowOpenAction = (details: {
     : "navigate";
 };
 
-export const isPreviewRefreshShortcut = (input: Electron.Input): boolean =>
+const isPreviewRefreshShortcut = (input: Electron.Input): boolean =>
   input.type === "keyDown" &&
   input.key.toLowerCase() === "r" &&
   (input.meta || input.control) &&
   !input.shift &&
   !input.alt;
 
-export const isPreviewEditingShortcut = (
-  input: Electron.Input,
-  platform: NodeJS.Platform,
-): boolean => {
+const isPreviewEditingShortcut = (input: Electron.Input, platform: NodeJS.Platform): boolean => {
   const isMac = platform === "darwin";
   if (isMac ? !input.meta || input.control : !input.control || input.meta) return false;
 
@@ -551,7 +547,6 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
   pictureInPicturePreloadPath: string,
 ) {
   const fileSystem = yield* FileSystem.FileSystem;
-  const rendererHistory = yield* DesktopRendererHistory.DesktopRendererHistory;
   const hostPlatform = yield* HostProcess.Platform;
   const path = yield* Path.Path;
   const crypto = yield* Crypto.Crypto;
@@ -1835,7 +1830,6 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
     ) {
       return yield* new PreviewWebContentsNotFoundError({ tabId, webContentsId });
     }
-    yield* rendererHistory.register(wc, { surface: "preview", tabId });
     const attached = yield* Ref.get(attachedRef);
     const annotationTheme = yield* Ref.get(annotationThemeRef);
     const currentAttachment = attached.get(webContentsId);
@@ -1981,7 +1975,6 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
   const prepareWebview = Effect.fn("PreviewManager.prepareWebview")(function* (
     wc: Electron.WebContents,
   ) {
-    yield* rendererHistory.register(wc, { surface: "preview" });
     const webContentsId = wc.id;
     wc.once("destroyed", () => {
       runFork(detachControlSession(webContentsId));
@@ -2893,10 +2886,6 @@ const makeNativeOperations = Effect.fn("PreviewManager.makeOperations")(function
               },
             }),
         );
-        yield* rendererHistory.register(pictureInPictureWindow.webContents, {
-          surface: "picture-in-picture",
-          tabId,
-        });
         const initializationScope = yield* Scope.fork(parentScope, "sequential");
         const ready = yield* Deferred.make<void, PreviewManagerError>();
         const session: PictureInPictureSession = {

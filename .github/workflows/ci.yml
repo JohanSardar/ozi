@@ -59,4 +59,4 @@ jobs:
           pattern: e2e-results-*
           path: e2e
           merge-multiple: true
-      - run: node scripts/features.ts check 0
+      - run: node scripts/features.ts check 6

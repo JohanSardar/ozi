@@ -45,27 +45,12 @@ const decodeProjectRefCollectionKey = Schema.decodeUnknownSync(
   Schema.Array(Schema.Tuple([Schema.String, Schema.String])),
 );
 
-export function projectKey(ref: ScopedProjectRef): string {
-  return `${ref.environmentId}\u0000${ref.projectId}`;
-}
-
 export function threadKey(ref: ScopedThreadRef): string {
   return `${ref.environmentId}\u0000${ref.threadId}`;
 }
 
 export function projectRefCollectionKey(refs: ReadonlyArray<ScopedProjectRef>): string {
   return JSON.stringify(refs.map((ref) => [ref.environmentId, ref.projectId]));
-}
-
-export function parseProjectKey(key: string): ScopedProjectRef {
-  const separator = key.indexOf("\u0000");
-  if (separator < 0) {
-    throw new InvalidScopedProjectKeyError({ key });
-  }
-  return {
-    environmentId: EnvironmentId.make(key.slice(0, separator)),
-    projectId: ProjectId.make(key.slice(separator + 1)),
-  };
 }
 
 export function parseProjectRefCollectionKey(key: string): ReadonlyArray<ScopedProjectRef> {
@@ -90,20 +75,6 @@ export function parseThreadKey(key: string): ScopedThreadRef {
     environmentId: EnvironmentId.make(key.slice(0, separator)),
     threadId: ThreadId.make(key.slice(separator + 1)),
   };
-}
-
-export function projectRefsEqual(
-  left: ReadonlyArray<ScopedProjectRef>,
-  right: ReadonlyArray<ScopedProjectRef>,
-): boolean {
-  return (
-    left.length === right.length &&
-    left.every(
-      (ref, index) =>
-        ref.environmentId === right[index]?.environmentId &&
-        ref.projectId === right[index]?.projectId,
-    )
-  );
 }
 
 export function threadRefsEqual(

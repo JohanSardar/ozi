@@ -181,7 +181,7 @@ const encodePart = (part: string | number): string => encodeURIComponent(String(
 const joinId = (prefix: string, ...parts: ReadonlyArray<string | number>): string =>
   [prefix, ...parts.map(encodePart)].join(":");
 
-export function deriveThreadFromProviderThread(input: {
+function deriveThreadFromProviderThread(input: {
   readonly driver: ProviderDriverKind;
   readonly providerInstanceId?: ProviderInstanceId;
   readonly nativeThreadId: string;
@@ -200,7 +200,7 @@ export function deriveThreadFromProviderThread(input: {
   );
 }
 
-export function deriveProviderThread(input: {
+function deriveProviderThread(input: {
   readonly driver: ProviderDriverKind;
   readonly providerInstanceId?: ProviderInstanceId;
   readonly nativeThreadId: string;

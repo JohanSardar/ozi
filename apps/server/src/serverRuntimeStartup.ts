@@ -2,9 +2,7 @@ import {
   CommandId,
   OZI_MAIN_THREAD_ID,
   OZI_MAIN_SELECTION,
-  DEFAULT_SERVER_SETTINGS,
   type ModelSelection,
-  type Project,
   ProjectId,
   ThreadId,
 } from "@t3tools/contracts";
@@ -23,14 +21,12 @@ import * as EventSink from "./orchestration-v2/EventSink.ts";
 import * as IdAllocator from "@t3tools/provider-core/server/IdAllocator";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
-import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
 import * as Path from "effect/Path";
 import * as Queue from "effect/Queue";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
 
 import * as ServerConfig from "./config.ts";
-import * as ServiceLauncherClient from "./cloud/serviceLauncherClient.ts";
 import { flushCompileCache } from "./compileCache.ts";
 import * as Keybindings from "./keybindings.ts";
 import * as ExternalLauncher from "./process/externalLauncher.ts";
@@ -39,16 +35,11 @@ import * as LegacyV1ThreadImporter from "./orchestration-v2/legacy/LegacyV1Threa
 import * as Orchestrator from "./orchestration-v2/Orchestrator.ts";
 import * as ProviderRuntimeRecovery from "./orchestration-v2/ProviderRuntimeRecoveryService.ts";
 import * as ProviderSessionManager from "./orchestration-v2/ProviderSessionManager.ts";
-import * as ThreadLaunch from "./orchestration-v2/ThreadLaunchService.ts";
 import * as ThreadManagement from "./orchestration-v2/ThreadManagementService.ts";
 import * as ProjectService from "./project/ProjectService.ts";
-import * as GitVcsDriver from "./vcs/GitVcsDriver.ts";
-import * as ProjectStore from "./orchestration-v2/ProjectStore.ts";
 import * as ServerLifecycleEvents from "./serverLifecycleEvents.ts";
 import * as ServerSettings from "./serverSettings.ts";
 import { forkParked, forkParkedFiber } from "./serverActivation.ts";
-import * as AnalyticsService from "./telemetry/AnalyticsService.ts";
-import { getServerOwners } from "./telemetry/Identify.ts";
 import * as ServerEnvironment from "./environment/ServerEnvironment.ts";
 import * as EnvironmentAuth from "./auth/EnvironmentAuth.ts";
 import {
@@ -81,7 +72,7 @@ export class ServerRuntimeStartup extends Context.Service<
       effect: Effect.Effect<A, E>,
     ) => Effect.Effect<A, E | ServerRuntimeStartupError>;
   }
->()("t3/serverRuntimeStartup") {}
+>()("ozi/serverRuntimeStartup") {}
 
 interface QueuedCommand {
   readonly run: Effect.Effect<void, never>;
@@ -103,7 +94,7 @@ const settleQueuedCommand = <A, E>(deferred: Deferred.Deferred<A, E>, exit: Exit
     ? Deferred.succeed(deferred, exit.value)
     : Deferred.failCause(deferred, exit.cause);
 
-export const makeCommandGate = Effect.gen(function* () {
+const makeCommandGate = Effect.gen(function* () {
   const commandReady = yield* Deferred.make<void, ServerRuntimeStartupError>();
   const commandQueue = yield* Queue.unbounded<QueuedCommand>();
   const commandReadinessState = yield* Ref.make<CommandReadinessState>("pending");
@@ -149,106 +140,14 @@ export const makeCommandGate = Effect.gen(function* () {
   } satisfies CommandGate;
 });
 
-const recordStartupHeartbeat = Effect.gen(function* () {
-  const analytics = yield* AnalyticsService.AnalyticsService;
-  const projects = yield* ProjectService.ProjectService;
-  const threads = yield* ThreadManagement.ThreadManagementService;
-
-  const { threadCount, projectCount } = yield* Effect.all({
-    projects: projects.snapshot,
-    threads: threads.getShellSnapshot(),
-  }).pipe(
-    Effect.map(({ projects: projectSnapshot, threads: shellSnapshot }) => ({
-      projectCount: projectSnapshot.projects.length,
-      threadCount: shellSnapshot.threads.length + shellSnapshot.archivedThreads.length,
-    })),
-    Effect.catch((cause) =>
-      Effect.logWarning("failed to gather V2 startup counts for telemetry", {
-        cause,
-      }).pipe(
-        Effect.as({
-          threadCount: 0,
-          projectCount: 0,
-        }),
-      ),
-    ),
-  );
-
-  yield* analytics.record("server.boot.heartbeat", {
-    threadCount,
-    projectCount,
-  });
-  yield* analytics.recordOwners(yield* getServerOwners, "server");
-});
-
-export const getAutoBootstrapThreadModelSelection = (): ModelSelection => OZI_MAIN_SELECTION;
+const getAutoBootstrapThreadModelSelection = (): ModelSelection => OZI_MAIN_SELECTION;
 
 interface AutoBootstrapWelcomeTargets {
   readonly bootstrapProjectId?: ProjectId;
   readonly bootstrapThreadId?: ThreadId;
 }
 
-export const autoPullProjects = Effect.fn("autoPullProjects")(function* (
-  projects: ReadonlyArray<Pick<Project, "id" | "workspaceRoot" | "autoPull">>,
-  settings = DEFAULT_SERVER_SETTINGS,
-) {
-  const git = yield* GitVcsDriver.GitVcsDriver;
-  const workspaceRoots = [
-    ...new Set(
-      projects
-        .filter((project) => resolveProjectSettings(settings, project.id).settings.defaultAutoPull)
-        .map((project) => project.workspaceRoot),
-    ),
-  ];
-
-  yield* Effect.forEach(
-    workspaceRoots,
-    (cwd) =>
-      Effect.gen(function* () {
-        const status = yield* git.statusDetails(cwd);
-        if (
-          !status.isRepo ||
-          !status.isDefaultBranch ||
-          !status.hasUpstream ||
-          status.hasWorkingTreeChanges ||
-          status.aheadCount > 0
-        ) {
-          yield* Effect.logDebug("Skipped automatic project pull", {
-            cwd,
-            reason: !status.isRepo
-              ? "not-a-repository"
-              : !status.isDefaultBranch
-                ? "not-on-default-branch"
-                : !status.hasUpstream
-                  ? "no-upstream"
-                  : status.hasWorkingTreeChanges
-                    ? "working-tree-changes"
-                    : "local-commits",
-          });
-          return;
-        }
-
-        if (status.behindCount <= 0) return;
-
-        const result = yield* git.pullCurrentBranch(cwd);
-        yield* Effect.logDebug("Automatic project pull completed", {
-          cwd,
-          status: result.status,
-          refName: result.refName,
-        });
-      }).pipe(
-        Effect.catch((cause) =>
-          Effect.logWarning("Automatic project pull failed", {
-            cwd,
-            cause,
-          }),
-        ),
-      ),
-    { concurrency: 4, discard: true },
-  );
-});
-
-export const resolveWelcomeBase = Effect.gen(function* () {
+const resolveWelcomeBase = Effect.gen(function* () {
   const serverConfig = yield* ServerConfig.ServerConfig;
   const segments = serverConfig.cwd.split(/[/\\]/).filter(Boolean);
   const projectName = segments[segments.length - 1] ?? "project";
@@ -265,7 +164,6 @@ const resolveAutoBootstrapWelcomeTargets = Effect.gen(function* () {
   const serverConfig = yield* ServerConfig.ServerConfig;
   const projects = yield* ProjectService.ProjectService;
   const threads = yield* ThreadManagement.ThreadManagementService;
-  const threadLaunch = yield* ThreadLaunch.ThreadLaunchService;
   const path = yield* Path.Path;
 
   const fsOption = yield* Effect.serviceOption(FileSystem.FileSystem);
@@ -284,7 +182,8 @@ const resolveAutoBootstrapWelcomeTargets = Effect.gen(function* () {
   });
   const shell = yield* threads.getShellSnapshot();
   if (!shell.threads.some((thread) => thread.id === OZI_MAIN_THREAD_ID)) {
-    yield* threadLaunch.launch({
+    yield* threads.dispatch({
+      type: "thread.create",
       commandId: CommandId.make(yield* randomUUID),
       threadId: OZI_MAIN_THREAD_ID,
       projectId: project.id,
@@ -292,7 +191,8 @@ const resolveAutoBootstrapWelcomeTargets = Effect.gen(function* () {
       modelSelection: getAutoBootstrapThreadModelSelection(),
       interactionMode: "default",
       runtimeMode: "full-access",
-      workspaceStrategy: { type: "root" },
+      branch: null,
+      worktreePath: null,
       createdBy: "system",
       creationSource: "server",
     });
@@ -352,19 +252,19 @@ const resolveStartupBrowserTarget = Effect.gen(function* () {
  */
 const encodeStartupAccess = Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown));
 
-export const announceStartupPairingUrl = (pairingUrl: string) =>
-  Effect.logInfo("Authentication required. Open T3 Code using the pairing URL.").pipe(
+const announceStartupPairingUrl = (pairingUrl: string) =>
+  Effect.logInfo("Authentication required. Open Ozi using the pairing URL.").pipe(
     // Indented to match the annotation line the pretty logger printed before.
     Effect.andThen(Console.log(`  pairingUrl: ${pairingUrl}`)),
   );
 
 // No URL here: the browser target carries the pairing token, which
 // announceStartupPairingUrl has already printed to stdout.
-export const logBrowserAutoOpenUnavailable = Effect.logInfo("browser auto-open unavailable", {
+const logBrowserAutoOpenUnavailable = Effect.logInfo("browser auto-open unavailable", {
   hint: "Open the pairing URL above in your browser.",
 });
 
-export const maybeOpenBrowser = Effect.fn("serverRuntimeStartup.maybeOpenBrowser")(function* (
+const maybeOpenBrowser = Effect.fn("serverRuntimeStartup.maybeOpenBrowser")(function* (
   target: string,
 ) {
   const serverConfig = yield* ServerConfig.ServerConfig;
@@ -395,7 +295,7 @@ interface StartupOptions {
   readonly abort?: (error: ServerRuntimeStartupError) => Effect.Effect<void>;
 }
 
-export const startEffectWorker = Effect.fn("ServerRuntimeStartup.startEffectWorker")(function* <
+const startEffectWorker = Effect.fn("ServerRuntimeStartup.startEffectWorker")(function* <
   WorkerContext,
 >(input: {
   readonly runWorker: Effect.Effect<void, never, WorkerContext>;
@@ -405,36 +305,36 @@ export const startEffectWorker = Effect.fn("ServerRuntimeStartup.startEffectWork
   yield* Ref.set(input.workerFiberRef, workerFiber);
 });
 
-export const runOrderedV2StartupPhases = Effect.fn(
-  "serverRuntimeStartup.runOrderedV2StartupPhases",
-)(function* <
-  Import,
-  Recovery,
-  Bootstrap,
-  ImportError,
-  RecoveryError,
-  DelegationError,
-  WorkerError,
-  BootstrapError,
-  ImportContext,
-  RecoveryContext,
-  DelegationContext,
-  WorkerContext,
-  BootstrapContext,
->(input: {
-  readonly importLegacyShells: Effect.Effect<Import, ImportError, ImportContext>;
-  readonly recover: Effect.Effect<Recovery, RecoveryError, RecoveryContext>;
-  readonly recoverDelegatedTasks: Effect.Effect<void, DelegationError, DelegationContext>;
-  readonly startEffectWorker: Effect.Effect<void, WorkerError, WorkerContext>;
-  readonly autoBootstrap: Effect.Effect<Bootstrap, BootstrapError, BootstrapContext>;
-}) {
-  yield* input.importLegacyShells;
-  const recovery = yield* input.recover;
-  yield* input.recoverDelegatedTasks;
-  yield* input.startEffectWorker;
-  const bootstrap = yield* input.autoBootstrap;
-  return { recovery, bootstrap } as const;
-});
+const runOrderedV2StartupPhases = Effect.fn("serverRuntimeStartup.runOrderedV2StartupPhases")(
+  function* <
+    Import,
+    Recovery,
+    Bootstrap,
+    ImportError,
+    RecoveryError,
+    DelegationError,
+    WorkerError,
+    BootstrapError,
+    ImportContext,
+    RecoveryContext,
+    DelegationContext,
+    WorkerContext,
+    BootstrapContext,
+  >(input: {
+    readonly importLegacyShells: Effect.Effect<Import, ImportError, ImportContext>;
+    readonly recover: Effect.Effect<Recovery, RecoveryError, RecoveryContext>;
+    readonly recoverDelegatedTasks: Effect.Effect<void, DelegationError, DelegationContext>;
+    readonly startEffectWorker: Effect.Effect<void, WorkerError, WorkerContext>;
+    readonly autoBootstrap: Effect.Effect<Bootstrap, BootstrapError, BootstrapContext>;
+  }) {
+    yield* input.importLegacyShells;
+    const recovery = yield* input.recover;
+    yield* input.recoverDelegatedTasks;
+    yield* input.startEffectWorker;
+    const bootstrap = yield* input.autoBootstrap;
+    return { recovery, bootstrap } as const;
+  },
+);
 
 const make = Effect.fn("serverRuntimeStartup.make")(function* (options?: StartupOptions) {
   const serverConfig = yield* ServerConfig.ServerConfig;
@@ -447,7 +347,6 @@ const make = Effect.fn("serverRuntimeStartup.make")(function* (options?: Startup
   const serverSettings = yield* ServerSettings.ServerSettingsService;
   const serverEnvironment = yield* ServerEnvironment.ServerEnvironment;
   const crypto = yield* Crypto.Crypto;
-  const launcher = yield* ServiceLauncherClient.ServiceLauncherClient;
 
   const commandGate = yield* makeCommandGate;
   const httpListening = yield* Deferred.make<void>();
@@ -554,21 +453,6 @@ const make = Effect.fn("serverRuntimeStartup.make")(function* (options?: Startup
       ),
     });
     yield* Effect.logInfo("V2 orchestration recovery completed", recovery);
-    // Runs after activation: the status check fetches every enabled project's
-    // remote, and awaiting it here held command readiness for that long.
-    yield* runStartupPhase(
-      "projects.auto-pull",
-      Effect.gen(function* () {
-        const projects = yield* (yield* ProjectStore.ProjectStoreV2).listShells();
-        const settings = yield* serverSettings.getSettings;
-        yield* autoPullProjects(projects, settings);
-      }),
-    ).pipe(
-      Effect.catch((cause) =>
-        Effect.logWarning("Failed to load projects for automatic pull", { cause }),
-      ),
-      forkParked,
-    );
 
     const importPendingTranscripts = legacyV1ThreadImporter.importPendingTranscripts.pipe(
       Effect.tap((summary) =>
@@ -597,12 +481,6 @@ const make = Effect.fn("serverRuntimeStartup.make")(function* (options?: Startup
     yield* forkParked(
       Effect.gen(function* () {
         yield* Effect.logDebug("startup phase: recording startup heartbeat");
-        yield* recordStartupHeartbeat.pipe(
-          Effect.withSpan("server.startup.heartbeat.record", {
-            attributes: { "startup.phase": "heartbeat.record" },
-          }),
-          Effect.ignoreCause({ log: true }),
-        );
         if (serverConfig.startupPresentation === "headless") {
           yield* Effect.logDebug("startup phase: headless access info");
           const accessInfo = yield* issueHeadlessServeAccessInfo();
@@ -628,8 +506,6 @@ const make = Effect.fn("serverRuntimeStartup.make")(function* (options?: Startup
     yield* Effect.logDebug("startup phase: waiting for http listener");
     yield* runStartupPhase("http.wait", Deferred.await(httpListening));
     yield* runStartupPhase("auxiliary-roots.parked", options?.awaitAuxiliaryParked ?? Effect.void);
-
-    const updateOutcome = yield* launcher.prepareTrial;
 
     yield* Effect.logDebug("startup phase: publishing welcome event", {
       environmentId: environment.environmentId,
@@ -663,7 +539,6 @@ const make = Effect.fn("serverRuntimeStartup.make")(function* (options?: Startup
         payload: {
           at: DateTime.formatIso(yield* DateTime.now),
           environment,
-          ...(updateOutcome === undefined ? {} : { updateOutcome }),
         },
       }),
     );

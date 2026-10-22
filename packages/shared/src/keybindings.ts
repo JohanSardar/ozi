@@ -94,7 +94,7 @@ export function shortcutKeyFromEvent(event: Pick<ShortcutEventLike, "key" | "cod
   return physicalKey ?? layoutKey;
 }
 
-export function resolveEventKeys(event: ShortcutEventLike): Set<string> {
+function resolveEventKeys(event: ShortcutEventLike): Set<string> {
   const layoutKey = normalizeEventKey(event.key);
   const keys = new Set([layoutKey]);
   const letterCode = event.code?.match(/^Key([A-Z])$/)?.[1];
@@ -105,7 +105,7 @@ export function resolveEventKeys(event: ShortcutEventLike): Set<string> {
   return keys;
 }
 
-export function matchesKeybindingShortcutModifiers(
+function matchesKeybindingShortcutModifiers(
   event: ShortcutModifierStateLike,
   shortcut: KeybindingShortcut,
   platform: string,
@@ -146,19 +146,14 @@ type WhenToken =
 
 export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
   { key: "mod+b", command: "sidebar.toggle" },
-  { key: "mod+[", command: "navigation.back", when: "!terminalFocus" },
-  { key: "mod+]", command: "navigation.forward", when: "!terminalFocus" },
-  { key: "mod+j", command: "terminal.toggle" },
+  { key: "mod+[", command: "navigation.back" },
+  { key: "mod+]", command: "navigation.forward" },
   { key: "mod+alt+b", command: "rightPanel.toggle" },
-  { key: "mod+shift+b", command: "threadPanel.toggle", when: "!terminalFocus" },
-  { key: "mod+t", command: "rightPanel.new", when: "rightPanelOpen && !terminalFocus" },
-  { key: "mod+d", command: "terminal.split", when: "terminalFocus" },
-  { key: "mod+shift+d", command: "terminal.splitVertical", when: "terminalFocus" },
-  { key: "mod+n", command: "terminal.new", when: "terminalFocus" },
-  { key: "mod+w", command: "terminal.close", when: "terminalFocus" },
-  { key: "mod+w", command: "rightPanel.close", when: "!terminalFocus" },
+  { key: "mod+shift+b", command: "threadPanel.toggle" },
+  { key: "mod+t", command: "rightPanel.new", when: "rightPanelOpen" },
+  { key: "mod+w", command: "rightPanel.close" },
   { key: "mod+shift+t", command: "view.reopenClosed" },
-  { key: "mod+d", command: "diff.toggle", when: "!terminalFocus" },
+  { key: "mod+d", command: "diff.toggle" },
   { key: "mod+shift+j", command: "preview.toggle" },
   { key: "mod+r", command: "preview.refresh", when: "previewFocus" },
   { key: "mod+l", command: "preview.focusUrl", when: "previewFocus" },
@@ -166,15 +161,15 @@ export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
   { key: "mod++", command: "preview.zoomIn", when: "previewFocus" },
   { key: "mod+-", command: "preview.zoomOut", when: "previewFocus" },
   { key: "mod+0", command: "preview.resetZoom", when: "previewFocus" },
-  { key: "mod+k", command: "commandPalette.toggle", when: "!terminalFocus" },
-  { key: "mod+p", command: "filePicker.toggle", when: "!terminalFocus" },
-  { key: "mod+shift+f", command: "projectSearch.toggle", when: "!terminalFocus" },
-  { key: "mod+u", command: "usage.open", when: "!terminalFocus" },
-  { key: "mod+alt+a", command: "theme.select", when: "!terminalFocus" },
-  { key: "mod+alt+shift+a", command: "appearance.cycle", when: "!terminalFocus" },
+  { key: "mod+k", command: "commandPalette.toggle" },
+  { key: "mod+p", command: "filePicker.toggle" },
+  { key: "mod+shift+f", command: "projectSearch.toggle" },
+  { key: "mod+u", command: "usage.open" },
+  { key: "mod+alt+a", command: "theme.select" },
+  { key: "mod+alt+shift+a", command: "appearance.cycle" },
   { key: "mod+alt+shift+t", command: "themeEditor.toggle" },
-  { key: "mod+s", command: "composer.stash", when: "!terminalFocus" },
-  { key: "mod+shift+enter", command: "thread.steerQueuedMessage", when: "!terminalFocus" },
+  { key: "mod+s", command: "composer.stash" },
+  { key: "mod+shift+enter", command: "thread.steerQueuedMessage" },
   { key: "alt+arrowup", command: "thread.editQueuedMessage", when: "composerFocus" },
   { key: "mod+enter", command: "composer.sendAlternate", when: "composerFocus && turnRunning" },
   {
@@ -192,28 +187,27 @@ export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
     command: "composer.sendAndNewThread",
     when: "composerFocus && !draftThreadRoute",
   },
-  { key: "mod+n", command: "chat.new", when: "!terminalFocus" },
-  { key: "mod+shift+o", command: "chat.new", when: "!terminalFocus" },
-  { key: "mod+shift+n", command: "chat.newLocal", when: "!terminalFocus" },
-  { key: "mod+alt+n", command: "chat.newWithoutProject", when: "!terminalFocus" },
-  { key: "mod+f", command: "chat.find", when: "!terminalFocus && !previewFocus" },
-  { key: "mod+shift+m", command: "modelPicker.toggle", when: "!terminalFocus" },
-  { key: "mod+shift+h", command: "composer.host", when: "!terminalFocus" },
-  { key: "mod+shift+e", command: "composer.effort", when: "!terminalFocus" },
-  { key: "mod+shift+a", command: "composer.mode", when: "!terminalFocus" },
-  { key: "mod+shift+x", command: "composer.workspace", when: "!terminalFocus" },
-  { key: "mod+shift+g", command: "composer.branch", when: "!terminalFocus" },
-  { key: "mod+shift+l", command: "composer.previousWorktree", when: "!terminalFocus" },
-  { key: "mod+shift+k", command: "pullRequest.copyNumber", when: "!terminalFocus" },
+  { key: "mod+n", command: "chat.new" },
+  { key: "mod+shift+o", command: "chat.new" },
+  { key: "mod+shift+n", command: "chat.newLocal" },
+  { key: "mod+alt+n", command: "chat.newWithoutProject" },
+  { key: "mod+f", command: "chat.find", when: "!previewFocus" },
+  { key: "mod+shift+m", command: "modelPicker.toggle" },
+  { key: "mod+shift+h", command: "composer.host" },
+  { key: "mod+shift+e", command: "composer.effort" },
+  { key: "mod+shift+a", command: "composer.mode" },
+  { key: "mod+shift+x", command: "composer.workspace" },
+  { key: "mod+shift+g", command: "composer.branch" },
+  { key: "mod+shift+l", command: "composer.previousWorktree" },
   { key: "mod+shift+arrowup", command: "modelPicker.previousProvider", when: "modelPickerOpen" },
   { key: "mod+shift+arrowdown", command: "modelPicker.nextProvider", when: "modelPickerOpen" },
   { key: "mod+o", command: "editor.openFavorite" },
   { key: "mod+shift+[", command: "thread.previous" },
   { key: "mod+shift+]", command: "thread.next" },
-  { key: "mod+shift+c", command: "thread.copyReference", when: "!terminalFocus" },
-  { key: "mod+shift+s", command: "thread.settle", when: "!terminalFocus" },
-  { key: "mod+shift+p", command: "thread.pin", when: "!terminalFocus" },
-  { key: "mod+z", command: "thread.undo", when: "!terminalFocus && !editableFocus" },
+  { key: "mod+shift+c", command: "thread.copyReference" },
+  { key: "mod+shift+s", command: "thread.settle" },
+  { key: "mod+shift+p", command: "thread.pin" },
+  { key: "mod+z", command: "thread.undo", when: "!editableFocus" },
   ...THREAD_JUMP_KEYBINDING_COMMANDS.map((command, index) => ({
     key: `mod+${index + 1}`,
     command,

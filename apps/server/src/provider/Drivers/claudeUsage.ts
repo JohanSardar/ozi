@@ -16,11 +16,11 @@ import * as HostProcess from "@t3tools/shared/HostProcess";
 export const CLAUDE_SYNTHETIC_MODEL = "<synthetic>";
 
 /**
- * T3 Code writes one record per assistant *content block*, and every one of those records repeats
+ * Ozi writes one record per assistant *content block*, and every one of those records repeats
  * the same complete `usage` object for the parent message. Summing them overcounts by roughly
  * 2.4x on a real workload, so the caller must drop repeats by `dedupeKey` and keep the first.
  */
-export function parseClaudeLine(line: string): UsageRecord | null {
+function parseClaudeLine(line: string): UsageRecord | null {
   let parsed: unknown;
   try {
     parsed = JSON.parse(line);
@@ -79,7 +79,7 @@ function parseClaudeRecord(parsed: unknown): UsageRecord | null {
 const orEmpty = (record: UsageRecord | null): readonly UsageRecord[] =>
   record === null ? [] : [record];
 
-export const claudeUsageFormat: TranscriptUsageFormat<void> = {
+const claudeUsageFormat: TranscriptUsageFormat<void> = {
   selectFields: {
     type: true,
     timestamp: true,

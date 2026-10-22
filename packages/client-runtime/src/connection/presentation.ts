@@ -1,10 +1,3 @@
-import type { ServerConfig } from "@t3tools/contracts";
-import * as Option from "effect/Option";
-
-import type { ConnectionCatalogEntry } from "./catalog.ts";
-import type { ConnectionTarget, SupervisorConnectionState } from "./model.ts";
-import { connectionRouteId, connectionRoutes, routeHttpBaseUrl } from "./routes.ts";
-
 export type EnvironmentConnectionPhase =
   | "available"
   | "offline"
@@ -13,12 +6,17 @@ export type EnvironmentConnectionPhase =
   | "connected"
   | "error"
   | "unsupported";
-
 export interface EnvironmentConnectionPresentation {
   readonly phase: EnvironmentConnectionPhase;
   readonly error: string | null;
   readonly traceId: string | null;
 }
+import type { ServerConfig } from "@t3tools/contracts";
+import * as Option from "effect/Option";
+
+import type { ConnectionCatalogEntry } from "./catalog.ts";
+import type { ConnectionTarget, SupervisorConnectionState } from "./model.ts";
+import { connectionRouteId, connectionRoutes, routeHttpBaseUrl } from "./routes.ts";
 
 /**
  * Provider statuses are pushed every few minutes with fresh `checkedAt` stamps, and every root
@@ -33,7 +31,7 @@ export interface EnvironmentPresentation {
   readonly serverConfig: EnvironmentServerConfig | null;
 }
 
-export function presentConnectionState(
+function presentConnectionState(
   state: SupervisorConnectionState,
 ): EnvironmentConnectionPresentation {
   switch (state.phase) {
@@ -106,7 +104,6 @@ export function presentEnvironmentConnection(
  */
 export function environmentMcpUrl(input: {
   readonly entry: ConnectionCatalogEntry;
-  readonly relayHttpBaseUrl?: string | undefined;
   readonly connectedTarget?: ConnectionTarget | null | undefined;
 }): string | null {
   const connectedRouteId = input.connectedTarget ? connectionRouteId(input.connectedTarget) : null;
@@ -115,10 +112,7 @@ export function environmentMcpUrl(input: {
     (route) => connectionRouteId(route.target) === connectedRouteId,
   );
   for (const route of connectedRoute ? [connectedRoute, ...routes] : routes) {
-    const httpBaseUrl =
-      route.target._tag === "RelayConnectionTarget"
-        ? (input.relayHttpBaseUrl ?? null)
-        : routeHttpBaseUrl(route);
+    const httpBaseUrl = routeHttpBaseUrl(route);
     const mcpUrl = httpBaseUrl === null ? null : mcpUrlFromBase(httpBaseUrl);
     if (mcpUrl !== null) return mcpUrl;
   }
@@ -142,8 +136,6 @@ export function connectionCatalogDisplayUrl(entry: ConnectionCatalogEntry): stri
   switch (entry.target._tag) {
     case "PrimaryConnectionTarget":
       return entry.target.httpBaseUrl;
-    case "RelayConnectionTarget":
-      return null;
     case "BearerConnectionTarget":
       return Option.isSome(entry.profile) && entry.profile.value._tag === "BearerConnectionProfile"
         ? entry.profile.value.httpBaseUrl

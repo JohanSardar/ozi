@@ -91,9 +91,9 @@ Cases freeze the original message, native prefix, attachment bytes, expectation 
 
 ## Retained surface
 
-Device and simulator support is removed, including its RPC methods, MCP tools, settings, models and tool downloads. Shared browser streaming remains.
+Device and simulator support is removed, including its RPC methods, MCP tools, settings, models and tool downloads. Shared browser streaming remains. Terminal sessions, their RPC streams, project setup terminals and sign-in terminal rendering are removed. Desktop and server self-update RPCs, update feeds, IPC and controls are removed. Resource monitoring, product analytics and power/activity reporting are removed. macOS packaging has no Rust prerequisite; Linux capture helpers retain their Rust builds. T3 deployment infrastructure and vendored Alchemy references are removed. The T3 welcome wizard and its stored completion marker are removed; provider setup remains in Settings. CLI Proxy quota hubs, their settings, polling, streams and removed quota UI are removed. Native provider usage reporting remains. All product labels and desktop identifiers use Ozi. Desktop and web share the neutral blue icon; package names remain internal.
 
-Only Pi, Claude and Codex providers and desktop and web clients ship. Provider registration, models, settings, usage, packaging and relay APIs follow this boundary.
+Only Pi, Claude and Codex providers and desktop and web clients ship. Provider registration, models, settings, usage and packaging follow this boundary. T3 Connect, cloud accounts, tunnels, relay discovery and signed cloud proofs are removed. Remote pairing over direct network connections, SSH and Tailscale remains. Webhooks use the configured public URL directly. Removal migrations follow M6’s fixes schema.
 
 ### Desktop
 
@@ -103,7 +103,7 @@ Ozi shows one environment's main, jobs, to-dos, drawer and composer. Saved remot
 
 Main's environment sets `ENABLE_TOOL_SEARCH=false` so Claude Code adds no deferred-tool placeholder. The bridge is a runtime external in packaged servers.
 
-- Startup creates the sole main thread, `ozi-main`, rooted at `<home>/workspace`. Workers share a per-job scratch directory under `<home>/workspace/jobs/`; execution does not select a project or worktree. Legacy project storage remains for retained scheduler and coding APIs until their owning slices are removed.
+- Startup creates the sole main thread, `ozi-main`, rooted at `<home>/workspace`. Workers share a per-job scratch directory under `<home>/workspace/jobs/`; execution does not select a project or worktree. One internal workspace record remains for thread persistence and scheduling. It holds identity, root, model and timestamps; worktree defaults, setup scripts, auto-pull and project icons are removed from contracts, settings and SQLite. Project management, worktree launch, source control, pull requests and review APIs are removed. Worktree preparation commands, retries and launch schemas are removed; schedules use the installation workspace. Repository grouping and asynchronous git metadata enrichment are removed from shell projections.
 - Thread projections and shells expose `role: "main" | "main-fork" | "worker"` and `effectiveLoadout: {provider, model, options: [{id, value}], toolNames, systemPromptSha256}`. Tool names describe the injected MCP catalog; the hash covers the server-owned prompt. Main forks retain the restricted loadout with role `main-fork`.
 - Main selections are fixed on launch, resume and fork: Pi `claude-bridge/claude-opus-5-5`, `thinking: high`, `fastMode: false`. Inference uses the user's Claude subscription through the Claude Agent SDK, not Pi's Anthropic API or OAuth provider. `CLAUDE_CODE_DISABLE_FAST_MODE=1` applies to main's Pi process and its Claude Code children. Unavailable selections fail. Main cannot change workspace, provider or model, or archive/delete itself.
 - Pi main uses `--no-builtin-tools --no-mcp --no-extensions --no-skills --no-context-files --no-prompt-templates --system-prompt …` and explicit extensions for Ozi's MCP bridge and pinned `pi-claude-bridge@0.9.3`. The server owns main's Pi agent directory and bridge config: AskClaude disabled, strict MCP, auto memory off. A dependency patch sets the SDK's `settingSources: []`; the bridge sets `tools: []` and excludes Claude context files. Claude Code adds no built-in tools, user MCP servers, hooks, skills or CLAUDE.md. The model sees Ozi tools as `mcp__custom-tools__mcp__t3-code__<name>`. The server checks the role allowlist on tool calls and limits thread targets to main's own descendants.
@@ -114,7 +114,7 @@ Main's environment sets `ENABLE_TOOL_SEARCH=false` so Claude Code adds no deferr
 
 ## Desktop identity
 
-Ozi coexists with T3 Code. Desktop state and the bundled `ozi` shim live under `~/.ozi` or `OZI_HOME`; T3 environment variables and legacy profiles are never read or migrated. Electron uses `Ozi Beta`/`Ozi Dev`, profiles `ozi`/`ozi-dev`, app ID `com.ozi.app` (development `com.ozi.app.dev`) and schemes `ozi`/`ozi-dev`. Locks, safe storage, passkey groups, desktop entries, capture services, browser profiles, caches, update artifacts and WSL paths use Ozi's identity. Release channels use the Ozi app and configured Ozi update repository.
+Ozi coexists with T3 Code. Desktop state and the bundled `ozi` shim live under `~/.ozi` or `OZI_HOME`; T3 environment variables and legacy profiles are never read or migrated. Electron uses `Ozi Beta`/`Ozi Dev`, profiles `ozi`/`ozi-dev`, app ID `com.ozi.app` (development `com.ozi.app.dev`) and schemes `ozi`/`ozi-dev`. Locks, safe storage, passkey groups, desktop entries, capture services, browser profiles, caches and WSL paths use Ozi's identity.
 
 The bundled backend runs `ozi serve --bootstrap-fd 3`; WSL uses `serve --bootstrap-fd 0`. Bootstrap data travels through the descriptor. Settings → Connections accepts an Ozi server's pairing URL, including when the local environment is disabled.
 
@@ -129,6 +129,7 @@ One binary, `ozi`. Every command takes `--json`. Command failures exit nonzero w
 | `ozi serve [--home] [--data-root] [--port] [--host] [--public-url]`             | Run the server.                                                                                        |
 | `ozi service install\|status\|restart\|uninstall`                               | systemd user service.                                                                                  |
 | `ozi pair`                                                                      | Pairing URL for a new client.                                                                          |
+| `ozi request <RPC-or-path>… [--method GET\|POST] [--payload JSON]`              | Send authenticated requests and report each RPC result or HTTP status.                                 |
 | `ozi status`                                                                    | Server, main thread, effective loadouts (model, options, tools, prompt hash), providers.               |
 | `ozi say <text> [--file <path>]…`                                               | Message main; queues when busy.                                                                        |
 | `ozi steer <text> [--thread <id>]`                                              | Steer the active turn.                                                                                 |
@@ -216,7 +217,7 @@ Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` 
 - `m4.webhook`: a signed POST wakes main; bad signature rejected; duplicate suppressed; filter applied.
 - `m4.base-url`: schedules report webhook URLs on the configured base URL.
 - `m4.todos`: external to-dos show labeled; offline/malformed source shows unavailable, not empty; no config hides them.
-- `m4.removed`: no relay, device, terminal, PR or diff paths remain.
+- `m4.removed`: the real server rejects all retired RPC methods and Connect routes, CLI commands are absent, and removed tracked package sources, paths and native resource-monitor bundling are gone. Ozi desktop metadata and macOS preflight have no T3 identity or Rust requirement.
 
 ### M5 Replay
 
@@ -236,5 +237,7 @@ Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` 
 - `m6.recurrence-undo`: the mistake recurring after a fix reverts it → `undone`.
 - `m6.edit-conflict`: a revert conflicting with a user edit keeps the pre-fix build and posts a blocker.
 - `m6.crash-publish`: real server crashes before journaling and at journal, file, git-head and confirmed-state boundaries of publish and undo recover a complete build with matching status; conflict recovery posts its blocker and retries create no duplicate activation. Each crash boundary is an independent E2E case with its own deadline.
-- `m6.audit`: no excluded T3 product paths, exports or dependencies remain. The desktop audit scans tracked desktop runtime and packaging source, shared desktop identity boundaries, and all source environment variables; notices, vendored references, tests and documentation are allowed. It builds the desktop bundle, checks local and WSL launch argv, starts the bundled server with isolated state beside a T3 sentinel, and pairs another server through Settings → Connections.
-- `m6.public-ready`: MIT notices for T3, Pi and Firstmate present; no personal data in the tree.
+- `m6.audit`: no excluded T3 product paths, exports or dependencies remain. Inherited unit, component and browser tests, fixtures, testkits and their exclusive dependencies are removed; tests live only in `e2e/`. Knip checks unused runtime files, exports and dependencies; dynamically loaded bridge and E2E entry points are explicit. E2E guards reject retired imports, capability flags, sidebar/diff settings, T3 product text, role preambles and comments in Ozi modules. Snooze commands, recovery settings and stored fields are removed; old snooze events migrate to metadata updates. Delegated briefs remain verbatim under the single worker role. Project preference overrides, their legacy fold and startup sweep are removed; provider and browser preferences apply to the server. The desktop audit scans tracked desktop runtime and packaging source, shared desktop identity boundaries, and all source environment variables; notices, vendored references, tests and documentation are allowed. It builds the desktop bundle, checks local and WSL launch argv, starts the bundled server with isolated state beside a T3 sentinel, and pairs another server through Settings → Connections.
+- `m6.public-ready`: T3 Code, Pi, Firstmate and pi-claude-bridge MIT notices, and Claude Code/Agent SDK terms are present in the repo and packaged notices. Public setup uses packaged defaults. Every tracked file is checked for personal home paths, emails, private network addresses, provider tokens and private keys; only vendored `.repos/` and license texts are exempt.
+
+Product descriptions and connection guidance use Ozi and self-hosted public URLs.

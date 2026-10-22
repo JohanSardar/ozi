@@ -91,7 +91,7 @@ export interface ContextHandoffServiceV2Shape {
 export class ContextHandoffServiceV2 extends Context.Service<
   ContextHandoffServiceV2,
   ContextHandoffServiceV2Shape
->()("t3/orchestration-v2/ContextHandoffService/ContextHandoffServiceV2") {}
+>()("ozi/orchestration-v2/ContextHandoffService/ContextHandoffServiceV2") {}
 
 function compactText(text: string, maxLength = 240): string {
   const compacted = text.replace(/\s+/g, " ").trim();
@@ -151,7 +151,7 @@ function makeLegacyImportSummary(items: ReadonlyArray<OrchestrationV2TurnItem>):
     }
   });
   const header =
-    "Imported conversation history from the previous T3 Code orchestrator. Use it as context; do not repeat it unless the user asks.";
+    "Imported conversation history from the previous Ozi orchestrator. Use it as context; do not repeat it unless the user asks.";
   const maxChars = 32_000;
   const selected: Array<string> = [];
   let remaining = maxChars - header.length - 2;
@@ -198,30 +198,6 @@ function makeLegacyImportSummary(items: ReadonlyArray<OrchestrationV2TurnItem>):
     remaining -= suffix.length + 2;
   }
   return [header, ...selected].join("\n\n");
-}
-
-export function providerMessageWithContextHandoff(input: {
-  readonly handoff: OrchestrationV2ContextHandoff;
-  readonly userText: string;
-}): string {
-  return providerMessageWithContextHandoffs({
-    handoffs: [input.handoff],
-    userText: input.userText,
-  });
-}
-
-function providerMessageWithContextHandoffs(input: {
-  readonly handoffs: ReadonlyArray<OrchestrationV2ContextHandoff>;
-  readonly userText: string;
-}): string {
-  const handoffSections = input.handoffs.flatMap((handoff) => {
-    const label =
-      handoff.strategy === "fork_delta_summary"
-        ? "merge_back / fork_delta_summary"
-        : handoff.strategy;
-    return [`Context handoff (${label}):`, handoff.summaryText, ""];
-  });
-  return [...handoffSections, "User message:", input.userText].join("\n");
 }
 
 const makeContextHandoffService = Effect.fn("orchestrationV2.ContextHandoffService.layer")(

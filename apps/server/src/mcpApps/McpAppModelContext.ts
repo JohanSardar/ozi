@@ -35,7 +35,7 @@ export class McpAppModelContext extends Context.Service<
       threadId: ThreadId,
     ) => Effect.Effect<ReadonlyArray<McpAppModelContextEntry>, McpAppModelContextError>;
   }
->()("t3/mcpApps/McpAppModelContext") {}
+>()("ozi/mcpApps/McpAppModelContext") {}
 
 export const layer = Layer.effect(
   McpAppModelContext,
@@ -88,9 +88,4 @@ export const layer = Layer.effect(
 
     return McpAppModelContext.of({ set, forThread });
   }),
-);
-
-export const layerEmpty = Layer.succeed(
-  McpAppModelContext,
-  McpAppModelContext.of({ set: () => Effect.void, forThread: () => Effect.succeed([]) }),
 );

@@ -1,10 +1,7 @@
-import "vite-plus/test/config";
 import { defineConfig, mergeConfig } from "vite-plus";
 
 import baseConfig from "../../vite.config.ts";
-import { loadRepoEnv } from "../../scripts/lib/public-config.ts";
 import packageJson from "./package.json" with { type: "json" };
-import { WeightedShardSequencer } from "./src/testUtils/weightedShardSequencer.ts";
 
 // NSIS install time tracks file count, not bytes.
 import {
@@ -13,21 +10,9 @@ import {
 } from "../../scripts/lib/cli-external-packages.ts";
 
 export { shouldBundleCliDependency };
-
-const repoEnv = loadRepoEnv();
 const cliBuildChannel = /^[^-+]+-(?:nightly|preview)\./.test(packageJson.version)
   ? "nightly"
   : "latest";
-// Sent with every analytics event. Release workflows set it for pingdotgg/t3code
-// builds only, so local builds and forks report "dev". A typo fails the build
-// instead of mislabeling events.
-const TELEMETRY_CHANNELS = ["stable", "nightly", "preview", "dev"];
-const telemetryChannel = process.env.OZI_TELEMETRY_CHANNEL?.trim() || "dev";
-if (!TELEMETRY_CHANNELS.includes(telemetryChannel)) {
-  throw new Error(
-    `OZI_TELEMETRY_CHANNEL must be one of ${TELEMETRY_CHANNELS.join(", ")}, got "${telemetryChannel}".`,
-  );
-}
 
 // `build:exe` wraps the same bundle in a Node single-executable. tsdown's exe
 // step refuses multi-chunk output and counts the sourcemap as a chunk, and the
@@ -80,7 +65,7 @@ export default mergeConfig(
       ...(packExecutable
         ? {
             exe: {
-              fileName: "t3",
+              fileName: "ozi",
               outDir: "dist-exe",
               ...(packExecutableTargets ? { targets: packExecutableTargets } : {}),
               // Node's SEA docs: `import()` does not work when useCodeCache is
@@ -103,34 +88,7 @@ export default mergeConfig(
       },
       define: {
         __OZI_BUILD_CHANNEL__: JSON.stringify(cliBuildChannel),
-        __OZI_TELEMETRY_CHANNEL__: JSON.stringify(telemetryChannel),
-        __OZI_BUILD_RELAY_URL__: JSON.stringify(repoEnv.OZI_RELAY_URL?.trim() ?? ""),
-        __OZI_BUILD_CLERK_PUBLISHABLE_KEY__: JSON.stringify(
-          repoEnv.OZI_CLERK_PUBLISHABLE_KEY?.trim() ?? "",
-        ),
-        __OZI_BUILD_CLERK_CLI_OAUTH_CLIENT_ID__: JSON.stringify(
-          repoEnv.OZI_CLERK_CLI_OAUTH_CLIENT_ID?.trim() ?? "",
-        ),
-        __OZI_BUILD_RELAY_CLIENT_OTLP_TRACES_URL__: JSON.stringify(
-          repoEnv.OZI_RELAY_CLIENT_OTLP_TRACES_URL?.trim() ?? "",
-        ),
-        __OZI_BUILD_RELAY_CLIENT_OTLP_TRACES_DATASET__: JSON.stringify(
-          repoEnv.OZI_RELAY_CLIENT_OTLP_TRACES_DATASET?.trim() ?? "",
-        ),
-        __OZI_BUILD_RELAY_CLIENT_OTLP_TRACES_TOKEN__: JSON.stringify(
-          repoEnv.OZI_RELAY_CLIENT_OTLP_TRACES_TOKEN?.trim() ?? "",
-        ),
       },
-    },
-    test: {
-      // The server suite exercises sqlite, git, temp worktrees, and orchestration
-      // runtimes heavily. Running files in parallel introduces load-sensitive flakes.
-      fileParallelism: false,
-      sequence: { sequencer: WeightedShardSequencer },
-      // Appended to the root setup, which mergeConfig concatenates.
-      setupFiles: ["./src/testUtils/gitConfig.setup.ts"],
-      hookTimeout: 120_000,
-      testTimeout: 120_000,
     },
   }),
 );

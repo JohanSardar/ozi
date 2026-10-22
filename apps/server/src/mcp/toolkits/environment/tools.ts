@@ -1,6 +1,4 @@
 import {
-  BackgroundActivityProfile,
-  BackgroundActivityProfileSelection,
   ExecutionEnvironmentDescriptor,
   OrchestratorMcpFailure,
   ServerSettings,
@@ -15,16 +13,7 @@ import * as Settings from "../../../serverSettings.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 
 const PreferenceFields = {
-  defaultThreadEnvMode: ServerSettings.fields.defaultThreadEnvMode,
-  newWorktreesStartFromOrigin: ServerSettings.fields.newWorktreesStartFromOrigin,
   enableProviderUpdateChecks: ServerSettings.fields.enableProviderUpdateChecks,
-  backgroundActivity: Schema.Struct({ profile: BackgroundActivityProfileSelection }),
-  sourceControlWritingStyle: Schema.Struct({
-    mode: Schema.String,
-    followChangeRequestTemplates: Schema.Boolean,
-    customInstructions: Schema.String,
-    truncated: Schema.Boolean,
-  }),
 };
 const shared = {
   failure: OrchestratorMcpFailure,
@@ -56,11 +45,7 @@ const EnvironmentPreferencesTool = Tool.make("t3_environment_preferences_update"
   description:
     "Update selected environment-wide preferences through normal settings persistence and notifications. Requires a live full-access/default calling thread. Omitted fields are preserved; empty customInstructions clears them.",
   parameters: Schema.Struct({
-    defaultThreadEnvMode: ServerSettingsPatch.fields.defaultThreadEnvMode,
-    newWorktreesStartFromOrigin: ServerSettingsPatch.fields.newWorktreesStartFromOrigin,
     enableProviderUpdateChecks: ServerSettingsPatch.fields.enableProviderUpdateChecks,
-    backgroundActivity: Schema.optionalKey(Schema.Struct({ profile: BackgroundActivityProfile })),
-    sourceControlWritingStyle: ServerSettingsPatch.fields.sourceControlWritingStyle,
   }),
   success: Schema.Struct(PreferenceFields),
 }).annotate(Tool.Destructive, true);

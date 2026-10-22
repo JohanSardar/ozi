@@ -1,8 +1,8 @@
-export const BUILT_IN_THEME_IDS = ["t3-chat", "grove", "ocean", "ember", "iris"] as const;
+const BUILT_IN_THEME_IDS = ["t3-chat", "grove", "ocean", "ember", "iris"] as const;
 
-export const MOBILE_DEFAULT_THEME_ID = "t3-code";
+const MOBILE_DEFAULT_THEME_ID = "t3-code";
 
-export const MOBILE_THEME_IDS = [MOBILE_DEFAULT_THEME_ID, ...BUILT_IN_THEME_IDS] as const;
+const MOBILE_THEME_IDS = [MOBILE_DEFAULT_THEME_ID, ...BUILT_IN_THEME_IDS] as const;
 
 /**
  * Ids a theme may not take: the appearance keywords a stored preference uses,
@@ -93,12 +93,6 @@ export const THEME_COLOR_ROLES = [
   "sidebarRowActive",
   "sidebarRowSelected",
   "sidebarBorder",
-  "terminalBackground",
-  "terminalForeground",
-  "terminalCursor",
-  "terminalSelection",
-  "terminalScrollbar",
-  "terminalScrollbarHover",
 ] as const;
 
 export type ThemeColorRole = (typeof THEME_COLOR_ROLES)[number];
@@ -171,12 +165,6 @@ export const T3_CODE_LIGHT_THEME_COLORS: ThemeColors = {
   sidebarRowActive: "#ffffff",
   sidebarRowSelected: "#ffffff",
   sidebarBorder: "#e4e4e7",
-  terminalBackground: "#fcfcfc",
-  terminalForeground: "#27272a",
-  terminalCursor: "#26384e",
-  terminalSelection: "#d0d6dd",
-  terminalScrollbar: "#d6d6d6",
-  terminalScrollbarHover: "#bdbdbd",
 };
 
 export const T3_CODE_DARK_THEME_COLORS: ThemeColors = {
@@ -235,17 +223,11 @@ export const T3_CODE_DARK_THEME_COLORS: ThemeColors = {
   sidebarRowActive: "#1a1b1b",
   sidebarRowSelected: "#111111",
   sidebarBorder: "#141414",
-  terminalBackground: "#0a0a0a",
-  terminalForeground: "#f5f5f5",
-  terminalCursor: "#b4cbff",
-  terminalSelection: "#343a47",
-  terminalScrollbar: "#222222",
-  terminalScrollbarHover: "#363636",
 };
 
 export const T3_CHAT_THEME: ThemeDefinition = {
   id: "t3-chat",
-  label: "T3 Chat",
+  label: "Ozi Chat",
   appearance: "light",
   colors: {
     canvas: "oklch(0.982446 0.010114 325.653)",
@@ -303,12 +285,6 @@ export const T3_CHAT_THEME: ThemeDefinition = {
     sidebarRowActive: "oklch(0.978851 0.001321 106.424)",
     sidebarRowSelected: "oklch(0.978851 0.001321 106.424)",
     sidebarBorder: "oklch(0.938313 0.002552 48.717)",
-    terminalBackground: "oklch(0.982446 0.010114 325.653)",
-    terminalForeground: "oklch(0.325698 0.116116 325.037)",
-    terminalCursor: "oklch(0.591646 0.217985 0.584)",
-    terminalSelection: "oklch(0.869588 0.06751 334.899)",
-    terminalScrollbar: "oklch(0.851713 0.055822 336.6)",
-    terminalScrollbarHover: "oklch(0.802407 0.090963 345.892)",
   },
   variants: {
     dark: {
@@ -367,18 +343,12 @@ export const T3_CHAT_THEME: ThemeDefinition = {
       sidebarRowActive: "oklch(0.23366 0.026081 338.196)",
       sidebarRowSelected: "oklch(0.23366 0.026081 338.196)",
       sidebarBorder: "oklch(0.269132 0.030766 351.067)",
-      terminalBackground: "oklch(0.22813 0.020366 307.469)",
-      terminalForeground: "oklch(0.980735 0.004092 301.426)",
-      terminalCursor: "oklch(0.591646 0.217985 0.584)",
-      terminalSelection: "oklch(0.313674 0.030572 310.061)",
-      terminalScrollbar: "oklch(0.266817 0.02897 344.461)",
-      terminalScrollbarHover: "oklch(0.360924 0.021469 316.83)",
     },
   },
   sidebarArtwork: true,
 };
 
-export const GROVE_THEME: ThemeDefinition = {
+const GROVE_THEME: ThemeDefinition = {
   id: "grove",
   label: "Grove",
   appearance: "light",
@@ -438,12 +408,6 @@ export const GROVE_THEME: ThemeDefinition = {
     sidebarRowActive: "oklch(0.85335 0.03597 165.158)",
     sidebarRowSelected: "oklch(0.836654 0.040284 165.149)",
     sidebarBorder: "oklch(0.860274 0.010287 168.339)",
-    terminalBackground: "oklch(0.972369 0.005497 157.15)",
-    terminalForeground: "oklch(0.222003 0.03479 328.979)",
-    terminalCursor: "oklch(0.523295 0.112292 158.089)",
-    terminalSelection: "oklch(0.891377 0.026164 164.929)",
-    terminalScrollbar: "oklch(0.824752 0.001392 294.641)",
-    terminalScrollbarHover: "oklch(0.755495 0.004415 318.776)",
   },
   variants: {
     dark: {
@@ -502,18 +466,12 @@ export const GROVE_THEME: ThemeDefinition = {
       sidebarRowActive: "oklch(0.41688 0.056069 159.165)",
       sidebarRowSelected: "oklch(0.437466 0.060406 158.958)",
       sidebarBorder: "oklch(0.569253 0.015933 167.062)",
-      terminalBackground: "oklch(0.260865 0.02152 162.75)",
-      terminalForeground: "oklch(0.990339 0.008411 325.64)",
-      terminalCursor: "oklch(0.796228 0.133058 157.319)",
-      terminalSelection: "oklch(0.464636 0.066083 158.72)",
-      terminalScrollbar: "oklch(0.594692 0.006862 176.022)",
-      terminalScrollbarHover: "oklch(0.687968 0.00354 193.55)",
     },
   },
   sidebarArtwork: true,
 };
 
-export const OCEAN_THEME: ThemeDefinition = {
+const OCEAN_THEME: ThemeDefinition = {
   id: "ocean",
   label: "Ocean",
   appearance: "light",
@@ -573,12 +531,6 @@ export const OCEAN_THEME: ThemeDefinition = {
     sidebarRowActive: "oklch(0.858363 0.033325 242.089)",
     sidebarRowSelected: "oklch(0.842113 0.037689 242.174)",
     sidebarBorder: "oklch(0.862823 0.011384 256.926)",
-    terminalBackground: "oklch(0.974199 0.002856 241.597)",
-    terminalForeground: "oklch(0.222003 0.03479 328.979)",
-    terminalCursor: "oklch(0.536684 0.120219 247.01)",
-    terminalSelection: "oklch(0.895373 0.023469 241.913)",
-    terminalScrollbar: "oklch(0.826271 0.006191 305.456)",
-    terminalScrollbarHover: "oklch(0.756866 0.008685 313.721)",
   },
   variants: {
     dark: {
@@ -637,18 +589,12 @@ export const OCEAN_THEME: ThemeDefinition = {
       sidebarRowActive: "oklch(0.393878 0.048778 244.179)",
       sidebarRowSelected: "oklch(0.413744 0.051943 243.848)",
       sidebarBorder: "oklch(0.55859 0.019001 256.223)",
-      terminalBackground: "oklch(0.242641 0.024125 250.573)",
-      terminalForeground: "oklch(0.990339 0.008411 325.64)",
-      terminalCursor: "oklch(0.758933 0.105833 241.548)",
-      terminalSelection: "oklch(0.439946 0.0561 243.479)",
-      terminalScrollbar: "oklch(0.58613 0.012959 267.22)",
-      terminalScrollbarHover: "oklch(0.681569 0.010909 276.465)",
     },
   },
   sidebarArtwork: true,
 };
 
-export const EMBER_THEME: ThemeDefinition = {
+const EMBER_THEME: ThemeDefinition = {
   id: "ember",
   label: "Ember",
   appearance: "light",
@@ -708,12 +654,6 @@ export const EMBER_THEME: ThemeDefinition = {
     sidebarRowActive: "oklch(0.863104 0.032855 48.586)",
     sidebarRowSelected: "oklch(0.84723 0.037292 48.403)",
     sidebarBorder: "oklch(0.865593 0.011154 35.246)",
-    terminalBackground: "oklch(0.976527 0.002685 60.725)",
-    terminalForeground: "oklch(0.222003 0.03479 328.979)",
-    terminalCursor: "oklch(0.552831 0.129438 44.656)",
-    terminalSelection: "oklch(0.899296 0.022939 49.163)",
-    terminalScrollbar: "oklch(0.828185 0.005884 349.533)",
-    terminalScrollbarHover: "oklch(0.758584 0.008423 341.16)",
   },
   variants: {
     dark: {
@@ -772,18 +712,12 @@ export const EMBER_THEME: ThemeDefinition = {
       sidebarRowActive: "oklch(0.396617 0.051353 50.201)",
       sidebarRowSelected: "oklch(0.416477 0.055442 50.489)",
       sidebarBorder: "oklch(0.560372 0.016998 36.179)",
-      terminalBackground: "oklch(0.245899 0.019144 42.044)",
-      terminalForeground: "oklch(0.990339 0.008411 325.64)",
-      terminalCursor: "oklch(0.762174 0.124117 52.082)",
-      terminalSelection: "oklch(0.442681 0.0608 50.795)",
-      terminalScrollbar: "oklch(0.587861 0.010463 20.444)",
-      terminalScrollbarHover: "oklch(0.682876 0.009156 9.796)",
     },
   },
   sidebarArtwork: true,
 };
 
-export const IRIS_THEME: ThemeDefinition = {
+const IRIS_THEME: ThemeDefinition = {
   id: "iris",
   label: "Iris",
   appearance: "light",
@@ -843,12 +777,6 @@ export const IRIS_THEME: ThemeDefinition = {
     sidebarRowActive: "oklch(0.85971 0.040501 299.36)",
     sidebarRowSelected: "oklch(0.843236 0.045818 299.198)",
     sidebarBorder: "oklch(0.864805 0.015938 305.371)",
-    terminalBackground: "oklch(0.976531 0.003855 303.226)",
-    terminalForeground: "oklch(0.222003 0.03479 328.979)",
-    terminalCursor: "oklch(0.525348 0.15373 294.176)",
-    terminalSelection: "oklch(0.897143 0.028558 299.758)",
-    terminalScrollbar: "oklch(0.828195 0.008526 318.858)",
-    terminalScrollbarHover: "oklch(0.758596 0.010892 321.538)",
   },
   variants: {
     dark: {
@@ -907,12 +835,6 @@ export const IRIS_THEME: ThemeDefinition = {
       sidebarRowActive: "oklch(0.355677 0.073167 294.217)",
       sidebarRowSelected: "oklch(0.372806 0.078525 294.203)",
       sidebarBorder: "oklch(0.545895 0.027522 299.871)",
-      terminalBackground: "oklch(0.225975 0.031062 293.741)",
-      terminalForeground: "oklch(0.990339 0.008411 325.64)",
-      terminalCursor: "oklch(0.671712 0.169136 293.929)",
-      terminalSelection: "oklch(0.395417 0.085554 294.182)",
-      terminalScrollbar: "oklch(0.578663 0.017888 302.229)",
-      terminalScrollbarHover: "oklch(0.676012 0.015271 305.433)",
     },
   },
   sidebarArtwork: true,
@@ -925,11 +847,3 @@ export const BUILT_IN_THEMES: ReadonlyArray<ThemeDefinition> = [
   EMBER_THEME,
   IRIS_THEME,
 ];
-
-export function getThemeColorsForAppearance(
-  theme: ThemeDefinition,
-  appearance: ThemeAppearance,
-): ThemeColors | null {
-  if (theme.appearance === appearance) return theme.colors;
-  return theme.variants?.[appearance] ?? null;
-}

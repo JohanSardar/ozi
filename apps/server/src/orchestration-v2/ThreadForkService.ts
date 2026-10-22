@@ -67,7 +67,7 @@ export interface ThreadForkServiceV2Shape {
 export class ThreadForkServiceV2 extends Context.Service<
   ThreadForkServiceV2,
   ThreadForkServiceV2Shape
->()("t3/orchestration-v2/ThreadForkService/ThreadForkServiceV2") {}
+>()("ozi/orchestration-v2/ThreadForkService/ThreadForkServiceV2") {}
 
 export const layer: Layer.Layer<ThreadForkServiceV2> = Layer.succeed(
   ThreadForkServiceV2,
@@ -83,10 +83,6 @@ export const layer: Layer.Layer<ThreadForkServiceV2> = Layer.succeed(
       const targetThread: OrchestrationV2AppThread = {
         ...input.sourceProjection.thread,
         role: isOziMain(input.sourceProjection.thread) ? "main-fork" : "worker",
-        // PR context follows the conversation; watching remains the source thread's responsibility.
-        pullRequests: input.sourceProjection.thread.pullRequests?.map(
-          ({ watch: _watch, ...link }) => link,
-        ),
         createdBy: input.createdBy,
         creationSource: input.creationSource,
         id: input.targetThreadId,
@@ -107,8 +103,6 @@ export const layer: Layer.Layer<ThreadForkServiceV2> = Layer.succeed(
         archivedAt: null,
         settledOverride: null,
         settledAt: null,
-        snoozedUntil: null,
-        snoozedAt: null,
         lastVisitedAt: null,
         deletedAt: null,
       };

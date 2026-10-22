@@ -32,7 +32,6 @@ import * as PreviewPasskeys from "../preview/Passkeys.ts";
 import * as DesktopAppSettings from "../settings/DesktopAppSettings.ts";
 import * as DesktopClientSettings from "../settings/DesktopClientSettings.ts";
 import * as ElectronApp from "../electron/ElectronApp.ts";
-import * as DesktopRendererHistory from "../telemetry/DesktopRendererHistory.ts";
 import { makeQuitShortcutHandler } from "./QuitHold.ts";
 import { copyContextMenuImage } from "./ContextMenuImage.ts";
 
@@ -79,7 +78,6 @@ type DesktopWindowRuntimeServices =
   | ElectronShell.ElectronShell
   | ElectronTheme.ElectronTheme
   | ElectronWindow.ElectronWindow
-  | DesktopRendererHistory.DesktopRendererHistory
   | PreviewManager.PreviewManager;
 
 export type DesktopWindowError =
@@ -163,7 +161,7 @@ function windowBoundsEqual(
   );
 }
 
-export function resolveInitialMainWindowBounds(
+function resolveInitialMainWindowBounds(
   persistedBounds: DesktopAppSettings.DesktopWindowBounds | null,
   displays: readonly DisplayBounds[],
 ): DesktopAppSettings.DesktopWindowBounds | typeof DesktopAppSettings.DEFAULT_MAIN_WINDOW_SIZE {
@@ -185,7 +183,7 @@ function buildConnectingSplashDataUrl(shouldUseDarkColors: boolean): string {
   return `data:text/html;charset=utf-8,${encodeURIComponent(html)}`;
 }
 
-export function isSameOriginRendererNavigation(input: {
+function isSameOriginRendererNavigation(input: {
   readonly applicationUrl: string;
   readonly navigationUrl: string;
 }): boolean {
@@ -196,7 +194,7 @@ export function isSameOriginRendererNavigation(input: {
   }
 }
 
-export function isRetryableDevelopmentRendererLoadFailure(input: {
+function isRetryableDevelopmentRendererLoadFailure(input: {
   readonly applicationUrl: string;
   readonly errorCode: number;
   readonly isMainFrame: boolean;
@@ -212,7 +210,7 @@ export function isRetryableDevelopmentRendererLoadFailure(input: {
   );
 }
 
-export function concealPendingQuitWindow(
+function concealPendingQuitWindow(
   window: Pick<
     Electron.BrowserWindow,
     "isDestroyed" | "isFullScreen" | "setFullScreen" | "setOpacity"
@@ -300,7 +298,6 @@ export const make = Effect.gen(function* () {
   const desktopSettings = yield* DesktopAppSettings.DesktopAppSettings;
   const clientSettings = yield* DesktopClientSettings.DesktopClientSettings;
   const electronApp = yield* ElectronApp.ElectronApp;
-  const rendererHistory = yield* DesktopRendererHistory.DesktopRendererHistory;
   const backendReadyRef = yield* Ref.make(false);
   const splashWindowRef = yield* Ref.make<Option.Option<Electron.BrowserWindow>>(Option.none());
   const context = yield* Effect.context<DesktopWindowRuntimeServices>();
@@ -413,8 +410,6 @@ export const make = Effect.gen(function* () {
       yield* electronWindow.destroyAll;
       return Option.none();
     }
-
-    yield* rendererHistory.register(window.webContents, { surface: "main" });
     if (environment.platform === "darwin") {
       window.setAutoHideCursor(false);
     }
@@ -926,7 +921,6 @@ export const make = Effect.gen(function* () {
       yield* electronWindow.destroyAll;
       return;
     }
-    yield* rendererHistory.register(splash.webContents, { surface: "splash" });
     yield* Ref.set(splashWindowRef, Option.some(splash));
     splash.once("closed", () => {
       void runPromise(Ref.set(splashWindowRef, Option.none()));

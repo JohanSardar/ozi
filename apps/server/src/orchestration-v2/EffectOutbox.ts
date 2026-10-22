@@ -90,9 +90,6 @@ export const OrchestrationEffectRequestV2 = Schema.Union([
     type: Schema.Literal("scheduled-tasks.cleanup"),
   }),
   Schema.Struct({
-    type: Schema.Literal("terminal.cleanup"),
-  }),
-  Schema.Struct({
     type: Schema.Literal("preview.cleanup"),
   }),
   Schema.Struct({
@@ -118,7 +115,6 @@ export const REPLAY_SAFE_EFFECT_TYPES_AFTER_PROCESS_LOSS = [
   "provider-session.detach",
   "completion.check",
   "scheduled-tasks.cleanup",
-  "terminal.cleanup",
   "preview.cleanup",
   "attachment.cleanup",
   "thread-title.generate",
@@ -148,7 +144,7 @@ export type OrchestrationEffectStatusV2 = typeof OrchestrationEffectStatusV2.Typ
  * either and leaves recent history for debugging. Failed rows are kept: storage
  * cleanup keeps a deleted thread's worktree while any of its effects failed.
  */
-export const SETTLED_EFFECT_RETENTION = Duration.days(7);
+const SETTLED_EFFECT_RETENTION = Duration.days(7);
 const PRUNE_BATCH_SIZE = 500;
 
 export interface OrchestrationEffectV2 {
@@ -242,7 +238,7 @@ export interface EffectOutboxV2Shape {
 }
 
 export class EffectOutboxV2 extends Context.Service<EffectOutboxV2, EffectOutboxV2Shape>()(
-  "t3/orchestration-v2/EffectOutbox/EffectOutboxV2",
+  "ozi/orchestration-v2/EffectOutbox/EffectOutboxV2",
 ) {}
 
 type EffectRow = {

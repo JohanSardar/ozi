@@ -171,27 +171,6 @@ export async function writeTextToClipboard(
   }
 }
 
-export async function readTextFromClipboard(target = "text"): Promise<string> {
-  if (
-    typeof window === "undefined" ||
-    typeof navigator === "undefined" ||
-    !navigator.clipboard?.readText
-  ) {
-    throw new ClipboardReadUnavailableError({
-      target,
-    });
-  }
-
-  try {
-    return await navigator.clipboard.readText();
-  } catch (cause) {
-    throw new ClipboardReadError({
-      target,
-      cause,
-    });
-  }
-}
-
 export function useCopyToClipboard<TContext = void>({
   timeout = 2000,
   target = "text",

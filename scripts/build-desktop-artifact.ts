@@ -17,7 +17,6 @@ import {
 
 import { fromYaml } from "@t3tools/shared/schemaYaml";
 import * as HostProcess from "@t3tools/shared/HostProcess";
-import { clerkFrontendApiHostnameFromPublishableKey } from "@t3tools/shared/relayAuth";
 import { resolveSpawnCommand } from "@t3tools/shared/shell";
 import rootPackageJson from "../package.json" with { type: "json" };
 import desktopPackageJson from "../apps/desktop/package.json" with { type: "json" };
@@ -140,26 +139,6 @@ interface PlatformConfig {
   readonly archChoices: ReadonlyArray<typeof BuildArch.Type>;
 }
 
-export function resolveResourceMonitorRustTargets(
-  platform: typeof BuildPlatform.Type,
-  arch: typeof BuildArch.Type,
-): ReadonlyArray<string> {
-  if (platform === "mac") {
-    if (arch === "universal") {
-      return ["aarch64-apple-darwin", "x86_64-apple-darwin"];
-    }
-    return [arch === "arm64" ? "aarch64-apple-darwin" : "x86_64-apple-darwin"];
-  }
-  if (platform === "linux") {
-    return [arch === "arm64" ? "aarch64-unknown-linux-gnu" : "x86_64-unknown-linux-gnu"];
-  }
-  return [arch === "arm64" ? "aarch64-pc-windows-msvc" : "x86_64-pc-windows-msvc"];
-}
-
-export function resourceMonitorExecutableName(platform: typeof BuildPlatform.Type): string {
-  return platform === "win" ? "t3-resource-monitor.exe" : "t3-resource-monitor";
-}
-
 const PLATFORM_CONFIG: Record<typeof BuildPlatform.Type, PlatformConfig> = {
   mac: {
     cliFlag: "--mac",
@@ -188,8 +167,6 @@ interface BuildCliInput {
   readonly keepStage: Option.Option<boolean>;
   readonly signed: Option.Option<boolean>;
   readonly verbose: Option.Option<boolean>;
-  readonly mockUpdates: Option.Option<boolean>;
-  readonly mockUpdateServerPort: Option.Option<number>;
   readonly wslRuntime: Option.Option<string>;
 }
 
@@ -244,22 +221,6 @@ export class KeyringNativePackageMissingError extends Schema.TaggedError<Keyring
   }
 }
 
-export class ClerkPasskeyNativePackageMissingError extends Schema.TaggedError<ClerkPasskeyNativePackageMissingError>()(
-  "ClerkPasskeyNativePackageMissingError",
-  {
-    packageName: Schema.String,
-    binaryFileName: Schema.String,
-    packageEntryPath: Schema.String,
-    platform: BuildPlatform,
-    arch: BuildArch,
-    cause: Schema.Defect(),
-  },
-) {
-  override get message(): string {
-    return `Clerk passkey native package is missing: ${this.packageName}`;
-  }
-}
-
 export class UnsupportedHostBuildPlatformError extends Schema.TaggedError<UnsupportedHostBuildPlatformError>()(
   "UnsupportedHostBuildPlatformError",
   {
@@ -281,33 +242,6 @@ export class UnsupportedDesktopBuildArchitectureError extends Schema.TaggedError
 ) {
   override get message(): string {
     return `Unsupported architecture '${this.arch}' for ${this.platform}.`;
-  }
-}
-
-const InvalidMockUpdateServerPortReason = Schema.Literals([
-  "not-numeric",
-  "not-integer",
-  "out-of-range",
-]);
-
-export class InvalidMockUpdateServerPortError extends Schema.TaggedError<InvalidMockUpdateServerPortError>()(
-  "InvalidMockUpdateServerPortError",
-  {
-    reason: InvalidMockUpdateServerPortReason,
-    inputLength: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
-    cause: Schema.Defect(),
-  },
-) {
-  override get message(): string {
-    return "Invalid mock update server port.";
-  }
-
-  static fromConfigValue(configuredPort: string, cause: unknown) {
-    return new InvalidMockUpdateServerPortError({
-      reason: invalidMockUpdateServerPortReason(configuredPort),
-      inputLength: configuredPort.length,
-      cause,
-    });
   }
 }
 
@@ -385,14 +319,12 @@ export class LinuxDesktopBuildPrerequisitesMissingError extends Schema.TaggedErr
         ? ["Add the requested Rust target with:", `  rustup target add ${this.rustTarget}`]
         : []),
       "",
-      "For other distributions, see docs/operations/development.md#linux-appimage-prerequisites.",
       "Then rerun `vp run dist:desktop:linux`.",
     ].join("\n");
   }
 }
 
 const MAC_DESKTOP_BUILD_PREREQUISITES = [
-  { id: "rust", description: "Rust/Cargo and the requested Rust target" },
   { id: "clang", description: "Xcode Command Line Tools (clang)" },
   { id: "make", description: "Xcode Command Line Tools (make)" },
   { id: "sips", description: "macOS image tool (sips)" },
@@ -404,7 +336,6 @@ export class MacDesktopBuildPrerequisitesMissingError extends Schema.TaggedError
   "MacDesktopBuildPrerequisitesMissingError",
   {
     missing: Schema.Array(Schema.String),
-    rustTargets: Schema.Array(Schema.String),
   },
 ) {
   override get message(): string {
@@ -419,8 +350,6 @@ export class MacDesktopBuildPrerequisitesMissingError extends Schema.TaggedError
       "",
       "Install Apple's build tools with:",
       "  xcode-select --install",
-      "Install Rust from https://rustup.rs, then add the requested target(s):",
-      `  rustup target add ${this.rustTargets.join(" ")}`,
       "",
       "Then rerun the desktop artifact command.",
     ].join("\n");
@@ -428,7 +357,6 @@ export class MacDesktopBuildPrerequisitesMissingError extends Schema.TaggedError
 }
 
 const WINDOWS_DESKTOP_BUILD_PREREQUISITES = [
-  { id: "rust", description: "Rust/Cargo and the requested MSVC Rust target" },
   { id: "python", description: "Python 3 for node-gyp" },
   {
     id: "msvc",
@@ -441,7 +369,6 @@ export class WindowsDesktopBuildPrerequisitesMissingError extends Schema.TaggedE
   "WindowsDesktopBuildPrerequisitesMissingError",
   {
     missing: Schema.Array(Schema.String),
-    rustTarget: Schema.String,
   },
 ) {
   override get message(): string {
@@ -454,27 +381,10 @@ export class WindowsDesktopBuildPrerequisitesMissingError extends Schema.TaggedE
       "Windows desktop build prerequisites are missing:",
       details,
       "",
-      "Install Rust from https://rustup.rs and add the requested target:",
-      `  rustup target add ${this.rustTarget}`,
-      "Install Python 3 and the Visual Studio Build Tools components listed in",
-      "docs/operations/development.md#windows-installer-prerequisites.",
+      "Install Python 3 and the listed Visual Studio Build Tools components.",
       "",
       "Then rerun the desktop artifact command.",
     ].join("\n");
-  }
-}
-
-export class ResourceMonitorBuildOutputMissingError extends Schema.TaggedError<ResourceMonitorBuildOutputMissingError>()(
-  "ResourceMonitorBuildOutputMissingError",
-  {
-    binaryPath: Schema.String,
-    rustTarget: Schema.String,
-    platform: BuildPlatform,
-    arch: BuildArch,
-  },
-) {
-  override get message(): string {
-    return `Resource monitor build for ${this.rustTarget} did not produce ${this.binaryPath}.`;
   }
 }
 
@@ -599,24 +509,6 @@ const desktopBuildInputArtifactNames = {
 const BUNDLE_SELF_CONTAINED_SENTINEL = "effect";
 
 const BUNDLE_SELF_CHECK_TIMEOUT = Duration.seconds(120);
-const WINDOWS_PRIMARY_NATIVE_PROBE_TIMEOUT = Duration.seconds(30);
-
-const WINDOWS_PRIMARY_FFF_PROBE_SOURCE = `
-const { join } = await import("node:path");
-const { pathToFileURL } = await import("node:url");
-const { FileFinder } = await import(pathToFileURL(process.argv[1]).href);
-const probeRoot = process.argv[2];
-const result = FileFinder.create({
-  basePath: probeRoot,
-  frecencyDbPath: join(probeRoot, "frecency.mdb"),
-  historyDbPath: join(probeRoot, "history.mdb"),
-  disableWatch: true,
-  disableMmapCache: true,
-  disableContentIndexing: true,
-});
-if (!result.ok) throw new Error(result.error);
-result.value.destroy();
-`;
 
 export class ExternalizedBundleError extends Schema.TaggedError<ExternalizedBundleError>()(
   "ExternalizedBundleError",
@@ -728,25 +620,11 @@ export class WindowsServerSidecarPackError extends Schema.TaggedError<WindowsSer
   }
 }
 
-export class WindowsPrimaryNativeProbeError extends Schema.TaggedError<WindowsPrimaryNativeProbeError>()(
-  "WindowsPrimaryNativeProbeError",
-  {
-    executablePath: Schema.String,
-    exitCode: Schema.Number,
-    output: Schema.String,
-  },
-) {
-  override get message(): string {
-    return `The packaged Windows primary could not load fff from server.asar (exit ${this.exitCode}). Output:\n${this.output}`;
-  }
-}
-
 const WindowsPackagedPayloadValidationReason = Schema.Literals([
   "packaged-app-missing",
   "sidecar-missing",
   "sidecar-invalid",
   "unpacked-native-missing",
-  "resource-monitor-missing",
   "wsl-runtime-missing",
   "wsl-runtime-invalid",
   "file-limit-exceeded",
@@ -769,9 +647,6 @@ export class WindowsPackagedPayloadValidationError extends Schema.TaggedError<Wi
     }
     if (this.reason === "unpacked-native-missing") {
       return `Windows server sidecar is missing ${String(this.missingFiles?.length ?? 0)} unpacked native files.`;
-    }
-    if (this.reason === "resource-monitor-missing") {
-      return "Windows packaged payload is missing the resource monitor executable.";
     }
     if (this.reason === "wsl-runtime-missing") {
       return "Windows packaged payload is missing the WSL runtime archive or SHA-256 sidecar.";
@@ -954,8 +829,6 @@ interface ResolvedBuildOptions {
   readonly keepStage: boolean;
   readonly signed: boolean;
   readonly verbose: boolean;
-  readonly mockUpdates: boolean;
-  readonly mockUpdateServerPort: number | undefined;
   readonly wslRuntime: string | undefined;
 }
 
@@ -969,7 +842,6 @@ interface StagePackageJson {
   readonly packageManager: string;
   readonly description: string;
   readonly license: string;
-  readonly homepage: string;
   readonly author: string;
   readonly main: string;
   readonly build: Record<string, unknown>;
@@ -1003,28 +875,7 @@ export const DESKTOP_FILE_EXCLUSIONS = [
   "!apps/desktop/gnome-extension",
   "!apps/desktop/gnome-extension/**/*",
 ] as const;
-// Windows terminal helpers cannot run on macOS and slow signing and notarization.
-export const MAC_FILE_EXCLUSIONS = [
-  "!**/node_modules/node-pty/prebuilds/win32-*/**/*",
-  "!**/node_modules/node-pty/third_party/conpty/**/*",
-] as const;
-// Linux builds node-pty from source, so every prebuild in the package is for
-// another platform (58 MB of it Windows debug symbols).
-export const LINUX_FILE_EXCLUSIONS = [
-  ...MAC_FILE_EXCLUSIONS,
-  "!**/node_modules/node-pty/prebuilds/darwin-*/**/*",
-] as const;
 
-// node-pty publishes both Darwin prebuilds in one package. Single-architecture
-// apps only need the native target; universal apps need both.
-export function resolveMacFileExclusions(arch?: typeof BuildArch.Type) {
-  if (arch === undefined || arch === "universal") {
-    return [...MAC_FILE_EXCLUSIONS];
-  }
-
-  const unusedArch = arch === "arm64" ? "x64" : "arm64";
-  return [...MAC_FILE_EXCLUSIONS, `!**/node_modules/node-pty/prebuilds/darwin-${unusedArch}/**/*`];
-}
 // Windows ships the server tree (bundle + node_modules) as a separate
 // resources/server.asar sidecar instead of loose files: the NSIS installer then
 // extracts a handful of large archives instead of thousands of small files,
@@ -1053,20 +904,6 @@ export const WINDOWS_SERVER_ASAR_IGNORE_GLOBS = [
   "**/node_modules/.bin/**",
   "**/*.map",
 ] as const;
-
-export function resolveWindowsServerAsarIgnoreGlobs(arch: typeof BuildArch.Type) {
-  const unusedArch = arch === "arm64" ? "x64" : "arm64";
-  const unusedPrebuild = `**/node_modules/node-pty/prebuilds/win32-${unusedArch}`;
-  const unusedConpty = `**/node_modules/node-pty/third_party/conpty/*/win10-${unusedArch}`;
-
-  return [
-    ...WINDOWS_SERVER_ASAR_IGNORE_GLOBS,
-    unusedPrebuild,
-    `${unusedPrebuild}/**`,
-    unusedConpty,
-    `${unusedConpty}/**`,
-  ];
-}
 
 export const WINDOWS_PACKAGED_PAYLOAD_FILE_LIMIT = 80;
 export const WINDOWS_SERVER_RESOURCE_SOURCE_DIR = "apps/desktop/prod-resources/windows-server";
@@ -1097,12 +934,6 @@ export const WSL_RUNTIME_EXTRA_RESOURCES = [
   WSL_RUNTIME_ARCHIVE_EXTRA_RESOURCE,
   WSL_RUNTIME_ARCHIVE_HASH_EXTRA_RESOURCE,
 ] as const;
-export const DESKTOP_EXTRA_RESOURCES = [
-  {
-    from: "apps/desktop/prod-resources/resource-monitor",
-    to: "resource-monitor",
-  },
-] as const;
 export const LINUX_CAPTURE_EXTRA_RESOURCES = [
   {
     from: "apps/desktop/prod-resources/hyprland-capture",
@@ -1125,34 +956,7 @@ export const LINUX_BROWSER_SECRET_EXTRA_RESOURCES = [
 export interface MacPasskeySigningConfiguration {
   readonly appId: string;
   readonly teamId: string;
-  readonly rpDomains: readonly string[];
   readonly provisioningProfilePath: string;
-}
-
-export const InvalidMacPasskeyRpDomainReason = Schema.Literals([
-  "empty",
-  "scheme-not-allowed",
-  "parse-failed",
-  "credentials-not-allowed",
-  "port-not-allowed",
-  "path-not-allowed",
-  "query-not-allowed",
-  "fragment-not-allowed",
-  "hostname-mismatch",
-]);
-export type InvalidMacPasskeyRpDomainReason = typeof InvalidMacPasskeyRpDomainReason.Type;
-
-export class InvalidMacPasskeyRpDomainError extends Schema.TaggedError<InvalidMacPasskeyRpDomainError>()(
-  "InvalidMacPasskeyRpDomainError",
-  {
-    reason: InvalidMacPasskeyRpDomainReason,
-    inputLength: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
-    cause: Schema.optionalKey(Schema.Defect()),
-  },
-) {
-  override get message(): string {
-    return `Invalid passkey RP domain (${this.reason}).`;
-  }
 }
 
 export class InvalidAppleTeamIdError extends Schema.TaggedError<InvalidAppleTeamIdError>()(
@@ -1175,129 +979,21 @@ export class MissingMacPasskeyProvisioningProfileError extends Schema.TaggedErro
   }
 }
 
-export class MissingMacPasskeyDomainConfigurationError extends Schema.TaggedError<MissingMacPasskeyDomainConfigurationError>()(
-  "MissingMacPasskeyDomainConfigurationError",
-  {},
-) {
-  override get message(): string {
-    return "OZI_CLERK_PUBLISHABLE_KEY or OZI_CLERK_PASSKEY_RP_DOMAINS is required for signed macOS passkey builds.";
-  }
-}
-
-export class InvalidMacPasskeyPublishableKeyError extends Schema.TaggedError<InvalidMacPasskeyPublishableKeyError>()(
-  "InvalidMacPasskeyPublishableKeyError",
-  {
-    cause: Schema.Defect(),
-  },
-) {
-  override get message(): string {
-    return "OZI_CLERK_PUBLISHABLE_KEY is invalid.";
-  }
-}
-
-export class MissingMacPasskeyRpDomainError extends Schema.TaggedError<MissingMacPasskeyRpDomainError>()(
-  "MissingMacPasskeyRpDomainError",
-  {},
-) {
-  override get message(): string {
-    return "At least one Clerk passkey RP domain is required.";
-  }
-}
-
 export const MacPasskeySigningConfigurationError = Schema.Union([
-  InvalidMacPasskeyRpDomainError,
   InvalidAppleTeamIdError,
   MissingMacPasskeyProvisioningProfileError,
-  MissingMacPasskeyDomainConfigurationError,
-  InvalidMacPasskeyPublishableKeyError,
-  MissingMacPasskeyRpDomainError,
 ]);
 export type MacPasskeySigningConfigurationError = typeof MacPasskeySigningConfigurationError.Type;
 export const isMacPasskeySigningConfigurationError = Schema.is(MacPasskeySigningConfigurationError);
-
-function normalizePasskeyRpDomain(value: string): string {
-  const normalized = value.trim().toLowerCase();
-  const inputLength = value.length;
-  if (normalized.length === 0) {
-    throw new InvalidMacPasskeyRpDomainError({ reason: "empty", inputLength });
-  }
-  if (/^[a-z][a-z\d+.-]*:\/\//u.test(normalized)) {
-    throw new InvalidMacPasskeyRpDomainError({
-      reason: "scheme-not-allowed",
-      inputLength,
-    });
-  }
-
-  let parsed: URL;
-  try {
-    parsed = new URL(`https://${normalized}`);
-  } catch (cause) {
-    throw new InvalidMacPasskeyRpDomainError({ reason: "parse-failed", inputLength, cause });
-  }
-
-  let reason: InvalidMacPasskeyRpDomainReason | undefined;
-  if (parsed.username.length > 0 || parsed.password.length > 0) {
-    reason = "credentials-not-allowed";
-  } else if (parsed.port.length > 0) {
-    reason = "port-not-allowed";
-  } else if (parsed.pathname !== "/") {
-    reason = "path-not-allowed";
-  } else if (parsed.search.length > 0) {
-    reason = "query-not-allowed";
-  } else if (parsed.hash.length > 0) {
-    reason = "fragment-not-allowed";
-  } else if (parsed.host !== normalized) {
-    reason = "hostname-mismatch";
-  }
-  if (reason) {
-    throw new InvalidMacPasskeyRpDomainError({ reason, inputLength });
-  }
-
-  return parsed.hostname;
-}
 
 export function resolveMacPasskeySigningConfiguration(
   env: Readonly<Record<string, string | undefined>>,
 ): MacPasskeySigningConfiguration {
   const teamId = env.OZI_APPLE_TEAM_ID?.trim().toUpperCase() ?? "";
-  if (!APPLE_TEAM_ID_PATTERN.test(teamId)) {
-    throw new InvalidAppleTeamIdError({ teamId });
-  }
-
+  if (!APPLE_TEAM_ID_PATTERN.test(teamId)) throw new InvalidAppleTeamIdError({ teamId });
   const provisioningProfilePath = env.OZI_MACOS_PROVISIONING_PROFILE?.trim() ?? "";
-  if (provisioningProfilePath.length === 0) {
-    throw new MissingMacPasskeyProvisioningProfileError();
-  }
-
-  const configuredRpDomains = env.OZI_CLERK_PASSKEY_RP_DOMAINS?.trim();
-  let rpDomains: readonly string[];
-  if (configuredRpDomains) {
-    rpDomains = configuredRpDomains.split(",").map(normalizePasskeyRpDomain);
-  } else {
-    const publishableKey = env.OZI_CLERK_PUBLISHABLE_KEY?.trim();
-    if (!publishableKey) {
-      throw new MissingMacPasskeyDomainConfigurationError();
-    }
-    let hostname: string;
-    try {
-      hostname = clerkFrontendApiHostnameFromPublishableKey(publishableKey);
-    } catch (cause) {
-      throw new InvalidMacPasskeyPublishableKeyError({ cause });
-    }
-    rpDomains = [normalizePasskeyRpDomain(hostname)];
-  }
-
-  const uniqueRpDomains = [...new Set(rpDomains)];
-  if (uniqueRpDomains.length === 0) {
-    throw new MissingMacPasskeyRpDomainError();
-  }
-
-  return {
-    appId: DESKTOP_APP_ID,
-    teamId,
-    rpDomains: uniqueRpDomains,
-    provisioningProfilePath,
-  };
+  if (provisioningProfilePath.length === 0) throw new MissingMacPasskeyProvisioningProfileError();
+  return { appId: DESKTOP_APP_ID, teamId, provisioningProfilePath };
 }
 
 function escapeXml(value: string): string {
@@ -1362,9 +1058,6 @@ export function renderMacPasskeyEntitlements(
   configuration: MacPasskeySigningConfiguration,
   webAuthn: MacWebAuthnEntitlements,
 ): string {
-  const associatedDomains = configuration.rpDomains
-    .map((domain) => `      <string>webcredentials:${escapeXml(domain)}</string>`)
-    .join("\n");
   const keychainAccessGroups = webAuthn.touchIdKeychainAccessGroup
     ? `
     <key>keychain-access-groups</key>
@@ -1386,10 +1079,7 @@ export function renderMacPasskeyEntitlements(
     <string>${escapeXml(`${configuration.teamId}.${configuration.appId}`)}</string>
     <key>com.apple.developer.team-identifier</key>
     <string>${escapeXml(configuration.teamId)}</string>
-    <key>com.apple.developer.associated-domains</key>
-    <array>
-${associatedDomains}
-    </array>${keychainAccessGroups}${browserPasskeys}
+${keychainAccessGroups}${browserPasskeys}
     <key>com.apple.security.cs.allow-jit</key>
     <true/>
     <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
@@ -1409,32 +1099,6 @@ ${associatedDomains}
 `;
 }
 
-export function resolveFffNativeDependencies(
-  platform: typeof BuildPlatform.Type,
-  arch: typeof BuildArch.Type,
-  version: string,
-): Record<string, string> {
-  const architectures = arch === "universal" ? (["arm64", "x64"] as const) : [arch];
-
-  if (platform === "mac") {
-    return Object.fromEntries(
-      architectures.map((architecture) => [`@ff-labs/fff-bin-darwin-${architecture}`, version]),
-    );
-  }
-
-  if (platform === "win") {
-    return Object.fromEntries(
-      architectures.map((architecture) => [`@ff-labs/fff-bin-win32-${architecture}`, version]),
-    );
-  }
-
-  return Object.fromEntries(
-    architectures.flatMap((architecture) =>
-      ["gnu", "musl"].map((libc) => [`@ff-labs/fff-bin-linux-${architecture}-${libc}`, version]),
-    ),
-  );
-}
-
 // macOS and Linux run both processes from one app.asar, so the stage installs
 // the union of what each bundle leaves external and nothing else.
 export function resolveMergedStageDependencies(input: {
@@ -1442,47 +1106,22 @@ export function resolveMergedStageDependencies(input: {
   readonly serverDependencies: Record<string, string>;
   readonly desktopDependencies: Record<string, string>;
   readonly arch: typeof BuildArch.Type;
-  readonly fffNodeVersion: string;
 }) {
   return {
     ...selectCliRuntimeExternalDependencies(input.serverDependencies),
     ...input.desktopDependencies,
-    ...resolveFffNativeDependencies(input.platform, input.arch, input.fffNodeVersion),
   };
 }
 
-export interface ClerkPasskeyNativeArtifact {
+export interface DesktopNativeArtifact {
   readonly packageName: string;
   readonly binaryFileName: string;
-}
-
-export function resolveClerkPasskeyNativeArtifacts(
-  platform: typeof BuildPlatform.Type,
-  arch: typeof BuildArch.Type,
-): readonly ClerkPasskeyNativeArtifact[] {
-  const architectures = arch === "universal" ? (["arm64", "x64"] as const) : [arch];
-
-  if (platform === "mac") {
-    return architectures.map((architecture) => ({
-      packageName: `@clerk/electron-passkeys-darwin-${architecture}`,
-      binaryFileName: `electron-passkeys.darwin-${architecture}.node`,
-    }));
-  }
-
-  if (platform === "win") {
-    return architectures.map((architecture) => ({
-      packageName: `@clerk/electron-passkeys-win32-${architecture}-msvc`,
-      binaryFileName: `electron-passkeys.win32-${architecture}-msvc.node`,
-    }));
-  }
-
-  return [];
 }
 
 export function resolveKeyringNativeArtifacts(
   platform: typeof BuildPlatform.Type,
   arch: typeof BuildArch.Type,
-): readonly ClerkPasskeyNativeArtifact[] {
+): readonly DesktopNativeArtifact[] {
   const architectures = arch === "universal" ? (["arm64", "x64"] as const) : [arch];
 
   if (platform === "mac") {
@@ -1505,13 +1144,6 @@ export function resolveKeyringNativeArtifacts(
   }));
 }
 
-/**
- * Same nesting problem as the Clerk passkey binaries: pnpm keeps the platform
- * package under `@napi-rs/keyring`, electron-builder only retains collected
- * top-level dependencies, and the generated loader checks for a sibling
- * `keyring.<platform>.node` before falling back to the package. Staging the
- * binary beside `index.js` lets that first branch win.
- */
 const stageKeyringNativeBinaries = Effect.fn("stageKeyringNativeBinaries")(function* (
   stageAppDir: string,
   platform: typeof BuildPlatform.Type,
@@ -1530,39 +1162,6 @@ const stageKeyringNativeBinaries = Effect.fn("stageKeyringNativeBinaries")(funct
       try: () => packageRequire.resolve(`${artifact.packageName}/${artifact.binaryFileName}`),
       catch: (cause) =>
         new KeyringNativePackageMissingError({
-          packageName: artifact.packageName,
-          binaryFileName: artifact.binaryFileName,
-          packageEntryPath,
-          platform,
-          arch,
-          cause,
-        }),
-    });
-    yield* fs.copyFile(sourcePath, path.join(packageDir, artifact.binaryFileName));
-  }
-});
-
-// pnpm nests the architecture package under @clerk/electron-passkeys, while electron-builder only
-// retains collected top-level dependencies. The SDK loader checks beside index.js first, so stage
-// the binary there and let electron-builder's native-addon handling unpack it from the ASAR.
-const stageClerkPasskeyNativeBinaries = Effect.fn("stageClerkPasskeyNativeBinaries")(function* (
-  stageAppDir: string,
-  platform: typeof BuildPlatform.Type,
-  arch: typeof BuildArch.Type,
-) {
-  const fs = yield* FileSystem.FileSystem;
-  const path = yield* Path.Path;
-  const packageEntryPath = yield* fs.realPath(
-    path.join(stageAppDir, "node_modules", "@clerk", "electron-passkeys", "index.js"),
-  );
-  const packageDir = path.dirname(packageEntryPath);
-  const packageRequire = NodeModule.createRequire(packageEntryPath);
-
-  for (const artifact of resolveClerkPasskeyNativeArtifacts(platform, arch)) {
-    const sourcePath = yield* Effect.try({
-      try: () => packageRequire.resolve(artifact.packageName),
-      catch: (cause) =>
-        new ClerkPasskeyNativePackageMissingError({
           packageName: artifact.packageName,
           binaryFileName: artifact.binaryFileName,
           packageEntryPath,
@@ -1651,44 +1250,13 @@ const BuildEnvConfig = Config.all({
   keepStage: Config.Boolean("OZI_DESKTOP_KEEP_STAGE").pipe(Config.withDefault(false)),
   signed: Config.Boolean("OZI_DESKTOP_SIGNED").pipe(Config.withDefault(false)),
   verbose: Config.Boolean("OZI_DESKTOP_VERBOSE").pipe(Config.withDefault(false)),
-  mockUpdates: Config.Boolean("OZI_DESKTOP_MOCK_UPDATES").pipe(Config.withDefault(false)),
-  mockUpdateServerPort: Config.String("OZI_DESKTOP_MOCK_UPDATE_SERVER_PORT").pipe(Config.option),
   wslRuntime: Config.String("OZI_DESKTOP_WSL_RUNTIME").pipe(Config.option),
 });
-
-const MockUpdateServerPortSchema = Schema.NumberFromString.check(
-  Schema.isInt(),
-  Schema.isBetween({ minimum: 1, maximum: 65535 }),
-);
-const decodeMockUpdateServerPort = Schema.decodeUnknownEffect(MockUpdateServerPortSchema);
-
-function invalidMockUpdateServerPortReason(
-  configuredPort: string,
-): typeof InvalidMockUpdateServerPortReason.Type {
-  const parsed = Number(configuredPort);
-  if (!Number.isFinite(parsed)) return "not-numeric";
-  if (!Number.isInteger(parsed)) return "not-integer";
-  if (parsed < 1 || parsed > 65535) return "out-of-range";
-  // This mapper is only called after schema decoding failed. An otherwise
-  // valid integer therefore used a representation the decoder did not accept.
-  return "not-numeric";
-}
 
 const resolveBooleanFlag = (flag: Option.Option<boolean>, envValue: boolean) =>
   Option.getOrElse(flag, () => envValue);
 const mergeOptions = <A>(a: Option.Option<A>, b: Option.Option<A>, defaultValue: A) =>
   Option.getOrElse(a, () => Option.getOrElse(b, () => defaultValue));
-
-export const resolveMockUpdateServerPort = Effect.fn("resolveMockUpdateServerPort")(function* (
-  mockUpdateServerPort: string | undefined,
-) {
-  const port = mockUpdateServerPort?.trim();
-  if (!port) {
-    return undefined;
-  }
-
-  return yield* decodeMockUpdateServerPort(port);
-});
 
 export const resolveBuildOptions = Effect.fn("resolveBuildOptions")(function* (
   input: BuildCliInput,
@@ -1720,9 +1288,7 @@ export const resolveBuildOptions = Effect.fn("resolveBuildOptions")(function* (
     });
   }
   const version = mergeOptions(input.buildVersion, env.version, undefined);
-  const releaseDir = resolveBooleanFlag(input.mockUpdates, env.mockUpdates)
-    ? "release-mock"
-    : "release";
+  const releaseDir = "release";
   const outputDir = path.resolve(
     repoRoot,
     mergeOptions(input.outputDir, env.outputDir, releaseDir),
@@ -1732,18 +1298,6 @@ export const resolveBuildOptions = Effect.fn("resolveBuildOptions")(function* (
   const keepStage = resolveBooleanFlag(input.keepStage, env.keepStage);
   const signed = resolveBooleanFlag(input.signed, env.signed);
   const verbose = resolveBooleanFlag(input.verbose, env.verbose);
-
-  const mockUpdates = resolveBooleanFlag(input.mockUpdates, env.mockUpdates);
-  const configuredMockUpdateServerPort = Option.getOrUndefined(env.mockUpdateServerPort);
-  const mockUpdateServerPort =
-    Option.getOrUndefined(input.mockUpdateServerPort) ??
-    (configuredMockUpdateServerPort === undefined
-      ? undefined
-      : yield* resolveMockUpdateServerPort(configuredMockUpdateServerPort).pipe(
-          Effect.mapError((cause) =>
-            InvalidMockUpdateServerPortError.fromConfigValue(configuredMockUpdateServerPort, cause),
-          ),
-        ));
 
   const wslRuntime =
     Option.getOrUndefined(input.wslRuntime) ?? Option.getOrUndefined(env.wslRuntime);
@@ -1758,8 +1312,6 @@ export const resolveBuildOptions = Effect.fn("resolveBuildOptions")(function* (
     keepStage,
     signed,
     verbose,
-    mockUpdates,
-    mockUpdateServerPort,
     wslRuntime,
   } satisfies ResolvedBuildOptions;
 });
@@ -1925,14 +1477,11 @@ const rustTargetIsInstalled = Effect.fn("rustTargetIsInstalled")(function* (targ
 export const preflightLinuxDesktopBuild = Effect.fn("preflightLinuxDesktopBuild")(function* (
   arch: typeof BuildArch.Type = "x64",
 ) {
-  const reuseResourceMonitor = yield* Config.Boolean("OZI_DESKTOP_REUSE_RESOURCE_MONITOR").pipe(
-    Config.withDefault(false),
-  );
   const reuseCaptureHelpers = yield* Config.Boolean("OZI_DESKTOP_REUSE_LINUX_CAPTURE_HELPERS").pipe(
     Config.withDefault(false),
   );
-  const needsRust = !reuseResourceMonitor || !reuseCaptureHelpers;
-  const rustTarget = resolveResourceMonitorRustTargets("linux", arch)[0]!;
+  const needsRust = !reuseCaptureHelpers;
+  const rustTarget = resolveLinuxRustTarget(arch);
 
   const checks = yield* Effect.all(
     {
@@ -1965,20 +1514,8 @@ export const preflightLinuxDesktopBuild = Effect.fn("preflightLinuxDesktopBuild"
 export const preflightMacDesktopBuild = Effect.fn("preflightMacDesktopBuild")(function* (
   arch: typeof BuildArch.Type,
 ) {
-  const rustTargets = resolveResourceMonitorRustTargets("mac", arch);
-  const reuseResourceMonitor = yield* Config.Boolean("OZI_DESKTOP_REUSE_RESOURCE_MONITOR").pipe(
-    Config.withDefault(false),
-  );
   const checks = yield* Effect.all(
     {
-      rust: reuseResourceMonitor
-        ? Effect.succeed(true)
-        : Effect.all([
-            desktopBuildProbeSucceeds(ChildProcess.make("cargo", ["--version"]), "cargo"),
-            Effect.forEach(rustTargets, rustTargetIsInstalled).pipe(
-              Effect.map((results) => results.every(Boolean)),
-            ),
-          ]).pipe(Effect.map(([cargo, targets]) => cargo && targets)),
       clang: desktopBuildProbeSucceeds(ChildProcess.make("clang", ["--version"]), "clang"),
       make: desktopBuildProbeSucceeds(ChildProcess.make("make", ["--version"]), "make"),
       sips: desktopBuildProbeSucceeds(ChildProcess.make("sips", ["--help"]), "sips"),
@@ -1997,7 +1534,7 @@ export const preflightMacDesktopBuild = Effect.fn("preflightMacDesktopBuild")(fu
     (requirement) => !checks[requirement.id],
   ).map((requirement) => requirement.id);
   if (missing.length > 0) {
-    return yield* new MacDesktopBuildPrerequisitesMissingError({ missing, rustTargets });
+    return yield* new MacDesktopBuildPrerequisitesMissingError({ missing });
   }
 });
 
@@ -2022,32 +1559,20 @@ function windowsVswherePrerequisiteScript(arch: typeof BuildArch.Type): string {
 
 export const preflightWindowsDesktopBuild = Effect.fn("preflightWindowsDesktopBuild")(
   function* (input: { readonly arch: typeof BuildArch.Type; readonly bundlesWslRuntime: boolean }) {
-    const rustTarget = resolveResourceMonitorRustTargets("win", input.arch)[0]!;
-    const reuseResourceMonitor = yield* Config.Boolean("OZI_DESKTOP_REUSE_RESOURCE_MONITOR").pipe(
-      Config.withDefault(false),
-    );
     const python = yield* resolvePythonForNodeGyp();
     const checks = yield* Effect.all(
       {
-        rust: reuseResourceMonitor
-          ? Effect.succeed(true)
-          : Effect.all([
-              desktopBuildProbeSucceeds(ChildProcess.make("cargo", ["--version"]), "cargo"),
-              rustTargetIsInstalled(rustTarget),
-            ]).pipe(Effect.map(([cargo, target]) => cargo && target)),
         python: Effect.succeed(python !== undefined),
-        msvc: reuseResourceMonitor
-          ? Effect.succeed(true)
-          : desktopBuildProbeSucceeds(
-              ChildProcess.make("powershell.exe", [
-                "-NoLogo",
-                "-NoProfile",
-                "-NonInteractive",
-                "-Command",
-                windowsVswherePrerequisiteScript(input.arch),
-              ]),
-              "Visual Studio Build Tools",
-            ),
+        msvc: desktopBuildProbeSucceeds(
+          ChildProcess.make("powershell.exe", [
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-Command",
+            windowsVswherePrerequisiteScript(input.arch),
+          ]),
+          "Visual Studio Build Tools",
+        ),
         tar: input.bundlesWslRuntime
           ? desktopBuildProbeSucceeds(ChildProcess.make("tar.exe", ["--version"]), "tar")
           : Effect.succeed(true),
@@ -2058,7 +1583,7 @@ export const preflightWindowsDesktopBuild = Effect.fn("preflightWindowsDesktopBu
       (requirement) => !checks[requirement.id],
     ).map((requirement) => requirement.id);
     if (missing.length > 0) {
-      return yield* new WindowsDesktopBuildPrerequisitesMissingError({ missing, rustTarget });
+      return yield* new WindowsDesktopBuildPrerequisitesMissingError({ missing });
     }
   },
 );
@@ -2310,7 +1835,7 @@ export const stageLinuxCaptureHelper = Effect.fn("stageLinuxCaptureHelper")(func
 }) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  const [rustTarget] = resolveResourceMonitorRustTargets("linux", input.arch);
+  const rustTarget = resolveLinuxRustTarget(input.arch);
   // Release CI restores these binaries from a cache keyed on the crate sources and
   // skips the Rust toolchain on a hit, so the build must be skippable too.
   const reuseHelpers = yield* Config.Boolean("OZI_DESKTOP_REUSE_LINUX_CAPTURE_HELPERS").pipe(
@@ -2320,7 +1845,7 @@ export const stageLinuxCaptureHelper = Effect.fn("stageLinuxCaptureHelper")(func
     input.repoRoot,
     `native/${input.backend}-snap-shot/target`,
     rustTarget!,
-    `release/t3-${input.backend}-snap-shot`,
+    `release/ozi-${input.backend}-snap-shot`,
   );
   if (!reuseHelpers) {
     const spawnCommand = yield* resolveSpawnCommand("cargo", [
@@ -2343,7 +1868,7 @@ export const stageLinuxCaptureHelper = Effect.fn("stageLinuxCaptureHelper")(func
       },
     );
   } else if (!(yield* fs.exists(binaryPath))) {
-    return yield* new ResourceMonitorBuildOutputMissingError({
+    return yield* new CaptureHelperBuildOutputMissingError({
       binaryPath,
       rustTarget: rustTarget!,
       platform: "linux",
@@ -2352,7 +1877,7 @@ export const stageLinuxCaptureHelper = Effect.fn("stageLinuxCaptureHelper")(func
   }
   const destination = path.join(input.stageResourcesDir, `${input.backend}-capture`);
   yield* fs.makeDirectory(destination, { recursive: true });
-  const executable = path.join(destination, `t3-${input.backend}-snap-shot`);
+  const executable = path.join(destination, `ozi-${input.backend}-snap-shot`);
   yield* fs.copyFile(binaryPath, executable);
   yield* fs.chmod(executable, 0o755);
   if (input.backend === "hyprland") {
@@ -2361,89 +1886,6 @@ export const stageLinuxCaptureHelper = Effect.fn("stageLinuxCaptureHelper")(func
       path.join(input.repoRoot, "native/hyprland-snap-shot/protocols"),
       path.join(destination, "protocols"),
     );
-  }
-});
-
-export const stageResourceMonitor = Effect.fn("stageResourceMonitor")(function* (input: {
-  readonly repoRoot: string;
-  readonly stageResourcesDir: string;
-  readonly platform: typeof BuildPlatform.Type;
-  readonly arch: typeof BuildArch.Type;
-  readonly verbose: boolean;
-}) {
-  const fs = yield* FileSystem.FileSystem;
-  const path = yield* Path.Path;
-  const manifestPath = path.join(input.repoRoot, "native/resource-monitor/Cargo.toml");
-  const executableName = resourceMonitorExecutableName(input.platform);
-  const rustTargets = resolveResourceMonitorRustTargets(input.platform, input.arch);
-  const reuseResourceMonitor = yield* Config.Boolean("OZI_DESKTOP_REUSE_RESOURCE_MONITOR").pipe(
-    Config.withDefault(false),
-  );
-  const builtBinaries: string[] = [];
-
-  for (const rustTarget of rustTargets) {
-    if (!reuseResourceMonitor) {
-      const spawnCommand = yield* resolveSpawnCommand("cargo", [
-        "build",
-        "--locked",
-        "--release",
-        "--manifest-path",
-        manifestPath,
-        "--target",
-        rustTarget,
-      ]);
-      yield* runCommand(
-        ChildProcess.make(spawnCommand.command, spawnCommand.args, {
-          cwd: input.repoRoot,
-          shell: spawnCommand.shell,
-        }),
-        {
-          label: `cargo build resource monitor (${rustTarget})`,
-          verbose: input.verbose,
-        },
-      );
-    }
-
-    const binaryPath = path.join(
-      input.repoRoot,
-      "native/resource-monitor/target",
-      rustTarget,
-      "release",
-      executableName,
-    );
-    if (!(yield* fs.exists(binaryPath))) {
-      return yield* new ResourceMonitorBuildOutputMissingError({
-        binaryPath,
-        rustTarget,
-        platform: input.platform,
-        arch: input.arch,
-      });
-    }
-    if (reuseResourceMonitor) {
-      yield* Effect.log(`[desktop-artifact] Reusing cached resource monitor (${rustTarget}).`);
-    }
-    builtBinaries.push(binaryPath);
-  }
-
-  const destinationDirectory = path.join(input.stageResourcesDir, "resource-monitor");
-  const destinationPath = path.join(destinationDirectory, executableName);
-  yield* fs.remove(destinationDirectory, { recursive: true, force: true }).pipe(Effect.ignore);
-  yield* fs.makeDirectory(destinationDirectory, { recursive: true });
-
-  if (builtBinaries.length === 1) {
-    yield* fs.copyFile(builtBinaries[0]!, destinationPath);
-  } else {
-    yield* runCommand(
-      ChildProcess.make("lipo", ["-create", ...builtBinaries, "-output", destinationPath]),
-      {
-        label: "lipo resource monitor universal binary",
-        verbose: input.verbose,
-      },
-    );
-  }
-
-  if (input.platform !== "win") {
-    yield* fs.chmod(destinationPath, 0o755);
   }
 });
 
@@ -2472,7 +1914,7 @@ export const stageBrowserSecret = Effect.fn("stageBrowserSecret")(function* (inp
         "--arch",
         input.arch === "arm64" ? "arm64" : "x64",
         "--output",
-        path.join(input.stageResourcesDir, "browser-secret", "t3-browser-secret"),
+        path.join(input.stageResourcesDir, "browser-secret", "ozi-browser-secret"),
       ],
       { cwd: input.repoRoot },
     ),
@@ -2708,33 +2150,7 @@ export function resolveDesktopRuntimeDependencies(
   );
 }
 
-export const resolveGitHubPublishConfig = Effect.fn("resolveGitHubPublishConfig")(function* (
-  updateChannel: "latest" | "nightly",
-) {
-  const env = yield* Config.all({
-    updateRepository: Config.String("OZI_DESKTOP_UPDATE_REPOSITORY").pipe(Config.option),
-    githubRepository: Config.String("GITHUB_REPOSITORY").pipe(Config.option),
-  });
-  const rawRepo = (
-    Option.getOrUndefined(env.updateRepository)?.trim() ||
-    Option.getOrUndefined(env.githubRepository)?.trim() ||
-    ""
-  ).trim();
-  if (!rawRepo) return undefined;
-
-  const [owner, repo, ...rest] = rawRepo.split("/");
-  if (!owner || !repo || rest.length > 0) return undefined;
-
-  return {
-    provider: "github",
-    owner,
-    repo,
-    releaseType: updateChannel === "nightly" ? "prerelease" : "release",
-    ...(updateChannel === "nightly" ? { channel: "nightly" as const } : {}),
-  };
-});
-
-export function resolveDesktopUpdateChannel(version: string): "latest" | "nightly" {
+export function resolveDesktopBrandChannel(version: string): "latest" | "nightly" {
   return /-nightly\.\d{8}\.\d+$/.test(version) ? "nightly" : "latest";
 }
 
@@ -2743,11 +2159,11 @@ export function isDesktopPreviewVersion(version: string): boolean {
 }
 
 export function resolveDesktopWebAssetBrand(version: string): WebAssetBrand {
-  return resolveWebAssetBrandForChannel(resolveDesktopUpdateChannel(version));
+  return resolveWebAssetBrandForChannel(resolveDesktopBrandChannel(version));
 }
 
 export function resolveDesktopBuildIconAssets(version: string): DesktopBuildIconAssets {
-  if (resolveDesktopUpdateChannel(version) === "nightly") {
+  if (resolveDesktopBrandChannel(version) === "nightly") {
     return {
       macIconPng: BRAND_ASSET_PATHS.nightlyMacIconPng,
       linuxIconPng: BRAND_ASSET_PATHS.nightlyLinuxIconPng,
@@ -2760,10 +2176,6 @@ export function resolveDesktopBuildIconAssets(version: string): DesktopBuildIcon
     linuxIconPng: BRAND_ASSET_PATHS.productionLinuxIconPng,
     windowsIconIco: BRAND_ASSET_PATHS.productionWindowsIconIco,
   };
-}
-
-export function resolveMockUpdateServerUrl(mockUpdateServerPort: number | undefined): string {
-  return `http://localhost:${mockUpdateServerPort ?? 3000}`;
 }
 
 // Electron Builder detects pnpm from npm_config_user_agent, whose value uses
@@ -2780,7 +2192,7 @@ export function resolvePackageManagerUserAgent(packageManager: string): string {
 }
 
 export function resolveDesktopProductName(version: string): string {
-  return resolveDesktopUpdateChannel(version) === "nightly"
+  return resolveDesktopBrandChannel(version) === "nightly"
     ? "Ozi (Nightly)"
     : (desktopPackageJson.productName ?? "Ozi");
 }
@@ -2790,8 +2202,6 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
   target: string,
   version: string,
   signed: boolean,
-  mockUpdates: boolean,
-  mockUpdateServerPort: number | undefined,
   macPasskeySigning:
     | {
         readonly entitlementsPath: string;
@@ -2799,21 +2209,13 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
       }
     | undefined,
   wslRuntimeBundled = false,
-  arch?: typeof BuildArch.Type,
 ) {
   const buildConfig: Record<string, unknown> = {
     appId: DESKTOP_APP_ID,
     productName: resolveDesktopProductName(version),
     artifactName: "Ozi-${version}-${arch}.${ext}",
     electronLanguages: [...DESKTOP_ELECTRON_LANGUAGES],
-    files: [
-      ...DESKTOP_FILE_EXCLUSIONS,
-      ...(platform === "mac"
-        ? resolveMacFileExclusions(arch)
-        : platform === "linux"
-          ? LINUX_FILE_EXCLUSIONS
-          : []),
-    ],
+    files: [...DESKTOP_FILE_EXCLUSIONS],
     directories: {
       buildResources: "apps/desktop/resources",
     },
@@ -2824,31 +2226,17 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
       ? { asar: { smartUnpack: false }, asarUnpack: [WINDOWS_NATIVE_ASAR_UNPACK_GLOB] }
       : {}),
     extraResources: [
-      ...DESKTOP_EXTRA_RESOURCES,
       ...(platform === "linux" ? LINUX_CAPTURE_EXTRA_RESOURCES : []),
       ...(platform === "linux" ? LINUX_BROWSER_SECRET_EXTRA_RESOURCES : []),
       ...(platform === "win" ? WINDOWS_SERVER_EXTRA_RESOURCES : []),
       ...(platform === "win" && wslRuntimeBundled ? WSL_RUNTIME_EXTRA_RESOURCES : []),
     ],
   };
-  const updateChannel = resolveDesktopUpdateChannel(version);
+  const updateChannel = resolveDesktopBrandChannel(version);
   // A missing `publish` makes electron-builder infer a GitHub feed from
   // GH_TOKEN/GITHUB_TOKEN. The staged app has no repository to resolve it
   // against, so writing update manifests then crashes on a null config.
   buildConfig.publish = null;
-  if (!isDesktopPreviewVersion(version)) {
-    const publishConfig = yield* resolveGitHubPublishConfig(updateChannel);
-    if (publishConfig) {
-      buildConfig.publish = [publishConfig];
-    } else if (mockUpdates) {
-      buildConfig.publish = [
-        {
-          provider: "generic",
-          url: resolveMockUpdateServerUrl(mockUpdateServerPort),
-        },
-      ];
-    }
-  }
 
   if (platform === "mac") {
     const path = yield* Path.Path;
@@ -2861,13 +2249,11 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
         // macOS 26 offers Messages/Mail codes in every text field unless opted out.
         NSAutoFillRequiresTextContentTypeForOneTimeCodeOnMac: true,
         NSLocalNetworkUsageDescription:
-          "Ozi connects to devices on your local network for remote environments and commands run by terminals and coding agents.",
+          "Ozi connects to environments and shared browsers on your local network.",
         NSScreenCaptureUsageDescription:
           "Ozi captures the active window when you use the window capture shortcut.",
-        NSCameraUsageDescription:
-          "Ozi lets commands run by terminals and coding agents use the camera.",
-        NSMicrophoneUsageDescription:
-          "Ozi lets commands run by terminals and coding agents use the microphone.",
+        NSCameraUsageDescription: "Ozi lets agents use the camera.",
+        NSMicrophoneUsageDescription: "Ozi lets agents use the microphone.",
         // macOS lists an app under Default web browser only when it opens web
         // pages as documents as well as http and https links (see protocols).
         CFBundleDocumentTypes: [
@@ -2935,7 +2321,7 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
       icon: "icons",
       category: "Development",
       synopsis: "Desktop GUI for coding agents",
-      maintainer: "Ozi",
+      maintainer: "Ozi contributors",
       protocols: [
         {
           name: "Ozi",
@@ -3061,7 +2447,7 @@ export const stageWslRuntimeArchive = Effect.fn("stageWslRuntimeArchive")(functi
 // this module, so it cannot be imported here). WSL runs the same CPU arch as
 // the Windows host.
 export const wslRuntimeArchiveStem = (version: string, arch: typeof BuildArch.Type): string =>
-  `t3-${version}-linux-${arch}`;
+  `ozi-${version}-linux-${arch}`;
 
 export const parseWslRuntimeArchiveMembers = (listing: string): ReadonlyArray<string> =>
   listing
@@ -3076,10 +2462,6 @@ export const packWindowsServerAsar = Effect.fn("packWindowsServerAsar")(function
 }) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  // Native addons are unpacked only when they are Windows PE ("MZ") binaries.
-  // Signed builds Authenticode-sign every unpacked .node file, which fails on
-  // the darwin and linux prebuilds some packages (node-pty) ship alongside
-  // their win32 ones. The Windows primary never loads those, so they stay packed.
   const unpackGlobs: string[] = [...WINDOWS_SERVER_ASAR_UNPACK_GLOBS];
   for (const entry of yield* fs.readDirectory(input.sourceDir, { recursive: true })) {
     if (!entry.endsWith(".node")) continue;
@@ -3106,7 +2488,7 @@ export const packWindowsServerAsar = Effect.fn("packWindowsServerAsar")(function
         // not against the absolute paths it crawls, so anchor it at the source.
         globOptions: {
           cwd: input.sourceDir,
-          ignore: resolveWindowsServerAsarIgnoreGlobs(input.arch),
+          ignore: [...WINDOWS_SERVER_ASAR_IGNORE_GLOBS],
         },
       }),
     catch: (cause) => new WindowsServerSidecarPackError({ asarPath: input.asarPath, cause }),
@@ -3127,7 +2509,6 @@ export const stageWindowsServerSidecar = Effect.fn("stageWindowsServerSidecar")(
   readonly arch: typeof BuildArch.Type;
   readonly appVersion: string;
   readonly runtimeExternalDependencies: Record<string, string>;
-  readonly fffNodeVersion: string;
   readonly allowBuilds: Record<string, boolean>;
   readonly patchedDependencies: Record<string, string>;
   readonly overrides: Record<string, string>;
@@ -3143,7 +2524,6 @@ export const stageWindowsServerSidecar = Effect.fn("stageWindowsServerSidecar")(
 
   const sidecarDependencies = {
     ...input.runtimeExternalDependencies,
-    ...resolveFffNativeDependencies("win", input.arch, input.fffNodeVersion),
   };
   const sidecarPatchedDependencies = createStagePatchedDependencies(
     input.patchedDependencies,
@@ -3245,92 +2625,6 @@ const countPayloadFiles = Effect.fn("desktopArtifact.countPayloadFiles")(functio
   return count;
 });
 
-export const verifyWindowsPrimaryFffNativeLoad = Effect.fn(
-  "desktopArtifact.verifyWindowsPrimaryFffNativeLoad",
-)(function* (input: {
-  readonly packagedAppDir: string;
-  readonly asarPath: string;
-  readonly appExecutableName: string;
-  readonly targetArch: typeof BuildArch.Type;
-  readonly verbose: boolean;
-}) {
-  const hostPlatform = yield* HostProcess.Platform;
-  const hostArchitecture = yield* HostProcess.Architecture;
-  const fs = yield* FileSystem.FileSystem;
-  const path = yield* Path.Path;
-  const executablePath = path.join(input.packagedAppDir, input.appExecutableName);
-  const executableStat = yield* fs.stat(executablePath).pipe(Effect.orElseSucceed(() => null));
-  if (executableStat?.type !== "File") {
-    return yield* new WindowsPrimaryNativeProbeError({
-      executablePath,
-      exitCode: -1,
-      output: "The unpacked application does not contain its expected primary executable.",
-    });
-  }
-  if (hostPlatform !== "win32" || hostArchitecture !== input.targetArch) return;
-
-  const probeRoot = yield* fs.makeTempDirectoryScoped({
-    prefix: "ozi-windows-primary-native-probe-",
-  });
-  const fffEntryPath = path.join(input.asarPath, "node_modules/@ff-labs/fff-node/dist/index.js");
-  const probeEnv = { ...process.env };
-  delete probeEnv.ELECTRON_NO_ASAR;
-  delete probeEnv.NODE_OPTIONS;
-
-  yield* runCommand(
-    ChildProcess.make(
-      executablePath,
-      [
-        "--no-global-search-paths",
-        "--input-type=module",
-        "--eval",
-        WINDOWS_PRIMARY_FFF_PROBE_SOURCE,
-        fffEntryPath,
-        probeRoot,
-      ],
-      {
-        cwd: input.packagedAppDir,
-        stdout: "pipe",
-        stderr: "pipe",
-        env: {
-          ...probeEnv,
-          ELECTRON_RUN_AS_NODE: "1",
-          NODE_PATH: "",
-        },
-      },
-    ),
-    {
-      label: "Windows primary fff native-load probe",
-      verbose: input.verbose,
-    },
-  ).pipe(
-    Effect.timeout(WINDOWS_PRIMARY_NATIVE_PROBE_TIMEOUT),
-    Effect.catchTags({
-      TimeoutError: () =>
-        Effect.fail(
-          new WindowsPrimaryNativeProbeError({
-            executablePath,
-            exitCode: -1,
-            output: `The native-load probe did not finish within ${Duration.toSeconds(WINDOWS_PRIMARY_NATIVE_PROBE_TIMEOUT)}s.`,
-          }),
-        ),
-      BuildCommandFailedError: (error) =>
-        Effect.fail(
-          new WindowsPrimaryNativeProbeError({
-            executablePath,
-            exitCode: error.exitCode,
-            output: `${error.stderrTail ?? ""}${error.stdoutTail ?? ""}`.trim(),
-          }),
-        ),
-    }),
-  );
-});
-
-/**
- * The fff probe needs a host of the target's platform and architecture; the
- * bundle self-check needs a Windows host. A cross build defers both to
- * scripts/verify-windows-desktop-artifact.ts.
- */
 export const verifyWindowsPackagedRuntime = Effect.fn(
   "desktopArtifact.verifyWindowsPackagedRuntime",
 )(function* (input: {
@@ -3341,7 +2635,6 @@ export const verifyWindowsPackagedRuntime = Effect.fn(
 }) {
   const path = yield* Path.Path;
   const asarPath = path.join(input.packagedAppDir, "resources", WINDOWS_SERVER_ASAR_RESOURCE);
-  yield* verifyWindowsPrimaryFffNativeLoad({ ...input, asarPath });
   const hostPlatform = yield* HostProcess.Platform;
   if (hostPlatform !== "win32") {
     yield* Effect.log(
@@ -3443,19 +2736,6 @@ export const validateWindowsPackagedPayload = Effect.fn(
     });
   }
 
-  const resourceMonitorPath = path.join(
-    resourcesDir,
-    "resource-monitor",
-    resourceMonitorExecutableName("win"),
-  );
-  if (!(yield* isFile(resourceMonitorPath))) {
-    return yield* new WindowsPackagedPayloadValidationError({
-      reason: "resource-monitor-missing",
-      packagedAppDir,
-      missingFiles: ["resource-monitor/t3-resource-monitor.exe"],
-    });
-  }
-
   const wslArchivePath = path.join(resourcesDir, WSL_RUNTIME_ARCHIVE_NAME);
   const wslArchiveHashPath = path.join(resourcesDir, WSL_RUNTIME_ARCHIVE_HASH_NAME);
   const [hasWslArchive, hasWslArchiveHash] = yield* Effect.all([
@@ -3530,15 +2810,9 @@ export const validateWindowsPackagedPayload = Effect.fn(
         ),
       );
     }
-    const requiredMembers = [`${stem}/t3`, `${stem}/client`, `${stem}/node_modules`];
+    const requiredMembers = [`${stem}/ozi`, `${stem}/client`, `${stem}/node_modules`];
     const missingMembers = requiredMembers.filter((member) => !members.includes(member));
-    const ptyCandidates = [
-      `${stem}/node_modules/node-pty/build/Release/pty.node`,
-      `${stem}/node_modules/node-pty/prebuilds/linux-${input.targetArch}/pty.node`,
-    ];
-    if (!ptyCandidates.some((member) => members.includes(member))) {
-      missingMembers.push(...ptyCandidates);
-    }
+
     if (missingMembers.length > 0) {
       return yield* new WindowsPackagedPayloadValidationError({
         reason: "wsl-runtime-invalid",
@@ -3771,20 +3045,13 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
   if (options.platform === "mac" && options.target === "dmg") {
     yield* stageDesktopDmgBackground(
       stageResourcesDir,
-      resolveDesktopUpdateChannel(appVersion),
+      resolveDesktopBrandChannel(appVersion),
       options.verbose,
     );
   }
   if (options.platform !== "win") {
     yield* fs.copy(distDirs.serverDist, path.join(stageAppDir, "apps/server/dist"));
   }
-  yield* stageResourceMonitor({
-    repoRoot,
-    stageResourcesDir,
-    platform: options.platform,
-    arch: options.arch,
-    verbose: options.verbose,
-  });
   if (options.platform === "linux") {
     for (const backend of ["kde", "hyprland"] as const)
       yield* stageLinuxCaptureHelper({
@@ -3865,7 +3132,6 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
           serverDependencies: resolvedServerDependencies,
           desktopDependencies: resolvedDesktopRuntimeDependencies,
           arch: options.arch,
-          fffNodeVersion: serverPackageJson.dependencies["@ff-labs/fff-node"],
         });
   const stagePatchedDependencies = createStagePatchedDependencies(
     workspacePatchedDependencies,
@@ -3885,18 +3151,16 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
     private: true,
     packageManager: rootPackageJson.packageManager,
     description:
-      "Ozi is an open-source desktop app for coding agents. Work with your existing agent subscriptions, review code changes, and run commands in your projects. Connect from desktop or web to continue working remotely.",
+      "Ozi is an agent runtime. Talk to one main agent, delegate work, and handle every job on a card.",
     license: "MIT",
-    homepage: "https://t3.codes",
-    author: "Ozi",
+
+    author: "Ozi contributors",
     main: "apps/desktop/dist-electron/boot.cjs",
     build: yield* createBuildConfig(
       options.platform,
       options.target,
       appVersion,
       options.signed,
-      options.mockUpdates,
-      options.mockUpdateServerPort,
       macPasskeySigning && macEntitlementsPath
         ? {
             entitlementsPath: macEntitlementsPath,
@@ -3904,7 +3168,6 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
           }
         : undefined,
       bundlesWslRuntime({ platform: options.platform, runtimeArchivePath: options.wslRuntime }),
-      options.arch,
     ),
     dependencies: stageDependencies,
     devDependencies: {
@@ -3940,7 +3203,6 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
     }),
     { label: "vp install --prod", verbose: options.verbose },
   );
-  yield* stageClerkPasskeyNativeBinaries(stageAppDir, options.platform, options.arch);
   yield* stageKeyringNativeBinaries(stageAppDir, options.platform, options.arch);
 
   if (options.platform === "win" && windowsServerAsarPath) {
@@ -3951,7 +3213,6 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
       arch: options.arch,
       appVersion,
       runtimeExternalDependencies: resolvedServerRuntimeExternalDependencies,
-      fffNodeVersion: serverPackageJson.dependencies["@ff-labs/fff-node"],
       allowBuilds: workspaceAllowBuilds,
       patchedDependencies: workspacePatchedDependencies,
       overrides: resolvedOverrides,
@@ -4150,18 +3411,9 @@ const buildDesktopArtifactCli = Command.make("build-desktop-artifact", {
     Flag.withDescription("Stream subprocess stdout (env: OZI_DESKTOP_VERBOSE)."),
     Flag.optional,
   ),
-  mockUpdates: Flag.Boolean("mock-updates").pipe(
-    Flag.withDescription("Enable mock updates (env: OZI_DESKTOP_MOCK_UPDATES)."),
-    Flag.optional,
-  ),
-  mockUpdateServerPort: Flag.Int("mock-update-server-port").pipe(
-    Flag.withSchema(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 65535 }))),
-    Flag.withDescription("Mock update server port (env: OZI_DESKTOP_MOCK_UPDATE_SERVER_PORT)."),
-    Flag.optional,
-  ),
   wslRuntime: Flag.String("wsl-runtime").pipe(
     Flag.withDescription(
-      "Path to the Linux CLI release archive (t3-<version>-linux-x64.tar.gz) to embed as the WSL runtime of a Windows build (env: OZI_DESKTOP_WSL_RUNTIME).",
+      "Path to the Linux CLI release archive (ozi-<version>-linux-x64.tar.gz) to embed as the WSL runtime of a Windows build (env: OZI_DESKTOP_WSL_RUNTIME).",
     ),
     Flag.optional,
   ),
@@ -4178,4 +3430,22 @@ if (import.meta.main) {
     Effect.provide(cliRuntimeLayer),
     NodeRuntime.runMain,
   );
+}
+
+export function resolveLinuxRustTarget(arch: typeof BuildArch.Type): string {
+  return arch === "arm64" ? "aarch64-unknown-linux-gnu" : "x86_64-unknown-linux-gnu";
+}
+
+export class CaptureHelperBuildOutputMissingError extends Schema.TaggedError<CaptureHelperBuildOutputMissingError>()(
+  "CaptureHelperBuildOutputMissingError",
+  {
+    binaryPath: Schema.String,
+    rustTarget: Schema.String,
+    platform: BuildPlatform,
+    arch: BuildArch,
+  },
+) {
+  override get message(): string {
+    return `Capture helper build for ${this.rustTarget} did not produce ${this.binaryPath}.`;
+  }
 }

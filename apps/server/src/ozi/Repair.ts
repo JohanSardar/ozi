@@ -132,7 +132,7 @@ export class Repair extends Context.Service<
       caller: Caller,
     ) => Effect.Effect<{ changed: true }, RepairError>;
   }
->()("t3/ozi/Repair") {}
+>()("ozi/ozi/Repair") {}
 
 const digest = (bytes: Uint8Array) =>
   Effect.promise(() => crypto.subtle.digest("SHA-256", Uint8Array.from(bytes).buffer)).pipe(

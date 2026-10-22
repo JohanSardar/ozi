@@ -1,9 +1,5 @@
 import {
   DEFAULT_SERVER_SETTINGS,
-  ModelSelection,
-  ProjectId,
-  ProjectScript,
-  ProjectSettingsOverrides,
   type ProviderInstanceConfig,
   type ProviderInstanceMutation,
   defaultInstanceIdForDriver,
@@ -33,7 +29,7 @@ import * as SchemaTransformation from "effect/SchemaTransformation";
 import * as Semaphore from "effect/Semaphore";
 import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
-import * as SqlClient from "effect/sql/SqlClient";
+
 import { writeFileStringAtomically } from "@t3tools/shared/atomicWrite";
 import { resolveSymlinkTarget } from "@t3tools/shared/symlink";
 import * as ServerConfig from "./config.ts";
@@ -41,22 +37,12 @@ import { type DeepPartial, deepMerge } from "@t3tools/shared/Struct";
 import { fromJsonStringPretty, fromLenientJson } from "@t3tools/shared/schemaJson";
 import {
   applyServerSettingsPatch,
-  deriveLegacyProjectOverrides,
   fallbackTextGenerationModelSelection,
   isModelSelectionProviderEnabled,
 } from "@t3tools/shared/serverSettings";
 import * as ServerSecretStore from "./auth/ServerSecretStore.ts";
-import {
-  readSecretFieldValues,
-  sourceControlHostSecretName,
-} from "./sourceControl/sourceControlHostSecrets.ts";
 
-import { mapSettingsSecrets, SECRET_REDACTED, type SettingsSecret } from "./settingsSecrets.ts";
-
-export {
-  resolveReviewGuideModelSelection,
-  resolveSourceControlWriterModelSelection,
-} from "@t3tools/shared/serverSettings";
+import { mapSettingsSecrets, type SettingsSecret } from "./settingsSecrets.ts";
 
 const encodeServerSettings = Schema.encodeEffect(ServerSettings);
 const encodeServerSettingsJson = Schema.encodeUnknownEffect(fromJsonStringPretty(ServerSettings));
@@ -115,7 +101,6 @@ const normalizeServerSettings = (
   encodeServerSettings(settings).pipe(
     Effect.flatMap(decodeServerSettings),
     Effect.map(foldProviderInstanceEnabledFlags),
-    Effect.map((next) => ({ ...next, ...deriveLegacyProjectOverrides(next) })),
     Effect.mapError(
       (cause) =>
         new ServerSettingsError({
@@ -134,7 +119,7 @@ export function redactServerSettingsForClient(settings: ServerSettings): ServerS
   );
 }
 
-export function applyProviderInstanceMutation(
+function applyProviderInstanceMutation(
   settings: ServerSettings,
   mutation: ProviderInstanceMutation,
 ): ServerSettings {
@@ -197,21 +182,17 @@ export class ServerSettingsService extends Context.Service<
      */
     readonly subscribeChanges: Effect.Effect<Stream.Stream<ServerSettings>, never, Scope.Scope>;
   }
->()("t3/serverSettings/ServerSettingsService") {
+>()("ozi/serverSettings/ServerSettingsService") {
   static readonly layerTest = (overrides: DeepPartial<ServerSettings> = {}) => layerTest(overrides);
 }
 
 const makeTest = Effect.fn("serverSettings.makeTest")(function* (
   overrides: DeepPartial<ServerSettings> = {},
 ) {
-  const { automaticGitFetchInterval, providerHealthRefreshInterval, ...overridesForMerge } =
-    overrides;
+  const { providerHealthRefreshInterval, ...overridesForMerge } = overrides;
   const merged = deepMerge(DEFAULT_SERVER_SETTINGS, overridesForMerge);
   const initialSettings = yield* normalizeServerSettings({
     ...merged,
-    ...(automaticGitFetchInterval !== undefined
-      ? { automaticGitFetchInterval: automaticGitFetchInterval as Duration.Duration }
-      : {}),
     ...(providerHealthRefreshInterval !== undefined
       ? { providerHealthRefreshInterval: providerHealthRefreshInterval as Duration.Duration }
       : {}),
@@ -255,7 +236,7 @@ const makeTest = Effect.fn("serverSettings.makeTest")(function* (
   } satisfies ServerSettingsService["Service"];
 });
 
-export const layerTest = (overrides: DeepPartial<ServerSettings> = {}) =>
+const layerTest = (overrides: DeepPartial<ServerSettings> = {}) =>
   Layer.effect(ServerSettingsService, makeTest(overrides));
 
 // Migrate saved token delivery without accepting it in settings writes or
@@ -278,13 +259,6 @@ const ServerSettingsJson = fromLenientJson(
     responseStreamingMode: PersistedResponseStreamingMode.pipe(
       Schema.withDecodingDefault(Effect.succeed("paragraph" as const)),
     ),
-    projectSettingsOverrides: Schema.Record(
-      ProjectId,
-      Schema.Struct({
-        ...ProjectSettingsOverrides.fields,
-        responseStreamingMode: Schema.optionalKey(PersistedResponseStreamingMode),
-      }),
-    ).pipe(Schema.withDecodingDefault(Effect.succeed({}))),
   }),
 );
 const decodeServerSettingsJsonExit = Schema.decodeUnknownExit(ServerSettingsJson);
@@ -296,48 +270,6 @@ const LegacyProviderSettingsJson = fromLenientJson(
   }),
 );
 const decodeLegacyProviderSettingsJsonExit = Schema.decodeUnknownExit(LegacyProviderSettingsJson);
-
-const LEGACY_BITBUCKET_SECRET_NAMES: Readonly<Record<string, string>> = {
-  accessToken: "bitbucket-access-token",
-  apiToken: "bitbucket-api-token",
-};
-const legacyGitHubTokenSecretName = (host: string) =>
-  `github-token-${Buffer.from(host.trim().toLowerCase(), "utf8").toString("base64url")}`;
-
-function migrateLegacySourceControlSettings(
-  settings: ServerSettings,
-  legacy: {
-    readonly bitbucket?: Readonly<Record<string, unknown>> | undefined;
-    readonly github?: Readonly<Record<string, unknown>> | undefined;
-  },
-): {
-  readonly settings: ServerSettings;
-  readonly secretMoves: ReadonlyArray<{ readonly from: string; readonly to: string }>;
-} {
-  const sourceControlHosts = { ...settings.sourceControlHosts };
-  const secretMoves: Array<{ readonly from: string; readonly to: string }> = [];
-  if (legacy.bitbucket !== undefined && sourceControlHosts.bitbucket === undefined) {
-    sourceControlHosts.bitbucket = legacy.bitbucket;
-    for (const [field, from] of Object.entries(LEGACY_BITBUCKET_SECRET_NAMES)) {
-      if (legacy.bitbucket[field] !== SECRET_REDACTED) continue;
-      secretMoves.push({
-        from,
-        to: sourceControlHostSecretName({ kind: "bitbucket", field, serverHost: null }),
-      });
-    }
-  }
-  if (legacy.github !== undefined && sourceControlHosts.github === undefined) {
-    sourceControlHosts.github = legacy.github;
-    for (const [serverHost, value] of readSecretFieldValues(legacy.github.tokens)) {
-      if (serverHost === null || value !== SECRET_REDACTED) continue;
-      secretMoves.push({
-        from: legacyGitHubTokenSecretName(serverHost),
-        to: sourceControlHostSecretName({ kind: "github", field: "tokens", serverHost }),
-      });
-    }
-  }
-  return { settings: { ...settings, sourceControlHosts }, secretMoves };
-}
 
 function migrateLegacyProviderSettings(
   settings: ServerSettings,
@@ -392,13 +324,8 @@ function fallbackTextGenerationProvider(settings: ServerSettings): ServerSetting
 }
 
 const ATOMIC_SETTINGS_KEYS: ReadonlySet<string> = new Set([
-  "backgroundActivity",
-  "automaticGitFetchInterval",
   "providerHealthRefreshInterval",
-  "sourceControlWriterModelSelection",
-  "reviewGuideModelSelection",
   "textGenerationModelSelection",
-  "pullRequestMergeMethod",
 ]);
 
 function stripDefaultServerSettings(current: unknown, defaults: unknown): unknown | undefined {
@@ -435,94 +362,11 @@ function stripDefaultServerSettings(current: unknown, defaults: unknown): unknow
   return Object.is(current, defaults) ? undefined : current;
 }
 
-const decodeProjectScriptsJson = Schema.decodeUnknownOption(
-  Schema.fromJsonString(Schema.Array(ProjectScript)),
-);
-const decodeModelSelectionJson = Schema.decodeUnknownOption(
-  Schema.fromJsonString(Schema.NullOr(ModelSelection)),
-);
-
-interface LegacyProjectSettingsRow {
-  readonly projectId: string;
-  readonly defaultModelSelection: string | null;
-  readonly defaultThreadEnvMode: string | null;
-  readonly autoPull: number;
-  readonly scripts: string;
-}
-
-/**
- * Marked with `projectSettingsFolded` so a later reset in the UI survives restarts.
- */
-function foldLegacyProjectSettings(
-  settings: ServerSettings,
-  rows: ReadonlyArray<LegacyProjectSettingsRow>,
-): ServerSettings {
-  if (settings.projectSettingsFolded) return settings;
-  if (
-    rows.length === 0 &&
-    Object.keys(settings.projectAgentBrowserAccessOverrides).length === 0 &&
-    Object.keys(settings.projectAutoPullOverrides).length === 0 &&
-    Object.keys(settings.projectScriptOverrides).length === 0
-  ) {
-    return settings;
-  }
-  const entries: Record<string, ProjectSettingsOverrides> = {
-    ...settings.projectSettingsOverrides,
-  };
-  const set = <K extends keyof ProjectSettingsOverrides>(
-    projectId: string,
-    key: K,
-    value: ProjectSettingsOverrides[K] | undefined,
-  ) => {
-    if (value === undefined) return;
-    const entry = entries[projectId] ?? {};
-    if (Object.hasOwn(entry, key)) return;
-    entries[projectId] = { ...entry, [key]: value };
-  };
-  for (const [projectId, value] of Object.entries(settings.projectAgentBrowserAccessOverrides)) {
-    set(projectId, "enableAgentBrowserAccess", value);
-  }
-  for (const [projectId, value] of Object.entries(settings.projectAutoPullOverrides)) {
-    set(projectId, "defaultAutoPull", value);
-  }
-  // A stored null meant "reset to machine defaults", which is now plain
-  // inheritance; the project's own aggregate scripts must not resurface.
-  const resetScripts = new Set<string>();
-  for (const [projectId, value] of Object.entries(settings.projectScriptOverrides)) {
-    if (value === null) resetScripts.add(projectId);
-    else set(projectId, "defaultProjectScripts", value);
-  }
-  for (const row of rows) {
-    const model = decodeModelSelectionJson(row.defaultModelSelection ?? "null");
-    if (Option.isSome(model) && model.value !== null) {
-      set(row.projectId, "defaultModelSelection", model.value);
-    }
-    if (row.defaultThreadEnvMode === "local" || row.defaultThreadEnvMode === "worktree") {
-      set(row.projectId, "defaultThreadEnvMode", row.defaultThreadEnvMode);
-    }
-    if (row.autoPull === 1) set(row.projectId, "defaultAutoPull", true);
-    const scripts = decodeProjectScriptsJson(row.scripts);
-    if (Option.isSome(scripts) && scripts.value.length > 0 && !resetScripts.has(row.projectId)) {
-      set(row.projectId, "defaultProjectScripts", scripts.value);
-    }
-  }
-  const projectSettingsOverrides = Object.fromEntries(
-    Object.entries(entries).filter(([, entry]) => Object.keys(entry).length > 0),
-  );
-  return {
-    ...settings,
-    projectSettingsOverrides,
-    projectSettingsFolded: true,
-    ...deriveLegacyProjectOverrides({ projectSettingsOverrides }),
-  };
-}
-
 const make = Effect.gen(function* () {
   const { settingsPath } = yield* ServerConfig.ServerConfig;
   const fs = yield* FileSystem.FileSystem;
   const pathService = yield* Path.Path;
   const secretStore = yield* ServerSecretStore.ServerSecretStore;
-  const sql = yield* SqlClient.SqlClient;
   const writeSemaphore = yield* Semaphore.make(1);
   const cacheKey = "settings" as const;
   const changesPubSub = yield* PubSub.unbounded<ServerSettings>();
@@ -613,7 +457,6 @@ const make = Effect.gen(function* () {
   const loadSettingsFromDisk = Effect.gen(function* () {
     let settings = DEFAULT_SERVER_SETTINGS;
     let legacyProviders: Readonly<Record<string, unknown>> | undefined;
-    let legacySourceControl: Parameters<typeof migrateLegacySourceControlSettings>[1] = {};
     let parseFailure = Option.none<unknown>();
 
     if (yield* readConfigExists) {
@@ -622,10 +465,6 @@ const make = Effect.gen(function* () {
       const legacySettings = decodeLegacyProviderSettingsJsonExit(raw);
       if (legacySettings._tag === "Success") {
         legacyProviders = legacySettings.value.providers;
-        legacySourceControl = {
-          bitbucket: legacySettings.value.bitbucket,
-          github: legacySettings.value.github,
-        };
       }
       if (decoded._tag === "Failure" || legacySettings._tag === "Failure") {
         const failure = decoded._tag === "Failure" ? decoded : legacySettings;
@@ -646,77 +485,17 @@ const make = Effect.gen(function* () {
 
     // A file that failed to decode must stay on disk for the user to repair.
     const settingsFileTrusted = Option.isNone(parseFailure);
-    const legacyProjectRows =
-      settings.projectSettingsFolded || !settingsFileTrusted
-        ? []
-        : yield* sql<LegacyProjectSettingsRow>`
-          SELECT
-            project_id AS "projectId",
-            default_model_selection_json AS "defaultModelSelection",
-            default_thread_env_mode AS "defaultThreadEnvMode",
-            auto_pull AS "autoPull",
-            scripts_json AS "scripts"
-          FROM projection_projects
-          WHERE deleted_at IS NULL
-        `.pipe(
-            Effect.mapError(
-              (cause) =>
-                new ServerSettingsError({
-                  settingsPath,
-                  operation: "read-project-settings",
-                  cause,
-                }),
-            ),
-          );
-
     const loaded = foldProviderInstanceEnabledFlags(
       legacyProviders === undefined
         ? settings
         : migrateLegacyProviderSettings(settings, legacyProviders),
     );
-    const folded = settingsFileTrusted
-      ? foldLegacyProjectSettings(loaded, legacyProjectRows)
-      : loaded;
     // Copied, not moved: the old entry is removed only after the new file is written. A token
     // that cannot be read or copied leaves the retired keys in place, so the migration runs again
     // on the next load instead of dropping it.
-    const legacySecretsCopied = yield* Effect.forEach(
-      settingsFileTrusted
-        ? migrateLegacySourceControlSettings(folded, legacySourceControl).secretMoves
-        : [],
-      (move) =>
-        secretStore.get(move.from).pipe(
-          Effect.flatMap((secret) =>
-            Option.isNone(secret) ? Effect.void : secretStore.set(move.to, secret.value),
-          ),
-          Effect.as(true),
-          Effect.catch(() =>
-            Effect.logWarning("failed to copy a source control secret to its new name", {
-              secretName: move.to,
-            }).pipe(Effect.as(false)),
-          ),
-        ),
-    ).pipe(Effect.map((copied) => copied.every(Boolean)));
-    const hasLegacySourceControl =
-      settingsFileTrusted &&
-      legacySecretsCopied &&
-      (legacySourceControl.bitbucket !== undefined || legacySourceControl.github !== undefined);
-    const sourceControlMigration = hasLegacySourceControl
-      ? migrateLegacySourceControlSettings(folded, legacySourceControl)
-      : { settings: folded, secretMoves: [] };
-    const migrated = settingsFileTrusted
-      ? yield* moveInlineSettingsSecrets(sourceControlMigration.settings)
-      : folded;
-    if (
-      migrated !== loaded ||
-      (settingsFileTrusted && legacyProviders !== undefined) ||
-      hasLegacySourceControl
-    ) {
+    const migrated = settingsFileTrusted ? yield* moveInlineSettingsSecrets(loaded) : loaded;
+    if (migrated !== loaded || (settingsFileTrusted && legacyProviders !== undefined))
       yield* writeSettingsAtomically(migrated);
-      for (const move of sourceControlMigration.secretMoves) {
-        yield* secretStore.remove(move.from).pipe(Effect.ignore);
-      }
-    }
     return { settings: migrated, parseFailure };
   });
 

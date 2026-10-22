@@ -1,6 +1,6 @@
 import { AgentScope } from "@t3tools/shared/AgentScope";
 import * as KeyedLock from "@t3tools/shared/KeyedLock";
-import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
+
 import {
   isOrchestrationV2WorkActive,
   ModelSelection,
@@ -186,7 +186,7 @@ export interface ProviderSessionManagerV2Shape {
 export class ProviderSessionManagerV2 extends Context.Service<
   ProviderSessionManagerV2,
   ProviderSessionManagerV2Shape
->()("t3/orchestration-v2/ProviderSessionManager/ProviderSessionManagerV2") {}
+>()("ozi/orchestration-v2/ProviderSessionManager/ProviderSessionManagerV2") {}
 
 interface LiveSessionEntry {
   readonly attachedThreadIds: ReadonlySet<ThreadId>;
@@ -294,7 +294,7 @@ function providerThreadLoadKey(input: {
   });
 }
 
-export const layerWithOptions = (
+const layerWithOptions = (
   options: ProviderSessionManagerV2LayerOptions = {},
 ): Layer.Layer<
   ProviderSessionManagerV2,
@@ -335,23 +335,8 @@ export const layerWithOptions = (
           if (Option.isNone(serverSettings)) return { browser: true };
           return yield* Effect.gen(function* () {
             const settings = yield* serverSettings.value.getSettings;
-            const thread = yield* projectionStore.getThread(threadId);
-            const entries = Object.values(settings.projectSettingsOverrides);
-            const browserOverridden = entries.some(
-              (entry) => entry.enableAgentBrowserAccess !== undefined,
-            );
-            if (browserOverridden) {
-              const project = Option.isSome(projectService)
-                ? yield* projectService.value.getById(thread.projectId)
-                : Option.none();
-              if (Option.isNone(project))
-                return {
-                  browser: browserOverridden ? false : settings.enableAgentBrowserAccess,
-                };
-            }
-            const effective = resolveProjectSettings(settings, thread.projectId).settings;
             return {
-              browser: effective.enableAgentBrowserAccess,
+              browser: settings.enableAgentBrowserAccess,
             };
           }).pipe(
             Effect.catch((cause) =>
@@ -449,7 +434,7 @@ export const layerWithOptions = (
                 const browserToolsAvailable = !main && access.browser;
                 const capabilities = new Set<
                   import("../mcp/McpInvocationContext.ts").McpCapability
-                >(main ? ["orchestration"] : ["orchestration", "worktree", "pull-requests"]);
+                >(main ? ["orchestration"] : ["orchestration"]);
                 if (browserToolsAvailable) capabilities.add("preview");
                 const existing = yield* mcpSessions.read(threadId);
                 if (existing !== undefined) {
@@ -1984,7 +1969,7 @@ export const layerWithOptions = (
                   }
                   // Some providers can block before a run subscriber exists
                   // (project trust, login, or session-switch hooks). Persist
-                  // their runless request artifacts directly so the normal T3
+                  // their runless request artifacts directly so the normal Ozi
                   // request UI can answer them and unblock session setup.
                   const threadId = sessionScopedRuntimeRequestThreadId(event);
                   if (threadId !== undefined) {

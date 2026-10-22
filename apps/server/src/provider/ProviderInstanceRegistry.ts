@@ -40,7 +40,7 @@ export class ProviderInstanceRegistry extends Context.Service<
     readonly streamChanges: Stream.Stream<void>;
     readonly subscribeChanges: Effect.Effect<PubSub.Subscription<void>, never, Scope.Scope>;
   }
->()("t3/provider/ProviderInstanceRegistry") {}
+>()("ozi/provider/ProviderInstanceRegistry") {}
 
 interface LiveEntry {
   readonly instance: ProviderInstance;
@@ -262,7 +262,7 @@ const makeReconcile = <R>(input: {
     });
 };
 
-export const makeProviderInstanceRegistry = Effect.fn(
+const makeProviderInstanceRegistry = Effect.fn(
   "ProviderInstanceRegistry.makeProviderInstanceRegistry",
 )(function* <R>(input: {
   readonly drivers: ReadonlyArray<AnyProviderDriver<R>>;

@@ -29,7 +29,7 @@ export function omitLocalVisibleTurnItems(
  * Client half: call on a decoded snapshot that carries the
  * `turnItemsOmitLocalVisible` marker, before reducers or caches see it.
  */
-export function restoreLocalVisibleTurnItems(
+function restoreLocalVisibleTurnItems(
   projection: OrchestrationV2ThreadProjection,
 ): OrchestrationV2ThreadProjection {
   const local = projection.visibleTurnItems

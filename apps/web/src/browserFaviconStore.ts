@@ -28,7 +28,6 @@ import { createMemoryStorage, type StateStorage } from "./lib/storage";
 const BROWSER_FAVICON_STORAGE_KEY = "t3code:browser-favicons:v1";
 const MAX_PENDING_ORIGINS_PER_THREAD = 10;
 const MAX_PENDING_THREADS = 20;
-const MAX_REGISTERED_THREADS = 100;
 
 type PendingFavicon = DesktopPreviewFavicon;
 type PendingFaviconsByOrigin = Record<string, PendingFavicon>;
@@ -76,7 +75,7 @@ function addPendingFavicon(
   );
 }
 
-export function resolveBrowserFaviconStorage(): StateStorage {
+function resolveBrowserFaviconStorage(): StateStorage {
   const fallback = createMemoryStorage();
   const shadowedNames = new Set<string>();
   let primary: Storage;
@@ -116,7 +115,7 @@ export function resolveBrowserFaviconStorage(): StateStorage {
   };
 }
 
-export const useBrowserFaviconStore = create<BrowserFaviconStoreState>()(
+const useBrowserFaviconStore = create<BrowserFaviconStoreState>()(
   persist(
     (set) => ({
       byKey: {},
@@ -162,7 +161,7 @@ export const useBrowserFaviconStore = create<BrowserFaviconStoreState>()(
   ),
 );
 
-export function mergeBrowserFaviconState(
+function mergeBrowserFaviconState(
   persistedState: unknown,
   currentState: BrowserFaviconStoreState,
 ): BrowserFaviconStoreState {
@@ -170,29 +169,6 @@ export function mergeBrowserFaviconState(
     ...currentState,
     ...migratePersistedBrowserFaviconState(persistedState),
   };
-}
-
-export function registerFaviconProjectForThread(
-  threadRef: ScopedThreadRef,
-  projectRef: ScopedProjectRef,
-): void {
-  const threadKey = scopedThreadKey(threadRef);
-  const state = useBrowserFaviconStore.getState();
-  const current = state.projectRefByThreadKey[threadKey];
-  if (
-    current?.environmentId === projectRef.environmentId &&
-    current.projectId === projectRef.projectId
-  ) {
-    return;
-  }
-  useBrowserFaviconStore.setState({
-    projectRefByThreadKey: Object.fromEntries(
-      [
-        ...Object.entries(state.projectRefByThreadKey).filter(([key]) => key !== threadKey),
-        [threadKey, projectRef],
-      ].slice(-MAX_REGISTERED_THREADS),
-    ),
-  });
 }
 
 export function useFaviconProjectRefForThread(threadRef: ScopedThreadRef): ScopedProjectRef | null {
@@ -206,7 +182,7 @@ export function useFaviconProjectRefForThread(threadRef: ScopedThreadRef): Scope
   return shellProjectRef ?? registered;
 }
 
-export function recordFaviconForProject(
+function recordFaviconForProject(
   projectRef: ScopedProjectRef,
   favicon: DesktopPreviewFavicon,
   environmentHostname: string | null,
@@ -305,7 +281,7 @@ export function useFaviconForThreadUrl(threadRef: ScopedThreadRef, url: string):
   );
 }
 
-export function lookupFavicon(
+function lookupFavicon(
   byKey: Record<string, BrowserFaviconEntry>,
   projectRef: ScopedProjectRef | null,
   url: string,
@@ -325,13 +301,4 @@ export function lookupFavicon(
   } catch {
     return null;
   }
-}
-
-export function resetBrowserFaviconsForTests(): void {
-  useBrowserFaviconStore.setState({
-    byKey: {},
-    pendingByThreadKey: {},
-    projectRefByThreadKey: {},
-  });
-  useBrowserFaviconStore.persist.clearStorage();
 }

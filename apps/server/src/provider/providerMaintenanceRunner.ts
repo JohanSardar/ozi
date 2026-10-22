@@ -74,7 +74,7 @@ export interface ProviderMaintenanceRunnerShape {
 export class ProviderMaintenanceRunner extends Context.Service<
   ProviderMaintenanceRunner,
   ProviderMaintenanceRunnerShape
->()("t3/provider/providerMaintenanceRunner") {}
+>()("ozi/provider/providerMaintenanceRunner") {}
 
 class ProviderMaintenanceCommandError extends Data.TaggedError("ProviderMaintenanceCommandError")<{
   readonly message: string;
@@ -202,7 +202,7 @@ const runProviderMaintenanceCommandWithSpawner = Effect.fn("ProviderMaintenanceR
   },
 );
 
-export function splitOutputLines(
+function splitOutputLines(
   partialLine: string,
   text: string,
 ): { readonly lines: ReadonlyArray<string>; readonly partialLine: string } {
@@ -210,7 +210,7 @@ export function splitOutputLines(
   return { partialLine: (parts.pop() ?? "").slice(-UPDATE_PARTIAL_LINE_MAX_LENGTH), lines: parts };
 }
 
-export function toProgressLine(line: string): string | null {
+function toProgressLine(line: string): string | null {
   const text = NodeUtil.stripVTControlCharacters(line).replace(/\s+/g, " ").trim();
   if (text.length === 0) {
     return null;
@@ -466,7 +466,7 @@ export const make = Effect.fn("ProviderMaintenanceRunner.make")(function* () {
                   message:
                     targetVersion !== undefined
                       ? "This version is no longer recommended or this installer cannot install a specific version. Refresh provider settings."
-                      : "The latest provider version is incompatible with this T3 Code release. Review provider settings.",
+                      : "The latest provider version is incompatible with this Ozi release. Review provider settings.",
                 }),
               );
             }
@@ -524,9 +524,9 @@ export const make = Effect.fn("ProviderMaintenanceRunner.make")(function* () {
                 startedAt,
                 finishedAt,
                 message: couldNotVerify
-                  ? "Update command completed, but T3 Code could not verify the provider version."
+                  ? "Update command completed, but Ozi could not verify the provider version."
                   : stillOutdated
-                    ? "Update command completed, but T3 Code still detects an outdated provider version."
+                    ? "Update command completed, but Ozi still detects an outdated provider version."
                     : "Provider updated.",
                 output: commandOutput(result),
               }),

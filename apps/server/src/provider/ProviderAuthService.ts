@@ -12,7 +12,6 @@ import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Function from "effect/Function";
 import * as Layer from "effect/Layer";
-import type * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 import * as Semaphore from "effect/Semaphore";
 
@@ -63,9 +62,9 @@ export class ProviderAuthService extends Context.Service<
       input: ProviderAuthTarget & { readonly text: string; readonly hasAttachments: boolean },
     ) => Effect.Effect<boolean, ProviderSetupError>;
   }
->()("t3/provider/ProviderAuthService") {}
+>()("ozi/provider/ProviderAuthService") {}
 
-export const makeProviderAuthService = Effect.gen(function* () {
+const makeProviderAuthService = Effect.gen(function* () {
   const registry = yield* ProviderInstanceRegistry.ProviderInstanceRegistry;
   const projections = yield* ProjectionStore.ProjectionStoreV2;
   const providerSessions = yield* ProviderSessionManager.ProviderSessionManagerV2;
@@ -81,7 +80,7 @@ export const makeProviderAuthService = Effect.gen(function* () {
         instanceId,
         operation,
         detail: instance
-          ? "This provider does not support sign-in in T3 Code."
+          ? "This provider does not support sign-in in Ozi."
           : "This provider instance is no longer available.",
       });
     }

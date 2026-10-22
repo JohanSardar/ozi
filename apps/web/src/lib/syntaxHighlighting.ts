@@ -1,37 +1,21 @@
-import {
-  getSharedHighlighter,
-  type DiffsHighlighter,
-  type HighlighterTypes,
-  type SupportedLanguages,
-} from "@pierre/diffs";
+import { getSingletonHighlighter, type Highlighter, type BundledLanguage } from "shiki";
 
-import { resolveDiffThemeName } from "./diffRendering";
+export const resolveSyntaxThemeName = (theme: "light" | "dark") =>
+  theme === "dark" ? "github-dark" : "github-light";
 
-/**
- * Always highlight with the Oniguruma WASM engine — the JS regex engine can
- * backtrack catastrophically and hang the tokenizing thread. The shared
- * highlighter is a first-caller-wins singleton, so every creation site must
- * pass this value.
- */
-export const PREFERRED_HIGHLIGHTER: HighlighterTypes = "shiki-wasm";
+const highlighters = new Map<string, Promise<Highlighter>>();
 
-const highlighterPromiseCache = new Map<string, Promise<DiffsHighlighter>>();
-
-export function getSyntaxHighlighterPromise(language: string): Promise<DiffsHighlighter> {
-  const cached = highlighterPromiseCache.get(language);
+export function getSyntaxHighlighterPromise(language: string): Promise<Highlighter> {
+  const cached = highlighters.get(language);
   if (cached) return cached;
-
-  const promise = getSharedHighlighter({
-    themes: [resolveDiffThemeName("dark"), resolveDiffThemeName("light")],
-    langs: [language as SupportedLanguages],
-    preferredHighlighter: PREFERRED_HIGHLIGHTER,
+  const promise = getSingletonHighlighter({
+    themes: ["github-dark", "github-light"],
+    langs: [language as BundledLanguage],
   }).catch((error) => {
-    if (language === "text") {
-      highlighterPromiseCache.delete(language);
-      throw error;
-    }
+    highlighters.delete(language);
+    if (language === "text") throw error;
     return getSyntaxHighlighterPromise("text");
   });
-  highlighterPromiseCache.set(language, promise);
+  highlighters.set(language, promise);
   return promise;
 }

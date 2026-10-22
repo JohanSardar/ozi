@@ -93,7 +93,7 @@ const WSL_FORWARDED_ENV_NAMES = [
   "OZI_OTLP_HEADERS",
   "OZI_OTLP_PROTOCOL",
   // Forwarded without a WSLENV flag, so the values arrive untranslated. The
-  // server prefers an OTEL endpoint over the bootstrap envelope, so the T3 URLs
+  // server prefers an OTEL endpoint over the bootstrap envelope, so the Ozi URLs
   // travel as variables to keep winning inside the distro as they do on Windows.
   "OZI_OTLP_TRACES_URL",
   "OZI_OTLP_METRICS_URL",
@@ -166,44 +166,6 @@ const logBackendObservabilitySettingsReadFailure = (
   );
 };
 
-function resourceMonitorBinaryName(platform: NodeJS.Platform): string {
-  return platform === "win32" ? "t3-resource-monitor.exe" : "t3-resource-monitor";
-}
-
-const resolveResourceMonitorPath = Effect.fn(
-  "desktop.backendConfiguration.resolveResourceMonitorPath",
-)(function* () {
-  const environment = yield* DesktopEnvironment.DesktopEnvironment;
-  const fileSystem = yield* FileSystem.FileSystem;
-  const binaryName = resourceMonitorBinaryName(environment.platform);
-  const candidates = environment.isDevelopment
-    ? [
-        environment.path.join(
-          environment.rootDir,
-          "native/resource-monitor/target/release",
-          binaryName,
-        ),
-        environment.path.join(
-          environment.rootDir,
-          "native/resource-monitor/target/debug",
-          binaryName,
-        ),
-      ]
-    : environment.isPackaged
-      ? [environment.path.join(environment.resourcesPath, "resource-monitor", binaryName)]
-      : environment.resolveResourcePathCandidates(
-          environment.path.join("resource-monitor", binaryName),
-        );
-
-  for (const candidate of candidates) {
-    if (yield* fileSystem.exists(candidate).pipe(Effect.orElseSucceed(() => false))) {
-      return Option.some(candidate);
-    }
-  }
-
-  return Option.none<string>();
-});
-
 const readPersistedBackendObservabilitySettings = Effect.gen(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
@@ -256,7 +218,7 @@ type WslPreflightRuntime =
       // Absolute path to the node binary the preflight validated after the
       // shared remote resolver repaired PATH. The launch must use this exact
       // path so it doesn't fall through to a different/old node than the one
-      // node-pty was probed with.
+      // Node.js was probed with.
       readonly nodePath: string;
       readonly linuxEntryPath: string;
     };
@@ -287,15 +249,11 @@ const parseWslRuntimeArchiveHash = (value: string): string | null => {
   return SHA256_HEX_PATTERN.test(trimmed) ? trimmed.toLowerCase() : null;
 };
 
-type FailedNodePtyResult = Extract<
-  DesktopWslEnvironment.EnsureWslNodePtyResult,
-  { readonly ok: false }
->;
+type FailedNodeResult = Extract<DesktopWslEnvironment.ResolveWslNodeResult, { readonly ok: false }>;
 
 const runWslPreflight = Effect.fn("desktop.backendConfiguration.wslPreflight")(function* (input: {
   readonly distro: string | null;
   readonly runtimeArchive: DesktopWslEnvironment.WslRuntimeArchive | null;
-  readonly allowBuild: boolean;
 }): Effect.fn.Return<
   WslPreflightSuccess | WslPreflightFailure,
   never,
@@ -348,14 +306,13 @@ const runWslPreflight = Effect.fn("desktop.backendConfiguration.wslPreflight")(f
     } as const;
   }
 
-  const nodePtyOptions = {
-    allowBuild: input.allowBuild,
+  const nodeOptions = {
     nodeEngineRange: serverPackageJson.engines.node,
   };
-  const failedNodePty = (result: FailedNodePtyResult) =>
+  const failedNode = (result: FailedNodeResult) =>
     ({
       _tag: "Failed",
-      reason: `WSL node-pty unavailable: ${result.reason}`,
+      reason: `WSL Node.js unavailable: ${result.reason}`,
       fatal: result.fatal,
       ...(result.retryLimit === undefined ? {} : { retryLimit: result.retryLimit }),
     }) as const;
@@ -397,7 +354,7 @@ const runWslPreflight = Effect.fn("desktop.backendConfiguration.wslPreflight")(f
   if (input.runtimeArchive !== null) {
     const runtime = yield* wslEnv.prepareRuntime(runningDistro, input.runtimeArchive);
     if (runtime.ok) {
-      // The staged runtime supplies its own Node and node-pty. Provider PATH
+      // The staged runtime supplies its own Node and Node.js. Provider PATH
       // discovery must not require either dependency for runtime readiness.
       const stagedProbe = yield* wslEnv.probeRuntime(runningDistro, runtime.linuxAppRoot);
       if (stagedProbe.ok) {
@@ -432,19 +389,13 @@ const runWslPreflight = Effect.fn("desktop.backendConfiguration.wslPreflight")(f
       : ({ _tag: "Failed", reason: mounted.reason, fatal: mounted.fatal } as const);
   }
 
-  const nodePtyResult = yield* wslEnv.ensureNodePty(
-    runningDistro,
-    mounted.linuxAppRoot,
-    nodePtyOptions,
-  );
-  if (!nodePtyResult.ok) {
+  const nodeResult = yield* wslEnv.resolveNode(runningDistro, mounted.linuxAppRoot, nodeOptions);
+  if (!nodeResult.ok) {
     // Substituting the staged verdict for a transient mounted failure would
     // turn a retryable failure into a fatal one, ending the WSL attempt (and,
     // in wsl-only mode, persisting Windows) before the slow /mnt path had a
     // chance to answer and clear the bad cache.
-    return stagedFailure && nodePtyResult.fatal
-      ? failedStaged(stagedFailure)
-      : failedNodePty(nodePtyResult);
+    return stagedFailure && nodeResult.fatal ? failedStaged(stagedFailure) : failedNode(nodeResult);
   }
 
   if (stagedFailure?.runtimeId) {
@@ -457,10 +408,10 @@ const runWslPreflight = Effect.fn("desktop.backendConfiguration.wslPreflight")(f
     windowsEntryPath: mounted.windowsEntryPath,
     runtime: {
       kind: "node-script",
-      nodePath: nodePtyResult.nodePath,
+      nodePath: nodeResult.nodePath,
       linuxEntryPath: `${mounted.linuxAppRoot}/apps/server/dist/bin.mjs`,
     },
-    resolvedPath: nodePtyResult.resolvedPath,
+    resolvedPath: nodeResult.resolvedPath,
   } as const;
 });
 
@@ -499,7 +450,6 @@ const buildObservabilityFragment = (observabilitySettings: BackendObservabilityS
 const resolvePrimaryStartConfig = Effect.fn("desktop.backendConfiguration.resolvePrimary")(
   function* (
     input: SharedBootstrapInput & {
-      readonly resourceMonitorPath: Option.Option<string>;
       readonly cliPath: Option.Option<string>;
       readonly shellEnvironmentPrepared: boolean;
     },
@@ -524,14 +474,8 @@ const resolvePrimaryStartConfig = Effect.fn("desktop.backendConfiguration.resolv
       shellEnvironmentPrepared: input.shellEnvironmentPrepared,
       tailscaleServeEnabled: backendExposure.tailscaleServeEnabled,
       tailscaleServePort: backendExposure.tailscaleServePort,
-      desktopTelemetryFd: 4,
-      desktopTelemetryControlFd: 5,
       desktopBrowserFd: 6,
       desktopBrowserControlFd: 7,
-      ...Option.match(input.resourceMonitorPath, {
-        onNone: () => ({}),
-        onSome: (resourceMonitorPath) => ({ resourceMonitorPath }),
-      }),
       ...buildObservabilityFragment(input.observabilitySettings),
     };
 
@@ -638,7 +582,6 @@ const resolveWslStartConfig = Effect.fn("desktop.backendConfiguration.resolveWsl
             runtimeId: `sha256-${archiveHash}`,
             sha256: archiveHash,
           },
-    allowBuild: !environment.isPackaged,
   });
 
   // Every operation after preflight uses the same concrete distro. In
@@ -815,10 +758,6 @@ export const make = Effect.gen(function* () {
 
   const buildWindowsPrimaryConfig = Effect.gen(function* () {
     const shared = yield* sharedInputs;
-    const resourceMonitorPath = yield* resolveResourceMonitorPath().pipe(
-      Effect.provideService(FileSystem.FileSystem, fileSystem),
-      Effect.provideService(DesktopEnvironment.DesktopEnvironment, environment),
-    );
     const cliPath = yield* DesktopCliShim.install.pipe(
       Effect.provideService(FileSystem.FileSystem, fileSystem),
       Effect.provideService(DesktopEnvironment.DesktopEnvironment, environment),
@@ -826,7 +765,6 @@ export const make = Effect.gen(function* () {
     const shellEnvironmentPrepared = yield* shellEnvironment.installIntoProcess;
     return yield* resolvePrimaryStartConfig({
       ...shared,
-      resourceMonitorPath,
       cliPath,
       shellEnvironmentPrepared,
     }).pipe(

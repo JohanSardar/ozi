@@ -32,7 +32,7 @@ export class DirectEndpoints extends Context.Service<
   {
     readonly resolve: () => Effect.Effect<ReadonlyArray<ServerDirectEndpoint>>;
   }
->()("t3/environment/DirectEndpoints") {}
+>()("ozi/environment/DirectEndpoints") {}
 
 /**
  * These routes are plain HTTP and carry the client's credential, so a public
@@ -67,7 +67,7 @@ const isTailscaleInterface = (
   /^tailscale/i.test(name) ||
   entries.some((entry) => entry.family === "IPv6" && isTailnetHost(entry.address));
 
-export function resolveBoundEndpoints(input: {
+function resolveBoundEndpoints(input: {
   readonly host: string | undefined;
   readonly port: number;
   readonly interfaces: NetworkInterfacesMap;

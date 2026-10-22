@@ -160,54 +160,6 @@ export const remoteSchemeForEditor = (id: EditorId): string | undefined => {
   return editor === undefined ? undefined : remoteSchemeOf(editor);
 };
 
-export const buildRemoteOpenUrl = (input: {
-  readonly editor: EditorId;
-  readonly host: string;
-  readonly username?: string;
-  readonly absolutePath: string;
-  readonly isFile?: boolean;
-}): string | undefined => {
-  const scheme = remoteSchemeForEditor(input.editor);
-  if (scheme === undefined) {
-    return undefined;
-  }
-  const editor = EDITORS.find((candidate) => candidate.id === input.editor);
-  if (editor !== undefined && "jetbrainsProductCode" in editor) {
-    const params = new URLSearchParams({
-      h: input.host,
-      launchIde: "true",
-      ideHint: editor.jetbrainsProductCode,
-      projectHint: input.absolutePath.replaceAll("\\", "/"),
-    });
-    if (input.username !== undefined) {
-      params.set("u", input.username);
-    }
-    return `${scheme}://gateway/ssh/environment?${params.toString()}`;
-  }
-  // Windows server paths (`C:\...`) appear as `/C:/...` in vscode-remote URIs.
-  const posixPath = input.absolutePath.replaceAll("\\", "/");
-  const rootedPath = posixPath.startsWith("/") ? posixPath : `/${posixPath}`;
-  const encodedHost = encodeURIComponent(input.host);
-  if (input.editor === "zed") {
-    // Zed's remote server resolves a rooted path on the system drive, so a
-    // Windows `C:\Users\x` must become `/Users/x` (verified in #8938). Other
-    // drives are untested and kept as is rather than silently remapped, and a
-    // POSIX path that happens to start with `/C:` is left alone.
-    const zedPath = /^[Cc]:[\\/]/.test(input.absolutePath) ? rootedPath.slice(3) : rootedPath;
-    const encodedZedPath = zedPath.split("/").map(encodeURIComponent).join("/");
-    // Zed reads this segment as ssh URL userinfo, so the `@` stays literal.
-    const zedDestination =
-      input.username === undefined
-        ? encodedHost
-        : `${encodeURIComponent(input.username)}@${encodedHost}`;
-    return `${scheme}://ssh/${zedDestination}${encodedZedPath}`;
-  }
-  const encodedPath = rootedPath.split("/").map(encodeURIComponent).join("/");
-  const destination = input.username === undefined ? input.host : `${input.username}@${input.host}`;
-  // VS Code opens a bare vscode-remote path as a folder; a trailing position makes it open the file.
-  return `${scheme}://vscode-remote/ssh-remote+${encodeURIComponent(destination)}${encodedPath}${input.isFile ? ":1:1" : ""}`;
-};
-
 export const RemoteOpenTargetKind = Schema.Literals(["tailscale", "mdns"]);
 export type RemoteOpenTargetKind = typeof RemoteOpenTargetKind.Type;
 

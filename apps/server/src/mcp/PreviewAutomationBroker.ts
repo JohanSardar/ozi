@@ -73,7 +73,7 @@ export class PreviewAutomationBroker extends Context.Service<
       request: PreviewAutomationInvokeInput,
     ) => Effect.Effect<A, PreviewAutomationError>;
   }
->()("t3/mcp/PreviewAutomationBroker") {}
+>()("ozi/mcp/PreviewAutomationBroker") {}
 
 interface ClientConnection {
   readonly clientId: string;
@@ -336,7 +336,7 @@ const classifyResponseError = (
   }
 };
 
-export const make = Effect.gen(function* PreviewAutomationBrokerMake() {
+const make = Effect.gen(function* PreviewAutomationBrokerMake() {
   const crypto = yield* Crypto.Crypto;
   const state = yield* SynchronizedRef.make<BrokerState>({
     clients: new Map(),

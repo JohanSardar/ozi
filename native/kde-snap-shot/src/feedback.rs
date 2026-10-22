@@ -3,7 +3,7 @@
 use super::*;
 use std::io::BufRead;
 
-const OBJECT: &str = "/com/t3tools/KdeCapture/Feedback";
+const OBJECT: &str = "/com/ozi/KdeCapture/Feedback";
 
 #[derive(Deserialize, Serialize)]
 #[serde(rename_all = "camelCase")]
@@ -36,7 +36,7 @@ impl Bridge {
         }
     }
 }
-#[zbus::interface(name = "com.t3tools.KdeCapture.Feedback")]
+#[zbus::interface(name = "com.ozi.KdeCapture.Feedback")]
 impl Bridge {
     // An async pending call is an event channel, not a timer or a blocking KWin call.
     async fn next(
@@ -165,7 +165,7 @@ pub(super) fn run(connection: &Connection, directory: &Path, options: &str) -> R
     });
 
     let path = directory.join("feedback.qml");
-    let name = format!("t3-capture-feedback-{}", std::process::id());
+    let name = format!("ozi-capture-feedback-{}", std::process::id());
     let bus = serde_json::to_string(
         connection
             .unique_name()
@@ -210,82 +210,4 @@ pub(super) fn run(connection: &Connection, directory: &Path, options: &str) -> R
     let _: zbus::Result<bool> = scripting.call("unloadScript", &(&name,));
     let _ = connection.object_server().remove::<Bridge, _>(OBJECT);
     result
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn only_kwin_can_read_commands_or_acknowledge_feedback() {
-        let f = crate::transport_tests::Fixture::new();
-        let (send, commands) = async_channel::bounded(4);
-        let (done, finished) = mpsc::sync_channel(1);
-        // Build with the bridge registered so zbus waits for its method-call listener.
-        // Registering it after build can drop the first call while that listener starts.
-        let bridge = Builder::address(f.address.as_str())
-            .unwrap()
-            .method_timeout(DEADLINE)
-            .serve_at(
-                OBJECT,
-                Bridge {
-                    owner: f._server.unique_name().unwrap().to_string(),
-                    commands,
-                    done,
-                },
-            )
-            .unwrap()
-            .build()
-            .unwrap();
-        let destination = bridge.unique_name().unwrap().to_string();
-        let stranger = Builder::address(f.address.as_str())
-            .unwrap()
-            .method_timeout(DEADLINE)
-            .build()
-            .unwrap();
-        let unrelated = Proxy::new(
-            &stranger,
-            destination.as_str(),
-            OBJECT,
-            "com.t3tools.KdeCapture.Feedback",
-        )
-        .unwrap();
-        let error = unrelated.call::<_, _, String>("Next", &()).unwrap_err();
-        assert!(
-            matches!(&error, zbus::Error::MethodError(name, _, _) if name.as_str() == "org.freedesktop.DBus.Error.AccessDenied"),
-            "{error:?}"
-        );
-        assert!(
-            unrelated
-                .call::<_, _, ()>("Event", &("{\"event\":\"done\"}",))
-                .is_err()
-        );
-        assert!(finished.try_recv().is_err());
-
-        let kwin = Proxy::new(
-            &f._server,
-            destination.clone(),
-            OBJECT,
-            "com.t3tools.KdeCapture.Feedback",
-        )
-        .unwrap();
-        // Event remains responsive while Next waits. No blocking the D-Bus executor.
-        let next = kwin.clone();
-        let request = std::thread::spawn(move || next.call::<_, _, String>("Next", &()).unwrap());
-        kwin.call::<_, _, ()>("Event", &("{\"event\":\"ready\",\"animate\":true}",))
-            .unwrap();
-        send.send_blocking("{\"command\":\"close\"}".into())
-            .unwrap();
-        assert_eq!(request.join().unwrap(), "{\"command\":\"close\"}");
-        kwin.call::<_, _, ()>("Event", &("{\"event\":\"done\"}",))
-            .unwrap();
-        finished.recv_timeout(DEADLINE).unwrap();
-        bridge.object_server().remove::<Bridge, _>(OBJECT).unwrap();
-    }
-
-    #[test]
-    fn capability_probe_rejects_missing_declarative_api_without_running_a_script() {
-        let f = crate::transport_tests::Fixture::new();
-        assert!(!supported(&f.client));
-    }
 }

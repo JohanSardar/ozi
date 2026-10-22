@@ -197,12 +197,12 @@ export function safeDecodeURIComponent(value: string): string {
   }
 }
 
-export function normalizeMarkdownLinkDestination(value: string): string {
+function normalizeMarkdownLinkDestination(value: string): string {
   const trimmed = value.trim();
   return trimmed.startsWith("<") && trimmed.endsWith(">") ? trimmed.slice(1, -1) : trimmed;
 }
 
-export function splitMarkdownLinkSearchAndHash(value: string): {
+function splitMarkdownLinkSearchAndHash(value: string): {
   readonly path: string;
   readonly hash: string;
 } {
@@ -238,7 +238,7 @@ export function isMarkdownFileLinkLabel(label: string, href: string): boolean {
   return destinationPath === labelPath || destinationPath.endsWith(`/${labelPath}`);
 }
 
-export function isRelativeFilePath(path: string): boolean {
+function isRelativeFilePath(path: string): boolean {
   return (
     RELATIVE_PATH_PREFIX_PATTERN.test(path) ||
     (!path.startsWith("/") && !isWindowsAbsolutePath(path))
@@ -269,7 +269,7 @@ function hasExternalScheme(path: string): boolean {
   return !POSITION_ONLY_PATTERN.test(rest);
 }
 
-export function parseMarkdownFileLink(href: string): FilePathPosition | null {
+function parseMarkdownFileLink(href: string): FilePathPosition | null {
   const normalized = normalizeMarkdownLinkDestination(href);
   if (normalized.length === 0 || normalized.startsWith("#") || normalized.startsWith("//")) {
     return null;

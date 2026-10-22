@@ -1,6 +1,7 @@
+import type { BundledLanguage } from "shiki";
 import { use, type CSSProperties } from "react";
 
-import { resolveDiffThemeName } from "../../lib/diffRendering";
+import { resolveSyntaxThemeName } from "../../lib/syntaxHighlighting";
 import type { EmbeddedScript } from "../../lib/embeddedScripts";
 import { getSyntaxHighlighterPromise } from "../../lib/syntaxHighlighting";
 
@@ -44,9 +45,14 @@ export function HighlightedTokens({
 }) {
   const highlighter = use(getSyntaxHighlighterPromise(language));
   for (const script of embedded) use(getSyntaxHighlighterPromise(script.language));
-  const themeName = resolveDiffThemeName(theme);
+  const themeName = resolveSyntaxThemeName(theme);
   const tokenize = (text: string, lang: string) =>
-    highlighter.codeToTokens(text, { lang, theme: themeName }).tokens;
+    highlighter.codeToTokens(text, {
+      lang: highlighter.getLoadedLanguages().includes(lang as BundledLanguage)
+        ? (lang as BundledLanguage)
+        : "text",
+      theme: themeName,
+    }).tokens;
   const lines = keyedLines(
     code,
     withEmbeddedScripts(code, tokenize(code, language), embedded, tokenize),
@@ -84,7 +90,7 @@ export function HighlightedTokens({
   );
 }
 
-export function withEmbeddedScripts(
+function withEmbeddedScripts(
   code: string,
   lines: TokenLines,
   embedded: ReadonlyArray<EmbeddedScript>,
@@ -148,7 +154,7 @@ function restyledLines(
  * Shiki drops `\n` and `\r\n` from tokens alike, so CRLF has to come back from
  * the source.
  */
-export function keyedLines<Token extends SyntaxToken>(
+function keyedLines<Token extends SyntaxToken>(
   code: string,
   lines: ReadonlyArray<ReadonlyArray<Token>>,
 ) {
@@ -168,7 +174,7 @@ interface Word {
   readonly pieces: Array<{ key: string; text: string; token: SyntaxToken }>;
 }
 
-export function wordsOf(tokens: ReadonlyArray<SyntaxToken>): Array<string | Word> {
+function wordsOf(tokens: ReadonlyArray<SyntaxToken>): Array<string | Word> {
   const parts: Array<string | Word> = [];
   let word: Word | null = null;
   for (const token of tokens) {

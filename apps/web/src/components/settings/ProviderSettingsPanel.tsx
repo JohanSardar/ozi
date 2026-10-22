@@ -1,6 +1,7 @@
 import { SettingsGroup } from "./SettingsGroup";
 import { RefreshIcon } from "~/components/ui/refresh-icon";
 import {
+  DEFAULT_PROVIDER_HEALTH_REFRESH_INTERVAL,
   AuthSettingsWriteScope,
   AuthProvidersManageScope,
   AuthOrchestrationReadScope,
@@ -25,10 +26,6 @@ import {
   resolveProviderInstanceEnabled,
 } from "@t3tools/contracts";
 import { DEFAULT_UNIFIED_SETTINGS, type UnifiedSettings } from "@t3tools/contracts/settings";
-import {
-  getBackgroundActivityPresetSettings,
-  resolveServerBackgroundActivitySettings,
-} from "@t3tools/shared/backgroundActivitySettings";
 import * as Arr from "effect/Array";
 import * as Duration from "effect/Duration";
 import * as Result from "effect/Result";
@@ -90,14 +87,12 @@ import { stackedThreadToast, toastManager } from "../ui/toast";
 import { AddProviderInstanceDialog } from "./AddProviderInstanceDialog";
 import { ExpandableText } from "./ExpandableText";
 import { ProviderInstanceCard } from "./ProviderInstanceCard";
-import { UsageProviderSettings } from "./UsageProviderSettings";
 import { ProviderAuthenticationSection } from "./ProviderAuthenticationSection";
 import { CodexSetupSection, CodexManagedRuntimeFields } from "./CodexSetupSection";
 import { readCodexSetupMode } from "./CodexSetupSection.logic";
 import { providerClients } from "./providerDriverMeta";
 import { searchableSetting } from "./settingsSearch";
 import {
-  backgroundActivityOverrideSettings,
   buildProviderInstanceUpdatePatch,
   durationToSeconds,
   normalizeIntervalSeconds,
@@ -172,7 +167,6 @@ function ProviderLastChecked({ environmentId }: { environmentId: EnvironmentId }
 
 function providerEnvironmentDetail(environment: EnvironmentPresentation): string {
   if (environment.entry.target._tag === "PrimaryConnectionTarget") return "Primary device";
-  if (environment.relayManaged) return "T3 Connect";
   if (environment.entry.target._tag === "SshConnectionTarget") return "SSH";
   if (isDesktopLocalConnectionTarget(environment.entry.target)) return "Local device";
   return environment.displayUrl ?? "Remote device";
@@ -504,7 +498,7 @@ function AccessGatedProviderSettings({
 
 const NO_FAVORITES: UnifiedSettings["favorites"] = [];
 
-export function EnvironmentProviderSettings({
+function EnvironmentProviderSettings({
   environmentId,
   environmentLabel,
   readOnly = false,
@@ -543,14 +537,12 @@ export function EnvironmentProviderSettings({
   const updatingInstanceIdsRef = useRef<Set<ProviderInstanceId>>(new Set());
 
   const visibleProviderSettings = PROVIDER_SETTINGS;
-  const resolvedBackgroundActivity = resolveServerBackgroundActivitySettings(settings);
-  const providerHealthPreset = getBackgroundActivityPresetSettings(
-    resolvedBackgroundActivity.profile,
-  ).providerHealthRefreshInterval;
   const providerHealthRefreshIntervalSeconds = durationToSeconds(
-    resolvedBackgroundActivity.providerHealthRefreshInterval,
+    settings.providerHealthRefreshInterval,
   );
-  const defaultProviderHealthRefreshIntervalSeconds = durationToSeconds(providerHealthPreset);
+  const defaultProviderHealthRefreshIntervalSeconds = durationToSeconds(
+    DEFAULT_PROVIDER_HEALTH_REFRESH_INTERVAL,
+  );
 
   const refreshProviders = () => {
     if (refreshingRef.current || !readEnvironmentScope(environmentId, AuthOrchestrationReadScope))
@@ -935,14 +927,6 @@ export function EnvironmentProviderSettings({
         </SettingsGroup>
       </SettingsSection>
 
-      <UsageProviderSettings
-        key={environmentId}
-        environmentId={environmentId}
-        environmentLabel={environmentLabel}
-        sources={settings.usageLimitSources}
-        readOnly={readOnly}
-      />
-
       <SettingsSection title="Advanced">
         <SettingsRow
           id={searchableSetting("provider-health-check-interval").id}
@@ -966,13 +950,9 @@ export function EnvironmentProviderSettings({
                 <SettingResetButton
                   label="provider health check interval"
                   onClick={() =>
-                    updateSettings(
-                      backgroundActivityOverrideSettings(
-                        settings.backgroundActivity,
-                        resolvedBackgroundActivity,
-                        { providerHealthRefreshInterval: undefined },
-                      ),
-                    )
+                    updateSettings({
+                      providerHealthRefreshInterval: DEFAULT_PROVIDER_HEALTH_REFRESH_INTERVAL,
+                    })
                   }
                 />
               </span>
@@ -994,17 +974,11 @@ export function EnvironmentProviderSettings({
                 size="sm"
                 className="w-32"
                 onValueChange={(value) =>
-                  updateSettings(
-                    backgroundActivityOverrideSettings(
-                      settings.backgroundActivity,
-                      resolvedBackgroundActivity,
-                      {
-                        providerHealthRefreshInterval: Duration.seconds(
-                          normalizeIntervalSeconds(value),
-                        ),
-                      },
+                  updateSettings({
+                    providerHealthRefreshInterval: Duration.seconds(
+                      normalizeIntervalSeconds(value),
                     ),
-                  )
+                  })
                 }
               >
                 <NumberFieldGroup>

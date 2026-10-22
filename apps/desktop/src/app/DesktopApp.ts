@@ -14,7 +14,6 @@ import * as ElectronSafeStorage from "../electron/ElectronSafeStorage.ts";
 import { installDesktopIpcHandlers } from "../ipc/DesktopIpcHandlers.ts";
 import * as DesktopAppActivation from "./DesktopAppActivation.ts";
 import * as DesktopAppIdentity from "./DesktopAppIdentity.ts";
-import * as DesktopClerk from "./DesktopClerk.ts";
 import * as DesktopApplicationMenu from "../window/DesktopApplicationMenu.ts";
 import * as DesktopWindow from "../window/DesktopWindow.ts";
 import * as PreviewPasskeys from "../preview/Passkeys.ts";
@@ -29,11 +28,8 @@ import * as DesktopServerExposure from "../backend/DesktopServerExposure.ts";
 import * as DesktopAppSettings from "../settings/DesktopAppSettings.ts";
 import * as DesktopShellEnvironment from "../shell/DesktopShellEnvironment.ts";
 import * as DesktopState from "./DesktopState.ts";
-import * as DesktopRemoteUpdates from "../updates/DesktopRemoteUpdates.ts";
-import * as DesktopUpdates from "../updates/DesktopUpdates.ts";
 import * as DesktopSnapShot from "../snapShot/DesktopSnapShot.ts";
 import * as DesktopWslBackend from "../wsl/DesktopWslBackend.ts";
-import * as DesktopRendererHistory from "../telemetry/DesktopRendererHistory.ts";
 import * as HostProcess from "@t3tools/shared/HostProcess";
 
 const DEFAULT_DESKTOP_BACKEND_PORT = 3773;
@@ -146,7 +142,7 @@ const handleFatalStartupError = Effect.fn("desktop.startup.handleFatalStartupErr
 const fatalStartupCause = <E>(stage: string, cause: Cause.Cause<E>) =>
   handleFatalStartupError(stage, Cause.pretty(cause)).pipe(Effect.andThen(Effect.failCause(cause)));
 
-export const stopAllPoolInstances = Effect.fn("desktop.app.stopAllPoolInstances")(
+const stopAllPoolInstances = Effect.fn("desktop.app.stopAllPoolInstances")(
   function* (): Effect.fn.Return<void, never, DesktopBackendPool.DesktopBackendPool> {
     const pool = yield* DesktopBackendPool.DesktopBackendPool;
     const instances = yield* pool.list;
@@ -174,7 +170,6 @@ const bootstrap = Effect.gen(function* () {
     ...(environment.isDevelopment
       ? { targetOrigin: Option.getOrThrow(environment.devServerUrl) }
       : { assetDirectory: environment.clientAssetsDir }),
-    clerkFrontendApiHostname: DesktopClerk.desktopClerkFrontendApiHostname,
   });
   yield* installDesktopIpcHandlers();
   yield* logBootstrapInfo("bootstrap ipc handlers registered");
@@ -254,12 +249,10 @@ const startup = Effect.gen(function* () {
   const electronApp = yield* ElectronApp.ElectronApp;
   const lifecycle = yield* DesktopLifecycle.DesktopLifecycle;
   const linuxUrlHandler = yield* DesktopLinuxUrlHandler.DesktopLinuxUrlHandler;
-  const clerk = yield* DesktopClerk.DesktopClerk;
   const shellEnvironment = yield* DesktopShellEnvironment.DesktopShellEnvironment;
   const desktopSettings = yield* DesktopAppSettings.DesktopAppSettings;
   const preReadyElectronOptions = yield* DesktopPreReadyPlatform.DesktopPreReadyElectronOptions;
   const safeStorage = yield* ElectronSafeStorage.ElectronSafeStorage;
-  const updates = yield* DesktopUpdates.DesktopUpdates;
   const environment = yield* DesktopEnvironment.DesktopEnvironment;
   const previewPasskeys = yield* PreviewPasskeys.PreviewPasskeys;
 
@@ -303,7 +296,6 @@ const startup = Effect.gen(function* () {
 
   yield* appIdentity.configure;
   yield* lifecycle.register;
-  yield* clerk.configure;
 
   yield* electronApp.whenReady.pipe(
     Effect.withSpan("desktop.electron.whenReady"),
@@ -319,8 +311,6 @@ const startup = Effect.gen(function* () {
   yield* appIdentity.configure;
   yield* previewPasskeys.configure;
   yield* applicationMenu.configure;
-  yield* updates.configure;
-  yield* DesktopRemoteUpdates.listen;
   yield* linuxUrlHandler.register;
   yield* bootstrap.pipe(Effect.catchCause((cause) => fatalStartupCause("bootstrap", cause)));
 }).pipe(Effect.withSpan("desktop.startup"));
@@ -332,7 +322,6 @@ const scopedProgram = Effect.scoped(
     yield* Effect.annotateCurrentSpan({ scope: "desktop", runId });
 
     const shutdown = yield* DesktopShutdown.DesktopShutdown;
-    const rendererHistory = yield* DesktopRendererHistory.DesktopRendererHistory;
 
     yield* Effect.addFinalizer(() =>
       // Stop every backend in the pool, not just the primary. The
@@ -340,10 +329,7 @@ const scopedProgram = Effect.scoped(
       // cascade, so leaving the WSL instance for its parent scope
       // finalizer means it gets hard-killed by the OS instead of
       // receiving SIGTERM + grace.
-      stopAllPoolInstances().pipe(
-        Effect.ensuring(rendererHistory.shutdown),
-        Effect.ensuring(shutdown.markComplete),
-      ),
+      stopAllPoolInstances().pipe(Effect.ensuring(shutdown.markComplete)),
     );
 
     yield* startup;

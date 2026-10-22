@@ -1,11 +1,9 @@
 import {
   DEFAULT_SERVER_SETTINGS,
-  type EditorId,
   type EnvironmentId,
   type EnvironmentTheme,
   type ServerConfig,
   type ServerConfigStreamEvent,
-  type ServerLifecycleLegacyThreadMigrationPayload,
   type ServerLifecycleWelcomePayload,
   type ServerProvider,
   type ServerSettings,
@@ -16,7 +14,6 @@ import {
   type EnvironmentPresentation,
 } from "@t3tools/client-runtime/connection";
 import { createServerEnvironmentAtoms } from "@t3tools/client-runtime/state/server";
-import { createOutdatedServerUpdateCommand } from "@t3tools/client-runtime/state/outdatedServerUpdate";
 import { createEnvironmentServerConfigsAtom } from "@t3tools/client-runtime/state/shell";
 import { mergeWithDefaultKeybindings } from "@t3tools/shared/keybindings";
 import * as Option from "effect/Option";
@@ -24,7 +21,6 @@ import { AsyncResult, Atom } from "effect/reactivity";
 
 import { environmentCatalog } from "../connection/catalog";
 import { connectionAtomRuntime } from "../connection/runtime";
-import { environmentAtomList } from "./environmentAtomList";
 import { primaryEnvironmentIdAtom } from "./primaryEnvironment";
 import { environmentSession } from "./session";
 import { reuseProvidersIgnoringCheckedAt } from "./serverProviders.logic";
@@ -35,8 +31,6 @@ import { reuseProvidersIgnoringCheckedAt } from "./serverProviders.logic";
 export const serverEnvironment = createServerEnvironmentAtoms(connectionAtomRuntime, {
   initialConfigValueAtom: environmentSession.initialConfigValueAtom,
   environmentThemes: true,
-  usageLimitSources: true,
-  usageLimitsCommand: true,
 });
 export const environmentKeybindingsAtom = Atom.family((environmentId: EnvironmentId) =>
   Atom.make((get) =>
@@ -45,11 +39,6 @@ export const environmentKeybindingsAtom = Atom.family((environmentId: Environmen
     ),
   ),
 );
-export const environmentUpdateStatesAtom = environmentAtomList(
-  "web-environment-update-states",
-  serverEnvironment.updateStateAtom,
-);
-export const updateOutdatedServer = createOutdatedServerUpdateCommand(connectionAtomRuntime);
 export const environmentServerConfigsAtom = createEnvironmentServerConfigsAtom({
   catalogValueAtom: environmentCatalog.catalogValueAtom,
   serverConfigValueAtom: serverEnvironment.configValueAtom,
@@ -60,8 +49,6 @@ interface PrimaryServerState {
   readonly latestEvent: ServerConfigStreamEvent | null;
   readonly welcome: ServerLifecycleWelcomePayload | null;
 }
-
-const EMPTY_AVAILABLE_EDITORS: ReadonlyArray<EditorId> = [];
 export const EMPTY_SERVER_PROVIDERS: ReadonlyArray<ServerProvider> = [];
 const EMPTY_PRIMARY_SERVER_STATE: PrimaryServerState = {
   config: null,
@@ -92,47 +79,19 @@ export const primaryServerConfigAtom = Atom.make(
   (get): ServerConfig | null => get(primaryServerStateAtom).config,
 ).pipe(Atom.withLabel("web-primary-server-config"));
 
-export const primaryServerConfigEventAtom = Atom.make(
-  (get): ServerConfigStreamEvent | null => get(primaryServerStateAtom).latestEvent,
-).pipe(Atom.withLabel("web-primary-server-config-event"));
-
-export const primaryServerWelcomeAtom = Atom.make(
-  (get): ServerLifecycleWelcomePayload | null => get(primaryServerStateAtom).welcome,
-).pipe(Atom.withLabel("web-primary-server-welcome"));
-
-export const primaryServerLegacyThreadMigrationAtom = Atom.make(
-  (get): ServerLifecycleLegacyThreadMigrationPayload | null => {
-    const environmentId = get(primaryEnvironmentIdAtom);
-    if (environmentId === null) {
-      return null;
-    }
-    return Option.getOrNull(
-      AsyncResult.value(get(serverEnvironment.legacyThreadMigration({ environmentId, input: {} }))),
-    );
-  },
-).pipe(Atom.withLabel("web-primary-server-legacy-thread-migration"));
-
 export const primaryServerSettingsAtom = Atom.make(
   (get): ServerSettings => get(primaryServerConfigAtom)?.settings ?? DEFAULT_SERVER_SETTINGS,
 ).pipe(Atom.withLabel("web-primary-server-settings"));
 
-export const primaryServerProvidersAtom = Atom.make(
-  (get): ReadonlyArray<ServerProvider> =>
-    get(primaryServerConfigAtom)?.providers ?? EMPTY_SERVER_PROVIDERS,
-).pipe(Atom.withLabel("web-primary-server-providers"));
-
-/** Without a primary, global shortcuts follow unscoped Settings. */
-export function createShortcutKeybindingsAtom(input: {
+function createShortcutKeybindingsAtom(input: {
   readonly primaryEnvironmentIdAtom: Atom.Atom<EnvironmentId | null>;
   readonly primaryConfigAtom: Atom.Atom<ServerConfig | null>;
   readonly environmentsAtom: Atom.Atom<
     ReadonlyMap<EnvironmentId, Pick<EnvironmentPresentation, "connection" | "serverConfig">>
   >;
 }) {
-  // Selected before merging, so unrelated config updates keep the merged array.
   const customAtom = Atom.make((get) => {
     if (get(input.primaryEnvironmentIdAtom) !== null) {
-      // A primary stays authoritative while its config loads.
       return get(input.primaryConfigAtom)?.keybindings ?? null;
     }
     const environments = [...get(input.environmentsAtom).values()];
@@ -148,8 +107,6 @@ export function createShortcutKeybindingsAtom(input: {
   );
 }
 
-// Settings' presentations import this module; mirror their catalog order and
-// connection presentation here to avoid a cycle.
 const environmentConnectionsAtom = Atom.make((get) => {
   const environments = new Map<
     EnvironmentId,
@@ -176,11 +133,6 @@ export const primaryServerKeybindingsAtom = createShortcutKeybindingsAtom({
   primaryConfigAtom: primaryServerConfigAtom,
   environmentsAtom: environmentConnectionsAtom,
 }).pipe(Atom.withLabel("web-primary-server-keybindings"));
-
-export const primaryServerAvailableEditorsAtom = Atom.make(
-  (get): ReadonlyArray<EditorId> =>
-    get(primaryServerConfigAtom)?.availableEditors ?? EMPTY_AVAILABLE_EDITORS,
-).pipe(Atom.withLabel("web-primary-server-available-editors"));
 
 const EMPTY_ENVIRONMENT_THEMES: ReadonlyArray<EnvironmentTheme> = [];
 

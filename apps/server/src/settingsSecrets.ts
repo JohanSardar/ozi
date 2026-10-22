@@ -2,18 +2,11 @@ import {
   ClaudeSettings,
   CodexSettings,
   type ServerSettings,
-  UsageLimitSourceConfig,
   secretSettingsFields,
 } from "@t3tools/contracts";
 import { piClient } from "@t3tools/provider-pi/client";
-import {
-  readSecretFieldValues,
-  SOURCE_CONTROL_HOST_SECRET_FIELDS,
-  sourceControlHostSecretName,
-  writeSecretFieldValues,
-} from "./sourceControl/sourceControlHostSecrets.ts";
 
-export const SECRET_REDACTED = "\u2022\u2022\u2022\u2022\u2022\u2022";
+const SECRET_REDACTED = "\u2022\u2022\u2022\u2022\u2022\u2022";
 
 const providerSecretFields = new Map([
   ["codex", secretSettingsFields(CodexSettings)],
@@ -23,7 +16,6 @@ const providerSecretFields = new Map([
       [definition.driverKind, secretSettingsFields(definition.settingsSchema)] as const,
   ),
 ]);
-const usageLimitSecretFields = secretSettingsFields(UsageLimitSourceConfig);
 const encode = (value: string) => Buffer.from(value, "utf8").toString("base64url");
 
 export interface SettingsSecret {
@@ -111,29 +103,23 @@ export function mapSettingsSecrets(
     }),
   );
 
-  const sourceControlHosts = Object.fromEntries(
-    Object.entries(settings.sourceControlHosts).map(([kind, fields]) => [
-      kind,
-      mapFields(fields, SOURCE_CONTROL_HOST_SECRET_FIELDS.get(kind) ?? [], (field, serverHost) =>
-        sourceControlHostSecretName({ kind, field, serverHost }),
-      ),
-    ]),
-  ) as ServerSettings["sourceControlHosts"];
+  return { ...settings, providerInstances };
+}
 
-  const usageLimitSources = Object.fromEntries(
-    Object.entries(settings.usageLimitSources).map(([id, source]) => [
-      id,
-      mapFields(
-        source,
-        usageLimitSecretFields,
-        (field, serverHost) =>
-          `usage-limit-source-${encode(id)}` +
-          (field === "managementKey" && serverHost === null
-            ? ""
-            : `-${encode(field)}${serverHost === null ? "" : `-${encode(serverHost)}`}`),
-      ),
-    ]),
-  ) as ServerSettings["usageLimitSources"];
+function readSecretFieldValues(
+  value: unknown,
+): ReadonlyArray<readonly [serverHost: string | null, value: string]> {
+  if (typeof value === "string") return [[null, value]];
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return [];
+  return Object.entries(value).flatMap(([serverHost, entry]) =>
+    typeof entry === "string" ? [[serverHost.trim().toLowerCase(), entry] as const] : [],
+  );
+}
 
-  return { ...settings, providerInstances, sourceControlHosts, usageLimitSources };
+function writeSecretFieldValues(
+  original: unknown,
+  values: ReadonlyArray<readonly [serverHost: string | null, value: string]>,
+): unknown {
+  if (typeof original === "string") return values[0]?.[1] ?? "";
+  return Object.fromEntries(values.map(([serverHost, value]) => [serverHost ?? "", value]));
 }

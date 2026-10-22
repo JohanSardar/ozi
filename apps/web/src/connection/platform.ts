@@ -1,8 +1,4 @@
-import {
-  ClientCapabilities,
-  PlatformConnectionSource,
-  Persistence,
-} from "@t3tools/client-runtime/platform";
+import { ClientCapabilities, PlatformConnectionSource } from "@t3tools/client-runtime/platform";
 import {
   BearerConnectionCredential,
   BearerConnectionProfile,
@@ -21,7 +17,6 @@ import {
 } from "@t3tools/client-runtime/connection";
 import { bootstrapRemoteBearerSession } from "@t3tools/client-runtime/authorization";
 import { fetchRemoteEnvironmentDescriptor } from "@t3tools/client-runtime/environment";
-import { managedRelayAccountChanges, managedRelaySessionAtom } from "@t3tools/client-runtime/relay";
 import { EnvironmentRpcRequestObserver } from "@t3tools/client-runtime/rpc";
 import {
   AuthStandardClientScopes,
@@ -51,8 +46,6 @@ import {
 } from "../environments/primary/target";
 import { isHostedStaticApp } from "../hostedPairing";
 import { isLocalEnvironmentDisabled } from "../localEnvironment";
-import { randomUUID } from "../lib/utils";
-import { appAtomRegistry } from "../rpc/atomRegistry";
 import { acknowledgeRpcRequest, trackRpcRequestSent } from "../rpc/requestLatencyState";
 import {
   desktopLocalConnectionId,
@@ -144,9 +137,6 @@ const layerWakeups = Wakeups.layer({
             }),
         ).pipe(Effect.asVoid),
       ),
-      managedRelayAccountChanges(appAtomRegistry).pipe(
-        Stream.map(() => "credentials-changed" as const),
-      ),
       networkPathChanges,
     ],
     { concurrency: "unbounded" },
@@ -210,49 +200,49 @@ const ensureDesktopSshEnvironment = (bridge: DesktopBridge, target: DesktopSshEn
     catch: sshPreparationError,
   });
 
-export const provisionDesktopSshEnvironment = Effect.fn(
-  "web.connectionPlatform.ssh.provisionDesktop",
-)(function* (
-  bridge: DesktopBridge,
-  target: DesktopSshEnvironmentTarget,
-  expectedEnvironmentId?: EnvironmentId,
-) {
-  const bootstrap = yield* ensureDesktopSshEnvironment(bridge, target);
-  const pairingToken = bootstrap.pairingToken;
-  if (pairingToken === null) {
-    return yield* new ConnectionBlockedError({
-      reason: "authentication",
-      detail: "The SSH environment did not issue a pairing credential.",
+const provisionDesktopSshEnvironment = Effect.fn("web.connectionPlatform.ssh.provisionDesktop")(
+  function* (
+    bridge: DesktopBridge,
+    target: DesktopSshEnvironmentTarget,
+    expectedEnvironmentId?: EnvironmentId,
+  ) {
+    const bootstrap = yield* ensureDesktopSshEnvironment(bridge, target);
+    const pairingToken = bootstrap.pairingToken;
+    if (pairingToken === null) {
+      return yield* new ConnectionBlockedError({
+        reason: "authentication",
+        detail: "The SSH environment did not issue a pairing credential.",
+      });
+    }
+    const descriptor = yield* Effect.tryPromise({
+      try: () => bridge.fetchSshEnvironmentDescriptor(bootstrap.httpBaseUrl),
+      catch: sshPreparationError,
     });
-  }
-  const descriptor = yield* Effect.tryPromise({
-    try: () => bridge.fetchSshEnvironmentDescriptor(bootstrap.httpBaseUrl),
-    catch: sshPreparationError,
-  });
-  if (expectedEnvironmentId !== undefined && descriptor.environmentId !== expectedEnvironmentId) {
-    return yield* new ConnectionBlockedError({
-      reason: "configuration",
-      detail: `That host reaches ${descriptor.label}, a different machine. Add it as its own environment instead.`,
+    if (expectedEnvironmentId !== undefined && descriptor.environmentId !== expectedEnvironmentId) {
+      return yield* new ConnectionBlockedError({
+        reason: "configuration",
+        detail: `That host reaches ${descriptor.label}, a different machine. Add it as its own environment instead.`,
+      });
+    }
+    const access = yield* Effect.tryPromise({
+      try: () => bridge.bootstrapSshBearerSession(bootstrap.httpBaseUrl, pairingToken),
+      catch: sshPreparationError,
     });
-  }
-  const access = yield* Effect.tryPromise({
-    try: () => bridge.bootstrapSshBearerSession(bootstrap.httpBaseUrl, pairingToken),
-    catch: sshPreparationError,
-  });
-  return {
-    environmentId: descriptor.environmentId,
-    label: descriptor.label,
-    bootstrap,
-    bearerToken: access.access_token,
-  };
-});
+    return {
+      environmentId: descriptor.environmentId,
+      label: descriptor.label,
+      bootstrap,
+      bearerToken: access.access_token,
+    };
+  },
+);
 
 /**
  * Connects a saved SSH environment. A token from an earlier pairing is kept
  * while the host still accepts it with every standard scope, because every
  * pairing adds a session there.
  */
-export const prepareDesktopSshEnvironment = Effect.fn("web.connectionPlatform.ssh.prepareDesktop")(
+const prepareDesktopSshEnvironment = Effect.fn("web.connectionPlatform.ssh.prepareDesktop")(
   function* (
     bridge: DesktopBridge,
     input: {
@@ -302,56 +292,10 @@ export const prepareDesktopSshEnvironment = Effect.fn("web.connectionPlatform.ss
   },
 );
 
-const ANALYTICS_DEVICE_ID_KEY = "t3code:analytics-device-id";
-
-// Lives as long as this browser profile's site data. Storage can be blocked, which only drops the id.
-const analyticsDevice = {
-  id: Effect.try(() => {
-    const existing = window.localStorage.getItem(ANALYTICS_DEVICE_ID_KEY);
-    if (existing) return existing;
-    const created = randomUUID();
-    window.localStorage.setItem(ANALYTICS_DEVICE_ID_KEY, created);
-    return created;
-  }).pipe(Effect.option),
-};
-
 const layerCapabilities = Layer.effectContext(
   Effect.sync(() => {
     const presentation = ClientCapabilities.ClientPresentation.of({
       metadata: clientMetadata(),
-    });
-    const cloudSession = ClientCapabilities.CloudSession.of({
-      identity: Effect.sync(() =>
-        Option.fromNullishOr(appAtomRegistry.get(managedRelaySessionAtom)),
-      ),
-      clerkToken: Effect.gen(function* () {
-        const session = appAtomRegistry.get(managedRelaySessionAtom);
-        if (session === null) {
-          return yield* new ConnectionBlockedError({
-            reason: "authentication",
-            detail: "Sign in to T3 Connect to connect this environment.",
-          });
-        }
-        const token = yield* session.readClerkToken().pipe(
-          Effect.mapError(
-            (error) =>
-              new ConnectionTransientError({
-                reason: "network",
-                detail: error.message,
-              }),
-          ),
-        );
-        if (token === null) {
-          return yield* new ConnectionBlockedError({
-            reason: "authentication",
-            detail: "The T3 Connect session is unavailable.",
-          });
-        }
-        return token;
-      }),
-    });
-    const identity = ClientCapabilities.RelayDeviceIdentity.of({
-      deviceId: Effect.succeedNone,
     });
     const primaryAuth = ClientCapabilities.PrimaryEnvironmentAuth.of({
       bearerToken: Effect.tryPromise({
@@ -403,10 +347,8 @@ const layerCapabilities = Layer.effectContext(
       }),
     });
 
-    return Context.make(ClientCapabilities.CloudSession, cloudSession).pipe(
-      Context.add(ClientCapabilities.AnalyticsDevice, analyticsDevice),
+    return Context.empty().pipe(
       Context.add(ClientCapabilities.PrimaryEnvironmentAuth, primaryAuth),
-      Context.add(ClientCapabilities.RelayDeviceIdentity, identity),
       Context.add(ClientCapabilities.ClientPresentation, presentation),
       Context.add(ClientCapabilities.SshEnvironmentGateway, ssh),
     );
@@ -490,14 +432,14 @@ const loadSecondaryConnectionRegistration = Effect.fn(
 const PLATFORM_POLL_INTERVAL = "3 seconds";
 const SECONDARY_BEARER_REFRESH_SKEW_MS = 5_000;
 
-export function secondaryBearerExpiresAtEpochMs(
+function secondaryBearerExpiresAtEpochMs(
   issuedAtEpochMs: number,
   expiresInSeconds: number,
 ): number {
   return issuedAtEpochMs + Math.max(0, expiresInSeconds * 1_000);
 }
 
-export function secondaryBearerRefreshAtEpochMs(
+function secondaryBearerRefreshAtEpochMs(
   issuedAtEpochMs: number,
   expiresInSeconds: number,
 ): number {
@@ -526,7 +468,7 @@ export type PrimaryEnvironmentTargetRead =
       readonly cause: unknown;
     };
 
-export function readPrimaryEnvironmentTargetResult(
+function readPrimaryEnvironmentTargetResult(
   readTarget: () => PrimaryEnvironmentTarget | null = readPrimaryEnvironmentTarget,
 ): PrimaryEnvironmentTargetRead {
   try {
@@ -536,14 +478,14 @@ export function readPrimaryEnvironmentTargetResult(
   }
 }
 
-export function primaryRegistrationToRetainAfterTopologyRead(
+function primaryRegistrationToRetainAfterTopologyRead(
   previous: ReadonlyMap<string, CachedPlatformRegistration>,
   topologyRead: PrimaryEnvironmentTargetRead,
 ): CachedPlatformRegistration | undefined {
   return topologyRead._tag === "Failure" ? previous.get(PRIMARY_LOCAL_ENVIRONMENT_ID) : undefined;
 }
 
-export function canReuseCachedPlatformRegistration(
+function canReuseCachedPlatformRegistration(
   cached: CachedPlatformRegistration,
   signature: string,
   nowEpochMs: number,
@@ -554,7 +496,7 @@ export function canReuseCachedPlatformRegistration(
   );
 }
 
-export function canRetainCachedPlatformRegistrationAfterRefreshFailure(
+function canRetainCachedPlatformRegistrationAfterRefreshFailure(
   cached: CachedPlatformRegistration,
   signature: string,
   nowEpochMs: number,
@@ -582,7 +524,7 @@ export interface RejectedSecondaryBootstrap {
  * that restarts on the same port seeds a fresh grant for the same token, and
  * nothing in the topology says it restarted.
  */
-export function isRejectedSecondaryBootstrap(
+function isRejectedSecondaryBootstrap(
   rejected: RejectedSecondaryBootstrap | undefined,
   signature: string,
   nowEpochMs: number,
@@ -594,7 +536,7 @@ export function isRejectedSecondaryBootstrap(
   );
 }
 
-export function nextRejectedSecondaryBootstrap(
+function nextRejectedSecondaryBootstrap(
   previous: RejectedSecondaryBootstrap | undefined,
   signature: string,
   nowEpochMs: number,
@@ -606,11 +548,11 @@ export function nextRejectedSecondaryBootstrap(
   return { signature, retryAtEpochMs: nowEpochMs + delayMs, delayMs };
 }
 
-export function isRejectedBootstrapCredentialError(error: ConnectionAttemptError): boolean {
+function isRejectedBootstrapCredentialError(error: ConnectionAttemptError): boolean {
   return error._tag === "ConnectionBlockedError" && error.reason === "authentication";
 }
 
-export function secondaryRegistrationsToRetainAfterTopologyRead(
+function secondaryRegistrationsToRetainAfterTopologyRead(
   previous: ReadonlyMap<string, CachedPlatformRegistration>,
   topologyRead: DesktopSecondaryBootstrapsRead,
   nowEpochMs: number,
@@ -798,13 +740,6 @@ const layerPlatformConnectionSource = Layer.effect(
   }),
 );
 
-const layerEnvironmentOwnedDataCleanup = Layer.succeed(
-  Persistence.EnvironmentOwnedDataCleanup,
-  Persistence.EnvironmentOwnedDataCleanup.of({
-    clear: (environmentId) => Effect.sync(() => {}),
-  }),
-);
-
 const layerRpcRequestObserver = Layer.succeed(
   EnvironmentRpcRequestObserver,
   EnvironmentRpcRequestObserver.of({
@@ -826,7 +761,6 @@ type ConnectionPlatformLayerSource =
   | typeof layerWakeups
   | typeof layerCapabilities
   | typeof layerPlatformConnectionSource
-  | typeof layerEnvironmentOwnedDataCleanup
   | typeof layerRpcRequestObserver;
 
 export const layer: Layer.Layer<
@@ -839,6 +773,5 @@ export const layer: Layer.Layer<
   layerWakeups,
   layerCapabilities,
   layerPlatformConnectionSource,
-  layerEnvironmentOwnedDataCleanup,
   layerRpcRequestObserver,
 );

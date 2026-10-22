@@ -1,5 +1,5 @@
 import { runRanAfter } from "@t3tools/shared/orchestrationV2ThreadError";
-import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
+
 import {
   CommandId,
   latestProviderTurnForAttempt,
@@ -46,8 +46,7 @@ function restartContinuationBlocked(
   if (
     thread.archivedAt !== null ||
     thread.deletedAt !== null ||
-    thread.settledOverride === "settled" ||
-    (thread.snoozedUntil != null && DateTime.isGreaterThan(thread.snoozedUntil, now))
+    thread.settledOverride === "settled"
   )
     return true;
   const turn = latestProviderTurnForAttempt(projection.providerTurns, source.activeAttemptId);
@@ -198,11 +197,7 @@ export const continueRestartedRun = Effect.fn("RestartContinuation.continueResta
       ["messages", "runs", "providerTurns", "attempts", "runtimeRequests", "turnItems"],
       { messageIds: [messageId], turnItemTypes: ["secret_request"] },
     );
-    if (
-      !resolveProjectSettings(enabled, projection.thread.projectId).settings
-        .continueThreadsAfterServerUpdate
-    )
-      return;
+    if (!enabled.continueThreadsAfterServerUpdate) return;
     if (projection.messages.some((message) => message.id === messageId)) return;
     const source = projection.runs.find((run) => run.id === input.sourceRunId);
     if (
@@ -291,8 +286,8 @@ export const continueRestartedRun = Effect.fn("RestartContinuation.continueResta
           source: { kind: "system" },
           outcome: "updated",
           summary: note.settled
-            ? "T3 Code restarted and stopped background work"
-            : "T3 Code restarted and resumed this turn",
+            ? "Ozi restarted and stopped background work"
+            : "Ozi restarted and resumed this turn",
           detail: text,
         },
         attachments: [],
@@ -313,7 +308,6 @@ export const continueRestartedRun = Effect.fn("RestartContinuation.continueResta
             Effect.logInfo("orchestration-v2.restart-continuation.instance-disabled", {
               threadId: input.threadId,
               sourceRunId: input.sourceRunId,
-              projectId: error.projectId,
               instanceId: error.instanceId,
             }),
         }),

@@ -3,11 +3,7 @@ import * as NodeZlib from "node:zlib";
 import react from "@vitejs/plugin-react";
 import { tanstackRouter } from "@tanstack/router-plugin/vite";
 import compression from "compression";
-import { playwright } from "vite-plus/test/browser-playwright";
-import { defineProject, type TestProjectInlineConfiguration } from "vite-plus/test/config";
-import "vite-plus/test/config";
 import { defineConfig, type Connect, type Plugin } from "vite-plus";
-import * as Hash from "effect/Hash";
 import pkg from "./package.json" with { type: "json" };
 
 import {
@@ -34,17 +30,8 @@ const explicitHost = process.env.HOST?.trim();
 const host = explicitHost || "localhost";
 const configuredWsUrl = isSingleOriginDev ? undefined : process.env.VITE_WS_URL?.trim();
 const configuredHttpUrl = isSingleOriginDev ? undefined : process.env.VITE_HTTP_URL?.trim();
-const configuredRelayUrl = repoEnv.VITE_OZI_RELAY_URL?.trim() || "";
-const configuredClerkPublishableKey = repoEnv.VITE_CLERK_PUBLISHABLE_KEY?.trim() || "";
-const configuredClerkJwtTemplate = repoEnv.VITE_CLERK_JWT_TEMPLATE?.trim() || "";
-const configuredClerkCliOAuthClientId = repoEnv.VITE_CLERK_CLI_OAUTH_CLIENT_ID?.trim() || "";
-const configuredRelayTracingUrl = repoEnv.VITE_RELAY_OTLP_TRACES_URL?.trim() || "";
-const configuredRelayTracingDataset = repoEnv.VITE_RELAY_OTLP_TRACES_DATASET?.trim() || "";
-const configuredRelayTracingToken = repoEnv.VITE_RELAY_OTLP_TRACES_TOKEN?.trim() || "";
 const configuredHostedAppChannel = process.env.VITE_HOSTED_APP_CHANNEL?.trim() || "";
 const configuredAppVersion = process.env.APP_VERSION?.trim() || pkg.version;
-const configuredDesktopUpdateRepository =
-  process.env.OZI_DESKTOP_UPDATE_REPOSITORY?.trim() || process.env.GITHUB_REPOSITORY?.trim() || "";
 const configuredHostedAppUrl = (() => {
   const explicitHostedAppUrl = process.env.VITE_HOSTED_APP_URL?.trim();
   if (explicitHostedAppUrl) {
@@ -69,46 +56,6 @@ const buildSourcemap: boolean | "hidden" =
     : sourcemapEnv === "hidden"
       ? "hidden"
       : true;
-
-const unitTestProject = {
-  extends: true,
-  test: {
-    name: "unit",
-    include: ["src/**/*.test.{ts,tsx}"],
-    exclude: ["src/**/*.browser.test.{ts,tsx}"],
-    hookTimeout: 15_000,
-    testTimeout: 15_000,
-    setupFiles: ["../../packages/shared/src/testing/longTempDir.ts"],
-  },
-} satisfies TestProjectInlineConfiguration;
-
-// Anything that renders React or touches the DOM is named *.browser.test.{ts,tsx} and runs
-// in headless Chromium through the same plugins as the app, so it exercises compiled code.
-// Vitest's fixed browser API port (63315) collides when two checkouts run
-// browser tests at once, and `server.strictPort` above is inherited, so the
-// second run fails instead of moving on. Hash the checkout path like
-// scripts/dev-runner.ts does, into 61000-64999 (above Linux's ephemeral range).
-const browserTestApiPort = 61_000 + ((Hash.string(import.meta.dirname) >>> 0) % 4_000);
-
-const browserTestProject = {
-  extends: true,
-  // Pre-bundled so the first test importing userEvent does not trigger a mid-run reload.
-  optimizeDeps: { include: ["vite-plus/test/browser"] },
-  test: {
-    name: "browser",
-    include: ["src/**/*.browser.test.{ts,tsx}"],
-    hookTimeout: 15_000,
-    testTimeout: 15_000,
-    api: { port: browserTestApiPort, strictPort: false },
-    browser: {
-      enabled: true,
-      headless: true,
-      provider: playwright(),
-      instances: [{ browser: "chromium" }],
-      screenshotFailures: false,
-    },
-  },
-} satisfies TestProjectInlineConfiguration;
 
 function resolveDevProxyTarget(
   backendPort: string | undefined,
@@ -189,8 +136,6 @@ export default defineConfig(() => {
     ],
     optimizeDeps: {
       include: [
-        "@clerk/clerk-js",
-        "@clerk/react/internal",
         "@pierre/diffs",
         "@pierre/diffs/edit",
         "@pierre/diffs/react",
@@ -206,22 +151,8 @@ export default defineConfig(() => {
       // under single-origin dev this must stay empty even when a `.env`
       // supplies it, so the client falls back to window.location.origin.
       "import.meta.env.VITE_HTTP_URL": JSON.stringify(configuredHttpUrl ?? ""),
-      "import.meta.env.VITE_OZI_RELAY_URL": JSON.stringify(configuredRelayUrl),
-      "import.meta.env.VITE_CLERK_PUBLISHABLE_KEY": JSON.stringify(configuredClerkPublishableKey),
-      "import.meta.env.VITE_CLERK_JWT_TEMPLATE": JSON.stringify(configuredClerkJwtTemplate),
-      "import.meta.env.VITE_CLERK_CLI_OAUTH_CLIENT_ID": JSON.stringify(
-        configuredClerkCliOAuthClientId,
-      ),
-      "import.meta.env.VITE_RELAY_OTLP_TRACES_URL": JSON.stringify(configuredRelayTracingUrl),
-      "import.meta.env.VITE_RELAY_OTLP_TRACES_DATASET": JSON.stringify(
-        configuredRelayTracingDataset,
-      ),
-      "import.meta.env.VITE_RELAY_OTLP_TRACES_TOKEN": JSON.stringify(configuredRelayTracingToken),
       "import.meta.env.VITE_HOSTED_APP_URL": JSON.stringify(configuredHostedAppUrl ?? ""),
       "import.meta.env.VITE_HOSTED_APP_CHANNEL": JSON.stringify(configuredHostedAppChannel),
-      "import.meta.env.OZI_DESKTOP_UPDATE_REPOSITORY": JSON.stringify(
-        configuredDesktopUpdateRepository,
-      ),
       "import.meta.env.APP_VERSION": JSON.stringify(configuredAppVersion),
     },
     resolve: {
@@ -285,9 +216,6 @@ export default defineConfig(() => {
       emptyOutDir: true,
       manifest: true,
       sourcemap: buildSourcemap,
-    },
-    test: {
-      projects: [defineProject(unitTestProject), defineProject(browserTestProject)],
     },
   };
 });

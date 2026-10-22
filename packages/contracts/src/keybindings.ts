@@ -1,10 +1,10 @@
 import * as Schema from "effect/Schema";
 import { ForwardCompatibleArray, TrimmedString } from "./baseSchemas.ts";
 
-export const MAX_KEYBINDING_VALUE_LENGTH = 64;
+const MAX_KEYBINDING_VALUE_LENGTH = 64;
 const MAX_KEYBINDING_WHEN_LENGTH = 256;
 export const MAX_WHEN_EXPRESSION_DEPTH = 64;
-export const MAX_SCRIPT_ID_LENGTH = 24;
+const MAX_SCRIPT_ID_LENGTH = 24;
 export const MAX_KEYBINDINGS_COUNT = 256;
 
 export const THREAD_JUMP_KEYBINDING_COMMANDS = [
@@ -56,22 +56,16 @@ const MODEL_PICKER_KEYBINDING_COMMANDS = [
 ] as const;
 export type ModelPickerKeybindingCommand = (typeof MODEL_PICKER_KEYBINDING_COMMANDS)[number];
 
-export const STATIC_KEYBINDING_COMMANDS = [
+const STATIC_KEYBINDING_COMMANDS = [
   "sidebar.toggle",
   "navigation.back",
   "navigation.forward",
-  "terminal.toggle",
-  "terminal.split",
-  "terminal.splitVertical",
-  "terminal.new",
-  "terminal.close",
   "rightPanel.toggle",
   "rightPanel.new",
   "threadPanel.toggle",
   "rightPanel.toggleMaximized",
   "rightPanel.close",
   "view.reopenClosed",
-  "pullRequest.copyNumber",
   "diff.toggle",
   "preview.toggle",
   "preview.refresh",

@@ -62,25 +62,11 @@ export type EnvironmentSubscriptionRpcTag =
   | typeof WS_METHODS.subscribeServerConfig
   | typeof WS_METHODS.subscribeServerLifecycle
   | typeof WS_METHODS.scheduledTasksSubscribe
-  | typeof WS_METHODS.serverGetStorageCleanupReport
   | typeof WS_METHODS.serverGetDatabaseStorage
-  | typeof WS_METHODS.subscribeTerminalEvents
-  | typeof WS_METHODS.subscribeTerminalMetadata
   | typeof WS_METHODS.subscribePreviewEvents
-  | typeof WS_METHODS.subscribeDiscoveredLocalServers
-  | typeof WS_METHODS.subscribeResourceTelemetry
-  | typeof WS_METHODS.pullRequestsSubscribeRefreshes
-  | typeof WS_METHODS.subscribeVcsStatus
-  | typeof WS_METHODS.subscribeWorktreeSetup
-  | typeof WS_METHODS.subscribeProjectClones
-  | typeof WS_METHODS.terminalAttach
-  | typeof WS_METHODS.terminalObserve;
+  | typeof WS_METHODS.subscribeDiscoveredLocalServers;
 
-export type EnvironmentStreamCommandRpcTag =
-  | typeof WS_METHODS.chatGptHandoffSubscribe
-  | typeof WS_METHODS.cloudInstallRelayClient
-  | typeof WS_METHODS.serverUpdateServerWithProgress
-  | typeof WS_METHODS.gitRunStackedAction;
+export type EnvironmentStreamCommandRpcTag = typeof WS_METHODS.chatGptHandoffSubscribe;
 
 export type EnvironmentStreamRpcTag =
   | EnvironmentSubscriptionRpcTag
@@ -94,7 +80,7 @@ export interface EnvironmentRpcSubscriptionObservation {
   readonly input: unknown;
 }
 
-export class EnvironmentRpcSubscriptionObserver extends Context.Reference<{
+class EnvironmentRpcSubscriptionObserver extends Context.Reference<{
   readonly observe: (
     subscription: EnvironmentRpcSubscriptionObservation,
   ) => Effect.Effect<Effect.Effect<void>>;
@@ -104,7 +90,7 @@ export class EnvironmentRpcSubscriptionObserver extends Context.Reference<{
   }),
 }) {}
 
-export const isRpcClientError = Schema.is(RpcClientError.RpcClientError);
+const isRpcClientError = Schema.is(RpcClientError.RpcClientError);
 const isEnvironmentAuthorizationError = Schema.is(EnvironmentAuthorizationError);
 
 const MAX_EXPECTED_FAILURE_RETRY_DELAY_MS = 30_000;
@@ -211,7 +197,7 @@ export const requestGuarded = Effect.fn("EnvironmentRpc.request")(function* <
   return yield* method(input).pipe(Effect.ensuring(completeObservation));
 });
 
-export function runStreamGuarded<TTag extends EnvironmentStreamCommandRpcTag>(
+function runStreamGuarded<TTag extends EnvironmentStreamCommandRpcTag>(
   tag: TTag,
   input: EnvironmentRpcInput<TTag>,
 ): Stream.Stream<

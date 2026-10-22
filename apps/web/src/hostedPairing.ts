@@ -1,5 +1,3 @@
-import { DEFAULT_HOSTED_APP_URL } from "@t3tools/shared/connectAuth";
-
 import { getPairingTokenFromUrl, setPairingTokenOnUrl } from "./pairingUrl";
 
 export interface HostedPairingRequest {
@@ -10,42 +8,17 @@ export interface HostedPairingRequest {
 
 export type HostedAppChannel = "latest" | "nightly";
 
-export function configuredHostedAppUrl(): string {
-  return import.meta.env.VITE_HOSTED_APP_URL?.trim() || DEFAULT_HOSTED_APP_URL;
-}
-
-function configuredBackendUrl(): string {
-  return import.meta.env.VITE_HTTP_URL?.trim() || import.meta.env.VITE_WS_URL?.trim() || "";
-}
-
-function configuredHostedAppChannel(): HostedAppChannel | null {
-  const channel = import.meta.env.VITE_HOSTED_APP_CHANNEL?.trim().toLowerCase();
-  return channel === "latest" || channel === "nightly" ? channel : null;
-}
-
-function originFromUrl(value: string): string | null {
-  try {
-    return new URL(value).origin;
-  } catch {
-    return null;
-  }
+function configuredHostedAppUrl(): string {
+  return import.meta.env.VITE_HOSTED_APP_URL?.trim() || window.location.origin;
 }
 
 export function isHostedStaticApp(url?: URL): boolean {
-  if (configuredBackendUrl()) {
-    return false;
-  }
-
-  if (configuredHostedAppChannel()) {
-    return true;
-  }
-
-  if (url === undefined && (typeof window === "undefined" || window.location === undefined)) {
-    return false;
-  }
-
-  const hostedOrigin = originFromUrl(configuredHostedAppUrl());
-  return hostedOrigin !== null && (url ?? new URL(window.location.href)).origin === hostedOrigin;
+  const configured = import.meta.env.VITE_HOSTED_APP_URL?.trim();
+  return (
+    configured !== undefined &&
+    configured !== "" &&
+    (url ?? new URL(window.location.href)).origin === new URL(configured).origin
+  );
 }
 
 export function readHostedPairingRequest(url: URL = new URL(window.location.href)) {
@@ -82,12 +55,4 @@ export function buildHostedPairingUrl(input: {
   }
 
   return setPairingTokenOnUrl(url, input.token).toString();
-}
-
-export function buildHostedChannelSelectionUrl(input: {
-  readonly channel: HostedAppChannel;
-}): string {
-  const url = new URL("/__t3code/channel", configuredHostedAppUrl());
-  url.searchParams.set("channel", input.channel);
-  return url.toString();
 }

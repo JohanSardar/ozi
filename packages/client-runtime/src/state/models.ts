@@ -1,7 +1,5 @@
 import { backgroundWorkHoldsCompletion } from "@t3tools/shared/orchestrationV2PendingBackgroundWork";
-import { threadPullRequestsOf } from "@t3tools/shared/threadPullRequests";
 import type {
-  ThreadLinkedPullRequest,
   EnvironmentId,
   MessageId,
   OrchestrationProjectShell,
@@ -68,15 +66,6 @@ export function threadRuntimeIsActive(runtime: ThreadRuntimeSummary | null | und
   return runtime !== null && runtime !== undefined && threadRunStatusIsActive(runtime.status);
 }
 
-export function threadRuntimeCanArchive(runtime: ThreadRuntimeSummary | null | undefined): boolean {
-  if (runtime?.status === "queued") return runtime.activeRunId === null;
-  return (
-    runtime?.status !== "preparing" &&
-    runtime?.status !== "starting" &&
-    runtime?.status !== "running"
-  );
-}
-
 function threadRunStatusIsActive(status: ThreadRuntimeSummary["status"]): boolean {
   return (
     status === "preparing" ||
@@ -125,15 +114,10 @@ export interface EnvironmentThreadShell {
   readonly settledOverride: "settled" | "active" | null;
   readonly settledAt: string | null;
   readonly unsettledAt: string | null;
-  readonly snoozedUntil: string | null;
-  readonly snoozedAt: string | null;
   readonly limitRecovery?: import("@t3tools/contracts").OrchestrationV2LimitRecovery | null;
   readonly pinnedAt: string | null;
   readonly pinOrderKey: string | null;
   readonly activeOrderKey: string | null;
-  readonly pullRequests: ReadonlyArray<import("@t3tools/contracts").ThreadPullRequestLink>;
-  readonly linkedPullRequest?: ThreadLinkedPullRequest | null;
-  readonly branchPullRequest?: ThreadLinkedPullRequest | null;
   /**
    * Server-tracked visited watermark. `undefined` means the environment's
    * server predates visited tracking and clients should fall back to any
@@ -190,13 +174,6 @@ function shellRuntime(thread: OrchestrationV2ThreadShell): ThreadRuntimeSummary 
   };
 }
 
-export function scopeProject(
-  environmentId: EnvironmentId,
-  project: OrchestrationProjectShell,
-): EnvironmentProject {
-  return { ...project, environmentId };
-}
-
 export type PendingSubagentRequest = "approval" | "user_input";
 
 export function presentThreadShell(
@@ -243,9 +220,6 @@ export function presentThreadShell(
     interactionMode: thread.interactionMode,
     branch: thread.branch,
     worktreePath: thread.worktreePath,
-    pullRequests: threadPullRequestsOf(thread),
-    linkedPullRequest: thread.linkedPullRequest ?? null,
-    branchPullRequest: thread.branchPullRequest ?? null,
     lineage: thread.lineage,
     forkedFrom: thread.forkedFrom,
     activeProviderThreadId: thread.activeProviderThreadId,
@@ -276,8 +250,6 @@ export function presentThreadShell(
     settledOverride: thread.settledOverride,
     settledAt: nullableIso(thread.settledAt),
     unsettledAt: nullableIso(thread.unsettledAt ?? null),
-    snoozedUntil: nullableIso(thread.snoozedUntil ?? null),
-    snoozedAt: nullableIso(thread.snoozedAt ?? null),
     limitRecovery: thread.limitRecovery ?? null,
     pinnedAt: nullableIso(thread.pinnedAt ?? null),
     pinOrderKey: thread.pinOrderKey ?? null,
@@ -295,42 +267,4 @@ export function presentThreadShell(
     deletedAt: nullableIso(thread.deletedAt),
     source: thread,
   };
-}
-
-export function scopeThreadShell(
-  environmentId: EnvironmentId,
-  thread: OrchestrationV2ThreadShell,
-): EnvironmentThreadShell {
-  return presentThreadShell(environmentId, thread);
-}
-
-const THREAD_PROVIDER_STACK_LIMIT = 3;
-
-export function resolveThreadProviderStack(
-  thread: Pick<EnvironmentThreadShell, "providerInstanceHistory" | "modelSelection" | "runtime">,
-): ReadonlyArray<ProviderInstanceId> {
-  const current = thread.runtime?.providerInstanceId ?? thread.modelSelection.instanceId;
-  const previous = thread.providerInstanceHistory.filter((instanceId) => instanceId !== current);
-  return [...previous.slice(-(THREAD_PROVIDER_STACK_LIMIT - 1)), current];
-}
-
-/**
- * Both shell and detail timers count from the activity-owning run's work
- * start, never last activity. A wake keeps the start of the work it continues.
- */
-export function resolveThreadWorkingStartedAt(input: {
-  readonly latestRun: Pick<
-    ThreadRunSummary,
-    "runId" | "startedAt" | "requestedAt" | "completedAt"
-  > | null;
-  readonly runtime: Pick<ThreadRuntimeSummary, "activeRunId" | "activityStartedAt"> | null;
-}): string | null {
-  const valid = (value: string | null | undefined) =>
-    value != null && Number.isFinite(Date.parse(value)) ? value : null;
-  if (input.runtime?.activityStartedAt !== undefined) return valid(input.runtime.activityStartedAt);
-  const run = input.latestRun;
-  if (run?.completedAt === null && run.runId === input.runtime?.activeRunId) {
-    return valid(run.startedAt) ?? valid(run.requestedAt);
-  }
-  return null;
 }

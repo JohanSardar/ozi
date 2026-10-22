@@ -143,14 +143,12 @@ export class ProcessRunner extends Context.Service<
   {
     readonly run: (input: ProcessRunInput) => Effect.Effect<ProcessRunOutput, ProcessRunError>;
   }
->()("t3/processRunner") {}
+>()("ozi/processRunner") {}
 
 const DEFAULT_TIMEOUT = "60 seconds";
 // Keep SIGTERM-ignoring helpers from blocking timeouts or graceful shutdown.
 const FORCE_KILL_AFTER = "1 second";
 const DEFAULT_MAX_OUTPUT_BYTES = 8 * 1024 * 1024;
-
-export { isWindowsCommandNotFound } from "@t3tools/provider-core/server/snapshotProbe";
 
 const collectText = Effect.fnUntraced(function* (input: {
   readonly command: string;
@@ -266,7 +264,7 @@ function finalizeRunProcess<R>(
   );
 }
 
-export const commandName = (command: string) => command.replace(/^.*[\\/]/, "");
+const commandName = (command: string) => command.replace(/^.*[\\/]/, "");
 
 const runProcessCore = Effect.fn("processRunner.runProcessCore")(function* (
   spawner: ChildProcessSpawner.ChildProcessSpawner["Service"],

@@ -1,7 +1,6 @@
 import {
   DEFAULT_TEXT_GENERATION_MODEL,
   DEFAULT_TEXT_GENERATION_MODEL_BY_PROVIDER,
-  defaultInstanceIdForDriver,
   type ModelSelection,
   ProviderDriverKind,
   ProviderInstanceId,
@@ -18,13 +17,8 @@ import {
 import { UnifiedSettings } from "@t3tools/contracts/settings";
 import * as Arr from "effect/Array";
 import * as Result from "effect/Result";
-import {
-  getDefaultServerModel,
-  getProviderModelCapabilities,
-  getProviderModels,
-  resolveSelectableProvider,
-} from "./providerModels";
-import { ModelEsque } from "./components/chat/providerIconUtils";
+import { getProviderModelCapabilities } from "./providerModels";
+
 import {
   type ProviderInstanceEntry,
   deriveProviderInstanceEntries,
@@ -133,42 +127,7 @@ function normalizeCustomModelEntries(
   return normalizedModels;
 }
 
-function getAppModelOptions(
-  settings: UnifiedSettings,
-  providers: ReadonlyArray<ServerProvider>,
-  provider: ProviderDriverKind,
-  _selectedModel?: string | null,
-): AppModelOption[] {
-  const rawModels = getProviderModels(providers, provider);
-  // Server-reported custom rows mirror settings and can lag a removal, so
-  // only built-ins are taken from the snapshot; custom rows are rebuilt from
-  // settings below.
-  const options: AppModelOption[] = rawModels
-    .filter((model) => !model.isCustom)
-    .map(toAppModelOption);
-  const seen = new Set(options.map((option) => option.slug));
-  const builtInModelSlugs = new Set(
-    Arr.filterMap(getProviderModels(providers, provider), (model) =>
-      model.isCustom ? Result.failVoid : Result.succeed(model.slug),
-    ),
-  );
-
-  const defaultInstanceId = defaultInstanceIdForDriver(provider);
-  const customModels = readInstanceCustomModels(settings, defaultInstanceId, provider);
-  for (const entry of normalizeCustomModelEntries(customModels, builtInModelSlugs)) {
-    if (seen.has(entry.slug)) {
-      continue;
-    }
-
-    seen.add(entry.slug);
-    options.push({ slug: entry.slug, name: entry.name, isCustom: true });
-  }
-
-  const preferences = readInstanceModelPreferences(settings, defaultInstanceId);
-  return applyInstanceModelPreferences(options, preferences);
-}
-
-export function getAppModelOptionsForInstance(
+function getAppModelOptionsForInstance(
   settings: UnifiedSettings,
   entry: ProviderInstanceEntry,
   _selectedModel?: string | null,
@@ -197,21 +156,7 @@ export function getAppModelOptionsForInstance(
   return applyInstanceModelPreferences(options, preferences);
 }
 
-export function resolveAppModelSelection(
-  provider: ProviderDriverKind,
-  settings: UnifiedSettings,
-  providers: ReadonlyArray<ServerProvider>,
-  selectedModel: string | null | undefined,
-): string {
-  const resolvedProvider = resolveSelectableProvider(providers, provider);
-  const options = getAppModelOptions(settings, providers, resolvedProvider, selectedModel);
-  return (
-    resolveSelectableModel(resolvedProvider, selectedModel, options) ??
-    getDefaultServerModel(providers, resolvedProvider)
-  );
-}
-
-export function resolveAppModelSelectionForInstance(
+function resolveAppModelSelectionForInstance(
   instanceId: ProviderInstanceId,
   settings: UnifiedSettings,
   providers: ReadonlyArray<ServerProvider>,
@@ -234,43 +179,7 @@ export function resolveAppModelSelectionForInstance(
   return options.find((option) => option.isDefault)?.slug ?? options[0]?.slug ?? null;
 }
 
-// New drafts carry the stored selection; capabilities resolve its raw options later.
-export function resolveEffectiveDefaultModelSelection(
-  settings: UnifiedSettings,
-  providers: ReadonlyArray<ServerProvider>,
-  selection: ModelSelection,
-): ModelSelection {
-  const model = resolveAppModelSelectionForInstance(
-    selection.instanceId,
-    settings,
-    providers,
-    selection.model,
-    { preserveUnavailableSelection: true },
-  );
-  return model === null || model === selection.model ? selection : { ...selection, model };
-}
-
-export function getCustomModelOptionsByInstance(
-  settings: UnifiedSettings,
-  providers: ReadonlyArray<ServerProvider>,
-  selectedInstanceId?: ProviderInstanceId | null,
-  selectedModel?: string | null,
-): ReadonlyMap<ProviderInstanceId, ReadonlyArray<ModelEsque>> {
-  const out = new Map<ProviderInstanceId, ReadonlyArray<ModelEsque>>();
-  for (const entry of deriveProviderInstanceEntries(providers)) {
-    out.set(
-      entry.instanceId,
-      getAppModelOptionsForInstance(
-        settings,
-        entry,
-        entry.instanceId === selectedInstanceId ? selectedModel : null,
-      ),
-    );
-  }
-  return out;
-}
-
-export function selectsPlanAgent(options: ModelSelection["options"]): boolean {
+function selectsPlanAgent(options: ModelSelection["options"]): boolean {
   return options?.some((option) => option.id === "agent" && option.value === "plan") ?? false;
 }
 

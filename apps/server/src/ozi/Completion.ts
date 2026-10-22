@@ -166,7 +166,7 @@ export class Completion extends Context.Service<
       reportItemId: TurnItemId | null;
     }) => Effect.Effect<CommandReceiptStore.CommandReceiptV2, CompletionError>;
   }
->()("t3/ozi/Completion") {}
+>()("ozi/ozi/Completion") {}
 
 const make = Effect.gen(function* () {
   const projections = yield* ProjectionStore.ProjectionStoreV2;

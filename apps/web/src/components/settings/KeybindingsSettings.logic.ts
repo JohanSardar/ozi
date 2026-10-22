@@ -57,14 +57,7 @@ export interface KeybindingRow {
 export type WhenVariableOption = string;
 export type KeybindingCommandOption = KeybindingCommand;
 
-const CORE_WHEN_VARIABLES = [
-  "terminalFocus",
-  "terminalOpen",
-  "isWeb",
-  "isDesktop",
-  "true",
-  "false",
-] as const;
+const CORE_WHEN_VARIABLES = ["isWeb", "isDesktop", "true", "false"] as const;
 
 const DEFAULT_WHEN_VARIABLES = new Set<string>(CORE_WHEN_VARIABLES);
 for (const binding of DEFAULT_RESOLVED_KEYBINDINGS) {
@@ -74,10 +67,10 @@ for (const binding of DEFAULT_RESOLVED_KEYBINDINGS) {
 export const DEFAULT_WHEN_VARIABLE =
   [...DEFAULT_WHEN_VARIABLES].find(
     (identifier) => identifier !== "true" && identifier !== "false",
-  ) ?? "terminalFocus";
+  ) ?? "composerFocus";
 const KNOWN_WHEN_VARIABLES = new Set(DEFAULT_WHEN_VARIABLES);
 
-export function shortcutToKeybindingInput(shortcut: KeybindingShortcut): string {
+function shortcutToKeybindingInput(shortcut: KeybindingShortcut): string {
   const parts: string[] = [];
   if (shortcut.modKey) parts.push("mod");
   if (shortcut.metaKey) parts.push("meta");
@@ -210,7 +203,6 @@ const KEYBINDING_GROUPS = [
   },
   { id: "threads", title: "Threads", prefixes: ["thread", "chat", "pullRequest"] },
   { id: "composer", title: "Composer", prefixes: ["composer", "modelPicker"] },
-  { id: "terminal", title: "Terminal", prefixes: ["terminal"] },
   { id: "preview", title: "Preview & diff", prefixes: ["preview", "diff"] },
   { id: "appearance", title: "Appearance", prefixes: ["theme", "appearance", "themeEditor"] },
   { id: "scripts", title: "Project scripts", prefixes: ["script"] },

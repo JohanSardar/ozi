@@ -111,7 +111,7 @@ function quoteUpdateExecutable(executable: string, platform: NodeJS.Platform): s
   return platform === "win32" && quoted !== executable ? `& ${quoted}` : quoted;
 }
 
-export function makeProviderMaintenanceCapabilities(input: {
+function makeProviderMaintenanceCapabilities(input: {
   readonly provider: ProviderDriverKind;
   readonly packageName: string | null;
   readonly updateExecutable: string | null;
@@ -259,7 +259,7 @@ function isPnpmGlobalCommandPath(commandPath: string): boolean {
   );
 }
 
-export function npmGlobalPrefixFromCommandPath(
+function npmGlobalPrefixFromCommandPath(
   realCommandPath: string,
   packageName: string,
 ): string | null {
@@ -287,9 +287,7 @@ export interface HomebrewOwnership {
   readonly prefix: string;
 }
 
-export function homebrewOwnershipFromCommandPath(
-  realCommandPath: string,
-): HomebrewOwnership | null {
+function homebrewOwnershipFromCommandPath(realCommandPath: string): HomebrewOwnership | null {
   const match = HOMEBREW_KEG_PATTERN.exec(realCommandPath.replaceAll("\\", "/"));
   if (!match) {
     return null;
@@ -315,10 +313,7 @@ const HomebrewInfoResponse = Schema.Struct({
 const decodeHomebrewInfo = Schema.decodeUnknownOption(Schema.fromJsonString(HomebrewInfoResponse));
 
 /** Cask versions may carry a build suffix after a comma (`1.2.3,456`). */
-export function parseHomebrewLatestVersion(
-  infoJson: string,
-  ownership: HomebrewOwnership,
-): string | null {
+function parseHomebrewLatestVersion(infoJson: string, ownership: HomebrewOwnership): string | null {
   const decoded = decodeHomebrewInfo(infoJson);
   if (Option.isNone(decoded)) {
     return null;
@@ -422,7 +417,7 @@ const resolvePnpmGlobalLatestVersion = Effect.fn("resolvePnpmGlobalLatestVersion
   return nonEmptyString(listedEntries?.[0]?.dependencies?.[packageName]?.version);
 });
 
-export const resolvePackageManagedProviderMaintenance = Effect.fn(
+const resolvePackageManagedProviderMaintenance = Effect.fn(
   "resolvePackageManagedProviderMaintenance",
 )(function* (
   definition: PackageManagedProviderMaintenanceDefinition,
@@ -442,7 +437,7 @@ export const resolvePackageManagedProviderMaintenance = Effect.fn(
   const commandPaths = [context.resolvedCommandPath, context.realCommandPath];
   const packageName = definition.npmPackageName;
   // WinGet owns these files: `claude update` only reports "managed by winget"
-  // and exits 0, and T3 Code does not run `winget upgrade` itself.
+  // and exits 0, and Ozi does not run `winget upgrade` itself.
   if (
     definition.provider === "claudeAgent" &&
     context.platform === "win32" &&
@@ -592,7 +587,7 @@ export const resolvePackageManagedProviderMaintenance = Effect.fn(
  * that reports it as its own. Version checks defer `brew info` until needed.
  * Null when no `brew` is found or it owns another prefix.
  */
-export const resolveHomebrewProviderMaintenance = Effect.fn("resolveHomebrewProviderMaintenance")(
+const resolveHomebrewProviderMaintenance = Effect.fn("resolveHomebrewProviderMaintenance")(
   function* (
     input: { readonly provider: ProviderDriverKind; readonly packageName: string | null },
     homebrew: HomebrewOwnership,
@@ -782,12 +777,12 @@ export const makeCachedProviderMaintenanceResolution = Effect.fn(
 });
 
 /**
- * An install T3 Code cannot update gets no Update button or command, so its
+ * An install Ozi cannot update gets no Update button or command, so its
  * message names the version and the executable instead.
  */
 function manualUpdateMessage(latestVersion: string, installPath: string | undefined): string {
   return installPath
-    ? `Version ${latestVersion} is out. T3 Code runs ${installPath}; update it with the app or tool that installed it.`
+    ? `Version ${latestVersion} is out. Ozi runs ${installPath}; update it with the app or tool that installed it.`
     : `Version ${latestVersion} is out. Update it with the app or tool that installed it.`;
 }
 

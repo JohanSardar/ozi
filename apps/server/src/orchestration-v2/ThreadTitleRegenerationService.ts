@@ -1,4 +1,3 @@
-import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
 import {
   CommandId,
   type ChatAttachment,
@@ -20,7 +19,6 @@ import * as ProjectStore from "./ProjectStore.ts";
 import * as ThreadManagementService from "./ThreadManagementService.ts";
 
 import { formatThreadTitleContext } from "@t3tools/provider-core/server/threadTitleContext";
-export { formatThreadTitleContext } from "@t3tools/provider-core/server/threadTitleContext";
 
 export class ThreadTitleRegenerationService extends Context.Service<
   ThreadTitleRegenerationService,
@@ -39,7 +37,7 @@ export class ThreadTitleRegenerationService extends Context.Service<
       | ThreadManagementService.ThreadManagementProviderInstanceDisabledError
     >;
   }
->()("t3/orchestration-v2/ThreadTitleRegenerationService") {}
+>()("ozi/orchestration-v2/ThreadTitleRegenerationService") {}
 
 const make = Effect.gen(function* () {
   const threads = yield* ThreadManagementService.ThreadManagementService;
@@ -106,10 +104,7 @@ const make = Effect.gen(function* () {
         return { type: "complete" as const };
       }
 
-      const settings = resolveProjectSettings(
-        yield* serverSettings.getSettings,
-        projection.thread.projectId,
-      ).settings;
+      const settings = yield* serverSettings.getSettings;
       const result = yield* textGeneration.generateThreadTitle({
         cwd: projection.thread.worktreePath ?? project.value.workspaceRoot,
         message: context.message,

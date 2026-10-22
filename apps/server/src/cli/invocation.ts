@@ -3,8 +3,6 @@ import * as FileSystem from "effect/FileSystem";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
-
-import type { ServerInstallation } from "@t3tools/contracts";
 import * as HostProcess from "@t3tools/shared/HostProcess";
 import { isCommandAvailable } from "@t3tools/shared/shell";
 
@@ -68,38 +66,6 @@ const resolveEntryPath = Effect.gen(function* () {
   return (yield* HostProcess.Arguments)[1] ?? "";
 });
 
-export const resolveServerInstallation = Effect.gen(function* () {
-  const fs = yield* FileSystem.FileSystem;
-  const path = yield* Path.Path;
-  const platform = yield* HostProcess.Platform;
-  const entry = yield* fs.realPath(yield* resolveEntryPath);
-  const match = /^(.*)\/lib\/node_modules\/t3\/(?:dist\/bin\.mjs|bin\/t3\.mjs)$/.exec(entry);
-  if (!match) {
-    const runner = detectCliRunner(entry);
-    return runner === null
-      ? null
-      : ({ kind: runner === "pnpm dlx" ? "pnpm-dlx" : runner } satisfies ServerInstallation);
-  }
-  if (platform === "win32") return null;
-  const prefix = match[1] || "/";
-  if (
-    prefix.includes("/node_modules/") ||
-    /\/(?:Cellar|Caskroom)\//i.test(prefix) ||
-    /\/mise\/installs\/(?!node\/)[^/]+\//.test(prefix)
-  )
-    return null;
-
-  const packageRoot = path.join(prefix, "lib/node_modules/t3");
-  const manifest = yield* fs
-    .readFileString(path.join(packageRoot, "package.json"))
-    .pipe(Effect.flatMap(decodeInstallManifest));
-  if (manifest.name !== packageJson.name || !manifest.bin) return null;
-  const bin = yield* fs.realPath(path.join(packageRoot, manifest.bin.ozi));
-  const globalBin = yield* fs.realPath(path.join(prefix, "bin/ozi"));
-  if (globalBin !== bin || bin !== entry) return null;
-  return { kind: "npm-global", prefix } satisfies ServerInstallation;
-}).pipe(Effect.orElseSucceed(() => null));
-
 /**
  * The literal spec the user typed (e.g. `ozi@nightly`) is resolved away before
  * our process starts, so re-derive it from the running version: nightly builds
@@ -110,7 +76,7 @@ function suggestedPackageSpec(version: string): string {
   return channel === undefined ? "ozi" : `ozi@${channel}`;
 }
 
-export function formatCliCommand(input: {
+function formatCliCommand(input: {
   readonly subcommand: string;
   readonly entryPath: string;
   readonly version: string;
@@ -122,7 +88,7 @@ export function formatCliCommand(input: {
   return `${runner} ${suggestedPackageSpec(input.version)} ${input.subcommand}`;
 }
 
-export const resolveCliCommand = (subcommand: string) =>
+const resolveCliCommand = (subcommand: string) =>
   Effect.map(resolveEntryPath, (entryPath) =>
     formatCliCommand({ subcommand, entryPath, version: packageJson.version }),
   );

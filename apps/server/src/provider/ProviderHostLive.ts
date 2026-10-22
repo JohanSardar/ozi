@@ -6,7 +6,6 @@ import * as Layer from "effect/Layer";
 
 import { resolveAttachmentPath } from "../attachmentStore.ts";
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
-import * as BackgroundPolicy from "../background/BackgroundPolicy.ts";
 import * as ServerConfig from "../config.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as ProviderCredentialStore from "./ProviderCredentialStore.ts";
@@ -16,7 +15,6 @@ export const layer = Layer.effect(
   Effect.gen(function* () {
     const config = yield* ServerConfig.ServerConfig;
     const serverSettings = yield* ServerSettings.ServerSettingsService;
-    const backgroundPolicy = yield* BackgroundPolicy.BackgroundPolicy;
     const secrets = yield* ServerSecretStore.ServerSecretStore;
     const crypto = yield* Crypto.Crypto;
     return ProviderHost.ProviderHost.of({
@@ -33,7 +31,6 @@ export const layer = Layer.effect(
         changes: serverSettings.streamChanges,
         subscribe: serverSettings.subscribeChanges,
       },
-      shouldRunBackgroundWork: backgroundPolicy.shouldRunScopeWork,
       resolveAttachmentPath: (attachment) =>
         resolveAttachmentPath({ attachmentsDir: config.attachmentsDir, attachment }),
       credentials: (namespace, bindingId) =>

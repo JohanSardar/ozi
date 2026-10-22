@@ -7,14 +7,14 @@ import * as Stream from "effect/Stream";
 import { HttpClient, HttpClientRequest } from "effect/http";
 import { ChildProcess, ChildProcessSpawner } from "effect/process";
 
-export const DEFAULT_TAILSCALE_SERVE_PORT = 443;
+const DEFAULT_TAILSCALE_SERVE_PORT = 443;
 /**
  * Bounds `tailscale status` and `tailscale debug prefs`. Allows the 1.8-2.6 s
- * `tailscale status` has been measured at when T3 Code spawns it on Windows.
+ * `tailscale status` has been measured at when Ozi spawns it on Windows.
  * A CLI that never answers takes longer than this to fail, because the kill
  * that follows the timeout also takes time (`taskkill` on Windows).
  */
-export const TAILSCALE_STATUS_TIMEOUT = Duration.millis(3_500);
+const TAILSCALE_STATUS_TIMEOUT = Duration.millis(3_500);
 const TAILSCALE_SERVE_TIMEOUT = Duration.seconds(10);
 const TAILSCALE_PROBE_TIMEOUT = Duration.millis(2_500);
 
@@ -168,14 +168,6 @@ function normalizeMagicDnsName(status: TailscaleStatusJson): string | null {
   return normalized.length > 0 ? normalized : null;
 }
 
-export const parseTailscaleMagicDnsName = (
-  rawStatusJson: string,
-): Effect.Effect<string | null, TailscaleStatusParseError> =>
-  decodeTailscaleStatusJson(rawStatusJson).pipe(
-    Effect.mapError((cause) => new TailscaleStatusParseError({ cause })),
-    Effect.map(normalizeMagicDnsName),
-  );
-
 export function isTailscaleIpv4Address(address: string): boolean {
   const parts = address.split(".");
   if (parts.length !== 4) {
@@ -286,56 +278,10 @@ export const readTailscaleStatus = readTailscaleOutput("status", ["status", "--j
   Effect.flatMap(parseTailscaleStatus),
 );
 
-const TailscaleExitNodeJson = Schema.Struct({
-  ExitNodeStatus: Schema.optional(Schema.Struct({ Online: Schema.optional(Schema.Unknown) })),
-  Peer: Schema.optional(
-    Schema.Record(
-      Schema.String,
-      Schema.Struct({
-        ExitNode: Schema.optional(Schema.Unknown),
-        HostName: Schema.optional(Schema.Unknown),
-        DNSName: Schema.optional(Schema.Unknown),
-      }),
-    ),
-  ),
-});
-
-const decodeTailscaleExitNodeJson = Schema.decodeEffect(
-  Schema.fromJsonString(TailscaleExitNodeJson),
-);
-
 export interface TailscaleExitNode {
   readonly name: string | null;
   readonly online: boolean;
 }
-
-/**
- * `ExitNodeStatus` is present only while an exit node is in use, but it has no
- * name. The name comes from the peer marked `ExitNode: true`.
- */
-export const parseTailscaleExitNode = (
-  rawStatusJson: string,
-): Effect.Effect<TailscaleExitNode | null, TailscaleStatusParseError> =>
-  decodeTailscaleExitNodeJson(rawStatusJson).pipe(
-    Effect.mapError((cause) => new TailscaleStatusParseError({ cause })),
-    Effect.map((parsed) => {
-      if (parsed.ExitNodeStatus === undefined) return null;
-      const peer = Object.values(parsed.Peer ?? {}).find(
-        (candidate) => candidate.ExitNode === true,
-      );
-      // The DNS label is the tailnet machine name; HostName is the OS name and ignores renames.
-      const dnsLabel = typeof peer?.DNSName === "string" ? (peer.DNSName.split(".")[0] ?? "") : "";
-      const hostName = typeof peer?.HostName === "string" ? peer.HostName.trim() : "";
-      return {
-        name: dnsLabel || hostName || null,
-        online: parsed.ExitNodeStatus.Online === true,
-      };
-    }),
-  );
-
-export const readTailscaleExitNode = readTailscaleOutput("status", ["status", "--json"]).pipe(
-  Effect.flatMap(parseTailscaleExitNode),
-);
 
 const TailscalePrefsJson = Schema.Struct({
   RunSSH: Schema.optional(Schema.Unknown),
@@ -348,7 +294,7 @@ const decodeTailscalePrefsJson = Schema.decodeEffect(Schema.fromJsonString(Tails
  * `tailscale status --json` does not report this for the local node. `tailscale
  * down` clears WantRunning but keeps RunSSH, so check both.
  */
-export const parseTailscaleSshEnabled = (
+const parseTailscaleSshEnabled = (
   rawPrefsJson: string,
 ): Effect.Effect<boolean, TailscaleStatusParseError> =>
   decodeTailscalePrefsJson(rawPrefsJson).pipe(

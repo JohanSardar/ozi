@@ -40,7 +40,7 @@ import {
 
 /**
  * Every URL is derived from the request's own origin, so the same server
- * answers correctly over loopback, Tailscale Serve and a T3 Connect tunnel.
+ * answers correctly over loopback, Tailscale Serve and a reverse proxy.
  * Client registration is stateless: a client id is its signed metadata, so an
  * unauthenticated caller cannot grow server state.
  */
@@ -77,7 +77,7 @@ export const protectedResourceMetadata = (
   authorization_servers: [urls.issuer],
   scopes_supported: MCP_OAUTH_SCOPES,
   bearer_methods_supported: ["header"],
-  resource_name: "T3 Code",
+  resource_name: "Ozi",
 });
 
 export const authorizationServerMetadata = (
@@ -113,7 +113,7 @@ const parseRedirect = (value: string): URL | undefined => {
  * Loopback redirects match on everything but the port (RFC 8252 §7.3), since
  * CLI agents listen on whatever port is free; https redirects match exactly.
  */
-export const redirectMatches = (registered: string, presented: string): boolean => {
+const redirectMatches = (registered: string, presented: string): boolean => {
   const left = parseRedirect(registered);
   const right = parseRedirect(presented);
   if (left === undefined || right === undefined) return false;
@@ -218,7 +218,7 @@ export class McpOAuth extends Context.Service<
       readonly token: AuthMcpTokenRequest;
     }) => Effect.Effect<AuthMcpTokenResult, AuthMcpTokenError>;
   }
->()("t3/auth/McpOAuth") {}
+>()("ozi/auth/McpOAuth") {}
 
 const redirectWith = (redirectUri: string, params: Record<string, string | undefined>) => {
   const url = new URL(redirectUri);
@@ -550,11 +550,7 @@ export const layerMcpClientAuthenticator = Layer.effect(
                   label: client.label,
                   access: client.access,
                 },
-                capabilities: new Set<McpInvocationContext.McpCapability>([
-                  "orchestration",
-                  "worktree",
-                  "pull-requests",
-                ]),
+                capabilities: new Set<McpInvocationContext.McpCapability>(["orchestration"]),
                 issuedAt,
               })),
             ),

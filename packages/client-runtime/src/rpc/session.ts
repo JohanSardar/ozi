@@ -26,7 +26,7 @@ import * as RpcSerialization from "effect/rpc/RpcSerialization";
 import * as Socket from "effect/socket/Socket";
 
 import { makeWsRpcProtocolClient, PING_TIMEOUT, type WsRpcProtocolClient } from "./protocol.ts";
-import { NETWORK_BLOCKING_HINT, UNRESPONSIVE_HOST_HINT } from "../errors/network.ts";
+import { UNRESPONSIVE_HOST_HINT } from "../errors/network.ts";
 import type {
   ConnectionAttemptError,
   ConnectionTransientError,
@@ -58,8 +58,6 @@ export interface RpcSession {
 
 export interface RpcSessionOptions {
   readonly environmentThemes?: boolean;
-  readonly usageLimitSources?: boolean;
-  readonly usageLimitsCommand?: boolean;
 }
 
 export class RpcSessionFactory extends Context.Service<
@@ -89,16 +87,11 @@ type EnvironmentThemesUpdatedEvent = Extract<
   ServerConfigStreamEvent,
   { readonly type: "environmentThemesUpdated" }
 >;
-type UsageLimitSourcesUpdatedEvent = Extract<
-  ServerConfigStreamEvent,
-  { readonly type: "usageLimitSourcesUpdated" }
->;
 
 interface ServerConfigReplayState {
   readonly projection: ServerConfigProjection;
   readonly revision: number;
   readonly themesEvent: EnvironmentThemesUpdatedEvent | undefined;
-  readonly sourcesEvent: UsageLimitSourcesUpdatedEvent | undefined;
 }
 
 interface BufferedServerConfigEvent {
@@ -115,11 +108,7 @@ function serverConfigReplayEvents(
     type: "snapshot" as const,
     config: withoutEnvironmentThemes(state.projection.config),
   };
-  return [
-    snapshot,
-    ...(state.themesEvent === undefined ? [] : [state.themesEvent]),
-    ...(state.sourcesEvent === undefined ? [] : [state.sourcesEvent]),
-  ];
+  return [snapshot, ...(state.themesEvent === undefined ? [] : [state.themesEvent])];
 }
 
 const isSocketErrorReason = Schema.is(Socket.SocketErrorReason);
@@ -128,7 +117,7 @@ const PING_TIMEOUT_SECONDS = Duration.toSeconds(PING_TIMEOUT);
 function mapSessionRpcError(
   error: InitialConfigError | ProbeError | ServerConfigSubscriptionError,
   networkHint: string,
-  via: "relay" | "direct",
+  via: "direct",
 ): ConnectionAttemptError {
   switch (error._tag) {
     case "EnvironmentAuthorizationError":
@@ -155,9 +144,8 @@ function mapSessionRpcError(
   }
 }
 
-/** Over T3 Connect the relay already reached the host, so a socket that drops failed between this device and the tunnel. */
-function socketFailureLocation(via: "relay" | "direct") {
-  return { hop: via === "relay" ? "tunnel" : "server", via } as const;
+function socketFailureLocation(via: "direct") {
+  return { hop: "server" as const, via } as const;
 }
 
 /** @public Service construction is part of the canonical Effect module API. */
@@ -165,15 +153,12 @@ export const make = Effect.fn("RpcSessionFactory.make")(function* (
   options: RpcSessionOptions = {},
 ) {
   const webSocketConstructor = yield* Socket.WebSocketConstructor;
-  const serverConfigInput: ServerConfigSubscriptionInput = {
-    ...(options.environmentThemes === true ? { environmentThemes: true } : {}),
-    ...(options.usageLimitSources === true ? { usageLimitSources: true } : {}),
-    ...(options.usageLimitsCommand === true ? { usageLimitsCommand: true } : {}),
-  };
+  const serverConfigInput: ServerConfigSubscriptionInput =
+    options.environmentThemes === true ? { environmentThemes: true } : {};
 
   const connect = Effect.fnUntraced(function* (connection: PreparedConnection) {
-    const via = connection.target._tag === "RelayConnectionTarget" ? "relay" : "direct";
-    const networkHint = via === "relay" ? ` ${NETWORK_BLOCKING_HINT}` : "";
+    const via = "direct" as const;
+    const networkHint = "";
     const mapRpcError = (error: Parameters<typeof mapSessionRpcError>[0]) =>
       mapSessionRpcError(error, networkHint, via);
     yield* Effect.annotateCurrentSpan({
@@ -273,13 +258,6 @@ export const make = Effect.fn("RpcSessionFactory.make")(function* (
                       event.config.environment.capabilities.environmentThemes !== true
                     ? undefined
                     : Option.getOrUndefined(current)?.themesEvent,
-              sourcesEvent:
-                event.type === "usageLimitSourcesUpdated"
-                  ? event
-                  : event.type === "snapshot" &&
-                      event.config.environment.capabilities.usageLimitSources !== true
-                    ? undefined
-                    : Option.getOrUndefined(current)?.sourcesEvent,
             } satisfies ServerConfigReplayState;
             return [
               Option.some({ event, replay: next, revision: next.revision }),

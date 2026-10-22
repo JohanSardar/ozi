@@ -6,7 +6,6 @@ import {
   type OrchestrationV2ThreadProjection,
 } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
-import * as Option from "effect/Option";
 import { HttpClient, HttpClientResponse } from "effect/http";
 import { describe, test } from "vite-plus/test";
 
@@ -49,7 +48,7 @@ const responses = {
     label: target.label,
     platform: { os: "linux", arch: "x64" },
     serverVersion: "0.0.0-test",
-    capabilities: { repositoryIdentity: true },
+    capabilities: {},
   },
   "/api/auth/websocket-ticket": { ticket: "test-ticket", expiresAt: timestamp },
   "/api/orchestration/threads/thread-v2": { snapshotSequence: 1, projection: thread },
@@ -81,7 +80,6 @@ const requests: Record<
       target,
     },
     threadId: thread.thread.id,
-    signer: Option.none(),
   }),
 };
 

@@ -1,7 +1,7 @@
 import {
   CommandId,
   MessageId,
-  resolveProjectProviderInstanceEnabled,
+  resolveServerProviderInstanceEnabled,
   type RunId,
   type ThreadId,
 } from "@t3tools/contracts";
@@ -19,7 +19,7 @@ import * as ProjectionStore from "./ProjectionStore.ts";
 
 /**
  * Beta: when a Claude run completes, waits until shortly before its prompt
- * cache expires and sends `/compact` as a visible T3 Code turn. Timers live in
+ * cache expires and sends `/compact` as a visible Ozi turn. Timers live in
  * memory, so a server restart skips compactions that were still waiting.
  */
 export const make = Effect.gen(function* () {
@@ -46,13 +46,7 @@ export const make = Effect.gen(function* () {
           ],
           { messageRunIds: [runId], turnItemStatuses: ["pending", "running", "waiting"] },
         );
-        if (
-          !resolveProjectProviderInstanceEnabled(
-            current,
-            records.thread.projectId,
-            records.thread.providerInstanceId,
-          )
-        )
+        if (!resolveServerProviderInstanceEnabled(current, records.thread.providerInstanceId))
           return;
         const nowMs = DateTime.toEpochMillis(yield* DateTime.now);
         const window = idleCompactionWindow(records, nowMs);

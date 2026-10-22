@@ -104,7 +104,7 @@ function parseRecord(parsed: unknown, state: typeof PiScanState.Type): readonly 
   ];
 }
 
-export const piUsageFormat: TranscriptUsageFormat<typeof PiScanState.Type> = {
+const piUsageFormat: TranscriptUsageFormat<typeof PiScanState.Type> = {
   selectFields: {
     type: true,
     id: true,

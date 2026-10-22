@@ -65,8 +65,6 @@ export function makeSubagentChildThread(input: {
     visibility: input.parentThread.visibility ?? "user",
     handledEventId: null,
     title: input.title,
-    linkedPullRequest: null,
-    pullRequests: [],
     historyOrigin: undefined,
     providerInstanceId: input.providerInstanceId,
     modelSelection: input.modelSelection,
@@ -85,8 +83,6 @@ export function makeSubagentChildThread(input: {
     archivedAt: null,
     settledOverride: null,
     settledAt: null,
-    snoozedUntil: null,
-    snoozedAt: null,
     lastVisitedAt: null,
     deletedAt: null,
   };

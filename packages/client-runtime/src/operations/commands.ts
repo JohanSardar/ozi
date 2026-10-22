@@ -1,6 +1,5 @@
 import { remapComposerContextAttachments } from "@t3tools/shared/composerContextReferences";
 import {
-  type ThreadLinkedPullRequest,
   CommandId,
   ORCHESTRATION_V2_WS_METHODS,
   WS_METHODS,
@@ -12,8 +11,6 @@ import {
   type OrchestrationV2CreationSource,
   type PlanId,
   type ProjectId,
-  type ProjectIconOverride,
-  type ProjectScript,
   type ProviderApprovalDecision,
   type ProviderInteractionMode,
   type ProviderUserInputAnswers,
@@ -21,12 +18,10 @@ import {
   type RuntimeMode,
   type RuntimeRequestId,
   type ThreadId,
-  type ThreadEnvMode,
   type UploadChatAttachment,
 } from "@t3tools/contracts";
 import { modelSelectionCommandType } from "@t3tools/shared/model";
 import { derivePendingBackgroundWork } from "@t3tools/shared/orchestrationV2PendingBackgroundWork";
-import { visibleThreadPullRequests } from "@t3tools/shared/threadPullRequests";
 import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
 
@@ -36,32 +31,6 @@ interface CommandMetadata {
   readonly commandId?: CommandId;
   readonly createdAt?: string;
   readonly creationSource?: OrchestrationV2CreationSource;
-}
-
-export interface CreateProjectInput extends CommandMetadata {
-  readonly projectId: ProjectId;
-  readonly title: string;
-  readonly workspaceRoot: string;
-  readonly createWorkspaceRootIfMissing?: boolean;
-  readonly defaultModelSelection?: ModelSelection | null;
-  readonly scripts?: ReadonlyArray<ProjectScript>;
-}
-
-export interface UpdateProjectInput extends CommandMetadata {
-  readonly projectId: ProjectId;
-  readonly title?: string;
-  readonly workspaceRoot?: string;
-  readonly defaultModelSelection?: ModelSelection | null;
-  readonly autoPull?: boolean;
-  readonly projectIcon?: ProjectIconOverride | null;
-  readonly faviconPath?: string | null;
-  readonly defaultThreadEnvMode?: ThreadEnvMode | null;
-  readonly scripts?: ReadonlyArray<ProjectScript>;
-}
-
-export interface DeleteProjectInput extends CommandMetadata {
-  readonly projectId: ProjectId;
-  readonly force?: boolean;
 }
 
 export interface CreateThreadInput extends CommandMetadata {
@@ -101,14 +70,6 @@ export interface ReorderActiveThreadInput extends ThreadCommandInput {
   readonly orderKey: string;
 }
 
-export interface SnoozeThreadInput extends ThreadCommandInput {
-  readonly snoozedUntil: string;
-}
-
-export interface UnsnoozeThreadInput extends ThreadCommandInput {
-  readonly reason: "user";
-}
-
 export interface VisitThreadInput extends ThreadCommandInput {
   readonly visitedAt: string;
 }
@@ -122,7 +83,6 @@ export interface UpdateThreadMetadataInput extends ThreadCommandInput {
   readonly branch?: string | null;
   readonly worktreePath?: string | null;
   readonly regenerateTitle?: boolean;
-  readonly linkedPullRequest?: ThreadLinkedPullRequest | null;
   readonly expectedEmpty?: boolean;
 }
 
@@ -132,27 +92,6 @@ export interface SetThreadRuntimeModeInput extends ThreadCommandInput {
 
 export interface SetThreadInteractionModeInput extends ThreadCommandInput {
   readonly interactionMode: ProviderInteractionMode;
-}
-
-interface StartThreadBootstrap {
-  readonly createThread?: {
-    readonly projectId: ProjectId;
-    readonly title: string;
-    readonly modelSelection: ModelSelection;
-    readonly runtimeMode: RuntimeMode;
-    readonly interactionMode: ProviderInteractionMode;
-    readonly branch: string | null;
-    readonly worktreePath: string | null;
-    readonly createdAt: string;
-  };
-  readonly prepareWorktree?: {
-    readonly requireWorktree?: boolean;
-    readonly projectCwd: string;
-    readonly baseBranch: string;
-    readonly branch?: string;
-    readonly startFromOrigin?: boolean;
-  };
-  readonly runSetupScript?: boolean;
 }
 
 export interface StartThreadTurnInput extends ThreadCommandInput {
@@ -168,7 +107,6 @@ export interface StartThreadTurnInput extends ThreadCommandInput {
   readonly titleSeed?: string;
   readonly runtimeMode: RuntimeMode;
   readonly interactionMode: ProviderInteractionMode;
-  readonly bootstrap?: StartThreadBootstrap;
   readonly sourceProposedPlan?: { readonly threadId: ThreadId; readonly planId: PlanId };
   readonly dispatchMode?: "auto" | "queue" | "steer" | "restart" | "start";
 }
@@ -220,10 +158,6 @@ export interface PromoteQueuedRunInput extends ThreadCommandInput {
 }
 
 export interface CancelQueuedRunInput extends ThreadCommandInput {
-  readonly runId: RunId;
-}
-
-export interface RetryWorkspacePreparationInput extends ThreadCommandInput {
   readonly runId: RunId;
 }
 
@@ -287,89 +221,6 @@ const persistAttachments = Effect.fn("EnvironmentCommands.persistAttachments")(f
     if (!("dataUrl" in attachment)) return [attachment];
     const persisted = byUpload.get(attachment);
     return persisted === undefined ? [] : [persisted];
-  });
-});
-
-const mutateProject = Effect.fn("EnvironmentCommands.mutateProject")(function* (
-  mutation:
-    | {
-        readonly type: "project.create";
-        readonly commandId: CommandId;
-        readonly projectId: ProjectId;
-        readonly title: string;
-        readonly workspaceRoot: string;
-        readonly createWorkspaceRootIfMissing?: boolean;
-        readonly defaultModelSelection?: ModelSelection | null;
-        readonly scripts?: ReadonlyArray<ProjectScript>;
-      }
-    | {
-        readonly type: "project.update";
-        readonly commandId: CommandId;
-        readonly projectId: ProjectId;
-        readonly title?: string;
-        readonly workspaceRoot?: string;
-        readonly defaultModelSelection?: ModelSelection | null;
-        readonly scripts?: ReadonlyArray<ProjectScript>;
-      }
-    | {
-        readonly type: "project.delete";
-        readonly commandId: CommandId;
-        readonly projectId: ProjectId;
-        readonly force?: boolean;
-      },
-) {
-  return yield* request(WS_METHODS.projectsMutate, mutation);
-});
-
-export const createProject = Effect.fn("EnvironmentCommands.createProject")(function* (
-  input: CreateProjectInput,
-) {
-  return yield* mutateProject({
-    type: "project.create",
-    commandId: yield* allocateCommandId(input),
-    projectId: input.projectId,
-    title: input.title,
-    workspaceRoot: input.workspaceRoot,
-    ...(input.createWorkspaceRootIfMissing === undefined
-      ? {}
-      : { createWorkspaceRootIfMissing: input.createWorkspaceRootIfMissing }),
-    ...(input.defaultModelSelection === undefined
-      ? {}
-      : { defaultModelSelection: input.defaultModelSelection }),
-    ...(input.scripts === undefined ? {} : { scripts: input.scripts }),
-  });
-});
-
-export const updateProject = Effect.fn("EnvironmentCommands.updateProject")(function* (
-  input: UpdateProjectInput,
-) {
-  return yield* mutateProject({
-    type: "project.update",
-    commandId: yield* allocateCommandId(input),
-    projectId: input.projectId,
-    ...(input.title === undefined ? {} : { title: input.title }),
-    ...(input.workspaceRoot === undefined ? {} : { workspaceRoot: input.workspaceRoot }),
-    ...(input.defaultModelSelection === undefined
-      ? {}
-      : { defaultModelSelection: input.defaultModelSelection }),
-    ...(input.autoPull === undefined ? {} : { autoPull: input.autoPull }),
-    ...(input.projectIcon === undefined ? {} : { projectIcon: input.projectIcon }),
-    ...(input.faviconPath === undefined ? {} : { faviconPath: input.faviconPath }),
-    ...(input.defaultThreadEnvMode === undefined
-      ? {}
-      : { defaultThreadEnvMode: input.defaultThreadEnvMode }),
-    ...(input.scripts === undefined ? {} : { scripts: input.scripts }),
-  });
-});
-
-export const deleteProject = Effect.fn("EnvironmentCommands.deleteProject")(function* (
-  input: DeleteProjectInput,
-) {
-  return yield* mutateProject({
-    type: "project.delete",
-    commandId: yield* allocateCommandId(input),
-    projectId: input.projectId,
-    ...(input.force === undefined ? {} : { force: input.force }),
   });
 });
 
@@ -483,28 +334,6 @@ export const unsettleThread = Effect.fn("EnvironmentCommands.unsettleThread")(fu
   });
 });
 
-export const snoozeThread = Effect.fn("EnvironmentCommands.snoozeThread")(function* (
-  input: SnoozeThreadInput,
-) {
-  return yield* dispatch({
-    type: "thread.snooze",
-    commandId: yield* allocateCommandId(input),
-    threadId: input.threadId,
-    snoozedUntil: input.snoozedUntil,
-  });
-});
-
-export const unsnoozeThread = Effect.fn("EnvironmentCommands.unsnoozeThread")(function* (
-  input: UnsnoozeThreadInput,
-) {
-  return yield* dispatch({
-    type: "thread.unsnooze",
-    commandId: yield* allocateCommandId(input),
-    threadId: input.threadId,
-    reason: input.reason,
-  });
-});
-
 export const visitThread = Effect.fn("EnvironmentCommands.visitThread")(function* (
   input: VisitThreadInput,
 ) {
@@ -535,7 +364,6 @@ export const updateThreadMetadata = Effect.fn("EnvironmentCommands.updateThreadM
       input.branch !== undefined ||
       input.worktreePath !== undefined ||
       input.regenerateTitle !== undefined ||
-      input.linkedPullRequest !== undefined ||
       input.limitRecovery !== undefined
     ) {
       result = yield* dispatch({
@@ -548,9 +376,6 @@ export const updateThreadMetadata = Effect.fn("EnvironmentCommands.updateThreadM
         ...(input.worktreePath === undefined ? {} : { worktreePath: input.worktreePath }),
         ...(input.expectedEmpty === true ? { expectedEmpty: true } : {}),
         ...(input.regenerateTitle === undefined ? {} : { regenerateTitle: input.regenerateTitle }),
-        ...(input.linkedPullRequest === undefined
-          ? {}
-          : { linkedPullRequest: input.linkedPullRequest }),
       });
     }
     if (input.modelSelection !== undefined) {
@@ -607,54 +432,6 @@ export const startThreadTurn = Effect.fn("EnvironmentCommands.startThreadTurn")(
     input.message.attachments,
     attachments,
   );
-  const bootstrap = input.bootstrap?.createThread;
-  const prepareWorktree = input.bootstrap?.prepareWorktree;
-  if (bootstrap !== undefined || prepareWorktree !== undefined) {
-    const existingProjection =
-      bootstrap === undefined ? yield* getProjection(input.threadId) : null;
-    const thread = bootstrap ?? existingProjection!.thread;
-    const workspaceStrategy =
-      prepareWorktree !== undefined
-        ? {
-            type: "worktree" as const,
-            baseRef: prepareWorktree.baseBranch,
-            ...(prepareWorktree.branch === undefined ? {} : { branch: prepareWorktree.branch }),
-            ...(prepareWorktree.startFromOrigin === undefined
-              ? {}
-              : { startFromOrigin: prepareWorktree.startFromOrigin }),
-          }
-        : bootstrap?.worktreePath
-          ? {
-              type: "existing_worktree" as const,
-              worktreePath: bootstrap.worktreePath,
-              ...(bootstrap.branch === null ? {} : { branch: bootstrap.branch }),
-            }
-          : {
-              type: "root" as const,
-              ...(bootstrap?.branch === null || bootstrap?.branch === undefined
-                ? {}
-                : { branch: bootstrap.branch }),
-            };
-    return yield* request(ORCHESTRATION_V2_WS_METHODS.launchThread, {
-      commandId,
-      creationSource: input.creationSource ?? "web",
-      threadId: input.threadId,
-      ...(bootstrap === undefined ? { reuseExistingThread: true } : {}),
-      projectId: thread.projectId,
-      title: input.titleSeed ?? thread.title,
-      generateTitle: input.titleSeed !== undefined,
-      modelSelection: input.modelSelection ?? thread.modelSelection,
-      runtimeMode: input.runtimeMode,
-      interactionMode: input.interactionMode,
-      workspaceStrategy,
-      initialMessage: {
-        messageId: input.message.messageId,
-        text: input.message.text,
-        ...(context ? { context } : {}),
-        attachments,
-      },
-    });
-  }
 
   const requestedMode = input.dispatchMode ?? "auto";
   if (requestedMode === "start") {
@@ -794,18 +571,6 @@ export const interruptThreadTurn = Effect.fn("EnvironmentCommands.interruptThrea
     }
     if (runId === undefined) {
       let result = { sequence: 0 };
-      for (const link of visibleThreadPullRequests(projection.thread.pullRequests ?? [])) {
-        if (link.watch === undefined) continue;
-        result = yield* dispatch({
-          type: "thread.pull-request.watch",
-          commandId: yield* allocateCommandId(result.sequence === 0 ? input : {}),
-          threadId: input.threadId,
-          host: link.host,
-          repository: link.repository,
-          number: link.number,
-          watching: false,
-        });
-      }
       return result;
     }
   }
@@ -949,17 +714,6 @@ export const cancelQueuedRun = Effect.fn("EnvironmentCommands.cancelQueuedRun")(
   });
 });
 
-export const retryWorkspacePreparation = Effect.fn("EnvironmentCommands.retryWorkspacePreparation")(
-  function* (input: RetryWorkspacePreparationInput) {
-    return yield* dispatch({
-      type: "prepared-run.retry",
-      commandId: yield* allocateCommandId(input),
-      threadId: input.threadId,
-      runId: input.runId,
-    });
-  },
-);
-
 export const editQueuedRun = Effect.fn("EnvironmentCommands.editQueuedRun")(function* (
   input: EditQueuedRunInput,
 ) {
@@ -985,46 +739,3 @@ export const editQueuedRun = Effect.fn("EnvironmentCommands.editQueuedRun")(func
       : {}),
   });
 });
-
-export type LinkThreadPullRequestInput = Omit<
-  Extract<OrchestrationV2Command, { type: "thread.pull-request.link" }>,
-  "type" | "commandId"
-> &
-  CommandMetadata;
-export type UnlinkThreadPullRequestInput = Omit<
-  Extract<OrchestrationV2Command, { type: "thread.pull-request.unlink" }>,
-  "type" | "commandId"
-> &
-  CommandMetadata;
-export const linkThreadPullRequest = Effect.fn("EnvironmentCommands.linkThreadPullRequest")(
-  function* (input: LinkThreadPullRequestInput) {
-    return yield* dispatch({
-      ...input,
-      type: "thread.pull-request.link",
-      commandId: yield* allocateCommandId(input),
-    });
-  },
-);
-export type WatchThreadPullRequestInput = Omit<
-  Extract<OrchestrationV2Command, { type: "thread.pull-request.watch" }>,
-  "type" | "commandId"
-> &
-  CommandMetadata;
-export const watchThreadPullRequest = Effect.fn("EnvironmentCommands.watchThreadPullRequest")(
-  function* (input: WatchThreadPullRequestInput) {
-    return yield* dispatch({
-      ...input,
-      type: "thread.pull-request.watch",
-      commandId: yield* allocateCommandId(input),
-    });
-  },
-);
-export const unlinkThreadPullRequest = Effect.fn("EnvironmentCommands.unlinkThreadPullRequest")(
-  function* (input: UnlinkThreadPullRequestInput) {
-    return yield* dispatch({
-      ...input,
-      type: "thread.pull-request.unlink",
-      commandId: yield* allocateCommandId(input),
-    });
-  },
-);

@@ -11,11 +11,7 @@ import {
   TrimmedNonEmptyString,
 } from "./baseSchemas.ts";
 import { ModelSelection } from "./modelSelection.ts";
-import {
-  OrchestrationV2Actor,
-  OrchestrationV2CreationSource,
-  OrchestrationV2ThreadLaunchWorkspaceStrategy,
-} from "./orchestrationV2.ts";
+import { OrchestrationV2Actor, OrchestrationV2CreationSource } from "./orchestrationV2.ts";
 import { ProviderInteractionMode, RuntimeMode } from "./providerPolicy.ts";
 
 /** 24-hour "HH:MM" wall-clock time. Mirrors `parseTimeOfDay` on the server. */
@@ -73,17 +69,7 @@ export const ScheduledTaskWebhookSignature = Schema.Struct(
 ).annotate({ description: "Optional HMAC-SHA256 signature check over the raw request body." });
 export type ScheduledTaskWebhookSignature = typeof ScheduledTaskWebhookSignature.Type;
 
-/** Matches how long the relay holds a request for an offline environment. */
-export const MAX_WEBHOOK_DELIVERY_AGE_MINUTES = 24 * 60;
-
-const WebhookMaxDeliveryAgeMinutes = Schema.Int.check(
-  Schema.isBetween({ minimum: 1, maximum: MAX_WEBHOOK_DELIVERY_AGE_MINUTES }),
-).annotate({
-  description:
-    "Skip requests the relay held longer than this many minutes while the environment was offline. Null runs every request.",
-});
-
-export function isWebhookDedupeTemplate(template: string): boolean {
+function isWebhookDedupeTemplate(template: string): boolean {
   const placeholders = /\{\{\s*(?:(?:body|headers|query)(?:\.[^{}.\s]+)*|request)\s*\}\}/g;
   const matches = [...template.matchAll(placeholders)];
   const remainder = template.replace(placeholders, "");
@@ -103,7 +89,7 @@ const ScheduledTaskWebhookDedupe = Schema.Struct({
     "Replay key template (7 days), coalesce key template, and fixed window in seconds (default 120).",
 });
 
-export const MAX_WEBHOOK_FILTERS = 16;
+const MAX_WEBHOOK_FILTERS = 16;
 
 const WebhookFilterPath = TrimmedNonEmptyString.check(
   Schema.isPattern(/^(body|headers|query)(\.|$)/),
@@ -151,7 +137,6 @@ const ScheduledTaskWebhookSchedule = Schema.Struct({
     description: "Run when the task's webhook URL receives a request.",
   }),
   signature: Schema.NullOr(ScheduledTaskWebhookSignature),
-  maxDeliveryAgeMinutes: Schema.optional(Schema.NullOr(WebhookMaxDeliveryAgeMinutes)),
   dedupe: Schema.optional(ScheduledTaskWebhookDedupe),
   filters: Schema.optional(ScheduledTaskWebhookFilters),
 }).annotate({
@@ -179,7 +164,6 @@ const ScheduledTaskUpsertWebhookSchedule = Schema.Struct({
   ).annotate({
     description: "Signature check; omit or null to accept requests by URL token only.",
   }),
-  maxDeliveryAgeMinutes: Schema.optional(Schema.NullOr(WebhookMaxDeliveryAgeMinutes)),
   dedupe: Schema.optional(ScheduledTaskWebhookDedupe),
   filters: Schema.optional(ScheduledTaskWebhookFilters),
 }).annotate({
@@ -239,7 +223,7 @@ export const ScheduledTask = Schema.Struct({
   schedule: ScheduledTaskSchedule,
   projectId: ProjectId,
   threadId: Schema.NullOr(ThreadId),
-  workspaceStrategy: OrchestrationV2ThreadLaunchWorkspaceStrategy,
+  workspaceStrategy: Schema.Struct({ type: Schema.Literal("root") }),
   modelSelection: ModelSelection,
   runtimeMode: RuntimeMode,
   interactionMode: ProviderInteractionMode,
@@ -278,7 +262,7 @@ export const ScheduledTaskUpsertInput = Schema.Struct({
   schedule: ScheduledTaskUpsertSchedule,
   projectId: ProjectId,
   threadId: Schema.optional(Schema.NullOr(ThreadId)),
-  workspaceStrategy: OrchestrationV2ThreadLaunchWorkspaceStrategy,
+  workspaceStrategy: Schema.Struct({ type: Schema.Literal("root") }),
   modelSelection: ModelSelection,
   runtimeMode: RuntimeMode,
   interactionMode: ProviderInteractionMode,
@@ -321,7 +305,6 @@ export const ScheduledTaskWebhookDeliveryOutcome = Schema.Literals([
   "rejected_signature",
   "disabled",
   "rate_limited",
-  "expired",
   "filtered",
 ]);
 export type ScheduledTaskWebhookDeliveryOutcome = typeof ScheduledTaskWebhookDeliveryOutcome.Type;

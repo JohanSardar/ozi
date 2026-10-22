@@ -7,7 +7,7 @@ import * as NodeModule from "node:module";
 
 import type { Plugin } from "vite-plus";
 
-export const THIRD_PARTY_LICENSES_FILE_NAME = "third-party-licenses.json";
+const THIRD_PARTY_LICENSES_FILE_NAME = "third-party-licenses.json";
 const SPDX_LICENSE_LIST_VERSION = "v3.28.0";
 const SPDX_LICENSE_LIST_REVISION = "c4a7237ec8f4654e867546f9f409749300f1bf4c";
 const GENERATED_NOTICE_CACHE_DIRECTORY = ".generated/third-party-licenses/spdx";
@@ -980,7 +980,7 @@ function assertUniqueEntries(entries: ReadonlyArray<ThirdPartyLicenseEntry>): vo
   }
 }
 
-export async function generateThirdPartyLicenseManifest(input: {
+async function generateThirdPartyLicenseManifest(input: {
   readonly configFile?: string | URL;
   readonly packageManifests: ReadonlyArray<ThirdPartyLicensePackageManifest>;
   readonly bundledModuleIds?: ReadonlyArray<string>;

@@ -14,9 +14,6 @@ import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 
 import packageJson from "../../package.json" with { type: "json" };
-import { resolveServerInstallation } from "../cli/invocation.ts";
-import { resolveServerSelfUpdateCapability } from "../cloud/selfUpdate.ts";
-import { resolveServiceLauncherMode } from "../cloud/serviceLauncherClient.ts";
 import * as ServerConfig from "../config.ts";
 import * as ProcessRunner from "../processRunner.ts";
 import { resolveServerEnvironmentLabel } from "./ServerEnvironmentLabel.ts";
@@ -44,14 +41,14 @@ export class ServerEnvironment extends Context.Service<
     readonly getEnvironmentId: Effect.Effect<EnvironmentId>;
     readonly getDescriptor: Effect.Effect<ExecutionEnvironmentDescriptor>;
   }
->()("t3/environment/ServerEnvironment") {}
+>()("ozi/environment/ServerEnvironment") {}
 
 export class ServerEnvironmentIdentity extends Context.Service<
   ServerEnvironmentIdentity,
   {
     readonly getEnvironmentId: Effect.Effect<EnvironmentId>;
   }
->()("t3/environment/ServerEnvironment/ServerEnvironmentIdentity") {}
+>()("ozi/environment/ServerEnvironment/ServerEnvironmentIdentity") {}
 
 function platformOs(platform: NodeJS.Platform): ExecutionEnvironmentDescriptor["platform"]["os"] {
   switch (platform) {
@@ -189,18 +186,6 @@ export const make = Effect.gen(function* () {
   const cwdBaseName = path.basename(serverConfig.cwd).trim();
   const label = yield* resolveServerEnvironmentLabel({ cwdBaseName });
   const machine = yield* detectServerEnvironmentMachineKind();
-  const launcher = yield* resolveServiceLauncherMode();
-  const serverSelfUpdate = resolveServerSelfUpdateCapability({
-    desktopManaged: serverConfig.mode === "desktop",
-    launcherManaged: launcher.managed,
-  });
-  const serverInstallation = serverSelfUpdate === null ? yield* resolveServerInstallation : null;
-  // Static is correct: the control fd is known at bootstrap, and the desktop
-  // app and its bundled server ship in one artifact, so a present fd means the
-  // app speaks the requestDesktopUpdate protocol.
-
-  const desktopAppUpdate =
-    serverSelfUpdate === "desktop-managed" && serverConfig.desktopTelemetryControlFd !== undefined;
 
   const descriptor: ExecutionEnvironmentDescriptor = {
     environmentId,
@@ -213,66 +198,34 @@ export const make = Effect.gen(function* () {
     serverVersion: packageJson.version,
     orchestrationProtocolVersion: ORCHESTRATION_PROTOCOL_VERSION,
     capabilities: {
-      repositoryIdentity: true,
       connectionProbe: true,
       attachmentUploads: true,
       questionAttachments: true,
       fileAttachments: { maxUploadBytes: PROVIDER_SEND_TURN_MAX_FILE_BYTES },
-      pullRequests: true,
-      pullRequestChecks: true,
       inlineMessageContext: true,
-      requiredWorktreeBootstrap: true,
-      storageCleanup: true,
-      storageCleanupRun: true,
       databaseStorage: true,
       otlpEndpointCheck: true,
-      projectWorktreeCleanup: true,
-      settledWorktreeCleanup: true,
-      worktreesDirectory: true,
-      threadSettlement: true,
       threadRestartContinuation: true,
-      projectSettingsOverrides: true,
-      projectProviderInstanceOverrides: true,
-      threadSnooze: true,
       environmentThemes: true,
-      usageLimitSources: true,
       usagePriceOverrides: true,
       usageModelAliases: true,
-      threadPinning: true,
-      threadPinReorder: true,
-      threadActiveReorder: true,
       threadTitleRegeneration: true,
-      commandOutputStreaming: true,
-      threadVisitedTracking: true,
-      threadPullRequests: true,
-      threadPullRequestWatch: true,
-      pullRequestStackActions: true,
-      threadPullRequestLinking: true,
       serverResolvedCommandContext: true,
       threadStop: true,
       environmentIcon: true,
-      projectCloneTracking: true,
-      ignoredFileListing: true,
-      ...(serverSelfUpdate === null ? {} : { serverSelfUpdate }),
-      ...(serverInstallation === null ? {} : { serverInstallation }),
-      ...(serverSelfUpdate === "boot-service" || desktopAppUpdate
-        ? { serverSelfUpdateProgress: true }
-        : {}),
-      ...(desktopAppUpdate ? { desktopAppUpdate: true } : {}),
       serverBrowser: true,
     },
   };
 
   return ServerEnvironment.of({
     getEnvironmentId: Effect.succeed(environmentId),
-    // The publish opt-in and relay link change at runtime (`t3 connect
     // publish`, the client settings toggle), so the capability is read per
     // descriptor request rather than baked in at startup.
     getDescriptor: Effect.succeed(descriptor),
   });
 });
 
-export const layerIdentity = Layer.effect(ServerEnvironmentIdentity, makeIdentity);
+const layerIdentity = Layer.effect(ServerEnvironmentIdentity, makeIdentity);
 
 export const layer = Layer.effect(ServerEnvironment, make).pipe(
   Layer.provideMerge(layerIdentity),

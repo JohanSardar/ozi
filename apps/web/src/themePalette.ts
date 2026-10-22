@@ -4,10 +4,6 @@ import "culori/css";
 import { converter, parse } from "culori/fn";
 import {
   BUILT_IN_THEMES,
-  EMBER_THEME,
-  GROVE_THEME,
-  IRIS_THEME,
-  OCEAN_THEME,
   T3_CHAT_THEME,
   T3_CODE_LIGHT_THEME_COLORS,
   T3_CODE_DARK_THEME_COLORS,
@@ -19,16 +15,14 @@ import {
   type ThemeDefinition,
   type ThemeVariants,
 } from "@t3tools/shared/themePalettes";
-
-export { EMBER_THEME, GROVE_THEME, IRIS_THEME, OCEAN_THEME, T3_CHAT_THEME, THEME_COLOR_ROLES };
 export type { ThemeAppearance, ThemeColorRole, ThemeColors, ThemeDefinition, ThemeVariants };
 
-export const T3_CHAT_THEME_ID = "t3-chat" as const;
+const T3_CHAT_THEME_ID = "t3-chat" as const;
 const GROVE_THEME_ID = "grove" as const;
-export const OCEAN_THEME_ID = "ocean" as const;
+const OCEAN_THEME_ID = "ocean" as const;
 const EMBER_THEME_ID = "ember" as const;
 const IRIS_THEME_ID = "iris" as const;
-export const THEME_FILE_VERSION = 1 as const;
+const THEME_FILE_VERSION = 1 as const;
 export const CUSTOM_THEMES_STORAGE_KEY = "t3code:themes:v1";
 export const THEME_FOLLOW_SYSTEM_STORAGE_KEY = "t3code:theme-follow-system";
 export const THEME_APPEARANCE_MODE_STORAGE_KEY = "t3code:theme-appearance-mode";
@@ -79,10 +73,6 @@ export function getThemePreviewAppearance(): ThemeAppearance | null {
   return themePreviewAppearance;
 }
 
-export function getThemePreviewSidebarArtwork(): boolean | null {
-  return themePreviewAppearance === null ? null : false;
-}
-
 export function subscribeToThemePreview(listener: () => void): () => void {
   themePreviewListeners.add(listener);
   return () => themePreviewListeners.delete(listener);
@@ -100,10 +90,6 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 
 function isThemeAppearance(value: unknown): value is ThemeAppearance {
   return value === "light" || value === "dark";
-}
-
-export function isThemeColor(value: unknown): value is string {
-  return typeof value === "string" && toCanonicalThemeColor(value) !== null;
 }
 
 function isThemeId(value: unknown): value is string {
@@ -235,13 +221,9 @@ export function invalidateCustomThemes() {
 
 const EMPTY_CUSTOM_THEMES: ReadonlyArray<ThemeDefinition> = [];
 
-export function getCustomThemes(): ReadonlyArray<ThemeDefinition> {
+function getCustomThemes(): ReadonlyArray<ThemeDefinition> {
   const snapshot = getCustomThemeLibrarySnapshot();
   return snapshot.status === "ready" ? snapshot.themes : EMPTY_CUSTOM_THEMES;
-}
-
-export function getEnvironmentThemes(): ReadonlyArray<ThemeDefinition> {
-  return environmentThemeDefinitions;
 }
 
 /**
@@ -258,14 +240,6 @@ export function setEnvironmentThemes(themes: ReadonlyArray<ThemeDefinition>): bo
 
 export function isReservedThemeId(themeId: string): boolean {
   return RESERVED_THEME_IDS.has(themeId);
-}
-
-export function getStoredCustomThemeCollection(
-  collectionId: string,
-): ReadonlyArray<ThemeDefinition> {
-  return readWritableCustomThemeLibrary().themes.filter(
-    (theme) => theme.collection?.id === collectionId,
-  );
 }
 
 export function subscribeToCustomThemes(listener: () => void): () => void {
@@ -370,7 +344,7 @@ function formatOklchThemeColor(color: ThemeOklch, alpha = 1): string {
   return alpha < 1 ? `oklch(${body} / ${formatThemeColorNumber(alpha, 4)})` : `oklch(${body})`;
 }
 
-export function toCanonicalThemeColor(value: unknown): string | null {
+function toCanonicalThemeColor(value: unknown): string | null {
   const parsed = parseThemeColor(value);
   return parsed ? formatOklchThemeColor(parsed.color, parsed.alpha) : null;
 }
@@ -419,23 +393,6 @@ function decodeThemeColors(colors: ThemeColors): ThemeColors {
       return [role, color];
     }),
   ) as Record<ThemeColorRole, string>;
-}
-
-function canonicalizeThemeDefinition(theme: ThemeDefinition): ThemeDefinition {
-  return {
-    ...theme,
-    colors: decodeThemeColors(theme.colors),
-    ...(theme.variants
-      ? {
-          variants: Object.fromEntries(
-            Object.entries(theme.variants).map(([appearance, colors]) => [
-              appearance,
-              decodeThemeColors(colors),
-            ]),
-          ) as ThemeVariants,
-        }
-      : {}),
-  };
 }
 
 function mixThemeRgbColors(
@@ -735,12 +692,6 @@ export function createVividThemeColors(
     sidebarRowActive: themeColor(surfaceAt(dark ? 0.12 : 0.09, Math.min(0.1, accent.C * 0.55))),
     sidebarRowSelected: themeColor(surfaceAt(dark ? 0.14 : 0.1, Math.min(0.11, accent.C * 0.6))),
     sidebarBorder: themeColor(surfaceAt(dark ? 0.17 : 0.12, Math.min(0.08, accent.C * 0.4))),
-    terminalBackground: themeRgbToThemeColor(canvasRgb),
-    terminalForeground: themeRgbToThemeColor(textRgb),
-    terminalCursor: themeRgbToThemeColor(accentRgb),
-    terminalSelection: themeColor(surfaceAt(dark ? 0.18 : 0.12, Math.min(0.12, accent.C * 0.55))),
-    terminalScrollbar: themeColor(surfaceAt(dark ? 0.22 : 0.16, tintC)),
-    terminalScrollbarHover: themeColor(surfaceAt(dark ? 0.3 : 0.22, tintC)),
   };
 }
 
@@ -808,204 +759,6 @@ export function getDefaultThemeColors(appearance: ThemeAppearance): ThemeColors 
   return appearance === "dark" ? T3_CHAT_THEME.variants!.dark! : T3_CHAT_THEME.colors;
 }
 
-export function updateThemeColorFamily(
-  appearance: ThemeAppearance,
-  colors: ThemeColors,
-  role: ThemeColorRole,
-  value: string,
-): ThemeColors {
-  const parsedSelected = parseThemeColor(value);
-  if (!parsedSelected) return { ...colors, [role]: value };
-  const normalized = formatOklchThemeColor(parsedSelected.color, parsedSelected.alpha);
-
-  const canvas = parseThemeRgbColor(
-    colors.canvas,
-    appearance === "dark" ? { r: 24, g: 15, b: 27 } : { r: 250, g: 245, b: 250 },
-  );
-  const selected = themeOklchToRgb(parsedSelected.color);
-  const selectedOn = (background: ThemeRgbColor) =>
-    mixThemeRgbColors(background, selected, parsedSelected.alpha);
-  const selectedOnCanvas = selectedOn(canvas);
-  const accent = parseThemeRgbColor(colors.accent, { r: 168, g: 67, b: 112 });
-  const canvasIsDark = themeRelativeLuminance(canvas) < 0.179;
-  const terminalIsDark = themeRelativeLuminance(selectedOnCanvas) < 0.179;
-  const colorOf = (color: ThemeRgbColor) => themeRgbToThemeColor(color);
-  const foregroundOn = (background: ThemeRgbColor) => colorOf(readableThemeForeground(background));
-  const selectedToneOn = (background: ThemeRgbColor) =>
-    themeOklchToThemeColor(
-      solveOklchLightness(
-        parsedSelected.color,
-        background,
-        4.6,
-        themeRelativeLuminance(background) < 0.179 ? "lighter" : "darker",
-      ),
-    );
-  const statusColors = () => {
-    const surface = mixThemeRgbColors(canvas, selectedOnCanvas, canvasIsDark ? 0.16 : 0.08);
-    return {
-      foreground: selectedToneOn(surface),
-      surface: colorOf(surface),
-    };
-  };
-
-  switch (role) {
-    case "canvas":
-      return { ...colors, canvas: normalized, chrome: normalized, toolbar: normalized };
-    case "surface":
-    case "surfaceRaised":
-    case "surfaceOverlay":
-    case "input":
-    case "sidebarControlSurface":
-      return { ...colors, [role]: normalized };
-    case "text":
-      return {
-        ...colors,
-        text: normalized,
-        toolbarForeground: normalized,
-        toolbarControlForeground: normalized,
-      };
-    case "mutedForeground":
-      return {
-        ...colors,
-        textMuted: normalized,
-        mutedForeground: normalized,
-        placeholder: normalized,
-        secondaryLabel: normalized,
-        iconMuted: normalized,
-        sidebarMutedForeground: normalized,
-      };
-    case "border":
-      return {
-        ...colors,
-        border: normalized,
-        toolbarBorder: normalized,
-        sidebarBorder: normalized,
-      };
-    case "secondary":
-      return {
-        ...colors,
-        secondary: normalized,
-        secondaryForeground: foregroundOn(selectedOnCanvas),
-        muted: normalized,
-        toolbarControl: normalized,
-      };
-    case "accentSurface":
-      return {
-        ...colors,
-        accentSurface: normalized,
-        accentSurfaceForeground: foregroundOn(selectedOnCanvas),
-        toolbarControlHover: normalized,
-      };
-    case "accent": {
-      const updateSurface = mixThemeRgbColors(canvas, selectedOnCanvas, canvasIsDark ? 0.32 : 0.16);
-      return {
-        ...colors,
-        accent: normalized,
-        accentForeground: foregroundOn(selectedOnCanvas),
-        focus: normalized,
-        update: normalized,
-        updateForeground: selectedToneOn(updateSurface),
-        updateSurface: colorOf(updateSurface),
-        terminalCursor: normalized,
-      };
-    }
-    case "messageAction": {
-      const actionForeground = readableThemeForeground(selectedOnCanvas);
-      const towardOpposite =
-        actionForeground === THEME_LIGHT_FOREGROUND || actionForeground === THEME_WHITE_FOREGROUND
-          ? THEME_BLACK_FOREGROUND
-          : THEME_WHITE_FOREGROUND;
-      const actionHover = mixThemeRgbColors(selected, towardOpposite, 0.12);
-      return {
-        ...colors,
-        messageAction: normalized,
-        messageActionForeground: colorOf(actionForeground),
-        messageActionHover: formatOklchThemeColor(
-          themeRgbToOklch(actionHover),
-          parsedSelected.alpha,
-        ),
-      };
-    }
-    case "messageSurface":
-      return {
-        ...colors,
-        messageSurface: normalized,
-        messageForeground: foregroundOn(selectedOnCanvas),
-      };
-    case "searchMatchBackground":
-      return {
-        ...colors,
-        searchMatchBackground: colorOf(selectedOnCanvas),
-        searchMatchForeground: foregroundOn(selectedOnCanvas),
-      };
-    case "searchMatchActiveBackground":
-      return {
-        ...colors,
-        searchMatchActiveBackground: colorOf(selectedOnCanvas),
-        searchMatchActiveForeground: foregroundOn(selectedOnCanvas),
-      };
-    case "codeBackground":
-      return {
-        ...colors,
-        codeBackground: normalized,
-        codeForeground: foregroundOn(selectedOnCanvas),
-      };
-    case "sidebar":
-      return {
-        ...colors,
-        sidebar: normalized,
-        sidebarForeground: foregroundOn(selectedOnCanvas),
-      };
-    case "sidebarRowSelected": {
-      const sidebar = parseThemeRgbColor(colors.sidebar, canvas);
-      const selectedOnSidebar = selectedOn(sidebar);
-      return {
-        ...colors,
-        sidebarRowHover: colorOf(mixThemeRgbColors(sidebar, selectedOnSidebar, 0.5)),
-        sidebarRowActive: colorOf(mixThemeRgbColors(sidebar, selectedOnSidebar, 0.8)),
-        sidebarRowSelected: normalized,
-      };
-    }
-    case "terminalBackground": {
-      const terminalForeground = readableThemeForeground(selectedOnCanvas);
-      return {
-        ...colors,
-        terminalBackground: normalized,
-        terminalForeground: colorOf(terminalForeground),
-        terminalSelection: colorOf(
-          mixThemeRgbColors(selectedOnCanvas, accent, terminalIsDark ? 0.35 : 0.18),
-        ),
-        terminalScrollbar: colorOf(
-          mixThemeRgbColors(selectedOnCanvas, terminalForeground, terminalIsDark ? 0.42 : 0.22),
-        ),
-        terminalScrollbarHover: colorOf(
-          mixThemeRgbColors(selectedOnCanvas, terminalForeground, terminalIsDark ? 0.55 : 0.32),
-        ),
-      };
-    }
-    case "error": {
-      const status = statusColors();
-      return {
-        ...colors,
-        error: normalized,
-        errorForeground: status.foreground,
-        errorSurface: status.surface,
-      };
-    }
-    case "warning": {
-      const status = statusColors();
-      return {
-        ...colors,
-        warning: normalized,
-        warningForeground: status.foreground,
-        warningSurface: status.surface,
-      };
-    }
-    default:
-      return { ...colors, [role]: normalized };
-  }
-}
-
 const BUILT_IN_THEME_DEFINITIONS: ReadonlyArray<ThemeDefinition> = BUILT_IN_THEMES;
 
 export function getThemeDefinition(theme: ThemePreference): ThemeDefinition | null {
@@ -1015,14 +768,6 @@ export function getThemeDefinition(theme: ThemePreference): ThemeDefinition | nu
     getCustomThemes().find((definition) => definition.id === themeId) ??
     environmentThemeDefinitions.find((definition) => definition.id === themeId) ??
     null
-  );
-}
-
-export function themeAllowsSidebarArtwork(theme: ThemePreference): boolean {
-  const themeId = themeIdFromPreference(theme);
-  return (
-    BUILT_IN_THEME_DEFINITIONS.find((definition) => definition.id === themeId)?.sidebarArtwork ===
-    true
   );
 }
 
@@ -1044,7 +789,7 @@ export function getThemeColorsForMode(
   return theme.variants?.[mode] ?? null;
 }
 
-export function getThemeModes(theme: ThemeDefinition): ReadonlyArray<ThemeAppearance> {
+function getThemeModes(theme: ThemeDefinition): ReadonlyArray<ThemeAppearance> {
   return (["light", "dark"] as const).filter((mode) => getThemeColorsForMode(theme, mode) !== null);
 }
 
@@ -1054,16 +799,6 @@ export function getThemePreferenceMode(theme: ThemePreference): ThemeAppearance 
   const legacyMode = legacyThemeMode(theme);
   if (legacyMode) return legacyMode;
   return getThemeDefinition(theme)?.appearance ?? null;
-}
-
-export function themeIdFromName(name: string): string {
-  const normalized = name
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+|-+$/g, "")
-    .slice(0, 48);
-  return normalized || "custom-theme";
 }
 
 export class ThemeLibraryStorageError extends Schema.TaggedError<ThemeLibraryStorageError>()(
@@ -1079,285 +814,6 @@ export class ThemeLibraryStorageError extends Schema.TaggedError<ThemeLibrarySto
     const direction = this.operation === "read" ? "from" : "to";
     return `Failed to ${this.operation} the theme library ${direction} ${this.storageKey}.`;
   }
-}
-
-function saveCustomThemes(
-  storedThemes: ReadonlyArray<unknown>,
-  themes: ReadonlyArray<ThemeDefinition>,
-): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.setItem(CUSTOM_THEMES_STORAGE_KEY, JSON.stringify(storedThemes));
-    customThemeLibrarySnapshot = { status: "ready", storedThemes, themes };
-  } catch (cause) {
-    throw new ThemeLibraryStorageError({
-      storageKey: CUSTOM_THEMES_STORAGE_KEY,
-      operation: "write",
-      reason: "storage-unavailable",
-      cause,
-    });
-  }
-  notifyCustomThemeListeners();
-}
-
-function requireWritableCustomThemeLibrary(
-  snapshot: CustomThemeLibrarySnapshot,
-): Extract<CustomThemeLibrarySnapshot, { status: "ready" }> {
-  if (snapshot.status === "unavailable") {
-    throw new ThemeLibraryStorageError({
-      storageKey: CUSTOM_THEMES_STORAGE_KEY,
-      operation: "read",
-      reason: snapshot.reason,
-      ...("cause" in snapshot ? { cause: snapshot.cause } : {}),
-    });
-  }
-  return snapshot;
-}
-
-function getWritableCustomThemeLibrary(): Extract<CustomThemeLibrarySnapshot, { status: "ready" }> {
-  return requireWritableCustomThemeLibrary(getCustomThemeLibrarySnapshot());
-}
-
-function readWritableCustomThemeLibrary(): Extract<
-  CustomThemeLibrarySnapshot,
-  { status: "ready" }
-> {
-  return requireWritableCustomThemeLibrary(readCustomThemeLibrarySnapshot());
-}
-
-function storedThemeHasId(storedTheme: unknown, themeId: string): boolean {
-  return isRecord(storedTheme) && storedTheme.id === themeId;
-}
-
-function storedThemeHasCollectionId(storedTheme: unknown, collectionId: string): boolean {
-  return (
-    isRecord(storedTheme) &&
-    isRecord(storedTheme.collection) &&
-    storedTheme.collection.id === collectionId
-  );
-}
-
-export function installCustomTheme(theme: ThemeDefinition): ThemeDefinition {
-  if (RESERVED_THEME_IDS.has(theme.id)) {
-    throw new Error(`The theme id "${theme.id}" is reserved.`);
-  }
-  const library = getWritableCustomThemeLibrary();
-  if (
-    BUILT_IN_THEME_DEFINITIONS.some((existing) => existing.id === theme.id) ||
-    library.storedThemes.some((storedTheme) => storedThemeHasId(storedTheme, theme.id))
-  ) {
-    throw new Error(`A theme named "${theme.label}" is already installed.`);
-  }
-  const canonicalTheme = canonicalizeThemeDefinition(theme);
-  const themes = [...library.themes, canonicalTheme];
-  saveCustomThemes([...library.storedThemes, canonicalTheme], themes);
-  return canonicalTheme;
-}
-
-export function updateCustomTheme(theme: ThemeDefinition): ThemeDefinition {
-  if (RESERVED_THEME_IDS.has(theme.id)) {
-    throw new Error(`The theme id "${theme.id}" is reserved.`);
-  }
-
-  const library = getWritableCustomThemeLibrary();
-  const themes = library.themes;
-  const themeIndex = themes.findIndex((existing) => existing.id === theme.id);
-  if (themeIndex === -1) {
-    throw new Error(`The theme "${theme.label}" is not installed.`);
-  }
-
-  const canonicalTheme = canonicalizeThemeDefinition(theme);
-  const nextThemes = [...themes];
-  nextThemes[themeIndex] = canonicalTheme;
-
-  const nextStoredThemes: unknown[] = [];
-  let replaced = false;
-  for (const storedTheme of library.storedThemes) {
-    if (!storedThemeHasId(storedTheme, theme.id)) {
-      nextStoredThemes.push(storedTheme);
-    } else if (!replaced) {
-      nextStoredThemes.push(canonicalTheme);
-      replaced = true;
-    }
-  }
-  saveCustomThemes(nextStoredThemes, nextThemes);
-  return canonicalTheme;
-}
-
-export function replaceCustomThemeCollection(
-  collectionId: string,
-  themes: ReadonlyArray<ThemeDefinition>,
-  options?: { expectedCollection?: ReadonlyArray<ThemeDefinition> },
-): ReadonlyArray<ThemeDefinition> {
-  if (themes.length === 0) throw new Error("A theme collection cannot be empty.");
-
-  const validated = themes.map((theme) => parseStoredTheme(theme));
-  if (
-    validated.some((theme) => theme === null || theme.collection?.id !== collectionId) ||
-    new Set(validated.map((theme) => theme?.id)).size !== validated.length
-  ) {
-    throw new Error("That theme collection is invalid.");
-  }
-  const replacement = validated as ThemeDefinition[];
-  const library = readWritableCustomThemeLibrary();
-  const current = library.themes;
-  const currentCollection = current.filter((theme) => theme.collection?.id === collectionId);
-  if (
-    options?.expectedCollection &&
-    JSON.stringify(currentCollection) !== JSON.stringify(options.expectedCollection)
-  ) {
-    throw new Error("Your installed themes changed while this package was downloading. Try again.");
-  }
-  const occupiedIds = new Set(BUILT_IN_THEME_DEFINITIONS.map((theme) => theme.id));
-  for (const storedTheme of library.storedThemes) {
-    if (
-      !storedThemeHasCollectionId(storedTheme, collectionId) &&
-      isRecord(storedTheme) &&
-      typeof storedTheme.id === "string"
-    ) {
-      occupiedIds.add(storedTheme.id);
-    }
-  }
-  const conflictingTheme = replacement.find(
-    (theme) => RESERVED_THEME_IDS.has(theme.id) || occupiedIds.has(theme.id),
-  );
-  if (conflictingTheme) {
-    throw new Error(`A theme named "${conflictingTheme.label}" is already installed.`);
-  }
-
-  const nextStoredThemes: unknown[] = [];
-  let insertedReplacement = false;
-  for (const storedTheme of library.storedThemes) {
-    if (!storedThemeHasCollectionId(storedTheme, collectionId)) {
-      nextStoredThemes.push(storedTheme);
-    } else if (!insertedReplacement) {
-      nextStoredThemes.push(...replacement);
-      insertedReplacement = true;
-    }
-  }
-  if (!insertedReplacement) nextStoredThemes.push(...replacement);
-
-  saveCustomThemes(nextStoredThemes, parseStoredThemes(nextStoredThemes));
-  return replacement;
-}
-
-export function removeCustomTheme(themeId: string): void {
-  removeCustomThemes([themeId]);
-}
-
-export function removeCustomThemes(themeIds: ReadonlyArray<string>): void {
-  const removedIds = new Set(themeIds);
-  if (removedIds.size === 0) return;
-  const library = getWritableCustomThemeLibrary();
-  const nextThemes = library.themes.filter((theme) => !removedIds.has(theme.id));
-  if (nextThemes.length === library.themes.length) return;
-  saveCustomThemes(
-    library.storedThemes.filter(
-      (storedTheme) =>
-        !isRecord(storedTheme) ||
-        typeof storedTheme.id !== "string" ||
-        !removedIds.has(storedTheme.id),
-    ),
-    nextThemes,
-  );
-}
-
-function parseThemeColorOverrides(value: unknown): ThemeColorOverrides {
-  if (!isRecord(value)) throw new Error("Theme colors must be objects.");
-
-  const overrides: Partial<Record<ThemeColorRole, string>> = {};
-  for (const [role, color] of Object.entries(value)) {
-    if (!THEME_COLOR_ROLE_SET.has(role)) {
-      throw new Error(`"${role}" is not a supported theme color role.`);
-    }
-    const normalized = toCanonicalThemeColor(color);
-    if (!normalized) {
-      throw new Error(
-        `The color for "${role}" must be a literal CSS color such as oklch(0.62 0.2 280).`,
-      );
-    }
-    overrides[role as ThemeColorRole] = normalized;
-  }
-  if (Object.keys(overrides).length === 0) {
-    throw new Error("Add at least one color role to the theme file.");
-  }
-  return overrides;
-}
-
-export function parseThemeFile(value: unknown): ThemeDefinition {
-  if (!isRecord(value)) {
-    throw new Error("Theme files must contain a JSON object.");
-  }
-  if (value.version !== THEME_FILE_VERSION) {
-    throw new Error(`This theme file uses an unsupported version. Expected ${THEME_FILE_VERSION}.`);
-  }
-
-  const name = value.name;
-  const appearance = value.appearance;
-  const rawColors = value.colors;
-  if (!isThemeLabel(name)) throw new Error("Theme files need a name (48 characters or fewer).");
-  if (!isThemeAppearance(appearance)) {
-    throw new Error('Theme files need an appearance of "light" or "dark".');
-  }
-  if (!isRecord(rawColors)) throw new Error("Theme files need a colors object.");
-
-  const id = value.id === undefined ? themeIdFromName(name) : value.id;
-  if (!isThemeId(id)) {
-    throw new Error("Theme ids may only contain lowercase letters, numbers, and hyphens.");
-  }
-  if (RESERVED_THEME_IDS.has(id)) {
-    throw new Error(`The theme id "${id}" is reserved.`);
-  }
-
-  const overrides = parseThemeColorOverrides(rawColors);
-  const collection = parseThemeCollection(value.collection);
-  if (value.collection !== undefined && !collection) {
-    throw new Error("Theme collections need a valid id and label.");
-  }
-
-  const fallback = getDefaultThemeColors(appearance);
-  const variants: Partial<Record<ThemeAppearance, ThemeColors>> = {};
-  if (value.variants !== undefined) {
-    if (!isRecord(value.variants)) throw new Error("Theme variants must be an object.");
-    for (const [variantAppearance, variantColors] of Object.entries(value.variants)) {
-      if (!isThemeAppearance(variantAppearance)) {
-        throw new Error('Theme variants may only be named "light" or "dark".');
-      }
-      if (variantAppearance === appearance) {
-        throw new Error(`Theme variants must not repeat the base appearance "${appearance}".`);
-      }
-      const variantFallback = getDefaultThemeColors(variantAppearance);
-      variants[variantAppearance] = {
-        ...variantFallback,
-        ...parseThemeColorOverrides(variantColors),
-      };
-    }
-  }
-
-  return {
-    id,
-    label: name.trim(),
-    appearance,
-    colors: { ...fallback, ...overrides },
-    ...(Object.keys(variants).length > 0 ? { variants } : {}),
-    ...(collection ? { collection } : {}),
-    ...(value.managed === true ? { managed: true } : {}),
-  };
-}
-
-export function serializeThemeFile(theme: ThemeDefinition): string {
-  const canonicalTheme = canonicalizeThemeDefinition(theme);
-  const file: ThemeFile = {
-    version: THEME_FILE_VERSION,
-    id: canonicalTheme.id,
-    name: canonicalTheme.label,
-    appearance: canonicalTheme.appearance,
-    colors: canonicalTheme.colors,
-    ...(canonicalTheme.variants ? { variants: canonicalTheme.variants } : {}),
-    ...(canonicalTheme.collection ? { collection: canonicalTheme.collection } : {}),
-    ...(canonicalTheme.managed ? { managed: true } : {}),
-  };
-  return `${JSON.stringify(file, null, 2)}\n`;
 }
 
 const APP_THEME_VARIABLES: Readonly<Record<ThemeColorRole, string>> = {
@@ -1416,35 +872,9 @@ const APP_THEME_VARIABLES: Readonly<Record<ThemeColorRole, string>> = {
   sidebarRowActive: "--app-theme-sidebar-row-active",
   sidebarRowSelected: "--app-theme-sidebar-row-selected",
   sidebarBorder: "--app-theme-sidebar-border",
-  terminalBackground: "--app-theme-terminal-background",
-  terminalForeground: "--app-theme-terminal-foreground",
-  terminalCursor: "--app-theme-terminal-cursor",
-  terminalSelection: "--app-theme-terminal-selection-background",
-  terminalScrollbar: "--app-theme-terminal-scrollbar",
-  terminalScrollbarHover: "--app-theme-terminal-scrollbar-hover",
 };
 
-export function getThemeColorVariable(role: ThemeColorRole): string {
-  return APP_THEME_VARIABLES[role];
-}
-
 export const THEME_PREVIEW_ID = "__preview";
-
-/**
- * Callers restore the stored theme (refreshTheme) when the draft goes away.
- */
-export function applyThemeColorPreview(colors: ThemeColors, appearance: ThemeAppearance): void {
-  if (typeof document === "undefined") return;
-  const root = document.documentElement;
-  if (!root?.style) return;
-
-  root.dataset.themeId = THEME_PREVIEW_ID;
-  root.classList.toggle("dark", appearance === "dark");
-  for (const [role, value] of Object.entries(colors) as Array<[ThemeColorRole, string]>) {
-    if (isThemeColor(value)) root.style.setProperty(APP_THEME_VARIABLES[role], value);
-  }
-  setThemePreviewAppearance(appearance);
-}
 
 export function applyThemePalette(theme: ThemePreference, appearance?: ThemeAppearance): void {
   if (typeof document === "undefined") return;

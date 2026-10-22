@@ -2,8 +2,6 @@ import {
   ProjectId,
   ProviderInstanceId,
   ThreadId,
-  type OrchestrationProjectShell,
-  type OrchestrationV2ShellSnapshot,
   type OrchestrationV2ThreadProjection,
   type OrchestrationV2ThreadShell,
 } from "@t3tools/contracts";
@@ -11,21 +9,10 @@ import * as DateTime from "effect/DateTime";
 
 export const v2Now = DateTime.makeUnsafe("2026-06-20T00:00:00.000Z");
 const v2ProjectId = ProjectId.make("project-v2");
-export const v2ThreadId = ThreadId.make("thread-v2");
+const v2ThreadId = ThreadId.make("thread-v2");
 const v2ProviderInstanceId = ProviderInstanceId.make("codex");
 
-export const v2Project: OrchestrationProjectShell = {
-  id: v2ProjectId,
-  title: "Project",
-  workspaceRoot: "/workspace/project",
-  repositoryIdentity: null,
-  defaultModelSelection: null,
-  scripts: [],
-  createdAt: "2026-06-20T00:00:00.000Z",
-  updatedAt: "2026-06-20T00:00:00.000Z",
-};
-
-export const v2ThreadShell: OrchestrationV2ThreadShell = {
+const v2ThreadShell: OrchestrationV2ThreadShell = {
   id: v2ThreadId,
   projectId: v2ProjectId,
   title: "Thread",
@@ -97,12 +84,4 @@ export const v2Projection: OrchestrationV2ThreadProjection = {
   contextTransfers: [],
   visibleTurnItems: [],
   updatedAt: v2Now,
-};
-
-export const v2ShellSnapshot: OrchestrationV2ShellSnapshot = {
-  schemaVersion: 1,
-  snapshotSequence: 0,
-  projects: [v2Project],
-  threads: [v2ThreadShell],
-  archivedThreads: [],
 };

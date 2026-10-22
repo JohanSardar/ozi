@@ -71,11 +71,11 @@ const MODE_ARGS = {
     "run",
     "--filter=@t3tools/contracts",
     "--filter=@t3tools/web",
-    "--filter=t3",
+    "--filter=ozi",
     "--parallel",
     "dev",
   ],
-  "dev:server": ["run", "--filter=t3", "dev"],
+  "dev:server": ["run", "--filter=ozi", "dev"],
   "dev:web": ["run", "--filter=@t3tools/web", "dev"],
   "dev:desktop": ["run", "--filter=@t3tools/desktop", "--filter=@t3tools/web", "dev"],
 } as const satisfies Record<string, ReadonlyArray<string>>;
@@ -271,7 +271,6 @@ interface CreateDevRunnerEnvInput {
   readonly webOffset: number;
   readonly oziHome: string | undefined;
   readonly browser: boolean | undefined;
-  readonly autoBootstrapProjectFromCwd: boolean | undefined;
   readonly logWebSocketEvents: boolean | undefined;
   readonly host: string | undefined;
   readonly port: number | undefined;
@@ -285,7 +284,6 @@ export const createDevRunnerEnv = Effect.fn("dev-runner.createDevRunnerEnv")(fun
   webOffset,
   oziHome,
   browser,
-  autoBootstrapProjectFromCwd,
   logWebSocketEvents,
   host,
   port,
@@ -313,7 +311,7 @@ export const createDevRunnerEnv = Effect.fn("dev-runner.createDevRunnerEnv")(fun
 
   // A dev-runner server is never launcher-managed. When the shell that runs
   // this script was itself spawned by the machine's managed t3 service (an
-  // agent working inside T3 Code), these leak through and the child server
+  // agent working inside Ozi), these leak through and the child server
   // fails startup with "The service launcher started a different t3 version"
   // (serviceLauncherClient.ts resolveStartup).
   delete output.T3_SERVICE_LAUNCHER_CONTEXT;
@@ -362,12 +360,6 @@ export const createDevRunnerEnv = Effect.fn("dev-runner.createDevRunnerEnv")(fun
 
   if (!isDesktopMode) {
     output.OZI_NO_BROWSER = browser === true ? "0" : "1";
-  }
-
-  if (autoBootstrapProjectFromCwd !== undefined) {
-    output.OZI_AUTO_BOOTSTRAP_PROJECT_FROM_CWD = autoBootstrapProjectFromCwd ? "1" : "0";
-  } else {
-    delete output.OZI_AUTO_BOOTSTRAP_PROJECT_FROM_CWD;
   }
 
   if (logWebSocketEvents !== undefined) {
@@ -570,7 +562,6 @@ interface DevRunnerCliInput {
   readonly mode: DevMode;
   readonly oziHome: string | undefined;
   readonly browser: boolean | undefined;
-  readonly autoBootstrapProjectFromCwd: boolean | undefined;
   readonly logWebSocketEvents: boolean | undefined;
   readonly host: string | undefined;
   readonly port: number | undefined;
@@ -636,7 +627,6 @@ export const runDevRunnerWithInput = Effect.fn("dev-runner.runDevRunnerWithInput
     webOffset,
     oziHome: resolvedT3Home,
     browser: input.browser,
-    autoBootstrapProjectFromCwd: input.autoBootstrapProjectFromCwd,
     logWebSocketEvents: input.logWebSocketEvents,
     host: input.host,
     port: input.port,
@@ -774,7 +764,7 @@ const devRunnerCli = Command.make("dev-runner", {
   ),
   oziHome: Flag.String("home-dir").pipe(
     Flag.withDescription(
-      "Explicit T3 Code data directory; runtime state is stored under userdata (equivalent to OZI_HOME). Inside a git worktree this defaults to that worktree's own .ozi so dev state stays off the shared home.",
+      "Explicit Ozi data directory; runtime state is stored under userdata (equivalent to OZI_HOME). Inside a git worktree this defaults to that worktree's own .ozi so dev state stays off the shared home.",
     ),
     Flag.optional,
     Flag.map(Option.getOrUndefined),
@@ -782,12 +772,6 @@ const devRunnerCli = Command.make("dev-runner", {
   browser: Flag.Boolean("browser").pipe(
     Flag.withDescription("Open a browser automatically (disabled by default for web dev)."),
     Flag.withDefault(false),
-  ),
-  autoBootstrapProjectFromCwd: Flag.Boolean("auto-bootstrap-project-from-cwd").pipe(
-    Flag.withDescription(
-      "Auto-bootstrap toggle (equivalent to OZI_AUTO_BOOTSTRAP_PROJECT_FROM_CWD).",
-    ),
-    Flag.withFallbackConfig(optionalBooleanConfig("OZI_AUTO_BOOTSTRAP_PROJECT_FROM_CWD")),
   ),
   logWebSocketEvents: Flag.Boolean("log-websocket-events").pipe(
     Flag.withDescription("WebSocket event logging toggle (equivalent to OZI_LOG_WS_EVENTS)."),

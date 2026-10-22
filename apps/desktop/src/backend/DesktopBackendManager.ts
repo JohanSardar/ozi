@@ -21,13 +21,10 @@ import {
   DesktopBackendBootstrap,
   type DesktopBackendBootstrap as DesktopBackendBootstrapValue,
   PRIMARY_LOCAL_ENVIRONMENT_ID,
-  DesktopTelemetryControlMessage,
-  type DesktopTelemetryControlMessage as DesktopTelemetryControlMessageValue,
 } from "@t3tools/contracts";
 import { waitForHttpReady as waitForHttpReadyShared } from "@t3tools/shared/httpReadiness";
 
 import * as DesktopObservability from "../app/DesktopObservability.ts";
-import * as DesktopTelemetryPublisher from "../telemetry/DesktopTelemetryPublisher.ts";
 import * as DesktopBrowserHost from "../preview/DesktopBrowserHost.ts";
 import * as DesktopWslEnvironment from "../wsl/DesktopWslEnvironment.ts";
 
@@ -186,12 +183,8 @@ export const BackendProcessError = Schema.Union([
 export type BackendProcessError = typeof BackendProcessError.Type;
 
 interface RunBackendProcessOptions extends DesktopBackendStartConfig {
-  readonly desktopTelemetryStream: Stream.Stream<Uint8Array>;
   readonly desktopBrowserStream?: Stream.Stream<Uint8Array>;
   readonly onDesktopBrowserCommand?: (line: string) => Effect.Effect<void>;
-  readonly onDesktopTelemetryControl?: (
-    message: DesktopTelemetryControlMessageValue,
-  ) => Effect.Effect<void>;
   readonly readinessTimeout?: Duration.Duration;
   readonly outputDrainTimeout?: Duration.Duration;
   readonly onStarted?: (pid: number) => Effect.Effect<void>;
@@ -313,7 +306,7 @@ const closeRun = (
   );
 };
 
-export const waitForHttpReady = (
+const waitForHttpReady = (
   options: BackendProcessContext & { readonly timeout: Duration.Duration },
 ): Effect.Effect<void, BackendReadinessTimeoutError, HttpClient.HttpClient> => {
   const readinessUrl = new URL(BACKEND_READINESS_PATH, options.httpBaseUrl);
@@ -376,11 +369,8 @@ function drainBackendOutput(
 }
 
 const encodeBootstrapJson = Schema.encodeEffect(Schema.fromJsonString(DesktopBackendBootstrap));
-const decodeDesktopTelemetryControlLine = Schema.decodeUnknownEffect(
-  Schema.fromJsonString(DesktopTelemetryControlMessage),
-);
 
-export const runBackendProcess = Effect.fn("runBackendProcess")(function* (
+const runBackendProcess = Effect.fn("runBackendProcess")(function* (
   options: RunBackendProcessOptions,
 ): Effect.fn.Return<BackendProcessExit, BackendProcessError, BackendProcessRunRequirements> {
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
@@ -404,17 +394,6 @@ export const runBackendProcess = Effect.fn("runBackendProcess")(function* (
       type: "input",
       stream: bootstrapStream,
     };
-    if (options.bootstrap.desktopTelemetryFd !== undefined) {
-      additionalFds[`fd${options.bootstrap.desktopTelemetryFd}`] = {
-        type: "input",
-        stream: options.desktopTelemetryStream,
-      };
-    }
-    if (options.bootstrap.desktopTelemetryControlFd !== undefined) {
-      additionalFds[`fd${options.bootstrap.desktopTelemetryControlFd}`] = {
-        type: "output",
-      };
-    }
     if (
       options.bootstrap.desktopBrowserFd !== undefined &&
       options.desktopBrowserStream !== undefined
@@ -460,43 +439,6 @@ export const runBackendProcess = Effect.fn("runBackendProcess")(function* (
   const outputFibers: Array<Fiber.Fiber<void, never>> = [];
 
   yield* options.onStarted?.(handle.pid) ?? Effect.void;
-  if (
-    options.bootstrap.desktopTelemetryControlFd !== undefined &&
-    options.onDesktopTelemetryControl !== undefined
-  ) {
-    const controlFd = options.bootstrap.desktopTelemetryControlFd;
-    const handleControl = options.onDesktopTelemetryControl;
-    yield* handle.getOutputFd(controlFd).pipe(
-      Stream.decodeText(),
-      Stream.splitLines,
-      Stream.filter((line) => line.trim().length > 0),
-      Stream.runForEach((line) =>
-        decodeDesktopTelemetryControlLine(line).pipe(
-          Effect.flatMap(handleControl),
-          Effect.catchCause((cause) =>
-            logBackendProcessWarning("ignored invalid desktop telemetry control message", {
-              fd: controlFd,
-              cause: Cause.pretty(cause),
-            }),
-          ),
-        ),
-      ),
-      Effect.catchCause((cause) =>
-        logBackendProcessWarning("desktop telemetry control stream stopped", {
-          fd: controlFd,
-          cause: Cause.pretty(cause),
-        }),
-      ),
-      Effect.ensuring(
-        handleControl({
-          version: 1,
-          type: "setDiagnosticsDemand",
-          enabled: false,
-        }),
-      ),
-      Effect.forkScoped,
-    );
-  }
   if (
     options.bootstrap.desktopBrowserControlFd !== undefined &&
     options.onDesktopBrowserCommand !== undefined
@@ -620,7 +562,6 @@ export const makeBackendInstance = Effect.fn("makeBackendInstance")(function* (
   | ChildProcessSpawner.ChildProcessSpawner
   | HttpClient.HttpClient
   | DesktopObservability.DesktopBackendOutputLogFactory
-  | DesktopTelemetryPublisher.DesktopTelemetryPublisher
   | DesktopBrowserHost.DesktopBrowserHost
   | DesktopWslEnvironment.DesktopWslEnvironment
   | Scope.Scope
@@ -629,7 +570,6 @@ export const makeBackendInstance = Effect.fn("makeBackendInstance")(function* (
   const fileSystem = yield* FileSystem.FileSystem;
   const backendOutputLogFactory = yield* DesktopObservability.DesktopBackendOutputLogFactory;
   const backendOutputLog = yield* backendOutputLogFactory.forInstance(spec.id);
-  const desktopTelemetryPublisher = yield* DesktopTelemetryPublisher.DesktopTelemetryPublisher;
   const desktopBrowserHost = yield* DesktopBrowserHost.DesktopBrowserHost;
   const wslEnvironment = yield* DesktopWslEnvironment.DesktopWslEnvironment;
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
@@ -853,7 +793,6 @@ export const makeBackendInstance = Effect.fn("makeBackendInstance")(function* (
                 );
 
               if (isCurrentRun) {
-                yield* desktopTelemetryPublisher.removeControlSource(spec.id);
                 if (Option.isSome(pid)) {
                   if (exitObserved && !stopRequested) {
                     yield* backendOutputLog.persistFailure({
@@ -882,11 +821,8 @@ export const makeBackendInstance = Effect.fn("makeBackendInstance")(function* (
 
         const program = runBackendProcess({
           ...config.value,
-          desktopTelemetryStream: desktopTelemetryPublisher.encoded,
           desktopBrowserStream: desktopBrowserHost.events,
           onDesktopBrowserCommand: desktopBrowserHost.handleCommandLine,
-          onDesktopTelemetryControl: (message) =>
-            desktopTelemetryPublisher.handleControlForSource(spec.id, message),
           onStarted: Effect.fn("desktop.backendInstance.onStarted")(function* (pid) {
             yield* updateActiveRun(runId, (run) => ({
               ...run,
@@ -1107,7 +1043,6 @@ export const makeBackendInstance = Effect.fn("makeBackendInstance")(function* (
             ),
           );
           if (cleanup.needsCleanup) {
-            yield* desktopTelemetryPublisher.removeControlSource(spec.id);
             yield* backendOutputLog.discardSession;
           }
           if (cleanup.shouldStart) {

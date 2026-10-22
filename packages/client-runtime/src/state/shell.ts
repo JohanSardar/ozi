@@ -6,11 +6,9 @@ import {
   type OrchestrationV2ThreadShell,
   type ServerConfig,
   type ThreadId,
-  type ThreadPullRequestLink,
 } from "@t3tools/contracts";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
-import * as Fiber from "effect/Fiber";
 import * as Option from "effect/Option";
 import * as Queue from "effect/Queue";
 import * as Ref from "effect/Ref";
@@ -29,13 +27,7 @@ import { runCachePersistence } from "./cachePersistence.ts";
 import { subscribeDynamic } from "../rpc/client.ts";
 import type { RpcSession } from "../rpc/session.ts";
 import * as ShellSnapshotLoader from "./shellSnapshotHttp.ts";
-import type { DeferredShellSnapshot } from "./shellPullRequests.ts";
-import {
-  applyShellStreamEvent,
-  mergeShellSnapshotProjects,
-  reuseUnchangedThreadShells,
-  sameThreadPullRequests,
-} from "./shellReducer.ts";
+import { applyShellStreamEvent, reuseUnchangedThreadShells } from "./shellReducer.ts";
 import { type EnvironmentCatalogState, enabledEnvironmentIds } from "./connections.ts";
 import { followStreamInEnvironment } from "./runtime.ts";
 
@@ -59,15 +51,9 @@ function shellStatusForSnapshot(
   return Option.isSome(snapshot) ? "cached" : "empty";
 }
 
-function withoutDeferredPullRequests(value: DeferredShellSnapshot): OrchestrationV2ShellSnapshot {
-  if (value.loadPullRequests === undefined) return value;
-  const { loadPullRequests: _deferred, ...snapshot } = value;
-  return snapshot;
-}
-
 const SHELL_SYNCHRONIZATION_ERROR_MESSAGE = "Could not synchronize environment data.";
 
-export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")(function* () {
+const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")(function* () {
   const supervisor = yield* EnvironmentSupervisor.EnvironmentSupervisor;
   const cache = yield* Persistence.EnvironmentCacheStore;
   const snapshotLoader = yield* ShellSnapshotLoader.ShellSnapshotLoader;
@@ -80,11 +66,11 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
           environmentId,
           ...safeErrorLogAttributes(error),
         }),
-        Effect.as(Option.none<DeferredShellSnapshot>()),
+        Effect.as(Option.none<OrchestrationV2ShellSnapshot>()),
       ),
     ),
   );
-  const cachedSnapshot = Option.map(cached, withoutDeferredPullRequests);
+  const cachedSnapshot = cached;
   const state = yield* SubscriptionRef.make<EnvironmentShellState>({
     snapshot: cachedSnapshot,
     status: shellStatusForSnapshot(cachedSnapshot),
@@ -196,15 +182,7 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
       }
       const nextSnapshot =
         item.kind === "snapshot"
-          ? mergeShellSnapshotProjects(
-              Option.getOrNull(next.snapshot),
-              item.snapshot,
-              item.resolvedRepositoryIdentityRoots === undefined
-                ? undefined
-                : {
-                    resolvedRepositoryIdentityRoots: item.resolvedRepositoryIdentityRoots,
-                  },
-            )
+          ? item.snapshot
           : Option.match(next.snapshot, {
               onNone: () => null,
               onSome: (snapshot) =>
@@ -241,72 +219,7 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
       yield* Queue.offer(persistence, next.snapshot.value);
     }
   }, snapshotWriteLock.withPermit);
-
-  const stateScope = yield* Effect.scope;
-  // Each full snapshot supersedes the previous one's fill; links from an older snapshot must
-  // not land on rows a newer snapshot reused.
-
-  let activeFill: Fiber.Fiber<void> | undefined;
-  const cancelActiveFill = Effect.suspend(() => {
-    const fill = activeFill;
-    activeFill = undefined;
-    return fill === undefined ? Effect.void : Fiber.interrupt(fill);
-  });
-  const fillDeferredPullRequests = Effect.fnUntraced(function* (
-    source: DeferredShellSnapshot,
-    applied: OrchestrationV2ShellSnapshot,
-  ) {
-    yield* cancelActiveFill;
-    if (source.loadPullRequests === undefined) return;
-    const arrivedRows = new Set(applied.threads);
-    const arrivedIds = new Set(source.threads.map((thread) => thread.id));
-    pendingLinkRows = new Set(applied.threads.filter((thread) => arrivedIds.has(thread.id)));
-    activeFill = yield* source.loadPullRequests.pipe(
-      Effect.flatMap((linksByThreadId) =>
-        writeFilledLinks(linksByThreadId, arrivedRows, arrivedIds),
-      ),
-      Effect.forkIn(stateScope),
-    );
-  });
-  const writeFilledLinks = Effect.fnUntraced(
-    function* (
-      linksByThreadId: ReadonlyMap<ThreadId, ReadonlyArray<ThreadPullRequestLink>>,
-      arrivedRows: ReadonlySet<OrchestrationV2ThreadShell>,
-      arrivedIds: ReadonlySet<ThreadId>,
-    ) {
-      const filled = yield* SubscriptionRef.modify(
-        state,
-        (current): [Option.Option<OrchestrationV2ShellSnapshot>, EnvironmentShellState] => {
-          if (Option.isNone(current.snapshot)) return [Option.none(), current];
-          const snapshot = current.snapshot.value;
-          let changed = false;
-          const threads = snapshot.threads.map((thread) => {
-            if (!arrivedRows.has(thread) || !arrivedIds.has(thread.id)) return thread;
-            const links = linksByThreadId.get(thread.id);
-            if (sameThreadPullRequests(thread.pullRequests, links)) return thread;
-            changed = true;
-            if (links === undefined) {
-              const { pullRequests: _previous, ...row } = thread;
-              return row;
-            }
-            return { ...thread, pullRequests: links };
-          });
-          if (!changed) return [Option.none(), current];
-          const next = { ...snapshot, threads };
-          return [Option.some(next), { ...current, snapshot: Option.some(next) }];
-        },
-      );
-      pendingLinkRows = new Set();
-      const live = yield* Ref.get(latestLiveSnapshot);
-      if (Option.isNone(live)) return;
-      const latest = Option.isSome(filled) ? filled : live;
-      yield* Ref.set(latestLiveSnapshot, latest);
-      yield* Queue.offer(persistence, latest.value);
-    },
-    (effect) => snapshotWriteLock.withPermit(effect),
-  );
   if (Option.isSome(cached) && Option.isSome(cachedSnapshot)) {
-    yield* fillDeferredPullRequests(cached.value, cachedSnapshot.value);
   }
 
   const foregroundResubscriptions = Option.match(wakeups, {
@@ -351,23 +264,14 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
           );
           const httpSnapshot = yield* snapshotLoader.load(prepared);
           if (Option.isSome(httpSnapshot)) {
-            yield* cancelActiveFill;
             const previous = yield* SubscriptionRef.get(state);
             const snapshot = reuseUnchangedThreadShells(
               Option.getOrNull(previous.snapshot),
-              withoutDeferredPullRequests(httpSnapshot.value),
+              httpSnapshot.value,
             );
-            const pendingLinkIds = new Set(
-              httpSnapshot.value.loadPullRequests === undefined
-                ? []
-                : httpSnapshot.value.threads.map((thread) => thread.id),
-            );
-            yield* applyItems([{ kind: "snapshot", snapshot }], pendingLinkIds);
+            yield* applyItems([{ kind: "snapshot", snapshot }]);
             canResume = true;
             current = yield* SubscriptionRef.get(state);
-            if (Option.isSome(current.snapshot)) {
-              yield* fillDeferredPullRequests(httpSnapshot.value, current.snapshot.value);
-            }
           }
         }
 
@@ -425,28 +329,7 @@ export interface EnvironmentShellSummary {
   readonly firstError: string | null;
 }
 
-const EMPTY_ENVIRONMENT_SHELL_SUMMARY: EnvironmentShellSummary = Object.freeze({
-  hasSnapshot: false,
-  hasSynchronizingShell: false,
-  hasCachedShell: false,
-  hasLiveShell: false,
-  firstError: null,
-});
-
 const EMPTY_SERVER_CONFIGS: ReadonlyMap<EnvironmentId, ServerConfig> = new Map();
-
-function shellSummariesEqual(
-  left: EnvironmentShellSummary,
-  right: EnvironmentShellSummary,
-): boolean {
-  return (
-    left.hasSnapshot === right.hasSnapshot &&
-    left.hasSynchronizingShell === right.hasSynchronizingShell &&
-    left.hasCachedShell === right.hasCachedShell &&
-    left.hasLiveShell === right.hasLiveShell &&
-    left.firstError === right.firstError
-  );
-}
 
 function mapsEqual<K, V>(left: ReadonlyMap<K, V>, right: ReadonlyMap<K, V>): boolean {
   if (left.size !== right.size) {
@@ -458,47 +341,6 @@ function mapsEqual<K, V>(left: ReadonlyMap<K, V>, right: ReadonlyMap<K, V>): boo
     }
   }
   return true;
-}
-
-export function createEnvironmentShellSummaryAtom(input: {
-  readonly catalogValueAtom: Atom.Atom<EnvironmentCatalogState>;
-  readonly shellStateValueAtom: (environmentId: EnvironmentId) => Atom.Atom<EnvironmentShellState>;
-}) {
-  let previousSummary = EMPTY_ENVIRONMENT_SHELL_SUMMARY;
-  return Atom.make((get) => {
-    let hasSnapshot = false;
-    let hasSynchronizingShell = false;
-    let hasCachedShell = false;
-    let hasLiveShell = false;
-    let firstError: string | null = null;
-
-    for (const environmentId of enabledEnvironmentIds(get(input.catalogValueAtom))) {
-      const state = get(input.shellStateValueAtom(environmentId));
-      hasSynchronizingShell ||= state.status === "synchronizing";
-      hasCachedShell ||= state.status === "cached";
-      hasLiveShell ||= state.status === "live";
-      if (firstError === null) {
-        firstError = Option.getOrNull(state.error);
-      }
-      if (Option.isNone(state.snapshot)) {
-        continue;
-      }
-      hasSnapshot = true;
-    }
-
-    const next: EnvironmentShellSummary = {
-      hasSnapshot,
-      hasSynchronizingShell,
-      hasCachedShell,
-      hasLiveShell,
-      firstError,
-    };
-    if (shellSummariesEqual(previousSummary, next)) {
-      return previousSummary;
-    }
-    previousSummary = next;
-    return previousSummary;
-  }).pipe(Atom.withLabel("environment-shell-summary"));
 }
 
 export function createEnvironmentServerConfigsAtom(input: {
@@ -526,7 +368,7 @@ export function createEnvironmentServerConfigsAtom(input: {
  * Every shell push replaces the state, so views that gate on load progress read these
  * primitives instead and stay put while threads stream.
  */
-export function createEnvironmentShellProgressAtoms(
+function createEnvironmentShellProgressAtoms(
   stateValueAtom: (environmentId: EnvironmentId) => Atom.Atom<EnvironmentShellState>,
 ) {
   return {
@@ -577,6 +419,6 @@ export function createEnvironmentShellAtoms<R, E>(
 export * from "./models.ts";
 export * from "./shellCommands.ts";
 export * from "./shellReducer.ts";
-export * from "./shellPullRequests.ts";
+export * from "./shellSnapshot.ts";
 export * as ShellSnapshotLoader from "./shellSnapshotHttp.ts";
 export * from "./snapshots.ts";

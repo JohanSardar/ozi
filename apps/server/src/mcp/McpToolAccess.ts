@@ -117,13 +117,6 @@ export const actsAsCaller = <P, A, E, R>(handle: (params: P) => Effect.Effect<A,
 export const writes = <P, A, E, R>(handle: (params: P) => Effect.Effect<A, E, R>) =>
   declare((params: P) => orchestratingCaller.pipe(Effect.flatMap(() => handle(params))));
 
-/**
- * Unlike `writes` it does not need thread control; the handler checks its
- * capability, as the capability toolkits do.
- */
-export const writesWithCapability = <P, A, E, R>(handle: (params: P) => Effect.Effect<A, E, R>) =>
-  declare((params: P) => writingCaller.pipe(Effect.flatMap(() => handle(params))));
-
 export const writesThreads = <P, A, E, R>(
   threads: (params: P) => ReadonlyArray<ThreadId | undefined>,
   handle: (params: P) => Effect.Effect<A, E, R>,

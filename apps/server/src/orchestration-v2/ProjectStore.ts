@@ -3,10 +3,7 @@ import {
   IsoDateTime,
   ModelSelection,
   type OrchestrationProjectShell,
-  StoredProjectIcon,
   ProjectId,
-  ProjectScript,
-  ThreadEnvMode,
 } from "@t3tools/contracts";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -33,11 +30,6 @@ export const ProjectRow = Schema.Struct({
   title: Schema.String,
   workspaceRoot: Schema.String,
   defaultModelSelection: Schema.NullOr(ModelSelection),
-  defaultThreadEnvMode: Schema.NullOr(ThreadEnvMode),
-  autoPull: Schema.Boolean,
-  faviconPath: Schema.NullOr(Schema.String),
-  projectIcon: Schema.NullOr(StoredProjectIcon),
-  scripts: Schema.Array(ProjectScript),
   createdAt: IsoDateTime,
   updatedAt: IsoDateTime,
   deletedAt: Schema.NullOr(IsoDateTime),
@@ -47,9 +39,6 @@ export type ProjectRow = typeof ProjectRow.Type;
 const ProjectDbRow = Schema.Struct({
   ...ProjectRow.fields,
   defaultModelSelection: Schema.NullOr(Schema.fromJsonString(ModelSelection)),
-  autoPull: Schema.BooleanFromBit,
-  projectIcon: Schema.NullOr(Schema.fromJsonString(StoredProjectIcon)),
-  scripts: Schema.fromJsonString(Schema.Array(ProjectScript)),
 });
 
 function toShell(row: ProjectRow): OrchestrationProjectShell {
@@ -57,13 +46,7 @@ function toShell(row: ProjectRow): OrchestrationProjectShell {
     id: row.projectId,
     title: row.title,
     workspaceRoot: row.workspaceRoot,
-    repositoryIdentity: null,
     defaultModelSelection: row.defaultModelSelection,
-    defaultThreadEnvMode: row.defaultThreadEnvMode,
-    autoPull: row.autoPull,
-    faviconPath: row.faviconPath,
-    projectIcon: row.projectIcon,
-    scripts: row.scripts,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
   };
@@ -93,7 +76,7 @@ export class ProjectStoreV2 extends Context.Service<
       readonly projectIds?: ReadonlyArray<ProjectId>;
     }) => Effect.Effect<ReadonlyArray<OrchestrationProjectShell>, ProjectStoreV2Error>;
   }
->()("t3/orchestration-v2/ProjectStore/ProjectStoreV2") {}
+>()("ozi/orchestration-v2/ProjectStore/ProjectStoreV2") {}
 
 /** @public Service construction is part of the canonical Effect module API. */
 export const make = Effect.gen(function* () {
@@ -114,11 +97,6 @@ export const make = Effect.gen(function* () {
         title,
         workspace_root AS "workspaceRoot",
         default_model_selection_json AS "defaultModelSelection",
-        default_thread_env_mode AS "defaultThreadEnvMode",
-        auto_pull AS "autoPull",
-        favicon_path AS "faviconPath",
-        project_icon_json AS "projectIcon",
-        scripts_json AS "scripts",
         created_at AS "createdAt",
         updated_at AS "updatedAt",
         deleted_at AS "deletedAt"
@@ -144,11 +122,6 @@ export const make = Effect.gen(function* () {
             title,
             workspace_root,
             default_model_selection_json,
-            default_thread_env_mode,
-            auto_pull,
-            favicon_path,
-            project_icon_json,
-            scripts_json,
             created_at,
             updated_at,
             deleted_at
@@ -158,11 +131,6 @@ export const make = Effect.gen(function* () {
             ${encoded.title},
             ${encoded.workspaceRoot},
             ${encoded.defaultModelSelection},
-            ${encoded.defaultThreadEnvMode},
-            ${encoded.autoPull},
-            ${encoded.faviconPath},
-            ${encoded.projectIcon},
-            ${encoded.scripts},
             ${encoded.createdAt},
             ${encoded.updatedAt},
             ${encoded.deletedAt}
@@ -172,11 +140,6 @@ export const make = Effect.gen(function* () {
             title = excluded.title,
             workspace_root = excluded.workspace_root,
             default_model_selection_json = excluded.default_model_selection_json,
-            default_thread_env_mode = excluded.default_thread_env_mode,
-            auto_pull = excluded.auto_pull,
-            favicon_path = excluded.favicon_path,
-            project_icon_json = excluded.project_icon_json,
-            scripts_json = excluded.scripts_json,
             created_at = excluded.created_at,
             updated_at = excluded.updated_at,
             deleted_at = excluded.deleted_at
@@ -218,11 +181,6 @@ export const make = Effect.gen(function* () {
           title: payload.title,
           workspaceRoot: payload.workspaceRoot,
           defaultModelSelection: payload.defaultModelSelection,
-          defaultThreadEnvMode: payload.defaultThreadEnvMode ?? null,
-          autoPull: false,
-          faviconPath: payload.faviconPath ?? null,
-          projectIcon: payload.projectIcon ?? null,
-          scripts: payload.scripts,
           createdAt: payload.createdAt,
           updatedAt: payload.updatedAt,
           deletedAt: null,
@@ -246,13 +204,6 @@ export const make = Effect.gen(function* () {
         ...(payload.defaultModelSelection === undefined
           ? {}
           : { defaultModelSelection: payload.defaultModelSelection }),
-        ...(payload.defaultThreadEnvMode === undefined
-          ? {}
-          : { defaultThreadEnvMode: payload.defaultThreadEnvMode }),
-        ...(payload.autoPull === undefined ? {} : { autoPull: payload.autoPull }),
-        ...(payload.faviconPath === undefined ? {} : { faviconPath: payload.faviconPath }),
-        ...(payload.projectIcon === undefined ? {} : { projectIcon: payload.projectIcon }),
-        ...(payload.scripts === undefined ? {} : { scripts: payload.scripts }),
         updatedAt: payload.updatedAt,
       }).pipe(mapError("apply"));
     },

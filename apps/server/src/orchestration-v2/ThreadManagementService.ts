@@ -29,7 +29,7 @@ import {
   ProjectId,
   PROVIDER_SEND_TURN_MAX_FILE_BYTES,
   ProviderInstanceId,
-  resolveProjectProviderInstanceEnabled,
+  resolveServerProviderInstanceEnabled,
   RunId,
   type ScheduledTaskId,
   ThreadId,
@@ -80,7 +80,7 @@ export function withCreationProvenance(
   }
 }
 
-export function existingThreadIdsForCommand(
+function existingThreadIdsForCommand(
   command: OrchestrationV2ServerCommand,
 ): ReadonlyArray<ThreadId> {
   switch (command.type) {
@@ -287,12 +287,11 @@ export class ThreadManagementDurableRunProjectionError extends Schema.TaggedErro
 export class ThreadManagementProviderInstanceDisabledError extends Schema.TaggedError<ThreadManagementProviderInstanceDisabledError>()(
   "ThreadManagementProviderInstanceDisabledError",
   {
-    projectId: ProjectId,
     instanceId: ProviderInstanceId,
   },
 ) {
   override get message(): string {
-    return `Provider instance "${this.instanceId}" is disabled for project ${this.projectId}.`;
+    return `Provider instance "${this.instanceId}" is disabled.`;
   }
 }
 
@@ -377,12 +376,10 @@ export interface ThreadManagementServiceShape {
     input: ThreadManagementSendInput,
   ) => Effect.Effect<ThreadManagementSendResult, ThreadManagementFailure>;
   readonly assertProviderInstanceEnabled: (input: {
-    readonly projectId: ProjectId;
     readonly commandId: CommandId;
     readonly instanceId: ProviderInstanceId;
   }) => Effect.Effect<void, ThreadManagementProviderInstanceDisabledError>;
-  readonly isProviderInstanceEnabledForProject: (input: {
-    readonly projectId: ProjectId;
+  readonly isProviderInstanceEnabled: (input: {
     readonly instanceId: ProviderInstanceId;
   }) => Effect.Effect<boolean>;
   /**
@@ -439,7 +436,7 @@ export interface ThreadManagementServiceShape {
 export class ThreadManagementService extends Context.Service<
   ThreadManagementService,
   ThreadManagementServiceShape
->()("t3/orchestration-v2/ThreadManagementService") {}
+>()("ozi/orchestration-v2/ThreadManagementService") {}
 
 export function isActiveRun(run: OrchestrationV2Run): boolean {
   return (
@@ -525,10 +522,9 @@ const make = Effect.gen(function* () {
             : serverSettings.getSettings.pipe(
                 Effect.orDie,
                 Effect.flatMap((current) =>
-                  resolveProjectProviderInstanceEnabled(current, null, input.instanceId)
+                  resolveServerProviderInstanceEnabled(current, input.instanceId)
                     ? Effect.void
                     : new ThreadManagementProviderInstanceDisabledError({
-                        projectId: input.projectId,
                         instanceId: input.instanceId,
                       }),
                 ),
@@ -536,14 +532,13 @@ const make = Effect.gen(function* () {
         ),
       );
 
-  const isProviderInstanceEnabledForProject: ThreadManagementServiceShape["isProviderInstanceEnabledForProject"] =
-    (input) =>
-      serverSettings.getSettings.pipe(
-        Effect.orDie,
-        Effect.map((current) =>
-          resolveProjectProviderInstanceEnabled(current, input.projectId, input.instanceId),
-        ),
-      );
+  const isProviderInstanceEnabled: ThreadManagementServiceShape["isProviderInstanceEnabled"] = (
+    input,
+  ) =>
+    serverSettings.getSettings.pipe(
+      Effect.orDie,
+      Effect.map((current) => resolveServerProviderInstanceEnabled(current, input.instanceId)),
+    );
 
   const hasReceipt: ThreadManagementServiceShape["hasReceipt"] = (commandId) =>
     receipts.getByCommandId(commandId).pipe(
@@ -643,7 +638,6 @@ const make = Effect.gen(function* () {
         return orchestrator.getThreadRecords(command.threadId, []).pipe(
           Effect.flatMap((projection) =>
             assertProviderInstanceEnabled({
-              projectId: projection.thread.projectId,
               commandId: command.commandId,
               instanceId: (command.modelSelection ?? projection.thread.modelSelection).instanceId,
             }),
@@ -654,7 +648,6 @@ const make = Effect.gen(function* () {
         return orchestrator.getThreadRecords(command.parentThreadId, []).pipe(
           Effect.flatMap((parent) =>
             assertProviderInstanceEnabled({
-              projectId: parent.thread.projectId,
               commandId: command.commandId,
               instanceId: command.modelSelection.instanceId,
             }),
@@ -1173,7 +1166,7 @@ const make = Effect.gen(function* () {
     listProjectThreads,
     sendToThread,
     assertProviderInstanceEnabled,
-    isProviderInstanceEnabledForProject,
+    isProviderInstanceEnabled,
     hasReceipt,
     waitForThread,
     settleAfterRun,
@@ -1189,28 +1182,6 @@ const make = Effect.gen(function* () {
     streamDomainEvents: orchestrator.streamDomainEvents,
   });
 });
-
-const layerLegacyV1ThreadImporterNoop = Layer.succeed(
-  LegacyV1ThreadImporter.LegacyV1ThreadImporter,
-  LegacyV1ThreadImporter.LegacyV1ThreadImporter.of({
-    pendingThreadCount: Effect.succeed(0),
-    reconcileShells: Effect.succeed({ importedThreadCount: 0, importedMessageCount: 0 }),
-    ensureTranscript: () => Effect.succeed({ importedThreadCount: 0, importedMessageCount: 0 }),
-    importPendingTranscripts: Effect.succeed({ importedThreadCount: 0, importedMessageCount: 0 }),
-  }),
-);
-
-export const layer: Layer.Layer<
-  ThreadManagementService,
-  never,
-  | Orchestrator.OrchestratorV2
-  | ProviderSessionManager.ProviderSessionManagerV2
-  | ServerSettings.ServerSettingsService
-  | CommandReceiptStore.CommandReceiptStoreV2
-> = Layer.effect(ThreadManagementService, make).pipe(
-  Layer.provide(layerLegacyV1ThreadImporterNoop),
-  Layer.provide(ThreadCommandExecutor.layer),
-);
 
 export const layerWithLegacyImporter: Layer.Layer<
   ThreadManagementService,

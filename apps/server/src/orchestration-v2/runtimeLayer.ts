@@ -2,19 +2,13 @@ import * as Completion from "../ozi/Completion.ts";
 import * as UsageLimitRecoveryWorker from "./UsageLimitRecoveryWorker.ts";
 import * as Scheduler from "../scheduling/Scheduler.ts";
 import * as Layer from "effect/Layer";
-import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
 import * as OrchestrationCommandReceipts from "../persistence/OrchestrationCommandReceipts.ts";
 import * as OrchestrationEventStore from "../persistence/OrchestrationEventStore.ts";
 import * as McpAppModelContext from "../mcpApps/McpAppModelContext.ts";
 import * as McpAppRequests from "../mcpApps/McpAppRequests.ts";
-import * as ProviderSessionRuntime from "../persistence/ProviderSessionRuntime.ts";
 import * as TextGeneration from "../textGeneration/TextGeneration.ts";
 import * as ProviderAuthService from "../provider/ProviderAuthService.ts";
-import * as AgentSessionImporter from "../project/AgentSessionImporter.ts";
-import * as AgentSessionScanner from "../project/AgentSessionScanner.ts";
 import * as ProjectService from "../project/ProjectService.ts";
-import * as ProjectSetupScriptRunner from "../project/ProjectSetupScriptRunner.ts";
-import * as ManagedProjectFolders from "../project/ManagedProjectFolders.ts";
 import * as CommandPolicy from "./CommandPolicy.ts";
 import * as CommandReceiptStore from "./CommandReceiptStore.ts";
 import * as ContextHandoffService from "./ContextHandoffService.ts";
@@ -45,7 +39,6 @@ import * as ResourceCleanupService from "./ResourceCleanupService.ts";
 import * as RuntimePolicy from "./RuntimePolicy.ts";
 import * as RuntimeRequestService from "./RuntimeRequestService.ts";
 import * as ThreadManagementService from "./ThreadManagementService.ts";
-import * as ThreadLaunchService from "./ThreadLaunchService.ts";
 import * as ThreadLifecycleService from "./ThreadLifecycleService.ts";
 import * as ThreadForkService from "./ThreadForkService.ts";
 import * as TurnItemPositionStore from "./TurnItemPositionStore.ts";
@@ -77,7 +70,7 @@ const layerStores = Layer.mergeAll(
   TurnItemPositionStore.layer,
 );
 
-export const layerEventSink = EventSink.layerFromStores.pipe(Layer.provide(layerStores));
+const layerEventSink = EventSink.layerFromStores.pipe(Layer.provide(layerStores));
 const layerEventSinkProvided = layerEventSink;
 const layerProjectionMaintenanceProvided = ProjectionMaintenance.layer.pipe(
   Layer.provide(layerStores),
@@ -86,7 +79,7 @@ const layerLegacyV1ThreadImporterProvided = LegacyV1ThreadImporter.layer.pipe(
   Layer.provide(layerEventSinkProvided),
 );
 
-export const layerProjectService = ProjectService.layer.pipe(
+const layerProjectService = ProjectService.layer.pipe(
   Layer.provide(
     Layer.mergeAll(
       ProjectStore.layer,
@@ -105,7 +98,6 @@ const layerProviderEventIngestorProvided = ProviderEventIngestor.layer.pipe(
       IdAllocator.layer,
       ProjectionStore.layer,
       ThreadCommandExecutor.layer,
-      GitVcsDriver.layer,
     ),
   ),
 );
@@ -199,19 +191,6 @@ const layerOrchestratorProvided = Orchestrator.layer.pipe(
   ),
 );
 
-const layerAgentSessionImporterProvided = AgentSessionImporter.layer.pipe(
-  Layer.provide(
-    Layer.mergeAll(
-      AgentSessionScanner.layer,
-      layerProjectService,
-      layerOrchestratorProvided,
-      layerEventSinkProvided,
-      IdAllocator.layer,
-      ProviderSessionRuntime.layer,
-    ),
-  ),
-);
-
 const layerThreadManagementProvided = ThreadManagementService.layerWithLegacyImporter.pipe(
   Layer.provide(
     Layer.mergeAll(
@@ -219,24 +198,6 @@ const layerThreadManagementProvided = ThreadManagementService.layerWithLegacyImp
       layerLegacyV1ThreadImporterProvided,
       layerCommandReceiptStoreProvided,
       layerProviderSessionManagerProvided,
-    ),
-  ),
-);
-export const layerProjectSetupScriptRunner = ProjectSetupScriptRunner.layer.pipe(
-  Layer.provide(layerProjectService),
-);
-const layerManagedProjectFoldersProvided = ManagedProjectFolders.layer.pipe(
-  Layer.provide(layerProjectService),
-);
-const layerThreadLaunchProvided = ThreadLaunchService.layer.pipe(
-  Layer.provide(
-    Layer.mergeAll(
-      layerProjectService,
-      layerProjectSetupScriptRunner,
-      layerManagedProjectFoldersProvided,
-      layerThreadManagementProvided,
-      layerCommandReceiptStoreProvided,
-      IdAllocator.layer,
     ),
   ),
 );
@@ -316,7 +277,7 @@ const layerMcpAppRequestsProvided = McpAppRequests.layer.pipe(
   ),
 );
 
-export const layer = Layer.mergeAll(
+const layer = Layer.mergeAll(
   layerCommandOutputHubProvided,
   layerOrchestratorProvided,
   layerMcpAppRequestsProvided,
@@ -338,8 +299,6 @@ export const layerProduction = Layer.mergeAll(
   IdAllocator.layer,
   layer.pipe(Layer.provide(layerProjectService)),
   layerProjectService,
-  layerManagedProjectFoldersProvided,
-  layerThreadLaunchProvided,
   layerThreadLifecycleProvided,
   layerScheduledTaskProvided,
   layerSecretRequestsProvided,
@@ -353,7 +312,6 @@ export const layerProduction = Layer.mergeAll(
     ),
   ),
   layerProviderContinuationWorkerProvided,
-  layerAgentSessionImporterProvided,
   EffectOutbox.layerPruneWorker.pipe(Layer.provide(EffectOutbox.layer)),
 ).pipe(
   Layer.provide(ResourceCleanupService.layer.pipe(Layer.provide(layerScheduledTaskProvided))),

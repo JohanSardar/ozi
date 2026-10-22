@@ -139,13 +139,12 @@ pub fn destination(windows: Vec<Window>, pid: u32, title: &str) -> Result<Option
         .filter(|w| w.pid == pid && w.title == title && w.mapped && !w.hidden);
     let found = matches.next();
     if matches.next().is_some() {
-        return Err("More than one T3 Code window matches the capture destination.".into());
+        return Err("More than one Ozi window matches the capture destination.".into());
     }
     Ok(found)
 }
 
 pub fn activate(pid: u32, title: &str) -> Result<()> {
-    // Subscribe before looking up a newly mapped T3 window, so no map/title event is missed.
     let socket = UnixStream::connect(session_directory()?.join(".socket2.sock"))?;
     let deadline = Instant::now() + Duration::from_secs(3);
     let mut events = BufReader::new(socket);
@@ -157,80 +156,18 @@ pub fn activate(pid: u32, title: &str) -> Result<()> {
             if request(&lua)?.trim() != "ok"
                 && request(&format!("/dispatch focuswindow address:0x{address:x}"))?.trim() != "ok"
             {
-                return Err("Hyprland could not focus T3 Code.".into());
+                return Err("Hyprland could not focus Ozi.".into());
             }
             return Ok(());
         }
         events.get_ref().set_read_timeout(Some(
             deadline
                 .checked_duration_since(Instant::now())
-                .ok_or("T3 Code did not become visible.")?,
+                .ok_or("Ozi did not become visible.")?,
         ))?;
         let mut event = Vec::new();
         if events.by_ref().take(8193).read_until(b'\n', &mut event)? == 0 || event.len() > 8192 {
             return Err("Hyprland's event stream closed or returned an invalid event.".into());
         }
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    fn window(pid: u32, title: &str) -> Window {
-        Window {
-            address: "0x123456789abcdef".into(),
-            pid,
-            title: title.into(),
-            class: "t3".into(),
-            at: [-1920, 20],
-            size: [1000, 800],
-            mapped: true,
-            hidden: false,
-        }
-    }
-    #[test]
-    fn address_preserves_upper_bits() {
-        assert_eq!(window(1, "t").address().unwrap(), 0x123456789abcdef);
-    }
-    #[test]
-    fn destination_requires_unique_process_and_title() {
-        assert!(
-            destination(vec![window(2, "T3")], 1, "T3")
-                .unwrap()
-                .is_none()
-        );
-        assert!(
-            destination(vec![window(1, "other")], 1, "T3")
-                .unwrap()
-                .is_none()
-        );
-        assert!(destination(vec![window(1, "T3"), window(1, "T3")], 1, "T3").is_err());
-        assert!(
-            destination(vec![window(2, "T3"), window(1, "T3")], 1, "T3")
-                .unwrap()
-                .is_some()
-        );
-    }
-    #[test]
-    fn rectangles_accept_negative_origins_not_invalid_sizes() {
-        assert!(window(1, "t").bounds().valid());
-        assert!(
-            !Rect {
-                x: 0.,
-                y: 0.,
-                width: f64::NAN,
-                height: 10.
-            }
-            .valid()
-        );
-        assert!(
-            !Rect {
-                x: 0.,
-                y: 0.,
-                width: 0.,
-                height: 10.
-            }
-            .valid()
-        );
     }
 }

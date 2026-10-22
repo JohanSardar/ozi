@@ -204,7 +204,7 @@ export interface EventSinkV2Shape {
 }
 
 export class EventSinkV2 extends Context.Service<EventSinkV2, EventSinkV2Shape>()(
-  "t3/orchestration-v2/EventSink/EventSinkV2",
+  "ozi/orchestration-v2/EventSink/EventSinkV2",
 ) {}
 
 const layerBase: Layer.Layer<
@@ -995,18 +995,3 @@ const layerBase: Layer.Layer<
  * are in-memory wakeups backed by the durable SQL queue.
  */
 export const layerFromStores = layerBase;
-
-export const layer: Layer.Layer<
-  EventSinkV2,
-  never,
-  EventStore.EventStoreV2 | ProjectionStore.ProjectionStoreV2 | SqlClient.SqlClient
-> = layerBase.pipe(
-  Layer.provide(
-    Layer.mergeAll(
-      CommandReceiptStore.layer,
-      EffectOutbox.layer,
-      ProjectStore.layer,
-      TurnItemPositionStore.layer,
-    ),
-  ),
-);

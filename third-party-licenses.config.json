@@ -84,20 +84,6 @@
       ]
     },
     {
-      "bundles": ["assets", "web"],
-      "license": "MIT",
-      "name": "libghostty-vt",
-      "noticeFile": "native/libghostty-vt/LICENSE",
-      "sourceUrl": "https://github.com/ghostty-org/ghostty"
-    },
-    {
-      "bundles": ["assets", "web"],
-      "license": "MIT",
-      "name": "Symbols Nerd Font Mono",
-      "noticeFile": "apps/web/src/terminal/ghostty/fonts/LICENSE",
-      "sourceUrl": "https://github.com/ryanoasis/nerd-fonts"
-    },
-    {
       "bundles": ["assets"],
       "license": "Apache-2.0",
       "name": "MesloLGS NF",
@@ -105,20 +91,7 @@
       "generatedNotices": [
         {
           "licenseId": "Apache-2.0",
-          "copyrights": ["Copyright 2009, 2010, 2013 André Berg"]
-        }
-      ]
-    },
-    {
-      "bundles": ["web", "desktop"],
-      "license": "MIT",
-      "name": "micromark-extension-llm-math",
-      "version": "3.1.0",
-      "sourceUrl": "https://github.com/ofk/micromark-extension-llm-math",
-      "generatedNotices": [
-        {
-          "licenseId": "MIT",
-          "copyrights": ["Copyright (c) 2020 Titus Wormer <tituswormer@gmail.com>"]
+          "copyrights": ["Copyright 2009, 2010, 2013 Andr\u00e9 Berg"]
         }
       ]
     },
@@ -139,6 +112,19 @@
           ]
         }
       ]
+    },
+    {
+      "bundles": ["desktop", "server", "web"],
+      "license": "MIT AND LicenseRef-Anthropic",
+      "name": "Ozi third-party notices",
+      "noticeFile": "THIRD_PARTY_NOTICES.md"
+    },
+    {
+      "bundles": ["desktop", "server", "web"],
+      "license": "MIT",
+      "name": "Ozi and T3 Code",
+      "noticeFile": "LICENSE",
+      "sourceUrl": "https://github.com/JohanSardar/ozi"
     }
   ],
   "packageOverrides": [
@@ -148,15 +134,6 @@
       "generatedNotice": {
         "licenseId": "MIT",
         "copyrights": ["Copyright (c) 2014 Blake Embrey"]
-      }
-    },
-    {
-      "name": "remark-math",
-      "version": "6.0.0",
-      "sourceUrl": "https://github.com/remarkjs/remark-math/blob/main/license",
-      "generatedNotice": {
-        "licenseId": "MIT",
-        "copyrights": ["Copyright (c) Junyoung Choi <fluke8259@gmail.com>"]
       }
     },
     {

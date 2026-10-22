@@ -4,13 +4,11 @@ import type {
   OrchestrationV2Run,
   OrchestrationV2TurnItem,
   ThreadId,
-  ThreadPullRequestLink,
 } from "@t3tools/contracts";
 import { isOrchestrationV2WorkActive } from "@t3tools/contracts";
 import * as Predicate from "effect/Predicate";
 
 import { resolveT3McpToolId } from "./t3McpToolPresentation.ts";
-import { threadPullRequestKeyOf } from "./threadPullRequests.ts";
 
 const BACKGROUND_TURN_ITEM_TYPES = new Set<OrchestrationV2TurnItem["type"]>([
   "command_execution",
@@ -46,12 +44,6 @@ const SETTLED_FOR_BACKGROUND_WAIT_RUN_STATUSES = new Set<OrchestrationV2Run["sta
 void TERMINAL_RUN_STATUSES;
 
 export type PendingBackgroundWorkTask = OrchestrationV2PendingBackgroundTask;
-
-export function turnItemUpdateCanEndBackgroundWork(
-  item: Pick<OrchestrationV2TurnItem, "type" | "status">,
-): boolean {
-  return BACKGROUND_TURN_ITEM_TYPES.has(item.type) && !isOrchestrationV2WorkActive(item.status);
-}
 
 export function deriveBlockedOnThreadWait(input: {
   readonly activeRun: Pick<OrchestrationV2Run, "id" | "status"> | null;
@@ -104,11 +96,6 @@ function backgroundWorkKindHoldsCompletion(kind: PendingBackgroundWorkTask["kind
 }
 
 type PendingBackgroundWorkRun = Pick<OrchestrationV2Run, "id" | "ordinal" | "status">;
-
-type PendingBackgroundWorkPullRequest = Pick<
-  ThreadPullRequestLink,
-  "host" | "repository" | "number" | "url" | "source" | "watch"
->;
 
 type PendingBackgroundWorkProviderThread = Pick<
   OrchestrationV2ProviderThread,
@@ -233,7 +220,6 @@ export function derivePendingBackgroundWork(input: {
    * pass projection runs so policy cannot drift.
    */
   readonly runs?: ReadonlyArray<PendingBackgroundWorkRun>;
-  readonly pullRequests?: ReadonlyArray<PendingBackgroundWorkPullRequest> | undefined;
 }): ReadonlyArray<PendingBackgroundWorkTask> {
   const hasActiveRun =
     input.hasActiveRun ??
@@ -245,7 +231,7 @@ export function derivePendingBackgroundWork(input: {
     return [];
   }
   if (input.latestRun == null) {
-    return pullRequestWatchTasks(input.pullRequests);
+    return [];
   }
   if (!isLatestRunSettledForBackgroundWait(input.latestRun)) {
     return [];
@@ -284,23 +270,5 @@ export function derivePendingBackgroundWork(input: {
     byTaskId.set(taskId, pendingTaskFromTurnItem(taskId, item));
   }
 
-  for (const task of pullRequestWatchTasks(input.pullRequests)) byTaskId.set(task.taskId, task);
-
   return Array.from(byTaskId.values());
-}
-
-function pullRequestWatchTasks(
-  pullRequests: ReadonlyArray<PendingBackgroundWorkPullRequest> | undefined,
-): Array<PendingBackgroundWorkTask> {
-  return (pullRequests ?? []).flatMap((link) =>
-    link.watch === undefined || link.source === "stack-dismissed"
-      ? []
-      : [
-          {
-            taskId: `pull-request-watch:${threadPullRequestKeyOf(link)}`,
-            description: `Watching pull request #${link.number}`,
-            kind: "monitor" as const,
-          },
-        ],
-  );
 }

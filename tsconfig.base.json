@@ -67,17 +67,6 @@
                 "effectFnOpportunity": "off"
               }
             }
-          },
-          {
-            "include": [
-              "**/*.spec.ts",
-              "**/*.spec.tsx",
-              "**/*.testkit.ts",
-              "**/*.testkit.tsx",
-              "**/{test,tests,testkit,testing,fixtures,integration}/**",
-              "packages/provider-testing/**"
-            ],
-            "options": { "diagnosticSeverity": { "effectFnOpportunity": "off" } }
           }
         ]
       }

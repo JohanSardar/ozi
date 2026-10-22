@@ -115,7 +115,7 @@ export function resolvePiLaunchArgs(launchArgs: string): PiLaunchArgsResolution 
     if (reserved !== undefined) {
       return {
         ok: false,
-        message: `Pi launch argument '${reserved}' is controlled by T3 Code and cannot be overridden.`,
+        message: `Pi launch argument '${reserved}' is controlled by Ozi and cannot be overridden.`,
       };
     }
     if (arg === "--") {
@@ -150,7 +150,7 @@ export function resolvePiLaunchArgs(launchArgs: string): PiLaunchArgsResolution 
       continue;
     }
     if (arg.startsWith("-")) {
-      return { ok: false, message: `Pi launch argument '${arg}' is not supported by T3 Code.` };
+      return { ok: false, message: `Pi launch argument '${arg}' is not supported by Ozi.` };
     }
     return {
       ok: false,
@@ -326,7 +326,7 @@ export function buildPiRpcLaunch(input: {
   }
   if (input.mainBridge !== undefined) args.push("--extension", input.mainBridge.extensionPath);
   const environment = { ...input.environment };
-  // These values belong to the current T3 session. Never let a Pi child reuse
+  // These values belong to the current Ozi session. Never let a Pi child reuse
   // credentials inherited from the server or a parent provider process.
   delete environment[T3_MCP_URL_ENV];
   delete environment[T3_MCP_BEARER_ENV];

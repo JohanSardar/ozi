@@ -20,7 +20,7 @@ import * as ProcessRunner from "../processRunner.ts";
 
 const AGENT_SLICE = "app-t3code-agents.slice";
 
-export function ownedAgentSlice(stateDir: string): string {
+function ownedAgentSlice(stateDir: string): string {
   const hash = NodeCrypto.createHash("sha256").update(stateDir).digest("hex").slice(0, 12);
   return `app-t3code-agents-${hash}.slice`;
 }
@@ -33,7 +33,7 @@ const GiB = 1024 ** 3;
  * working. Small machines still give agents at least half of RAM before
  * throttling and three quarters before a kill.
  */
-export function agentSliceMemoryLimits(totalBytes: number) {
+function agentSliceMemoryLimits(totalBytes: number) {
   return {
     high: Math.max(totalBytes - 6 * GiB, Math.floor(totalBytes / 2)),
     max: Math.max(totalBytes - 4 * GiB, Math.floor(totalBytes * 0.75)),
@@ -53,7 +53,7 @@ export interface ScopeState {
  * still stopping, is empty, or already counted an OOM kill is "stopping":
  * systemd records `Result=oom-kill` for it in a moment.
  */
-export function classifyScope(state: ScopeState): "oom-killed" | "gone" | "running" | "stopping" {
+function classifyScope(state: ScopeState): "oom-killed" | "gone" | "running" | "stopping" {
   if (state.result === "oom-kill") return "oom-killed";
   if (
     state.loadState !== "loaded" ||
@@ -91,7 +91,7 @@ const CLEAR_FAILED_INTERVAL = "1 second";
 const CLEAR_FAILED_ATTEMPTS = 120;
 const MAX_TRACKED_THREADS = 500;
 
-export const make = Effect.gen(function* () {
+const make = Effect.gen(function* () {
   const platform = yield* HostProcess.Platform;
   if (platform !== "linux") return AgentScope.defaultValue();
 

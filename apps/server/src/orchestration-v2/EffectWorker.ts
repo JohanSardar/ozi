@@ -43,10 +43,7 @@ export class OrchestrationEffectExecutionError extends Schema.TaggedError<Orches
  * "is not active" would drop the outbox item without ever starting the
  * replacement turn.
  */
-export function isNonRetryableProviderTurnControlFailure(
-  effectType: string,
-  errorText: string,
-): boolean {
+function isNonRetryableProviderTurnControlFailure(effectType: string, errorText: string): boolean {
   if (effectType !== "provider-turn.interrupt") {
     return false;
   }
@@ -68,7 +65,7 @@ export interface OrchestrationEffectExecutorV2Shape {
 export class OrchestrationEffectExecutorV2 extends Context.Service<
   OrchestrationEffectExecutorV2,
   OrchestrationEffectExecutorV2Shape
->()("t3/orchestration-v2/EffectWorker/OrchestrationEffectExecutorV2") {}
+>()("ozi/orchestration-v2/EffectWorker/OrchestrationEffectExecutorV2") {}
 
 export const layerExecutor: Layer.Layer<
   OrchestrationEffectExecutorV2,
@@ -311,7 +308,6 @@ export const layerExecutor: Layer.Layer<
                               {
                                 threadId: effect.threadId,
                                 messageId: message.id,
-                                projectId: disabledError.projectId,
                                 instanceId: disabledError.instanceId,
                               },
                             ),
@@ -427,17 +423,6 @@ export const layerExecutor: Layer.Layer<
                   }),
               ),
             );
-          case "terminal.cleanup":
-            return resourceCleanup.cleanupTerminals(effect.threadId).pipe(
-              Effect.mapError(
-                (cause) =>
-                  new OrchestrationEffectExecutionError({
-                    effectId: effect.id,
-                    effectType: effect.request.type,
-                    cause,
-                  }),
-              ),
-            );
           case "preview.cleanup":
             return resourceCleanup.cleanupPreviews(effect.threadId).pipe(
               Effect.mapError(
@@ -525,7 +510,7 @@ export interface OrchestrationEffectWorkerV2Shape {
 export class OrchestrationEffectWorkerV2 extends Context.Service<
   OrchestrationEffectWorkerV2,
   OrchestrationEffectWorkerV2Shape
->()("t3/orchestration-v2/EffectWorker/OrchestrationEffectWorkerV2") {}
+>()("ozi/orchestration-v2/EffectWorker/OrchestrationEffectWorkerV2") {}
 
 export interface OrchestrationEffectWorkerOptions {
   readonly workerId?: string;
@@ -533,7 +518,7 @@ export interface OrchestrationEffectWorkerOptions {
   readonly maxAttempts?: number;
 }
 
-export const layerWithOptions = (
+const layerWithOptions = (
   options: OrchestrationEffectWorkerOptions = {},
 ): Layer.Layer<
   OrchestrationEffectWorkerV2,
@@ -792,7 +777,7 @@ export interface OrchestrationEffectDaemonOptions {
 const DEFAULT_EFFECT_WORKER_CONCURRENCY = 4;
 const DEFAULT_EFFECT_WORKER_LIVENESS_POLL_INTERVAL_MS = 30_000;
 
-export const runDaemonWithOptions = (options: OrchestrationEffectDaemonOptions = {}) =>
+const runDaemonWithOptions = (options: OrchestrationEffectDaemonOptions = {}) =>
   Effect.scoped(
     Effect.gen(function* () {
       const worker = yield* OrchestrationEffectWorkerV2;

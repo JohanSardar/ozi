@@ -25,12 +25,6 @@ import {
   ScheduledTaskUpsertSchedule,
 } from "./scheduledTask.ts";
 import { ProviderInteractionMode, ProviderRequestKind, RuntimeMode } from "./providerPolicy.ts";
-import { PullRequestState } from "./pullRequest.ts";
-import {
-  ThreadLinkedPullRequest,
-  ThreadPullRequestKey,
-  ThreadPullRequestLinkSource,
-} from "./threadPullRequest.ts";
 import { ThreadTitleRegeneration } from "./threadTitle.ts";
 import {
   OrchestrationV2Actor,
@@ -127,16 +121,6 @@ export const OrchestratorMcpInteractionMode = Schema.Union([
 ]);
 export type OrchestratorMcpInteractionMode = typeof OrchestratorMcpInteractionMode.Type;
 
-export const OrchestratorMcpTaskRole = Schema.Literals([
-  "implementation",
-  "research",
-  "review",
-  "design",
-  "test",
-  "general",
-]);
-export type OrchestratorMcpTaskRole = typeof OrchestratorMcpTaskRole.Type;
-
 export const OrchestratorMcpDelegatedTaskStatus = Schema.Literals([
   "queued",
   "running",
@@ -169,7 +153,6 @@ export const OrchestratorMcpDelegateTaskInput = Schema.Struct({
   }),
   target: Schema.optional(OrchestratorMcpTarget),
   title: Schema.optional(OrchestratorMcpTitle),
-  role: Schema.optional(OrchestratorMcpTaskRole),
   isolation: Schema.optional(
     Schema.Literals(["shared", "worktree"]).annotate({
       description: "Workers use the installation workspace. Omit isolation or use shared.",
@@ -253,50 +236,6 @@ export const OrchestratorMcpTaskCancelResult = Schema.Struct({
 });
 export type OrchestratorMcpTaskCancelResult = typeof OrchestratorMcpTaskCancelResult.Type;
 
-export const OrchestratorMcpCreateThreadRequest = Schema.Struct({
-  prompt: Schema.optional(OrchestratorMcpPrompt),
-  title: Schema.optional(OrchestratorMcpTitle),
-  target: Schema.optional(OrchestratorMcpTarget),
-  runtimeMode: Schema.optional(OrchestratorMcpRuntimeMode),
-  interactionMode: Schema.optional(OrchestratorMcpInteractionMode),
-});
-export type OrchestratorMcpCreateThreadRequest = typeof OrchestratorMcpCreateThreadRequest.Type;
-
-export const OrchestratorMcpCreateThreadsInput = Schema.Struct({
-  threads: Schema.Array(OrchestratorMcpCreateThreadRequest).check(
-    Schema.isMinLength(1),
-    Schema.isMaxLength(20),
-  ),
-  clientRequestId: Schema.optional(OrchestratorMcpClientRequestId),
-});
-export type OrchestratorMcpCreateThreadsInput = typeof OrchestratorMcpCreateThreadsInput.Type;
-
-export const OrchestratorMcpCreatedThreadStatus = Schema.Union([
-  Schema.Literal("idle"),
-  Schema.Literal("preparing"),
-  Schema.Literal("starting"),
-  OrchestratorMcpDelegatedTaskStatus,
-  Schema.Literal("rolled_back"),
-]);
-export type OrchestratorMcpCreatedThreadStatus = typeof OrchestratorMcpCreatedThreadStatus.Type;
-
-export const OrchestratorMcpCreatedThread = Schema.Struct({
-  threadId: ThreadId,
-  runId: Schema.NullOr(RunId),
-  status: OrchestratorMcpCreatedThreadStatus,
-  title: Schema.String,
-  createdBy: OrchestrationV2Actor,
-  creationSource: OrchestrationV2CreationSource,
-  providerInstanceId: ProviderInstanceId,
-  model: Schema.String,
-});
-export type OrchestratorMcpCreatedThread = typeof OrchestratorMcpCreatedThread.Type;
-
-export const OrchestratorMcpCreateThreadsResult = Schema.Struct({
-  threads: Schema.Array(OrchestratorMcpCreatedThread),
-});
-export type OrchestratorMcpCreateThreadsResult = typeof OrchestratorMcpCreateThreadsResult.Type;
-
 export const OrchestratorMcpThreadStatus = Schema.Union([
   Schema.Literal("idle"),
   OrchestrationV2RunStatus,
@@ -306,7 +245,7 @@ export type OrchestratorMcpThreadStatus = typeof OrchestratorMcpThreadStatus.Typ
 const OrchestratorMcpProjectTarget = Schema.optional(
   ProjectId.annotate({
     description:
-      "Project to act on. Omit for the calling thread's project; required when the caller is not a T3 thread.",
+      "Project to act on. Omit for the calling thread's project; required when the caller is not a Ozi thread.",
   }),
 );
 
@@ -317,21 +256,11 @@ export const OrchestratorMcpThreadListInput = Schema.Struct({
   ),
   titleContains: Schema.optional(TrimmedNonEmptyString.check(Schema.isMaxLength(256))),
   settled: Schema.optional(Schema.Boolean),
-  snoozed: Schema.optional(Schema.Boolean),
   includeSubagents: Schema.optional(Schema.Boolean),
   cursor: Schema.optional(NonNegativeInt),
   limit: Schema.optional(PositiveInt.check(Schema.isLessThanOrEqualTo(100))),
 });
 export type OrchestratorMcpThreadListInput = typeof OrchestratorMcpThreadListInput.Type;
-
-/** A pull request linked to a thread; `state` is null until the host has been read. */
-export const OrchestratorMcpThreadPullRequest = Schema.Struct({
-  ...ThreadPullRequestKey.fields,
-  url: TrimmedNonEmptyString,
-  source: ThreadPullRequestLinkSource,
-  state: Schema.NullOr(PullRequestState),
-});
-export type OrchestratorMcpThreadPullRequest = typeof OrchestratorMcpThreadPullRequest.Type;
 
 export const OrchestratorMcpThreadListItem = Schema.Struct({
   threadId: ThreadId,
@@ -344,13 +273,8 @@ export const OrchestratorMcpThreadListItem = Schema.Struct({
   model: Schema.String,
   runtimeMode: RuntimeMode,
   interactionMode: ProviderInteractionMode,
-  linkedPullRequest: Schema.NullOr(ThreadLinkedPullRequest),
-  /** Missing on older servers. */
-  pullRequests: Schema.optional(Schema.Array(OrchestratorMcpThreadPullRequest)),
   settled: Schema.Boolean,
   settledAt: Schema.NullOr(IsoDateTime),
-  snoozed: Schema.Boolean,
-  snoozedUntil: Schema.NullOr(IsoDateTime),
   parentThreadId: Schema.NullOr(ThreadId),
   relationshipToParent: Schema.NullOr(Schema.Literals(["fork", "subagent"])),
   itemCount: NonNegativeInt,
@@ -393,9 +317,6 @@ export const OrchestratorMcpThreadDetail = Schema.Struct({
   model: Schema.String,
   runtimeMode: RuntimeMode,
   interactionMode: ProviderInteractionMode,
-  linkedPullRequest: Schema.NullOr(ThreadLinkedPullRequest),
-  /** Missing on older servers. */
-  pullRequests: Schema.optional(Schema.Array(OrchestratorMcpThreadPullRequest)),
   titleRegeneration: Schema.NullOr(ThreadTitleRegeneration),
   branch: Schema.NullOr(Schema.String),
   worktreePath: Schema.NullOr(Schema.String),
@@ -407,8 +328,6 @@ export const OrchestratorMcpThreadDetail = Schema.Struct({
   archived: Schema.Boolean,
   settled: Schema.Boolean,
   settledAt: Schema.NullOr(IsoDateTime),
-  snoozed: Schema.Boolean,
-  snoozedUntil: Schema.NullOr(IsoDateTime),
   createdAt: IsoDateTime,
   updatedAt: IsoDateTime,
 });
@@ -580,7 +499,7 @@ export const OrchestratorMcpScheduledTask = Schema.Struct({
   lastRunStatus: ScheduledTaskRunStatus,
   webhookUrl: Schema.optional(Schema.String).annotate({
     description:
-      "Public URL to give the sender. Absent when this environment has no T3 Connect managed tunnel; the user must enable T3 Connect remote access first.",
+      "Public URL to give the sender. Absent without a configured public URL; set OZI_PUBLIC_URL or use serve --public-url.",
   }),
   webhookSignature: Schema.optional(Schema.Literals(["none", "set"])).annotate({
     description: "Whether requests must carry a valid signature.",
@@ -595,7 +514,7 @@ export const OrchestratorMcpListScheduledTasksInput = Schema.Struct({
   projectId: Schema.optional(
     ProjectId.annotate({
       description:
-        "Only list this project's tasks. Omit for the calling thread's project, or for every project when the caller is not a T3 thread.",
+        "Only list this project's tasks. Omit for the calling thread's project, or for every project when the caller is not a Ozi thread.",
     }),
   ),
 });

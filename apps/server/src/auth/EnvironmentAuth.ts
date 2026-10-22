@@ -4,7 +4,6 @@ import {
   AuthOrchestrationOperateScope,
   AuthOrchestrationReadScope,
   AuthSettingsWriteScope,
-  AuthSourceControlWriteScope,
   AuthStandardClientScopes,
   type AuthAccessTokenResult,
   type AuthBrowserSessionResult,
@@ -35,7 +34,6 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import * as HttpServerRequest from "effect/http/HttpServerRequest";
 
-import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
 import * as ServerConfig from "../config.ts";
 import * as EnvironmentAuthPolicy from "./EnvironmentAuthPolicy.ts";
 import * as PairingGrantStore from "./PairingGrantStore.ts";
@@ -44,10 +42,9 @@ import * as SessionStore from "./SessionStore.ts";
 import { REUSABLE_DEV_SESSION_EXPIRES_AT, resolveReusableDevAuth } from "./ReusableDevAuth.ts";
 import { verifyRequestDpopProof } from "./dpop.ts";
 import { DESKTOP_RENDERER_ORIGINS } from "../httpCors.ts";
-import * as SqlitePersistence from "../persistence/Sqlite.ts";
 
 const DEFAULT_SESSION_SUBJECT = "cli-issued-session";
-export const INTERNAL_ADMINISTRATIVE_BOOTSTRAP_SUBJECT = "administrative-bootstrap";
+const INTERNAL_ADMINISTRATIVE_BOOTSTRAP_SUBJECT = "administrative-bootstrap";
 
 export interface IssuedPairingLink {
   readonly id: string;
@@ -83,12 +80,7 @@ export const mcpClientScopes = (
   access === "read-only"
     ? [AuthOrchestrationReadScope]
     : access === "full-access"
-      ? [
-          AuthOrchestrationReadScope,
-          AuthOrchestrationOperateScope,
-          AuthSettingsWriteScope,
-          AuthSourceControlWriteScope,
-        ]
+      ? [AuthOrchestrationReadScope, AuthOrchestrationOperateScope, AuthSettingsWriteScope]
       : [AuthOrchestrationReadScope, AuthOrchestrationOperateScope];
 
 export interface McpClientSession {
@@ -264,88 +256,6 @@ export class ServerAuthDpopReplayKeyCalculationError extends Schema.TaggedError<
   }
 }
 
-export class ServerAuthLinkedCloudAccountVerificationError extends Schema.TaggedError<ServerAuthLinkedCloudAccountVerificationError>()(
-  "ServerAuthLinkedCloudAccountVerificationError",
-  {
-    ...serverAuthInternalErrorContext,
-  },
-) {
-  override get message(): string {
-    return "Could not verify the linked cloud account.";
-  }
-}
-
-export class ServerAuthLinkedCloudAccountReadError extends Schema.TaggedError<ServerAuthLinkedCloudAccountReadError>()(
-  "ServerAuthLinkedCloudAccountReadError",
-  {
-    ...serverAuthInternalErrorContext,
-  },
-) {
-  override get message(): string {
-    return "Could not read the linked cloud account.";
-  }
-}
-
-export class ServerAuthLinkedCloudAccountMissingError extends Schema.TaggedError<ServerAuthLinkedCloudAccountMissingError>()(
-  "ServerAuthLinkedCloudAccountMissingError",
-  {},
-) {
-  override get message(): string {
-    return "Cloud linked user is not installed for this environment.";
-  }
-}
-
-export class ServerAuthCloudLinkJwtSigningError extends Schema.TaggedError<ServerAuthCloudLinkJwtSigningError>()(
-  "ServerAuthCloudLinkJwtSigningError",
-  {
-    ...serverAuthInternalErrorContext,
-  },
-) {
-  override get message(): string {
-    return "Failed to sign cloud link JWT.";
-  }
-}
-
-export class ServerAuthCloudMintPublicKeyMissingError extends Schema.TaggedError<ServerAuthCloudMintPublicKeyMissingError>()(
-  "ServerAuthCloudMintPublicKeyMissingError",
-  {},
-) {
-  override get message(): string {
-    return "Cloud mint public key is not installed for this environment.";
-  }
-}
-
-export class ServerAuthCloudRelayIssuerMissingError extends Schema.TaggedError<ServerAuthCloudRelayIssuerMissingError>()(
-  "ServerAuthCloudRelayIssuerMissingError",
-  {},
-) {
-  override get message(): string {
-    return "Cloud relay issuer is not installed for this environment.";
-  }
-}
-
-export class ServerAuthCloudHealthJwtSigningError extends Schema.TaggedError<ServerAuthCloudHealthJwtSigningError>()(
-  "ServerAuthCloudHealthJwtSigningError",
-  {
-    ...serverAuthInternalErrorContext,
-  },
-) {
-  override get message(): string {
-    return "Failed to sign cloud health JWT.";
-  }
-}
-
-export class ServerAuthCloudMintJwtSigningError extends Schema.TaggedError<ServerAuthCloudMintJwtSigningError>()(
-  "ServerAuthCloudMintJwtSigningError",
-  {
-    ...serverAuthInternalErrorContext,
-  },
-) {
-  override get message(): string {
-    return "Failed to sign cloud mint JWT.";
-  }
-}
-
 export const ServerAuthInternalError = Schema.Union([
   ServerAuthBootstrapCredentialValidationError,
   ServerAuthSessionCredentialValidationError,
@@ -361,14 +271,6 @@ export const ServerAuthInternalError = Schema.Union([
   ServerAuthWebSocketTokenIssueError,
   ServerAuthDpopReplayStateRecordError,
   ServerAuthDpopReplayKeyCalculationError,
-  ServerAuthLinkedCloudAccountVerificationError,
-  ServerAuthLinkedCloudAccountReadError,
-  ServerAuthLinkedCloudAccountMissingError,
-  ServerAuthCloudLinkJwtSigningError,
-  ServerAuthCloudMintPublicKeyMissingError,
-  ServerAuthCloudRelayIssuerMissingError,
-  ServerAuthCloudHealthJwtSigningError,
-  ServerAuthCloudMintJwtSigningError,
 ]);
 export type ServerAuthInternalError = typeof ServerAuthInternalError.Type;
 export const isServerAuthInternalError = Schema.is(ServerAuthInternalError);
@@ -564,7 +466,7 @@ export class EnvironmentAuth extends Context.Service<
     /**
      * Spends a one-time pairing code as approval for an MCP client with the
      * given access; the code must hold every scope that access grants.
-     * Proof-bound codes (T3 Connect) are refused without being spent, and
+     * Proof-bound codes are refused without being spent, and
      * desktop bootstrap grants never qualify.
      */
     readonly consumeMcpApprovalCode: (
@@ -575,7 +477,7 @@ export class EnvironmentAuth extends Context.Service<
       request: HttpServerRequest.HttpServerRequest,
     ) => Effect.Effect<AuthenticatedSession, ServerAuthCredentialError | ServerAuthInternalError>;
   }
->()("t3/auth/EnvironmentAuth") {}
+>()("ozi/auth/EnvironmentAuth") {}
 
 type BootstrapExchangeResult = {
   readonly response: AuthBrowserSessionResult;
@@ -600,7 +502,7 @@ const bySessionPriority = (left: AuthClientSession, right: AuthClientSession) =>
   return right.issuedAt.epochMilliseconds - left.issuedAt.epochMilliseconds;
 };
 
-export function toBootstrapExchangeError(
+function toBootstrapExchangeError(
   cause: PairingGrantStore.BootstrapCredentialError,
 ): ServerAuthInvalidCredentialError | ServerAuthInternalError {
   if (PairingGrantStore.isBootstrapCredentialInternalError(cause)) {
@@ -1367,11 +1269,4 @@ export const layer = Layer.effect(EnvironmentAuth, make).pipe(
   Layer.provideMerge(PairingGrantStore.layer),
   Layer.provideMerge(SessionStore.layer),
   Layer.provideMerge(EnvironmentAuthPolicy.layer),
-);
-
-const layerStorage = Layer.mergeAll(ServerSecretStore.layer, SqlitePersistence.layerConfig);
-
-export const layerRuntime = layer.pipe(
-  Layer.provideMerge(layerStorage),
-  Layer.provideMerge(ServerEnvironment.layerIdentity),
 );

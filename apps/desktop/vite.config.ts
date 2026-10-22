@@ -1,10 +1,6 @@
-import "vite-plus/test/config";
-import { defaultInclude, defineConfig } from "vite-plus";
+import { defineConfig } from "vite-plus";
 
 import { isDesktopRuntimeExternalDependency } from "../../scripts/lib/desktop-external-packages.ts";
-import { loadRepoEnv } from "../../scripts/lib/public-config.ts";
-
-const repoEnv = loadRepoEnv();
 
 // The packaged app then installs just those externals, instead of a full
 // production install of apps/desktop's dependency tree next to a server bundle
@@ -12,11 +8,6 @@ const repoEnv = loadRepoEnv();
 const isMainProcessExternal = (id: string) =>
   id === "electron" || id.startsWith("electron/") || isDesktopRuntimeExternalDependency(id);
 const shouldLaunchElectronAfterPack = process.env.OZI_DESKTOP_DEV === "1";
-const publicConfigDefine = {
-  __OZI_BUILD_CLERK_PUBLISHABLE_KEY__: JSON.stringify(
-    repoEnv.OZI_CLERK_PUBLISHABLE_KEY?.trim() ?? "",
-  ),
-};
 
 export default defineConfig({
   run: {
@@ -24,13 +15,13 @@ export default defineConfig({
       build: {
         command:
           "node scripts/build-browser-secret.mjs && node scripts/build-preview-annotation-css.mjs && vp pack",
-        dependsOn: ["t3#build"],
+        dependsOn: ["ozi#build"],
         cache: false,
       },
       dev: {
         command:
           "node scripts/build-browser-secret.mjs && node scripts/build-preview-annotation-css.mjs && cross-env OZI_DESKTOP_DEV=1 vp pack --watch",
-        dependsOn: ["t3#build"],
+        dependsOn: ["ozi#build"],
         cache: false,
       },
       "dev:bundle": {
@@ -40,7 +31,7 @@ export default defineConfig({
       },
       "dev:electron": {
         command: "node scripts/dev-electron.mjs",
-        dependsOn: ["t3#build"],
+        dependsOn: ["ozi#build"],
         cache: false,
       },
     },
@@ -52,7 +43,6 @@ export default defineConfig({
       dts: false,
       sourcemap: true,
       outExtensions: () => ({ js: ".cjs" }),
-      define: publicConfigDefine,
       outputOptions: { codeSplitting: false },
       entry: ["src/main.ts"],
       clean: true,
@@ -69,7 +59,6 @@ export default defineConfig({
       dts: false,
       sourcemap: true,
       outExtensions: () => ({ js: ".cjs" }),
-      define: publicConfigDefine,
       entry: [
         "src/electron/WindowsForegroundFocusWorker.ts",
         "src/snapShot/GlobalShiftShortcutWorker.ts",
@@ -102,14 +91,7 @@ export default defineConfig({
       dts: false,
       sourcemap: true,
       outExtensions: () => ({ js: ".cjs" }),
-      define: publicConfigDefine,
       entry: ["src/preload.ts"],
-      deps: {
-        // Sandboxed Electron preloads cannot reliably resolve package imports
-        // from inside the packaged ASAR. Bundle Clerk's preload bridge into the
-        // preload artifact instead of leaving a runtime require() behind.
-        alwaysBundle: (id) => id === "@clerk/electron" || id.startsWith("@clerk/electron/"),
-      },
     },
     {
       format: "cjs",
@@ -140,11 +122,4 @@ export default defineConfig({
       entry: ["src/mac-permission-preload.ts"],
     },
   ],
-  test: {
-    include: [...defaultInclude, "../../native/kde-snap-shot/src/*.test.ts"],
-    // The Windows lane runs workspace suites concurrently; filesystem-heavy
-    // desktop integration tests can exceed Vitest's 5 second default there.
-    testTimeout: 15_000,
-    setupFiles: ["../../packages/shared/src/testing/longTempDir.ts"],
-  },
 });

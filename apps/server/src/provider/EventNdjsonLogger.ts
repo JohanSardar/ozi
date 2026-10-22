@@ -22,7 +22,6 @@ import * as Scope from "effect/Scope";
 import * as SynchronizedRef from "effect/SynchronizedRef";
 
 import { toSafeThreadAttachmentSegment } from "../attachmentStore.ts";
-import type * as ResourceAttribution from "../resourceTelemetry/ResourceAttribution.ts";
 
 const MEBIBYTE = 1024 * 1024;
 const DAY_MS = 24 * 60 * 60 * 1_000;
@@ -79,7 +78,6 @@ export interface EventNdjsonLogStoreOptions {
   readonly retentionCheckIntervalMs?: number;
   readonly maxBufferedBytes?: number;
   readonly maxBufferedRecords?: number;
-  readonly attribution?: ResourceAttribution.ResourceAttribution["Service"];
 }
 
 export interface EventNdjsonLoggerOptions extends EventNdjsonLogStoreOptions {
@@ -125,7 +123,6 @@ interface ResolvedOptions {
   readonly retentionCheckIntervalMs: number;
   readonly maxBufferedBytes: number;
   readonly maxBufferedRecords: number;
-  readonly attribution: ResourceAttribution.ResourceAttribution["Service"] | undefined;
 }
 
 export interface PendingRecord {
@@ -146,12 +143,6 @@ interface StoreState {
   readonly lastRetentionAt: number;
 }
 
-interface AttributionSummary {
-  readonly stream: EventNdjsonStream;
-  readonly count: number;
-  readonly logicalWriteBytes: number;
-}
-
 interface FileOperationFailure {
   readonly filePath: string;
   readonly cause: unknown;
@@ -162,7 +153,6 @@ interface RetentionResult {
 }
 
 interface DrainResult {
-  readonly attributions: ReadonlyArray<AttributionSummary>;
   readonly failures: ReadonlyArray<FileOperationFailure>;
 }
 
@@ -346,11 +336,10 @@ export function boundProviderEventForLogging(event: unknown): unknown {
   return summarizeProviderEvent(event);
 }
 
-export const writeBatchedMessages = Effect.fnUntraced(function* (
+const writeBatchedMessages = Effect.fnUntraced(function* (
   sink: AsyncFileSink,
   records: ReadonlyArray<PendingRecord>,
   maxBytes: number,
-  onWritten: (records: ReadonlyArray<PendingRecord>) => void,
 ) {
   let pendingRecords: Array<PendingRecord> = [];
   let pendingBytes = 0;
@@ -359,7 +348,6 @@ export const writeBatchedMessages = Effect.fnUntraced(function* (
     if (pendingRecords.length === 0) return;
     const writtenRecords = pendingRecords;
     yield* sink.write(writtenRecords.map((record) => record.line).join(""));
-    onWritten(writtenRecords);
     pendingRecords = [];
     pendingBytes = 0;
   });
@@ -477,7 +465,6 @@ function resolveOptions(
       options.retentionCheckIntervalMs ?? DEFAULT_RETENTION_CHECK_INTERVAL_MS,
     maxBufferedBytes: options.maxBufferedBytes ?? DEFAULT_MAX_BUFFERED_BYTES,
     maxBufferedRecords: options.maxBufferedRecords ?? DEFAULT_MAX_BUFFERED_RECORDS,
-    attribution: options.attribution,
   } satisfies ResolvedOptions;
 
   const validations = [
@@ -511,15 +498,11 @@ const drainPending = Effect.fnUntraced(function* (input: {
   ) => Effect.Effect<AsyncFileSink, Effect.Error<ReturnType<typeof makeAsyncRotatingFileSink>>>;
 }): Effect.fn.Return<readonly [DrainResult, StoreState]> {
   if (input.state.closed) {
-    return [{ attributions: [], failures: [] }, input.state];
+    return [{ failures: [] }, input.state];
   }
 
   const sinks = new Map(input.state.sinks);
   const failures: Array<FileOperationFailure> = [];
-  const attributionByStream = new Map<
-    EventNdjsonStream,
-    { count: number; logicalWriteBytes: number }
-  >();
   const recordsBySegment = new Map<string, Array<PendingRecord>>();
 
   for (const record of input.state.pending) {
@@ -541,23 +524,9 @@ const drainPending = Effect.fnUntraced(function* (input: {
       sinks.set(threadSegment, sink);
     }
 
-    const written = yield* writeBatchedMessages(
-      sink,
-      records,
-      input.options.maxBytes,
-      (writtenRecords) => {
-        for (const record of writtenRecords) {
-          const current = attributionByStream.get(record.stream) ?? {
-            count: 0,
-            logicalWriteBytes: 0,
-          };
-          attributionByStream.set(record.stream, {
-            count: current.count + 1,
-            logicalWriteBytes: current.logicalWriteBytes + record.bytes,
-          });
-        }
-      },
-    ).pipe(Effect.result);
+    const written = yield* writeBatchedMessages(sink, records, input.options.maxBytes).pipe(
+      Effect.result,
+    );
     if (Result.isFailure(written)) {
       sinks.delete(threadSegment);
       failures.push({ filePath, cause: written.failure });
@@ -585,10 +554,6 @@ const drainPending = Effect.fnUntraced(function* (input: {
 
   return [
     {
-      attributions: Array.from(attributionByStream, ([stream, value]) => ({
-        stream,
-        ...value,
-      })),
       failures: [...failures, ...retention.failures],
     },
     {
@@ -688,30 +653,6 @@ export const makeEventNdjsonLogStore = Effect.fnUntraced(function* (
         errorTag: errorTag(failure.cause),
       });
     }
-
-    if (resolved.attribution && result.attributions.length > 0) {
-      const completedAt = yield* Clock.currentTimeMillis;
-      const durationMs = Math.max(0, completedAt - startedAt);
-      const totalBytes = result.attributions.reduce(
-        (total, entry) => total + entry.logicalWriteBytes,
-        0,
-      );
-      yield* Effect.forEach(
-        result.attributions,
-        (entry) =>
-          resolved.attribution?.record({
-            component: "provider-event-log",
-            operation: `${entry.stream}.append`,
-            logicalWriteBytes: entry.logicalWriteBytes,
-            count: entry.count,
-            durationMs:
-              totalBytes === 0
-                ? 0
-                : Math.round(durationMs * (entry.logicalWriteBytes / totalBytes)),
-          }) ?? Effect.void,
-        { discard: true },
-      );
-    }
   }, Effect.uninterruptible);
 
   const scheduleFlush = Effect.fnUntraced(function* () {
@@ -783,23 +724,4 @@ export const makeEventNdjsonLogStore = Effect.fnUntraced(function* (
   };
 
   return { filePath, logger, close } satisfies EventNdjsonLogStore;
-});
-
-export const makeEventNdjsonLogger = Effect.fnUntraced(function* (
-  filePath: string,
-  options: EventNdjsonLoggerOptions,
-): Effect.fn.Return<
-  ProviderEventLoggers.EventNdjsonLogger | undefined,
-  never,
-  FileSystem.FileSystem | Path.Path
-> {
-  const store = yield* makeEventNdjsonLogStore(filePath, options).pipe(
-    Effect.catch((error) =>
-      logWarning(error.message, { error }).pipe(
-        Effect.as<EventNdjsonLogStore | undefined>(undefined),
-      ),
-    ),
-  );
-  if (!store) return undefined;
-  return { ...store.logger(options.stream), close: store.close };
 });

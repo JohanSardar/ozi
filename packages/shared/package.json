@@ -3,14 +3,6 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./changedFileKind": {
-      "types": "./src/changedFileKind.ts",
-      "import": "./src/changedFileKind.ts"
-    },
-    "./githubMarkdownLinks": {
-      "types": "./src/githubMarkdownLinks.ts",
-      "import": "./src/githubMarkdownLinks.ts"
-    },
     "./authScopeOptions": {
       "types": "./src/authScopeOptions.ts",
       "import": "./src/authScopeOptions.ts"
@@ -18,14 +10,6 @@
     "./orchestrationV2ThreadError": {
       "types": "./src/orchestrationV2ThreadError.ts",
       "import": "./src/orchestrationV2ThreadError.ts"
-    },
-    "./delimitedPreview": {
-      "types": "./src/delimitedPreview.ts",
-      "import": "./src/delimitedPreview.ts"
-    },
-    "./composerPullRequestMatches": {
-      "types": "./src/composerPullRequestMatches.ts",
-      "import": "./src/composerPullRequestMatches.ts"
     },
     "./themePalettes": {
       "types": "./src/themePalettes.ts",
@@ -35,10 +19,6 @@
       "types": "./src/themePreview.ts",
       "import": "./src/themePreview.ts"
     },
-    "./projectFavicon": {
-      "types": "./src/projectFavicon.ts",
-      "import": "./src/projectFavicon.ts"
-    },
     "./model": {
       "types": "./src/model.ts",
       "import": "./src/model.ts"
@@ -46,18 +26,6 @@
     "./advertisedEndpoint": {
       "types": "./src/advertisedEndpoint.ts",
       "import": "./src/advertisedEndpoint.ts"
-    },
-    "./git": {
-      "types": "./src/git.ts",
-      "import": "./src/git.ts"
-    },
-    "./githubMedia": {
-      "types": "./src/githubMedia.ts",
-      "import": "./src/githubMedia.ts"
-    },
-    "./sourceControl": {
-      "types": "./src/sourceControl.ts",
-      "import": "./src/sourceControl.ts"
     },
     "./logging": {
       "types": "./src/logging.ts",
@@ -127,10 +95,6 @@
       "types": "./src/htmlRender.ts",
       "import": "./src/htmlRender.ts"
     },
-    "./favicon": {
-      "types": "./src/favicon.ts",
-      "import": "./src/favicon.ts"
-    },
     "./Struct": {
       "types": "./src/Struct.ts",
       "import": "./src/Struct.ts"
@@ -139,37 +103,9 @@
       "types": "./src/serverSettings.ts",
       "import": "./src/serverSettings.ts"
     },
-    "./backgroundActivitySettings": {
-      "types": "./src/backgroundActivitySettings.ts",
-      "import": "./src/backgroundActivitySettings.ts"
-    },
-    "./String": {
-      "types": "./src/String.ts",
-      "import": "./src/String.ts"
-    },
-    "./projectScripts": {
-      "types": "./src/projectScripts.ts",
-      "import": "./src/projectScripts.ts"
-    },
-    "./projectSettings": {
-      "types": "./src/projectSettings.ts",
-      "import": "./src/projectSettings.ts"
-    },
-    "./t3ProjectFile": {
-      "types": "./src/t3ProjectFile.ts",
-      "import": "./src/t3ProjectFile.ts"
-    },
-    "./orchestrationTiming": {
-      "types": "./src/orchestrationTiming.ts",
-      "import": "./src/orchestrationTiming.ts"
-    },
     "./remote": {
       "types": "./src/remote.ts",
       "import": "./src/remote.ts"
-    },
-    "./relaySigning": {
-      "types": "./src/relaySigning.ts",
-      "import": "./src/relaySigning.ts"
     },
     "./dpop": {
       "types": "./src/dpop.ts",
@@ -182,22 +118,6 @@
     "./dpopCommon": {
       "types": "./src/dpopCommon.ts",
       "import": "./src/dpopCommon.ts"
-    },
-    "./telemetryId": {
-      "types": "./src/telemetryId.ts",
-      "import": "./src/telemetryId.ts"
-    },
-    "./relayAuth": {
-      "types": "./src/relayAuth.ts",
-      "import": "./src/relayAuth.ts"
-    },
-    "./relayUrl": {
-      "types": "./src/relayUrl.ts",
-      "import": "./src/relayUrl.ts"
-    },
-    "./relayJwt": {
-      "types": "./src/relayJwt.ts",
-      "import": "./src/relayJwt.ts"
     },
     "./oauthScope": {
       "types": "./src/oauthScope.ts",
@@ -215,10 +135,6 @@
       "types": "./src/cliArgs.ts",
       "import": "./src/cliArgs.ts"
     },
-    "./connectAuth": {
-      "types": "./src/connectAuth.ts",
-      "import": "./src/connectAuth.ts"
-    },
     "./symlink": {
       "types": "./src/symlink.ts",
       "import": "./src/symlink.ts"
@@ -235,18 +151,6 @@
       "types": "./src/threadTranscript.ts",
       "import": "./src/threadTranscript.ts"
     },
-    "./threadReference": {
-      "types": "./src/threadReference.ts",
-      "import": "./src/threadReference.ts"
-    },
-    "./threadPullRequests": {
-      "types": "./src/threadPullRequests.ts",
-      "import": "./src/threadPullRequests.ts"
-    },
-    "./changeRequestUrl": {
-      "types": "./src/changeRequestUrl.ts",
-      "import": "./src/changeRequestUrl.ts"
-    },
     "./composerTrigger": {
       "types": "./src/composerTrigger.ts",
       "import": "./src/composerTrigger.ts"
@@ -259,10 +163,6 @@
       "types": "./src/assistantCitations.ts",
       "import": "./src/assistantCitations.ts"
     },
-    "./promptLinks": {
-      "types": "./src/promptLinks.ts",
-      "import": "./src/promptLinks.ts"
-    },
     "./threadLinks": {
       "types": "./src/threadLinks.ts",
       "import": "./src/threadLinks.ts"
@@ -271,29 +171,9 @@
       "types": "./src/composerContextReferences.ts",
       "import": "./src/composerContextReferences.ts"
     },
-    "./composerContextLegacy": {
-      "types": "./src/composerContextLegacy.ts",
-      "import": "./src/composerContextLegacy.ts"
-    },
-    "./composerContextLegacySend": {
-      "types": "./src/composerContextLegacySend.ts",
-      "import": "./src/composerContextLegacySend.ts"
-    },
     "./composerContextClipboard": {
       "types": "./src/composerContextClipboard.ts",
       "import": "./src/composerContextClipboard.ts"
-    },
-    "./terminalLabels": {
-      "types": "./src/terminalLabels.ts",
-      "import": "./src/terminalLabels.ts"
-    },
-    "./relayClient": {
-      "types": "./src/relayClient.ts",
-      "import": "./src/relayClient.ts"
-    },
-    "./relayTracing": {
-      "types": "./src/relayTracing.ts",
-      "import": "./src/relayTracing.ts"
     },
     "./preview": {
       "types": "./src/preview.ts",
@@ -335,14 +215,6 @@
       "types": "./src/HostProcess.ts",
       "import": "./src/HostProcess.ts"
     },
-    "./testing/longTempDir": {
-      "types": "./src/testing/longTempDir.ts",
-      "import": "./src/testing/longTempDir.ts"
-    },
-    "./testing/symlinks": {
-      "types": "./src/testing/symlinks.ts",
-      "import": "./src/testing/symlinks.ts"
-    },
     "./httpReadiness": {
       "types": "./src/httpReadiness.ts",
       "import": "./src/httpReadiness.ts"
@@ -358,10 +230,6 @@
     "./usageMerge": {
       "types": "./src/usageMerge.ts",
       "import": "./src/usageMerge.ts"
-    },
-    "./usageFormat": {
-      "types": "./src/usageFormat.ts",
-      "import": "./src/usageFormat.ts"
     },
     "./usageLimits": {
       "types": "./src/usageLimits.ts",
@@ -407,17 +275,9 @@
       "types": "./src/hostClassification.ts",
       "import": "./src/hostClassification.ts"
     },
-    "./dateTime": {
-      "types": "./src/dateTime.ts",
-      "import": "./src/dateTime.ts"
-    },
     "./cliRelease": {
       "types": "./src/cliRelease.ts",
       "import": "./src/cliRelease.ts"
-    },
-    "./gitPatchPath": {
-      "types": "./src/gitPatchPath.ts",
-      "import": "./src/gitPatchPath.ts"
     },
     "./providerAuthReturnUrl": {
       "types": "./src/providerAuthReturnUrl.ts",
@@ -487,10 +347,6 @@
       "types": "./src/atomicWrite.ts",
       "import": "./src/atomicWrite.ts"
     },
-    "./mcpResponsePayloads": {
-      "types": "./src/mcpResponsePayloads.ts",
-      "import": "./src/mcpResponsePayloads.ts"
-    },
     "./PtyAdapter": {
       "types": "./src/PtyAdapter.ts",
       "import": "./src/PtyAdapter.ts"
@@ -501,15 +357,13 @@
     }
   },
   "scripts": {
-    "typecheck": "tsc-rs --noEmit",
-    "test": "vp test run --config ../../vite.config.ts --dir ."
+    "typecheck": "tsc-rs --noEmit"
   },
   "dependencies": {
     "@noble/curves": "catalog:",
     "@noble/hashes": "catalog:",
     "@t3tools/contracts": "workspace:*",
     "effect": "catalog:",
-    "jose": "catalog:",
     "mdast-util-directive": "catalog:",
     "mdast-util-to-hast": "^13.2.1",
     "micromark-extension-directive": "catalog:",
@@ -518,18 +372,13 @@
     "rehype-sanitize": "catalog:",
     "remark-breaks": "catalog:",
     "remark-gfm": "catalog:",
-    "remark-math": "6.0.0",
     "remark-parse": "catalog:",
     "remark-rehype": "catalog:",
     "unified": "catalog:",
     "yaml": "catalog:"
   },
   "devDependencies": {
-    "@effect/platform-node": "catalog:",
-    "@effect/vitest": "catalog:",
-    "@types/mdast": "^4.0.4",
     "@types/node": "catalog:",
-    "micromark-util-types": "catalog:",
-    "vite-plus": "catalog:"
+    "micromark-util-types": "catalog:"
   }
 }

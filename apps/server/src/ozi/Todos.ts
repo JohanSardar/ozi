@@ -82,7 +82,7 @@ export class Todos extends Context.Service<
   {
     readonly fetch: Effect.Effect<OziTodos>;
   }
->()("t3/ozi/Todos") {}
+>()("ozi/ozi/Todos") {}
 
 export const layer = Layer.effect(
   Todos,

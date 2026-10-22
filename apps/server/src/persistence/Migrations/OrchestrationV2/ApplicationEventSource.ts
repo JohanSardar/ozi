@@ -21,7 +21,6 @@ interface ProjectProjectionRow {
   readonly title: string;
   readonly workspace_root: string;
   readonly default_model_selection_json: string | null;
-  readonly scripts_json: string;
   readonly created_at: string;
   readonly updated_at: string;
   readonly deleted_at: string | null;
@@ -130,7 +129,6 @@ export default Effect.gen(function* () {
       title,
       workspace_root,
       default_model_selection_json,
-      scripts_json,
       created_at,
       updated_at,
       deleted_at
@@ -150,7 +148,6 @@ export default Effect.gen(function* () {
             project.default_model_selection_json === null
               ? null
               : yield* decodeJson(project.default_model_selection_json),
-          scripts: yield* decodeJson(project.scripts_json),
           createdAt: project.created_at,
           updatedAt: project.updated_at,
         };

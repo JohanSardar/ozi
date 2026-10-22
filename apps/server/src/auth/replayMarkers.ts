@@ -6,27 +6,25 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Schedule from "effect/Schedule";
-
-import { CLOUD_REPLAY_MARKER_PREFIXES } from "../cloud/CloudLink.ts";
 import * as ServerConfig from "../config.ts";
 import { forkParked } from "../serverActivation.ts";
 import { DPOP_REPLAY_MARKER_PREFIX } from "./dpop.ts";
 
-const REPLAY_MARKER_PREFIXES = [DPOP_REPLAY_MARKER_PREFIX, ...CLOUD_REPLAY_MARKER_PREFIXES];
+const REPLAY_MARKER_PREFIXES = [DPOP_REPLAY_MARKER_PREFIX];
 
 /**
  * A marker only matters while its proof can pass the time check (about 10 minutes
  * for DPoP, 7 for cloud proofs). After that, the time check rejects a replay by
  * itself.
  */
-export const REPLAY_MARKER_MAX_AGE = Duration.days(1);
+const REPLAY_MARKER_MAX_AGE = Duration.days(1);
 
 /**
  * `ServerSecretStore` saves each secret as `<name>.bin`, so only
  * `<marker prefix>*.bin` names match. Other secrets and the `*.bin.<uuid>.tmp`
  * files that `set` writes are never touched.
  */
-export const pruneExpiredReplayMarkers = Effect.fn("replayMarkers.pruneExpired")(function* () {
+const pruneExpiredReplayMarkers = Effect.fn("replayMarkers.pruneExpired")(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const { secretsDir } = yield* ServerConfig.ServerConfig;

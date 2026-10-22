@@ -26,7 +26,7 @@ export type SnapShotAnimationDestination = {
   readonly details?: SnapShotAnimationDetails | undefined;
 };
 
-export function snapShotAnimationDurationMs(
+function snapShotAnimationDurationMs(
   source: Electron.Rectangle,
   target: Electron.Rectangle,
 ): number {
@@ -64,7 +64,7 @@ type SnapShotTransitionOptions = {
     | undefined;
 };
 
-export function snapShotAnimationOverlayBounds(
+function snapShotAnimationOverlayBounds(
   displays: ReadonlyArray<Pick<Electron.Display, "bounds">>,
 ): Electron.Rectangle {
   const firstDisplay = displays[0];
@@ -83,7 +83,7 @@ export function snapShotAnimationOverlayBounds(
   return { x: left, y: top, width: right - left, height: bottom - top };
 }
 
-export function snapShotAnimationDisplayBounds(
+function snapShotAnimationDisplayBounds(
   displays: ReadonlyArray<Pick<Electron.Display, "bounds">>,
   source: Electron.Rectangle,
   destination: Electron.Rectangle,
@@ -310,7 +310,7 @@ export class SnapShotTransition {
         }
       }
       if (this.waitForCompositorFrame) {
-        // Cover the source with a composited snapshot before the caller reveals T3.
+        // Cover the source with a composited snapshot before the caller reveals Ozi.
         // Decoding and renderer animation frames alone can leave a transparent gap.
         await Promise.all(
           overlays.map(async (overlay) => {

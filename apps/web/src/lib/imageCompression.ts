@@ -9,7 +9,6 @@ import {
 } from "@t3tools/shared/imageDimensions";
 
 const MAX_DIMENSION = IMAGE_ATTACHMENT_MAX_EDGE;
-export const MAX_STASH_IMAGE_DATA_URL_CHARS = 1_300_000;
 /**
  * Ceiling on the *source* file handed to the re-encoder. File size is a
  * proxy for pixel count, and decoding hundreds of megapixels into an
@@ -122,23 +121,6 @@ async function validateHeicImageDimensions(
   return foundImageDimensions ? null : "unreadable";
 }
 
-export function readFileAsDataUrl(file: Blob): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.addEventListener("load", () => {
-      if (typeof reader.result === "string") {
-        resolve(reader.result);
-        return;
-      }
-      reject(new Error("Could not read image data."));
-    });
-    reader.addEventListener("error", () => {
-      reject(reader.error ?? new Error("Failed to read image."));
-    });
-    reader.readAsDataURL(file);
-  });
-}
-
 function dataUrlLength(blob: Blob): number {
   return (
     `data:${blob.type || "application/octet-stream"};base64,`.length + 4 * Math.ceil(blob.size / 3)
@@ -202,44 +184,6 @@ async function encodeCanvas(
     blob = await (canvas as OffscreenCanvas).convertToBlob({ type: mimeType, quality });
   }
   return blob?.type === mimeType ? blob : null;
-}
-
-const composerThumbnails = new WeakMap<File, Promise<string | null>>();
-
-export function createComposerImageThumbnail(file: File): Promise<string | null> {
-  const cached = composerThumbnails.get(file);
-  if (cached) return cached;
-  const thumbnail = (async () => {
-    if (!canRecompress()) return null;
-    let bitmap: ImageBitmap | undefined;
-    try {
-      bitmap = await createImageBitmap(file);
-      const side = Math.min(bitmap.width, bitmap.height);
-      if (side <= 0) return null;
-      const dimension = Math.min(256, side);
-      const surface = createCanvas(dimension, dimension);
-      if (!surface) return null;
-      surface.context.drawImage(
-        bitmap,
-        (bitmap.width - side) / 2,
-        (bitmap.height - side) / 2,
-        side,
-        side,
-        0,
-        0,
-        dimension,
-        dimension,
-      );
-      const blob = await encodeCanvas(surface.canvas, 1, "image/png");
-      return blob ? await readFileAsDataUrl(blob) : null;
-    } catch {
-      return null;
-    } finally {
-      bitmap?.close();
-    }
-  })();
-  composerThumbnails.set(file, thumbnail);
-  return thumbnail;
 }
 
 async function encodeWithinBudget(
@@ -330,41 +274,6 @@ async function reencodeWithinBudget(
   }
 }
 
-export async function compressImageForStash(
-  file: File,
-  budgetChars: number = MAX_STASH_IMAGE_DATA_URL_CHARS,
-): Promise<CompressStashImageResult> {
-  try {
-    if (dataUrlLength(file) <= budgetChars) {
-      return {
-        ok: true,
-        image: {
-          dataUrl: await readFileAsDataUrl(file),
-          mimeType: file.type,
-          sizeBytes: file.size,
-          recompressed: false,
-        },
-      };
-    }
-    const reencoded = await reencodeWithinBudget(file, budgetChars);
-    if (!reencoded.ok) {
-      return reencoded;
-    }
-    return {
-      ok: true,
-      image: {
-        dataUrl: await readFileAsDataUrl(reencoded.blob),
-        mimeType: reencoded.mimeType,
-        sizeBytes: reencoded.blob.size,
-        recompressed: true,
-        imageSize: reencoded.imageSize,
-      },
-    };
-  } catch {
-    return { ok: false, reason: "unreadable" };
-  }
-}
-
 async function fitImageToMaxEdge(file: File): Promise<{ file: File; imageSize: ImageSize } | null> {
   const mimeType = downscalableImageMimeType(file.type);
   if (!mimeType || !canRecompress() || file.size > MAX_COMPRESSIBLE_SOURCE_BYTES) return null;
@@ -394,7 +303,7 @@ async function fitImageToMaxEdge(file: File): Promise<{ file: File; imageSize: I
   }
 }
 
-export async function compressImageToByteLimit(
+async function compressImageToByteLimit(
   file: File,
   maxBytes: number,
   options?: { preferredMimeType?: "image/jpeg"; sourceSizeBytes?: number },

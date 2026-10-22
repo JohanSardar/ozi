@@ -67,7 +67,7 @@ const PI_RPC_DISCOVERY_TIMEOUT_MS = 30_000;
  * get_entries arrived in 0.80.3 and agent_settled landed in source at 0.80.4.
  * Version 0.80.5 was the first published package containing both hooks.
  */
-export const MINIMUM_PI_VERSION = "0.80.5";
+const MINIMUM_PI_VERSION = "0.80.5";
 
 interface PiDiscovery extends PiDiscoveredCommands {
   readonly models: ReadonlyArray<ServerProviderModel>;
@@ -238,7 +238,7 @@ export const buildInitialPiProviderSnapshot = Effect.fn(
         version: null,
         status: "warning",
         auth: { status: "unknown" },
-        message: "Pi is disabled in T3 Code settings.",
+        message: "Pi is disabled in Ozi settings.",
       },
     });
   }
@@ -276,7 +276,7 @@ export const checkPiProviderStatus = Effect.fn("checkPiProviderStatus")(function
         version: null,
         status: "warning",
         auth: { status: "unknown" },
-        message: "Pi is disabled in T3 Code settings.",
+        message: "Pi is disabled in Ozi settings.",
       },
     });
   }
@@ -351,7 +351,7 @@ export const checkPiProviderStatus = Effect.fn("checkPiProviderStatus")(function
         version: null,
         status: "error",
         auth: { status: "unknown" },
-        message: `T3 Code could not determine the Pi version. Pi ${MINIMUM_PI_VERSION} or newer is required.`,
+        message: `Ozi could not determine the Pi version. Pi ${MINIMUM_PI_VERSION} or newer is required.`,
       },
     });
   }
@@ -410,7 +410,7 @@ export const checkPiProviderStatus = Effect.fn("checkPiProviderStatus")(function
         status: "ready",
         auth: { status: "unknown" },
         message:
-          "Pi is available, but T3 Code could not refresh its models and commands. The live session will retry startup.",
+          "Pi is available, but Ozi could not refresh its models and commands. The live session will retry startup.",
       },
     });
   }

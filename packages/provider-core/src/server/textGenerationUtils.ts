@@ -23,35 +23,6 @@ export function limitSection(value: string, maxChars: number): string {
   return `${truncated}\n\n[truncated]`;
 }
 
-export function sanitizeCommitSubject(raw: string): string {
-  const singleLine = raw.trim().split(/\r?\n/g)[0]?.trim() ?? "";
-  const withoutTrailingPeriod = singleLine.replace(/[.]+$/g, "").trim();
-  if (withoutTrailingPeriod.length === 0) {
-    return "Update project files";
-  }
-
-  if (withoutTrailingPeriod.length <= 72) {
-    return withoutTrailingPeriod;
-  }
-  const segments = new Intl.Segmenter(undefined, { granularity: "grapheme" }).segment(
-    withoutTrailingPeriod,
-  );
-  let subject = "";
-  for (const { segment } of segments) {
-    if (subject.length + segment.length > 72) break;
-    subject += segment;
-  }
-  return subject.trimEnd() || "Update project files";
-}
-
-export function sanitizePrTitle(raw: string): string {
-  const singleLine = raw.trim().split(/\r?\n/g)[0]?.trim() ?? "";
-  if (singleLine.length > 0) {
-    return singleLine;
-  }
-  return "Update project changes";
-}
-
 const MAX_THREAD_TITLE_CHARS = 120;
 
 export function sanitizeThreadTitle(raw: string): string {

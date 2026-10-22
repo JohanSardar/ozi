@@ -31,14 +31,12 @@ import * as ElectronProtocol from "./electron/ElectronProtocol.ts";
 import * as ElectronSafeStorage from "./electron/ElectronSafeStorage.ts";
 import * as ElectronShell from "./electron/ElectronShell.ts";
 import * as ElectronTheme from "./electron/ElectronTheme.ts";
-import * as ElectronUpdater from "./electron/ElectronUpdater.ts";
 import * as ElectronWindow from "./electron/ElectronWindow.ts";
 import * as DesktopApp from "./app/DesktopApp.ts";
 import * as DesktopAppActivation from "./app/DesktopAppActivation.ts";
 import * as DesktopWebLinks from "./app/DesktopWebLinks.ts";
 import * as DesktopAppIdentity from "./app/DesktopAppIdentity.ts";
 import * as DesktopConnectionCatalogStore from "./app/DesktopConnectionCatalogStore.ts";
-import * as DesktopClerk from "./app/DesktopClerk.ts";
 import * as DesktopCliCommand from "./app/DesktopCliCommand.ts";
 import * as DesktopApplicationMenu from "./window/DesktopApplicationMenu.ts";
 import * as DesktopAssets from "./app/DesktopAssets.ts";
@@ -61,9 +59,6 @@ import * as DesktopShellEnvironment from "./shell/DesktopShellEnvironment.ts";
 import * as DesktopSshEnvironment from "./ssh/DesktopSshEnvironment.ts";
 import * as DesktopSshPasswordPrompts from "./ssh/DesktopSshPasswordPrompts.ts";
 import * as DesktopState from "./app/DesktopState.ts";
-import * as DesktopTelemetryPublisher from "./telemetry/DesktopTelemetryPublisher.ts";
-import * as DesktopRendererHistory from "./telemetry/DesktopRendererHistory.ts";
-import * as DesktopUpdates from "./updates/DesktopUpdates.ts";
 import * as BrowserImport from "./preview/BrowserImport/BrowserImport.ts";
 import * as LinuxBrowserSecret from "./preview/BrowserImport/LinuxBrowserSecret.ts";
 import * as BrowserSession from "./preview/BrowserSession.ts";
@@ -132,7 +127,6 @@ const layerElectron = Layer.mergeAll(
   ElectronSafeStorage.layer,
   ElectronShell.layer,
   ElectronTheme.layer,
-  ElectronUpdater.layer,
   ElectronWindow.layer,
   DesktopIpc.layer(Electron.ipcMain),
 );
@@ -146,7 +140,6 @@ const layerDesktopFoundation = Layer.mergeAll(
   DesktopConnectionCatalogStore.layer.pipe(Layer.provideMerge(DesktopSavedEnvironments.layer)),
   DesktopAssets.layer,
   DesktopObservability.layer,
-  DesktopRendererHistory.layer,
 ).pipe(Layer.provideMerge(layerDesktopEnvironment));
 
 const layerDesktopSsh = layerDesktopSshEnvironment.pipe(
@@ -187,7 +180,6 @@ const layerDesktopBackend = DesktopBackendPool.layer.pipe(
   Layer.provideMerge(DesktopShellEnvironment.layer),
   Layer.provideMerge(DesktopWslEnvironment.layer),
   Layer.provideMerge(DesktopWslServerTree.layer),
-  Layer.provideMerge(DesktopTelemetryPublisher.layer),
   Layer.provideMerge(layerDesktopWindow),
 );
 
@@ -209,31 +201,18 @@ const layerDesktopApplication = Layer.mergeAll(
   layerDesktopSsh,
 ).pipe(
   Layer.provideMerge(layerDesktopSnapShot),
-  Layer.provideMerge(DesktopUpdates.layer),
   Layer.provideMerge(layerDesktopWslBackend),
   Layer.provideMerge(layerDesktopLocalEnvironmentAuth),
 );
 
-const layerDesktopClerk = DesktopClerk.layer.pipe(
-  Layer.provideMerge(ElectronShell.layer),
-  Layer.provideMerge(layerDesktopEnvironment),
-  Layer.provideMerge(NodeServices.layer),
-  Layer.provideMerge(ElectronApp.layer),
-);
-
 const layerDesktopApplicationRuntime = layerDesktopApplication.pipe(
-  Layer.provideMerge(NodeServices.layer),
   Layer.provideMerge(NodeHttpClient.layerUndici),
   Layer.provideMerge(NetService.layer),
   Layer.provideMerge(layerElectron),
+  Layer.provideMerge(NodeServices.layer),
 );
 
-// Acquire strict pre-ready setup before Clerk. Nothing before the Clerk bridge
-// may yield, or Electron can emit ready before Clerk registers its scheme.
-const layerDesktopRuntime = layerDesktopClerk.pipe(
-  Layer.flatMap((clerkContext) =>
-    layerDesktopApplicationRuntime.pipe(Layer.provideMerge(Layer.succeedContext(clerkContext))),
-  ),
+const layerDesktopRuntime = layerDesktopApplicationRuntime.pipe(
   Layer.provideMerge(DesktopPreReadyPlatform.layer),
 );
 

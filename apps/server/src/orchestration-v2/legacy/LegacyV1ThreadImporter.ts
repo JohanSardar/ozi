@@ -1,8 +1,4 @@
 import {
-  threadPullRequestKeysEqual,
-  threadPullRequestsOf,
-} from "@t3tools/shared/threadPullRequests";
-import {
   ChatAttachment,
   OrchestrationMessageContext,
   DEFAULT_MODEL,
@@ -17,8 +13,6 @@ import {
   ProjectId,
   ProviderInstanceId,
   ThreadId,
-  ThreadLinkedPullRequest,
-  ThreadPullRequestLink,
   TurnItemId,
 } from "@t3tools/contracts";
 import * as KeyedLock from "@t3tools/shared/KeyedLock";
@@ -52,13 +46,8 @@ interface LegacyThreadRow {
   readonly settled_override: string | null;
   readonly settled_at: string | null;
   readonly unsettled_at: string | null;
-  readonly snoozed_until: string | null;
-  readonly snoozed_at: string | null;
   readonly pinned_at: string | null;
   readonly pin_order_key: string | null;
-  readonly pull_requests_json: string;
-  readonly linked_pull_request_json: string | null;
-  readonly branch_pull_request_json: string | null;
   readonly active_order_key: string | null;
   readonly deleted_at: string | null;
 }
@@ -117,12 +106,10 @@ export interface LegacyV1ThreadImporterShape {
 export class LegacyV1ThreadImporter extends Context.Service<
   LegacyV1ThreadImporter,
   LegacyV1ThreadImporterShape
->()("t3/orchestration-v2/legacy/LegacyV1ThreadImporter") {}
+>()("ozi/orchestration-v2/legacy/LegacyV1ThreadImporter") {}
 
 const decodeModelSelection = Schema.decodeUnknownOption(ModelSelection);
 const decodeAttachments = Schema.decodeUnknownOption(Schema.Array(ChatAttachment));
-const decodePullRequests = Schema.decodeUnknownOption(Schema.Array(ThreadPullRequestLink));
-const decodeLinkedPullRequest = Schema.decodeUnknownOption(ThreadLinkedPullRequest);
 const decodeStoredThread = Schema.decodeUnknownOption(
   Schema.fromJsonString(OrchestrationV2AppThreadJson),
 );
@@ -157,16 +144,6 @@ function contextFor(row: LegacyMessageRow) {
   return Option.getOrUndefined(decodeMessageContext(parseJson(row.context_json)));
 }
 
-function linkedPullRequestFor(row: LegacyThreadRow) {
-  if (row.linked_pull_request_json === null) return null;
-  return Option.getOrNull(decodeLinkedPullRequest(parseJson(row.linked_pull_request_json)));
-}
-
-function branchPullRequestFor(row: LegacyThreadRow) {
-  if (row.branch_pull_request_json === null) return null;
-  return Option.getOrNull(decodeLinkedPullRequest(parseJson(row.branch_pull_request_json)));
-}
-
 function runtimeModeFor(value: string): OrchestrationV2AppThread["runtimeMode"] {
   return value === "approval-required" ||
     value === "auto-accept-edits" ||
@@ -197,17 +174,6 @@ function importedThread(row: LegacyThreadRow): OrchestrationV2AppThread {
   const modelSelection = modelSelectionFor(row);
   const branch = row.branch?.trim() || null;
   const worktreePath = row.worktree_path?.trim() || null;
-  const pullRequests = Option.getOrElse(
-    decodePullRequests(parseJson(row.pull_requests_json)),
-    () => [],
-  );
-  const linkedPullRequest = linkedPullRequestFor(row);
-  const legacyLink = threadPullRequestsOf({ linkedPullRequest })[0];
-  const importedPullRequests =
-    legacyLink !== undefined &&
-    !pullRequests.some((link) => threadPullRequestKeysEqual(link, legacyLink))
-      ? [...pullRequests, legacyLink]
-      : pullRequests;
   return {
     createdBy: "system",
     creationSource: "server",
@@ -220,9 +186,6 @@ function importedThread(row: LegacyThreadRow): OrchestrationV2AppThread {
     interactionMode: interactionModeFor(row.interaction_mode),
     branch,
     worktreePath,
-    linkedPullRequest,
-    pullRequests: importedPullRequests,
-    branchPullRequest: branchPullRequestFor(row),
     activeOrderKey: row.active_order_key?.trim() || null,
     activeProviderThreadId: null,
     historyOrigin: "v1_import",
@@ -238,8 +201,6 @@ function importedThread(row: LegacyThreadRow): OrchestrationV2AppThread {
     settledOverride: settledOverrideFor(row.settled_override),
     settledAt: nullableDateTime(row.settled_at),
     unsettledAt: nullableDateTime(row.unsettled_at),
-    snoozedUntil: nullableDateTime(row.snoozed_until),
-    snoozedAt: nullableDateTime(row.snoozed_at),
     pinnedAt: nullableDateTime(row.pinned_at),
     pinOrderKey: row.pin_order_key?.trim() || null,
     lastVisitedAt: null,
@@ -447,13 +408,8 @@ const make = Effect.gen(function* () {
         thread.settled_override,
         thread.settled_at,
         thread.unsettled_at,
-        thread.snoozed_until,
-        thread.snoozed_at,
         thread.pinned_at,
         thread.pin_order_key,
-        (SELECT json_group_array(json_object('host', pr.host, 'repository', pr.repository, 'number', pr.number, 'url', pr.url, 'source', pr.source, 'linkedAt', pr.linked_at, 'snapshot', json(pr.snapshot_json), 'stack', json(pr.stack_json))) FROM projection_thread_pull_requests pr WHERE pr.thread_id = thread.thread_id) AS pull_requests_json,
-        thread.linked_pull_request_json,
-        thread.branch_pull_request_json,
         thread.active_order_key,
         thread.deleted_at,
         projection.payload_json
@@ -464,12 +420,7 @@ const make = Effect.gen(function* () {
         ON projection.thread_id = legacy_import.thread_id
       WHERE json_type(projection.payload_json, '$.pinnedAt') IS NULL
          OR json_type(projection.payload_json, '$.pinOrderKey') IS NULL
-         OR json_type(projection.payload_json, '$.snoozedUntil') IS NULL
-         OR json_type(projection.payload_json, '$.snoozedAt') IS NULL
          OR json_type(projection.payload_json, '$.unsettledAt') IS NULL
-         OR json_type(projection.payload_json, '$.linkedPullRequest') IS NULL
-         OR json_type(projection.payload_json, '$.pullRequests') IS NULL
-         OR json_type(projection.payload_json, '$.branchPullRequest') IS NULL
          OR json_type(projection.payload_json, '$.activeOrderKey') IS NULL
       ORDER BY thread.created_at ASC, thread.thread_id ASC
     `;
@@ -479,36 +430,11 @@ const make = Effect.gen(function* () {
       if (Option.isNone(decoded)) continue;
       const current = decoded.value;
       const legacy = importedThread(row);
-      const legacyPullRequests = legacy.pullRequests ?? [];
       const repaired: OrchestrationV2AppThread = {
         ...current,
         pinnedAt: current.pinnedAt === undefined ? legacy.pinnedAt : current.pinnedAt,
         pinOrderKey: current.pinOrderKey === undefined ? legacy.pinOrderKey : current.pinOrderKey,
-        snoozedUntil:
-          current.snoozedUntil === undefined ? legacy.snoozedUntil : current.snoozedUntil,
-        snoozedAt: current.snoozedAt === undefined ? legacy.snoozedAt : current.snoozedAt,
         unsettledAt: current.unsettledAt === undefined ? legacy.unsettledAt : current.unsettledAt,
-        linkedPullRequest:
-          current.linkedPullRequest === undefined
-            ? legacy.linkedPullRequest
-            : current.linkedPullRequest,
-        pullRequests:
-          current.pullRequests === undefined
-            ? current.linkedPullRequest === null
-              ? []
-              : legacyPullRequests.length > 0
-                ? legacyPullRequests
-                : threadPullRequestsOf({
-                    linkedPullRequest:
-                      current.linkedPullRequest === undefined
-                        ? legacy.linkedPullRequest
-                        : current.linkedPullRequest,
-                  })
-            : current.pullRequests,
-        branchPullRequest:
-          current.branchPullRequest === undefined
-            ? legacy.branchPullRequest
-            : current.branchPullRequest,
         activeOrderKey:
           current.activeOrderKey === undefined ? legacy.activeOrderKey : current.activeOrderKey,
       };
@@ -546,13 +472,8 @@ const make = Effect.gen(function* () {
         thread.settled_override,
         thread.settled_at,
         thread.unsettled_at,
-        thread.snoozed_until,
-        thread.snoozed_at,
         thread.pinned_at,
         thread.pin_order_key,
-        (SELECT json_group_array(json_object('host', pr.host, 'repository', pr.repository, 'number', pr.number, 'url', pr.url, 'source', pr.source, 'linkedAt', pr.linked_at, 'snapshot', json(pr.snapshot_json), 'stack', json(pr.stack_json))) FROM projection_thread_pull_requests pr WHERE pr.thread_id = thread.thread_id) AS pull_requests_json,
-        thread.linked_pull_request_json,
-        thread.branch_pull_request_json,
         thread.active_order_key,
         thread.deleted_at
       FROM projection_threads AS thread

@@ -15,7 +15,6 @@ import * as DesktopAppSettings from "../settings/DesktopAppSettings.ts";
 import * as DesktopConfig from "./DesktopConfig.ts";
 import { resolveLinuxDesktopEntryName } from "./DesktopEarlyElectronStartup.ts";
 import { resolveDesktopBaseDir, resolveDesktopStateDir } from "./DesktopStatePaths.ts";
-import { isNightlyDesktopVersion } from "../updates/updateChannels.ts";
 import type { OtlpProtocol } from "@t3tools/shared/observability";
 
 export interface MakeDesktopEnvironmentInput {
@@ -60,7 +59,6 @@ export class DesktopEnvironment extends Context.Service<
     readonly backendCwd: string;
     readonly preloadPath: string;
     readonly compileCachePath: string;
-    readonly appUpdateYmlPath: string;
     readonly devServerUrl: Option.Option<URL>;
     readonly devRemoteServerEntryPath: Option.Option<string>;
     readonly configuredBackendPort: Option.Option<number>;
@@ -95,7 +93,7 @@ function resolveDesktopAppStageLabel(input: {
     return "Dev";
   }
 
-  return isNightlyDesktopVersion(input.appVersion) ? "Nightly" : "Beta";
+  return /^[^-+]+-(?:nightly|preview)\.\d{8}\.\d+$/.test(input.appVersion) ? "Nightly" : "Beta";
 }
 
 export function resolveDesktopAppBranding(input: {
@@ -212,9 +210,6 @@ const make = Effect.fn("desktop.environment.make")(function* (
     backendCwd: input.isPackaged ? homeDirectory : appRoot,
     preloadPath: path.join(input.dirname, "preload.cjs"),
     compileCachePath: path.join(input.dirname, "compileCache.cjs"),
-    appUpdateYmlPath: input.isPackaged
-      ? path.join(resourcesPath, "app-update.yml")
-      : path.join(input.appPath, "dev-app-update.yml"),
     devServerUrl,
     devRemoteServerEntryPath: config.devRemoteServerEntryPath,
     configuredBackendPort: config.configuredBackendPort,
@@ -234,7 +229,7 @@ const make = Effect.fn("desktop.environment.make")(function* (
     linuxWmClass: isDevelopment ? "ozi-dev" : "ozi",
     linuxApplicationsDir,
     appImagePath: config.appImagePath,
-    defaultDesktopSettings: DesktopAppSettings.resolveDefaultDesktopSettings(input.appVersion),
+    defaultDesktopSettings: DesktopAppSettings.resolveDefaultDesktopSettings(),
     runtimeInfo: resolveDesktopRuntimeInfo({
       platform: input.platform,
       processArch: input.processArch,

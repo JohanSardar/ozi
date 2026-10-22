@@ -1,3 +1,7 @@
+export interface EnvironmentConnectionLease {
+  readonly prepared: PreparedConnection;
+  readonly session: RpcSession.RpcSession;
+}
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
@@ -33,11 +37,6 @@ export type ConnectionDriverProgress =
       readonly prepared: PreparedConnection;
     };
 
-export interface EnvironmentConnectionLease {
-  readonly prepared: PreparedConnection;
-  readonly session: RpcSession.RpcSession;
-}
-
 export type RouteCheck = "answered" | "silent" | "unchecked";
 
 const ROUTE_CHECK_TIMEOUT_MS = 2_500;
@@ -60,7 +59,7 @@ export class ConnectionDriver extends Context.Service<
   }
 >()("@t3tools/client-runtime/connection/driver/ConnectionDriver") {}
 
-export const connectOverRoutes = Effect.fn("ConnectionDriver.connectOverRoutes")(function* <R>(
+const connectOverRoutes = Effect.fn("ConnectionDriver.connectOverRoutes")(function* <R>(
   entry: ConnectionCatalogEntry,
   checkRoute: (route: ConnectionRoute) => Effect.Effect<RouteCheck>,
   connectRoute: (

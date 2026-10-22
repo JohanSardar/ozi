@@ -13,7 +13,7 @@ import {
 import * as Cause from "effect/Cause";
 import * as Schema from "effect/Schema";
 import { AsyncResult } from "effect/reactivity";
-import { getLocalStorageItem, setLocalStorageItem, useLocalStorage } from "./hooks/useLocalStorage";
+import { getLocalStorageItem, setLocalStorageItem } from "./hooks/useLocalStorage";
 import { shellEnvironment } from "./state/shell";
 import { useAtomCommand } from "./state/use-atom-command";
 import { readEnvironmentScope } from "./state/session";
@@ -42,17 +42,6 @@ export class PreferredEditorUnavailableError extends Schema.TaggedError<Preferre
   override get message(): string {
     return `No available editor can open ${this.targetPath} in environment ${this.environmentId}.`;
   }
-}
-
-export function usePreferredEditor(availableEditors: ReadonlyArray<EditorId>) {
-  const [lastEditor, setLastEditor] = useLocalStorage(LAST_EDITOR_KEY, null, EditorId);
-
-  const effectiveEditor =
-    lastEditor && availableEditors.includes(lastEditor)
-      ? lastEditor
-      : (EDITORS.find((editor) => availableEditors.includes(editor.id))?.id ?? null);
-
-  return [effectiveEditor, setLastEditor] as const;
 }
 
 function resolveAndPersistPreferredEditor(availableEditors: readonly EditorId[]): EditorId | null {

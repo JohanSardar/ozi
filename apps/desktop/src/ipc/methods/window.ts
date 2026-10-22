@@ -13,10 +13,8 @@ import {
   type DesktopEnvironmentBootstrap,
   type PickedThemeFile,
 } from "@t3tools/contracts";
-import { PROJECT_FAVICON_EXTENSIONS } from "@t3tools/shared/projectFavicon";
 import { resolveEditorCommand } from "@t3tools/shared/editor";
 import * as HostProcess from "@t3tools/shared/HostProcess";
-import { isRelayTracingEnabled } from "@t3tools/shared/otelEnvironment";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import * as Effect from "effect/Effect";
@@ -69,14 +67,6 @@ export const getAppBranding = DesktopIpc.makeSyncIpcMethod({
   handler: Effect.fn("desktop.ipc.window.getAppBranding")(function* () {
     const environment = yield* DesktopEnvironment.DesktopEnvironment;
     return environment.branding;
-  }),
-});
-
-export const getRelayTelemetryEnabled = DesktopIpc.makeSyncIpcMethod({
-  channel: IpcChannels.GET_RELAY_TELEMETRY_ENABLED_CHANNEL,
-  result: Schema.Boolean,
-  handler: Effect.fn("desktop.ipc.window.getRelayTelemetryEnabled")(function* () {
-    return isRelayTracingEnabled(yield* HostProcess.Environment);
   }),
 });
 
@@ -229,32 +219,6 @@ export const pickFolder = DesktopIpc.makeIpcMethod({
       selectedPath.value,
     );
     return Option.getOrElse(converted, () => selectedPath.value);
-  }),
-});
-
-export const pickProjectFavicon = DesktopIpc.makeIpcMethod({
-  channel: IpcChannels.PICK_PROJECT_FAVICON_CHANNEL,
-  payload: Schema.UndefinedOr(Schema.String),
-  result: Schema.NullOr(Schema.String),
-  handler: Effect.fn("desktop.ipc.window.pickProjectFavicon")(function* (initialPath) {
-    const dialog = yield* ElectronDialog.ElectronDialog;
-    const electronWindow = yield* ElectronWindow.ElectronWindow;
-    const appSettings = yield* DesktopAppSettings.DesktopAppSettings;
-    if (!(yield* appSettings.get).localEnvironmentEnabled) {
-      return null;
-    }
-    const paths = yield* dialog.pickFiles({
-      owner: yield* electronWindow.focusedMainOrFirst,
-      defaultPath: Option.fromNullishOr(initialPath),
-      multiple: false,
-      filters: [
-        {
-          name: "Images",
-          extensions: PROJECT_FAVICON_EXTENSIONS.map((extension) => extension.slice(1)),
-        },
-      ],
-    });
-    return paths[0] ?? null;
   }),
 });
 

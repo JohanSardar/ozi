@@ -176,11 +176,11 @@ features:
     status: passing
   - id: cut-coding
     reqs: [t3-cut, minimal]
-    module: server + contracts + client-runtime + web + desktop
-    cli: []
+    module: server + contracts + client-runtime + web + desktop + scripts + persistence/Migrations/083_RemoveWorkspaceFeatures.ts + persistence/Migrations/084_RemoveWorkspaceLaunch.ts + e2e/m4.test.ts
+    cli: [request]
     milestone: 4
     scenarios: [m4.removed]
-    status: planned
+    status: passing
   - id: mistake-log
     reqs: [mistake-log]
     module: apps/server/src/ozi/Repair.ts
@@ -218,8 +218,8 @@ features:
     status: passing
   - id: public-ready
     reqs: [for-everybody, minimal, t3-cut]
-    module: repo
+    module: repo + e2e/m6.audit.test.ts + e2e/m6.public.test.ts
     cli: []
     milestone: 6
     scenarios: [m6.audit, m6.public-ready]
-    status: planned
+    status: passing

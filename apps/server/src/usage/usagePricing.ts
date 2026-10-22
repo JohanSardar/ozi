@@ -201,7 +201,7 @@ const UNPRICEABLE_MODELS = new Set([
  */
 const resolvedRates = new WeakMap<RateTable, Map<string, ModelRate | null>>();
 
-export function lookupRate(table: RateTable, model: string): ModelRate | null {
+function lookupRate(table: RateTable, model: string): ModelRate | null {
   let resolved = resolvedRates.get(table);
   if (resolved === undefined) {
     resolved = new Map();

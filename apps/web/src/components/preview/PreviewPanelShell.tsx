@@ -6,16 +6,11 @@ import {
   useRef,
   useState,
 } from "react";
-
-import { isElectron } from "~/env";
 import {
-  getPreviewPanelMaxWidth,
   type PreviewPanelInlineSize,
   usePreviewPanelInlineSize,
 } from "~/hooks/usePreviewPanelInlineSize";
 import { RESIZABLE_WIDTH_PROPERTY } from "~/hooks/useResizableWidth";
-
-export { getPreviewPanelMaxWidth };
 import { cn } from "~/lib/utils";
 
 import { RightPanelResizeHandle } from "./RightPanelResizeHandle";
@@ -61,7 +56,6 @@ function PreviewPanelShellFrame(
     hostRef?: RefObject<HTMLDivElement | null>;
   },
 ) {
-  const useDragRegion = isElectron && props.mode !== "sheet" && props.mode !== "embedded";
   const isInline = props.mode === "inline";
   const collapsible = isInline && props.open !== undefined;
   const open = props.open ?? true;

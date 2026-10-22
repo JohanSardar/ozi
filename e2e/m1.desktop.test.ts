@@ -33,7 +33,6 @@ it("m1.remote-client desktop app uses the paired server with local off and persi
         ...(process.env.DISPLAY ? { DISPLAY: process.env.DISPLAY } : {}),
         ...(process.env.XAUTHORITY ? { XAUTHORITY: process.env.XAUTHORITY } : {}),
         OZI_HOME: desktopHome,
-        OZI_DISABLE_AUTO_UPDATE: "true",
       },
       timeout: 30_000,
     });

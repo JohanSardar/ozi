@@ -28,7 +28,7 @@ export class Publisher extends Context.Service<
     }) => Effect.Effect<Fix, RepairError>;
     readonly undo: (id: string) => Effect.Effect<Fix, RepairError>;
   }
->()("t3/ozi/Publisher") {}
+>()("ozi/ozi/Publisher") {}
 
 const isRepairError = Schema.is(RepairError);
 const normalized = <A, E, R>(effect: Effect.Effect<A, E, R>) =>

@@ -25,7 +25,7 @@ export class ThreadMetadataMcpService extends Context.Service<
       input: ThreadMetadataMcpUpdateInput,
     ) => Effect.Effect<ThreadMetadataMcpUpdateResult, OrchestratorMcpFailure>;
   }
->()("t3/mcp/ThreadMetadataMcpService") {}
+>()("ozi/mcp/ThreadMetadataMcpService") {}
 
 function failure(code: OrchestratorMcpFailure["code"], message: string): OrchestratorMcpFailure {
   return new OrchestratorMcpFailure({ code, message });
@@ -87,23 +87,6 @@ function metadataCommand(input: {
         threadId: input.threadId,
         regenerateTitle: true,
       };
-    case "link_pull_request":
-      return {
-        type: "thread.metadata.update",
-        commandId: input.commandId,
-        threadId: input.threadId,
-        linkedPullRequest: {
-          projectId: input.projectId,
-          ...input.update.pullRequest!,
-        },
-      };
-    case "unlink_pull_request":
-      return {
-        type: "thread.metadata.update",
-        commandId: input.commandId,
-        threadId: input.threadId,
-        linkedPullRequest: null,
-      };
   }
 }
 
@@ -113,7 +96,7 @@ function resultFromThread(input: {
   readonly sequence: number;
   readonly thread: Pick<
     OrchestrationV2AppThread,
-    "id" | "title" | "titleRegeneration" | "linkedPullRequest" | "updatedAt"
+    "id" | "title" | "titleRegeneration" | "updatedAt"
   >;
 }): ThreadMetadataMcpUpdateResult {
   return {
@@ -129,7 +112,6 @@ function resultFromThread(input: {
             requestId: input.thread.titleRegeneration.requestId,
             startedAt: DateTime.formatIso(input.thread.titleRegeneration.startedAt),
           },
-    linkedPullRequest: input.thread.linkedPullRequest ?? null,
     updatedAt: DateTime.formatIso(input.thread.updatedAt),
   };
 }
@@ -153,7 +135,7 @@ const make = Effect.gen(function* () {
     if (threadId === undefined) {
       return yield* failure(
         "target_required",
-        "Pass threadId: this MCP client is not running inside a T3 thread.",
+        "Pass threadId: this MCP client is not running inside a Ozi thread.",
       );
     }
     const shell = yield* threadManagement

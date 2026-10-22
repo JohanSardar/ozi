@@ -1,12 +1,10 @@
 import type {
-  AssetCreateUrlResult,
-  AssetResource,
   EnvironmentId,
   PreviewOpenInput,
   PreviewSessionSnapshot,
   ScopedThreadRef,
 } from "@t3tools/contracts";
-import { mediaFileReference } from "@t3tools/client-runtime/media-reference";
+
 import {
   type AtomCommandResult,
   mapAtomCommandResult,
@@ -15,8 +13,7 @@ import * as Cause from "effect/Cause";
 import * as Data from "effect/Data";
 import { AsyncResult } from "effect/reactivity";
 
-import { resolveAssetUrl } from "~/assets/assetUrls";
-import { isPreviewAvailableFor, previewRuntimeFor } from "~/browser/previewRuntime";
+import { previewRuntimeFor } from "~/browser/previewRuntime";
 import {
   applyPreviewServerSnapshot,
   readThreadPreviewState,
@@ -24,22 +21,12 @@ import {
   setActivePreviewTab,
   updatePreviewServerSnapshot,
 } from "~/previewStateStore";
-import { selectSelectedRightPanelSurface, useRightPanelStore } from "~/rightPanelStore";
 
 import {
   browserDefaultOpenProfileId,
   browserDefaultOpenViewport,
   resolveBrowserDefaults,
 } from "./browserDefaults";
-
-export const isBrowserPreviewFile = (path: string): boolean =>
-  /\.(?:html?|pdf)$/i.test(path.split(/[?#]/, 1)[0] ?? "");
-
-export class BrowserPreviewUnavailableError extends Data.TaggedError(
-  "BrowserPreviewUnavailableError",
-)<{
-  readonly message: string;
-}> {}
 
 export class BrowserSettingsReadError extends Data.TaggedError("BrowserSettingsReadError")<{
   readonly cause: unknown;
@@ -71,9 +58,7 @@ export async function openUrlInPreview<E>(input: {
   const previousActiveTabId = readThreadPreviewState(input.threadRef).activeTabId;
   // The server's "opened" event switches the preview tab but not the panel's
   // selection, so a changed selection means the user picked a tab themselves.
-  const selectedSurface = () =>
-    selectSelectedRightPanelSurface(useRightPanelStore.getState().byThreadKey, input.threadRef)
-      ?.id ?? null;
+  const selectedSurface = () => readThreadPreviewState(input.threadRef).activeTabId;
   const surfaceBeforeOpen = selectedSurface();
   const result = await input.openPreview({
     environmentId: input.threadRef.environmentId,
@@ -101,59 +86,6 @@ export async function openUrlInPreview<E>(input: {
       return;
     }
     applyPreviewServerSnapshot(input.threadRef, snapshot);
-    useRightPanelStore.getState().openBrowser(input.threadRef, snapshot.tabId);
-  });
-}
-
-export async function openFileInPreview<AssetError, PreviewError>(input: {
-  readonly threadRef: ScopedThreadRef;
-  readonly filePath: string;
-  readonly workspaceRoot: string | undefined;
-  readonly httpBaseUrl: string;
-  readonly createAssetUrl: (input: {
-    readonly environmentId: EnvironmentId;
-    readonly input: { readonly resource: AssetResource };
-  }) => Promise<AtomCommandResult<AssetCreateUrlResult, AssetError>>;
-  readonly openPreview: OpenPreviewMutation<PreviewError>;
-}): Promise<
-  AtomCommandResult<
-    void,
-    AssetError | PreviewError | BrowserPreviewUnavailableError | BrowserSettingsReadError
-  >
-> {
-  if (!isPreviewAvailableFor(input.threadRef.environmentId)) {
-    return AsyncResult.failure(
-      Cause.fail(
-        new BrowserPreviewUnavailableError({
-          message: "The integrated browser is unavailable in this runtime.",
-        }),
-      ),
-    );
-  }
-  const insideWorkspace =
-    mediaFileReference(input.filePath, input.workspaceRoot).relativePath !== undefined;
-  const assetResult = await input.createAssetUrl({
-    environmentId: input.threadRef.environmentId,
-    input: {
-      resource: {
-        _tag: insideWorkspace ? "workspace-file" : "media-file",
-        threadId: input.threadRef.threadId,
-        path: input.filePath,
-      },
-    },
-  });
-  if (assetResult._tag === "Failure") {
-    return AsyncResult.failure(assetResult.cause);
-  }
-  const assetUrl = resolveAssetUrl(input.httpBaseUrl, assetResult.value.relativeUrl);
-  if (assetUrl === null) {
-    return AsyncResult.failure(
-      Cause.die(new Error("The environment returned an invalid asset URL.")),
-    );
-  }
-  return openUrlInPreview({
-    threadRef: input.threadRef,
-    url: assetUrl,
-    openPreview: input.openPreview,
+    setActivePreviewTab(input.threadRef, snapshot.tabId);
   });
 }

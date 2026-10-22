@@ -4,7 +4,6 @@ import {
   EnvironmentId,
   ForwardCompatibleArray,
   NonNegativeInt,
-  PositiveInt,
   ThreadId,
   TrimmedNonEmptyString,
 } from "./baseSchemas.ts";
@@ -13,13 +12,11 @@ import {
  * Bytes never live here: image and file records bind to a `ChatAttachment` by id.
  */
 
-export const COMPOSER_CONTEXT_KINDS = [
+const COMPOSER_CONTEXT_KINDS = [
   "image",
   "file",
-  "terminal",
   "element",
   "preview-annotation",
-  "review-comment",
   "mention",
   "skill",
   "thread",
@@ -32,11 +29,8 @@ const CONTEXT_KIND_PATTERN = /^[a-z][a-z0-9-]{0,39}$/;
 const KNOWN_KIND_PATTERN = new RegExp(`^(?!(?:${COMPOSER_CONTEXT_KINDS.join("|")})$)`);
 
 export const COMPOSER_CONTEXT_LABEL_MAX_CHARS = 200;
-export const COMPOSER_CONTEXT_TERMINAL_TEXT_MAX_CHARS = 64_000;
 const COMPOSER_CONTEXT_ELEMENT_HTML_MAX_CHARS = 8_000;
 const COMPOSER_CONTEXT_ELEMENT_STYLES_MAX_CHARS = 8_000;
-export const COMPOSER_CONTEXT_REVIEW_TEXT_MAX_CHARS = 16_000;
-export const COMPOSER_CONTEXT_REVIEW_DIFF_MAX_CHARS = 32_000;
 const COMPOSER_CONTEXT_PREVIEW_COMMENT_MAX_CHARS = 8_000;
 
 export const ComposerContextId = TrimmedNonEmptyString.check(
@@ -67,17 +61,6 @@ const BoundedString = (max: number) => Schema.String.check(Schema.isMaxLength(ma
 const ShortString = BoundedString(2_048);
 const NullableShortString = Schema.NullOr(ShortString);
 
-export const PullRequestContextMetadata = Schema.Struct({
-  number: PositiveInt,
-  title: ShortString,
-  url: ShortString,
-  headBranch: ShortString,
-  baseBranch: ShortString,
-  state: Schema.Literals(["open", "closed", "merged"]),
-  isDraft: Schema.Boolean,
-});
-export type PullRequestContextMetadata = typeof PullRequestContextMetadata.Type;
-
 const recordBase = {
   version: Schema.Literal(1),
   contextId: ComposerContextId,
@@ -104,17 +87,6 @@ export const FileContextRecord = Schema.Struct({
   ...attachmentBinding,
 });
 export type FileContextRecord = typeof FileContextRecord.Type;
-
-export const TerminalContextRecord = Schema.Struct({
-  ...recordBase,
-  kind: Schema.Literal("terminal"),
-  terminalId: TrimmedNonEmptyString.check(Schema.isMaxLength(255)),
-  terminalLabel: TrimmedNonEmptyString.check(Schema.isMaxLength(255)),
-  lineStart: NonNegativeInt,
-  lineEnd: NonNegativeInt,
-  text: BoundedString(COMPOSER_CONTEXT_TERMINAL_TEXT_MAX_CHARS),
-}).check(Schema.makeFilter((record) => record.lineEnd >= record.lineStart));
-export type TerminalContextRecord = typeof TerminalContextRecord.Type;
 
 export const ElementContextSource = Schema.Struct({
   functionName: NullableShortString,
@@ -174,22 +146,6 @@ export const PreviewAnnotationContextRecord = Schema.Struct({
 });
 export type PreviewAnnotationContextRecord = typeof PreviewAnnotationContextRecord.Type;
 
-export const ReviewCommentContextRecord = Schema.Struct({
-  ...recordBase,
-  kind: Schema.Literal("review-comment"),
-  sectionId: TrimmedNonEmptyString.check(Schema.isMaxLength(255)),
-  sectionTitle: ShortString,
-  filePath: TrimmedNonEmptyString.check(Schema.isMaxLength(2_048)),
-  startIndex: NonNegativeInt,
-  endIndex: NonNegativeInt,
-  rangeLabel: ShortString,
-  text: BoundedString(COMPOSER_CONTEXT_REVIEW_TEXT_MAX_CHARS),
-  diff: BoundedString(COMPOSER_CONTEXT_REVIEW_DIFF_MAX_CHARS),
-  fenceLanguage: Schema.optionalKey(BoundedString(64)),
-  pullRequest: Schema.optionalKey(PullRequestContextMetadata),
-}).check(Schema.makeFilter((record) => record.endIndex >= record.startIndex));
-export type ReviewCommentContextRecord = typeof ReviewCommentContextRecord.Type;
-
 export const MentionContextRecord = Schema.Struct({
   ...recordBase,
   kind: Schema.Literal("mention"),
@@ -239,10 +195,8 @@ export type UnknownContextRecord = typeof UnknownContextRecord.Type;
 export const KnownComposerContextRecord = Schema.Union([
   ImageContextRecord,
   FileContextRecord,
-  TerminalContextRecord,
   ElementContextRecord,
   PreviewAnnotationContextRecord,
-  ReviewCommentContextRecord,
   MentionContextRecord,
   SkillContextRecord,
   ThreadContextRecord,

@@ -7,7 +7,6 @@ import type {
   DesktopPreviewTabState,
   DesktopSnapShotEvent,
 } from "@t3tools/contracts";
-import { exposeClerkBridge } from "@clerk/electron/preload";
 import { contextBridge, ipcRenderer, webFrame, webUtils } from "electron";
 
 import * as IpcChannels from "./ipc/channels.ts";
@@ -28,8 +27,6 @@ function isSnapShotEvent(value: unknown): value is DesktopSnapShotEvent {
     (id === undefined || typeof id === "string")
   );
 }
-
-exposeClerkBridge({ passkeys: true });
 
 // oxlint-disable-next-line t3code/no-global-process-runtime -- Electron exposes the client platform in its sandboxed preload process.
 const clientPlatform = process.platform;
@@ -71,8 +68,6 @@ contextBridge.exposeInMainWorld("desktopBridge", {
     }
     return result as ReturnType<DesktopBridge["getAppBranding"]>;
   },
-  getRelayTelemetryEnabled: () =>
-    ipcRenderer.sendSync(IpcChannels.GET_RELAY_TELEMETRY_ENABLED_CHANNEL) === true,
   getPathForFile: (file: File) => webUtils.getPathForFile(file),
   getClientPlatform: () => clientPlatform,
   setNotificationBadge: (badge) =>
@@ -177,8 +172,6 @@ contextBridge.exposeInMainWorld("desktopBridge", {
   setWslDistro: (distro) => ipcRenderer.invoke(IpcChannels.SET_WSL_DISTRO_CHANNEL, distro),
   setWslOnly: (enabled) => ipcRenderer.invoke(IpcChannels.SET_WSL_ONLY_CHANNEL, enabled),
   pickFolder: (options) => ipcRenderer.invoke(IpcChannels.PICK_FOLDER_CHANNEL, options),
-  pickProjectFavicon: (initialPath) =>
-    ipcRenderer.invoke(IpcChannels.PICK_PROJECT_FAVICON_CHANNEL, initialPath),
   pickThemeFiles: () => ipcRenderer.invoke(IpcChannels.PICK_THEME_FILES_CHANNEL, undefined),
   setTheme: (theme) => ipcRenderer.invoke(IpcChannels.SET_THEME_CHANNEL, theme),
   showContextMenu: (items, position) =>
@@ -254,27 +247,10 @@ contextBridge.exposeInMainWorld("desktopBridge", {
       ipcRenderer.removeListener(IpcChannels.WINDOW_FULLSCREEN_STATE_CHANNEL, wrappedListener);
     };
   },
-  getUpdateState: () => ipcRenderer.invoke(IpcChannels.UPDATE_GET_STATE_CHANNEL),
-  setUpdateChannel: (channel) =>
-    ipcRenderer.invoke(IpcChannels.UPDATE_SET_CHANNEL_CHANNEL, channel),
-  checkForUpdate: () => ipcRenderer.invoke(IpcChannels.UPDATE_CHECK_CHANNEL),
-  downloadUpdate: () => ipcRenderer.invoke(IpcChannels.UPDATE_DOWNLOAD_CHANNEL),
-  installUpdate: () => ipcRenderer.invoke(IpcChannels.UPDATE_INSTALL_CHANNEL),
   cliCommand: {
     getState: () => ipcRenderer.invoke(IpcChannels.CLI_COMMAND_GET_STATE_CHANNEL),
     install: () => ipcRenderer.invoke(IpcChannels.CLI_COMMAND_INSTALL_CHANNEL),
     uninstall: () => ipcRenderer.invoke(IpcChannels.CLI_COMMAND_UNINSTALL_CHANNEL),
-  },
-  onUpdateState: (listener) => {
-    const wrappedListener = (_event: Electron.IpcRendererEvent, state: unknown) => {
-      if (typeof state !== "object" || state === null) return;
-      listener(state as Parameters<typeof listener>[0]);
-    };
-
-    ipcRenderer.on(IpcChannels.UPDATE_STATE_CHANNEL, wrappedListener);
-    return () => {
-      ipcRenderer.removeListener(IpcChannels.UPDATE_STATE_CHANNEL, wrappedListener);
-    };
   },
   webLinks: {
     setReady: (ready) => ipcRenderer.invoke(IpcChannels.WEB_LINK_READY_CHANNEL, ready),
