@@ -51,6 +51,7 @@ import * as ServerRuntimeStartup from "./serverRuntimeStartup.ts";
 import * as ServerOwnership from "./serverOwnership.ts";
 import * as ServerSettings from "./serverSettings.ts";
 import * as OziClock from "./ozi/Clock.ts";
+import * as DataRoot from "./ozi/DataRoot.ts";
 import * as Todos from "./ozi/Todos.ts";
 import * as NativeAppIconResolver from "./assets/NativeAppIconResolver.ts";
 import * as CodexInstallation from "./provider/CodexInstallation.ts";
@@ -345,6 +346,7 @@ const layerMakeServer = Layer.unwrap(
     const routesReady = yield* Deferred.make<void>();
 
     yield* fixPath({ shellEnvironmentPrepared: config.shellEnvironmentPrepared });
+    yield* (yield* DataRoot.DataRoot).initialize;
 
     const layerHttpListening = Layer.effectDiscard(
       Effect.gen(function* () {
@@ -475,6 +477,10 @@ const layerMakeServer = Layer.unwrap(
       Layer.provideMerge(layerPlatformServices),
     );
   }),
-).pipe(Layer.provide(OziClock.layer), Layer.provide(ProcessRunner.layer));
+).pipe(
+  Layer.provide(DataRoot.layer),
+  Layer.provide(OziClock.layer),
+  Layer.provide(ProcessRunner.layer),
+);
 
 export const runServer = Layer.launch(layerMakeServer);
