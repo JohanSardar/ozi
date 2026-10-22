@@ -219,6 +219,9 @@ const make = Effect.gen(function* () {
       return { evidence, command };
     },
     Effect.scoped,
+    Effect.catchTags({
+      ProcessTimeoutError: (cause) => new RepairError({ reason: "sandbox-timeout", cause }),
+    }),
     Effect.mapError((cause) =>
       isRepairError(cause) ? cause : new RepairError({ reason: "sandbox-failed", cause }),
     ),
