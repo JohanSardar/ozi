@@ -15,8 +15,8 @@ const devBundleIdSuffix = NodePath.basename(repoRoot)
   .replaceAll(/[^a-z0-9]+/g, "");
 const APP_DISPLAY_NAME = isDevelopment ? "Ozi (Dev)" : "Ozi (Beta)";
 const APP_BUNDLE_ID = isDevelopment
-  ? `app.ozi.desktop.dev.${devBundleIdSuffix || "local"}`
-  : "app.ozi.desktop";
+  ? `com.ozi.app.dev.${devBundleIdSuffix || "local"}`
+  : "com.ozi.app";
 const APP_PROTOCOL_SCHEMES = isDevelopment ? ["ozi-dev"] : ["ozi"];
 const LAUNCHER_VERSION = 20;
 const developmentMacIconPngPath = NodePath.join(
@@ -109,14 +109,14 @@ function shellSingleQuote(value) {
 export function makeDevelopmentEnvironmentScript(environment) {
   const envEntries = [
     ["VITE_DEV_SERVER_URL", environment.VITE_DEV_SERVER_URL],
-    ["T3CODE_PORT", environment.T3CODE_PORT],
-    ["T3CODE_HOME", environment.T3CODE_HOME],
-    ["T3CODE_COMMIT_HASH", environment.T3CODE_COMMIT_HASH],
-    ["T3CODE_OTLP_TRACES_URL", environment.T3CODE_OTLP_TRACES_URL],
-    ["T3CODE_OTLP_EXPORT_INTERVAL_MS", environment.T3CODE_OTLP_EXPORT_INTERVAL_MS],
-    ["T3CODE_OTLP_HEADERS", environment.T3CODE_OTLP_HEADERS],
-    ["T3CODE_OTLP_PROTOCOL", environment.T3CODE_OTLP_PROTOCOL],
-    ["T3CODE_DESKTOP_APP_USER_MODEL_ID", APP_BUNDLE_ID],
+    ["OZI_PORT", environment.OZI_PORT],
+    ["OZI_HOME", environment.OZI_HOME],
+    ["OZI_COMMIT_HASH", environment.OZI_COMMIT_HASH],
+    ["OZI_OTLP_TRACES_URL", environment.OZI_OTLP_TRACES_URL],
+    ["OZI_OTLP_EXPORT_INTERVAL_MS", environment.OZI_OTLP_EXPORT_INTERVAL_MS],
+    ["OZI_OTLP_HEADERS", environment.OZI_OTLP_HEADERS],
+    ["OZI_OTLP_PROTOCOL", environment.OZI_OTLP_PROTOCOL],
+    ["OZI_DESKTOP_APP_USER_MODEL_ID", APP_BUNDLE_ID],
   ].filter((entry) => typeof entry[1] === "string" && entry[1].trim().length > 0);
   return [
     ...envEntries.map(
@@ -136,7 +136,7 @@ export function makeDevelopmentLauncherScript({
   return [
     "#!/bin/sh",
     `if [ -f ${shellSingleQuote(environmentFilePath)} ]; then . ${shellSingleQuote(environmentFilePath)}; fi`,
-    `exec ${shellSingleQuote(electronBinaryPath)} --t3code-dev-root=${shellSingleQuote(desktopRoot)} ${shellSingleQuote(mainEntryPath)} "$@"`,
+    `exec ${shellSingleQuote(electronBinaryPath)} --ozi-dev-root=${shellSingleQuote(desktopRoot)} ${shellSingleQuote(mainEntryPath)} "$@"`,
     "",
   ].join("\n");
 }

@@ -1,10 +1,10 @@
 requirements:
-  main-pi: Main runs on Pi with Claude Opus 5.5, high effort, fast off.
+  main-pi: Main runs on Pi claude-bridge/claude-opus-5-5 through the Claude subscription, high effort, fast off, with only Ozi tools.
   main-delegates: Main never does the work; answers only from what it knows; always responsive.
   firstmate: One contact; full briefs; confirm start; relay changes; supervise; report outcomes; surface findings, blockers, logins, risks at once; batch routine.
-  one-job-per-outcome: One job per outcome; related work together, unrelated apart.
+  one-job-per-outcome: One job per outcome; retries reuse failed leads with jobId; related work together, unrelated apart.
   prompt: Core prompt ≤400 words with an empty ADHD slot; domain know-how in skills loaded when relevant.
-  workers: Default worker Codex gpt-6.1-sol xhigh Fast; Claude or Pi when suited; async; results to main and panel.
+  workers: Default worker Codex gpt-6.1-sol xhigh Fast; Pi defaults to discovered claude-bridge/claude-opus-5-5, no default sentinel; async; results to main and panel.
   other-machines: Workers reach other computers over plain SSH.
   does-it-itself: Workers handle codes, saved passwords and "I'm not a robot"; the user gets only passkeys, Face ID, puzzle CAPTCHAs, sensitive approvals; no CAPTCHA solvers.
   end-of-turn-check: Every claimed completion forks a check; gaps continue; silent otherwise.
@@ -12,16 +12,16 @@ requirements:
   mistake-log: Every mistake is one SQLite row with what and why.
   repair-trigger: A fix is made only on user correction or a repeat.
   replay: Fixes are tested by replaying from before the mistake with faked effects and an observer; pass ships, recurrence undoes.
-  protected: Self-repair can't change approvals, contacts rule, test cases, credentials.
+  protected: Self-repair can't change approvals, contacts rule, test cases, credentials. Host OAuth inference stays outside confinement and fails closed without a usable login.
   user-override: The user can change any rule by asking; Ozi never refuses the user.
   info-tools: Agents call tools on demand (MCP, CLI).
   schedules: Scheduled jobs by interval, time of day and webhook.
   watchers: Live watchers wake main.
-  quiet-cards: A scheduled run makes a card only if it needs the user or has something worth reading.
+  quiet-cards: A scheduled run makes a card only if it needs the user or meets the originating request's reporting condition.
   memory-plugin: Ozi doesn't depend on or write to memory.
   desktop-remote: Desktop app on the laptop; server on another machine.
   one-conversation: One main conversation; no thread list.
-  card-columns: One card per job in Running, Needs you, Ready, Done.
+  card-columns: One card per job in Running, Needs you, Ready, Done; stopped leads need the user and never show Checking.
   on-cards: Questions and reports live on the card, never only in the scroll.
   card-leaves: A card leaves when closed or clearly handled.
   drawer: Clicking a card opens the worker conversation in a drawer.
@@ -36,7 +36,7 @@ requirements:
 features:
   - id: cli
     reqs: [info-tools, for-everybody]
-    module: apps/server/src/cli/client.ts + e2e
+    module: apps/server/src/cli/client.ts + apps/server/src/cli/run.ts + e2e
     cli: [serve, service, pair, status, say, steer, stop, thread, wait]
     milestone: 1
     scenarios: [m1.cli-json]
@@ -50,14 +50,14 @@ features:
     status: passing
   - id: main-loadout
     reqs: [main-pi, prompt, main-delegates, does-it-itself]
-    module: ozi/Loadout.ts
+    module: ozi/Loadout.ts + packages/provider-pi/src/server + e2e/m1.real-pi.test.ts
     cli: [status, thread]
     milestone: 1
     scenarios: [m1.main-loadout, m1.main-cannot-execute]
     status: passing
   - id: delegation
     reqs: [workers, firstmate, other-machines, main-delegates]
-    module: main
+    module: main + packages/provider-pi/src/server/status.ts
     cli: [say, thread]
     milestone: 1
     scenarios: [m1.delegate-async, m1.responsive, m1.worker-choice]
@@ -148,7 +148,7 @@ features:
     status: passing
   - id: schedules
     reqs: [schedules, quiet-cards]
-    module: scheduledTasks/ScheduledTaskService.ts + ozi/Clock.ts + cli/client.ts + e2e/m4.test.ts
+    module: scheduledTasks/ScheduledTaskService.ts + ozi/Clock.ts + ozi/Completion.ts + cli/client.ts + e2e/m4.test.ts
     cli: [schedules, schedule]
     milestone: 4
     scenarios: [m4.interval, m4.time-of-day, m4.useful-card]
@@ -169,7 +169,7 @@ features:
     status: passing
   - id: cut-coding
     reqs: [t3-cut, minimal]
-    module: server + contracts + client-runtime + web + desktop + scripts + persistence/Migrations/079_RemoveWorkspaceFeatures.ts + persistence/Migrations/080_RemoveWorkspaceLaunch.ts + e2e/m4.test.ts
+    module: server + contracts + client-runtime + web + desktop + scripts + persistence/Migrations/083_RemoveWorkspaceFeatures.ts + persistence/Migrations/084_RemoveWorkspaceLaunch.ts + e2e/m4.test.ts
     cli: [request]
     milestone: 4
     scenarios: [m4.removed]
@@ -197,11 +197,18 @@ features:
     status: passing
   - id: publish-undo
     reqs: [replay]
-    module: Repair
-    cli: [fixes, undo]
+    module: apps/server/src/ozi/Publisher.ts + Repair.ts + RepairHttp.ts + apps/server/src/cli/client.ts + e2e/m6.test.ts
+    cli: [fixes, undo, wait]
     milestone: 6
     scenarios: [m6.publish, m6.recurrence-undo, m6.edit-conflict, m6.crash-publish]
-    status: planned
+    status: passing
+  - id: desktop-identity
+    reqs: [for-everybody, t3-cut]
+    module: apps/desktop + apps/server/src/cli/config.ts + e2e/m6.audit.test.ts
+    cli: [serve, pair]
+    milestone: 6
+    scenarios: [m6.audit]
+    status: passing
   - id: public-ready
     reqs: [for-everybody, minimal, t3-cut]
     module: repo

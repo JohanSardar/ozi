@@ -1,8 +1,10 @@
 const inferenceGuard = String.raw`
 const remoteReference = value => Array.isArray(value) ? value.some(remoteReference) : value && typeof value === 'object' && (value.type === 'url' || Object.entries(value).some(([key,item]) => ((key === 'file_id' || key === 'file_url') && typeof item === 'string') || (['image_url','audio_url'].includes(key) && typeof item === 'string' && !item.startsWith('data:')) || remoteReference(item)));
+const inferenceHeaders = request => Object.fromEntries(['anthropic-version','anthropic-beta','openai-beta','user-agent','x-app'].filter(name => typeof request.headers[name] === 'string').map(name => [name,request.headers[name]]));
 const inferenceRequest = async (request, anthropic) => {
   const allowed = anthropic ? ['/v1/messages','/v1/messages/count_tokens'] : ['/v1/responses'];
-  if (request.method !== 'POST' || !allowed.includes(request.url)) throw new Error('endpoint');
+  const url = new URL(request.url, 'http://localhost');
+  if (request.method !== 'POST' || !allowed.includes(url.pathname) || (url.search && url.search !== '?beta=true')) throw new Error('endpoint');
   let text = '';
   for await (const chunk of request) { text += chunk; if (text.length > 33554432) throw new Error('limit'); }
   const body = JSON.parse(text);
@@ -35,7 +37,7 @@ const server = http.createServer(async (request, response) => {
     let data;
     try { data = await inferenceRequest(request, input.driver !== 'codex'); }
     catch { response.writeHead(403); response.end(); return; }
-    const upstream = http.request({socketPath:'/inference.sock',path:request.url,method:request.method,headers:{'content-type':'application/json'}}, incoming => {
+    const upstream = http.request({socketPath:'/inference.sock',path:request.url,method:request.method,headers:{...inferenceHeaders(request),'content-type':'application/json'}}, incoming => {
       response.writeHead(incoming.statusCode ?? 502, incoming.headers);
       incoming.pipe(response);
     });
@@ -130,6 +132,8 @@ const spawn = args => {
 };
 try {
   if (input.driver === 'pi') {
+    fs.mkdirSync('/home/repair/pi', {recursive:true});
+    fs.writeFileSync('/home/repair/pi/models.json', JSON.stringify({providers:{anthropic:{baseUrl:inference}}}));
     spawn(['--mode','rpc','--no-extensions','--no-skills','--no-context-files','--no-prompt-templates','--extension','/launcher/extension.mjs','--system-prompt',system,...(replay || stage === 'observer' ? ['--no-tools'] : []),...(replay ? ['--fork','/case/session.jsonl'] : [])]);
     await rpc('get_state');
     await rpc('set_model',{provider:input.model.includes('/') ? input.model.split('/')[0] : 'anthropic',modelId:input.model.split('/').at(-1)});
@@ -152,7 +156,7 @@ try {
       fs.copyFileSync('/case/session.jsonl', '/home/repair/codex/' + input.nativeId + '.jsonl');
       fs.copyFileSync('/case/session.jsonl', '/home/repair/codex/sessions/rollout-' + input.nativeId + '.jsonl');
     }
-    spawn(['app-server']);
+    spawn(['app-server','-c','model_provider="ozi"','-c','model_providers.ozi.name="Ozi inference"','-c','model_providers.ozi.base_url=' + JSON.stringify(inference + '/v1'),'-c','model_providers.ozi.env_key="OPENAI_API_KEY"','-c','model_providers.ozi.wire_api="responses"','-c','model_providers.ozi.requires_openai_auth=false','-c','model_providers.ozi.supports_websockets=false']);
     await rpc('initialize',{clientInfo:{name:'ozi-repair',version:'1'},capabilities:{}});
     send({method:'initialized',params:{}});
     const params = {model:input.model,cwd:'/data',approvalPolicy:'never',sandbox:'danger-full-access',baseInstructions:system,serviceTier:options.serviceTier,config:{'mcp_servers.t3-code':{url:endpoint}}};
@@ -182,22 +186,129 @@ try {
 export const inferenceProgram =
   inferenceGuard +
   String.raw`
+import * as fs from 'node:fs';
+import * as os from 'node:os';
+import * as path from 'node:path';
 import * as http from 'node:http';
 import * as https from 'node:https';
-const anthropic = process.env.OZI_INFERENCE_PROVIDER === 'anthropic';
-const host = anthropic ? 'api.anthropic.com' : 'api.openai.com';
+import { Transform } from 'node:stream';
+const [socket, failure, driver] = process.argv.slice(2);
+const anthropic = driver !== 'codex';
+const env = process.env;
+const secrets = new Set();
+const remember = value => {
+  if (typeof value === 'string' && value.length >= 8) secrets.add(value);
+  else if (value && typeof value === 'object') Object.values(value).forEach(remember);
+  return value;
+};
+for (const name of ['OPENAI_API_KEY','ANTHROPIC_API_KEY','CLAUDE_CODE_OAUTH_TOKEN','ANTHROPIC_OAUTH_TOKEN']) remember(env[name]);
+const read = file => {
+  try { return remember(JSON.parse(fs.readFileSync(file, 'utf8'))); }
+  catch (error) { if (error.code === 'ENOENT') return {}; throw new Error('login-unusable'); }
+};
+const usable = (token, expires) => {
+  if (typeof token !== 'string' || !token.trim()) return undefined;
+  if (expires !== undefined && (!Number.isFinite(expires) || expires <= Date.now())) throw new Error('login-expired');
+  secrets.add(token);
+  return token;
+};
+const authenticate = () => {
+  if (driver === 'codex') {
+    const auth = read(path.join(env.CODEX_HOME || path.join(os.homedir(), '.codex'), 'auth.json'));
+    const token = usable(auth.tokens?.access_token);
+    if (token) {
+      let claims;
+      try { claims = JSON.parse(Buffer.from(token.split('.')[1], 'base64url')); } catch {}
+      usable(token, claims?.exp === undefined ? undefined : claims.exp * 1000);
+      const account = auth.tokens.account_id || claims?.['https://api.openai.com/auth']?.chatgpt_account_id;
+      if (typeof account !== 'string' || !account) throw new Error('login-unusable');
+      secrets.add(account);
+      return {token,oauth:true,headers:{authorization:'Bearer ' + token,'chatgpt-account-id':account,originator:'codex_cli_rs'}};
+    }
+    const key = usable(env.OPENAI_API_KEY || auth.OPENAI_API_KEY);
+    if (key) return {headers:{authorization:'Bearer ' + key}};
+  } else {
+    const configured = usable(env[driver === 'pi' ? 'ANTHROPIC_OAUTH_TOKEN' : 'CLAUDE_CODE_OAUTH_TOKEN']);
+    if (configured) return {oauth:true,headers:{authorization:'Bearer ' + configured}};
+    const auth = driver === 'pi'
+      ? read(path.join(env.PI_CODING_AGENT_DIR || path.join(os.homedir(), '.pi/agent'), 'auth.json')).anthropic
+      : read(path.join(env.CLAUDE_CONFIG_DIR || path.join(os.homedir(), '.claude'), '.credentials.json')).claudeAiOauth;
+    const token = driver === 'pi'
+      ? (auth?.type === 'oauth' ? usable(auth.access, auth.expires) : undefined)
+      : usable(auth?.accessToken, auth?.expiresAt);
+    if (token) return {token,oauth:true,headers:{authorization:'Bearer ' + token}};
+    const key = usable(env.ANTHROPIC_API_KEY || (auth?.type === 'api_key' ? auth.key : undefined));
+    if (key) return {headers:{'x-api-key':key}};
+  }
+  throw new Error('login-missing');
+};
+const fail = (response, reason, status = 503) => {
+  fs.writeFileSync(failure, 'inference-' + driver + '-' + reason);
+  if (response.headersSent) { response.destroy(); return; }
+  response.writeHead(status, {'content-type':'application/json'});
+  response.end(JSON.stringify({error:'Repair inference unavailable.'}));
+};
+const redactor = () => {
+  let pending = '';
+  const values = [...secrets].sort((a,b) => b.length - a.length);
+  return new Transform({
+    transform(chunk, _encoding, done) {
+      pending += chunk.toString('utf8');
+      let output = '';
+      while (pending) {
+        const value = values.find(value => pending.startsWith(value));
+        if (value) { output += '[redacted]'; pending = pending.slice(value.length); }
+        else if (values.some(value => value.startsWith(pending))) break;
+        else { output += pending[0]; pending = pending.slice(1); }
+      }
+      done(null, output);
+    },
+    flush(done) { done(null, pending ? '[redacted]' : ''); }
+  });
+};
 const server = http.createServer(async (request,response) => {
   let data;
   try { data = await inferenceRequest(request, anthropic); }
   catch { response.writeHead(403); response.end(); return; }
-  const upstream = https.request({hostname:host,path:request.url,method:'POST',headers:{'content-type':'application/json',...(anthropic ? {'x-api-key':process.env.OZI_INFERENCE_KEY,'anthropic-version':'2023-06-01'} : {authorization:'Bearer ' + process.env.OZI_INFERENCE_KEY})}}, incoming => {
-    response.writeHead(incoming.statusCode ?? 502, {'content-type':incoming.headers['content-type'] ?? 'application/json'});
-    incoming.pipe(response);
-  });
-  upstream.on('error', () => { response.writeHead(502); response.end(); });
-  upstream.end(data);
+  try {
+    const auth = authenticate();
+    const headers = {...inferenceHeaders(request),'content-type':'application/json',...auth.headers};
+    const route = new URL(request.url, 'http://localhost');
+    let url;
+    if (anthropic) {
+      headers['anthropic-version'] ||= '2023-06-01';
+      url = new URL((env.ANTHROPIC_BASE_URL || 'https://api.anthropic.com').replace(/\/$/, '') + route.pathname + route.search);
+      if (auth.oauth) {
+        headers['anthropic-beta'] = [...new Set((headers['anthropic-beta'] || '').split(',').filter(Boolean).concat('claude-code-20250219','oauth-2025-04-20'))].join(',');
+        headers['x-app'] = 'cli';
+        headers['user-agent'] = headers['user-agent']?.startsWith('claude-cli/') ? headers['user-agent'] : 'claude-cli/2.1.280';
+        if (driver === 'pi') headers['anthropic-dangerous-direct-browser-access'] = 'true';
+        const body = JSON.parse(data);
+        const identity = "You are Claude Code, Anthropic's official CLI for Claude.";
+        const system = typeof body.system === 'string' ? [{type:'text',text:body.system}] : body.system || [];
+        if (!system.some(block => block.text === identity)) body.system = [{type:'text',text:identity},...system];
+        data = JSON.stringify(body);
+      }
+    } else {
+      url = new URL('responses', (env.OPENAI_BASE_URL || (auth.oauth ? 'https://chatgpt.com/backend-api/codex' : 'https://api.openai.com/v1')).replace(/\/$/, '') + '/');
+    }
+    const upstream = (url.protocol === 'https:' ? https : http).request(url, {method:'POST',headers,timeout:45000}, incoming => {
+      if (incoming.statusCode < 200 || incoming.statusCode >= 300) {
+        incoming.resume();
+        fail(response, [401,403].includes(incoming.statusCode) ? 'login-rejected' : 'upstream-failed', 502);
+        return;
+      }
+      response.writeHead(incoming.statusCode, {'content-type':incoming.headers['content-type']?.startsWith('text/event-stream') ? 'text/event-stream' : 'application/json'});
+      incoming.setEncoding('utf8');
+      incoming.pipe(redactor()).pipe(response);
+    });
+    upstream.on('timeout', () => upstream.destroy());
+    upstream.on('error', () => fail(response, 'transport-failed', 502));
+    request.on('aborted', () => upstream.destroy());
+    upstream.end(data);
+  } catch (error) { fail(response, ['login-missing','login-expired','login-unusable'].includes(error.message) ? error.message : 'transport-failed'); }
 });
-server.listen(process.argv[2], () => process.stdout.write('ready\n'));
+server.listen(socket, () => { fs.chmodSync(socket, 0o600); process.stdout.write('ready\n'); });
 `;
 
 export const extensionProgram = String.raw`

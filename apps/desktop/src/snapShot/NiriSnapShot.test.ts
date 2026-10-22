@@ -108,11 +108,11 @@ afterEach(async () => {
 });
 
 it("selects the native adapter without needing a portal or GNOME extension", async () => {
-  expect(await getLinuxCaptureSupport("app.ozi.Ozi")).toEqual({
+  expect(await getLinuxCaptureSupport("com.ozi.app")).toEqual({
     linuxBackend: "niri",
     linuxFeedbackAvailable: false,
   });
-  const snapshot = await captureLinuxWindow("app.ozi.Ozi");
+  const snapshot = await captureLinuxWindow("com.ozi.app");
   expect(snapshot?.png).toEqual(png);
   expect(snapshot?.window).toMatchObject({
     processId: 123,
@@ -133,7 +133,7 @@ it("does not activate Ozi until requested, then matches PID and title", async ()
   expect(calls.some((call) => typeof call !== "string" && call.Action.FocusWindow)).toBe(false);
   windows = [
     { ...window, id: 1, pid: 999, title: "Ozi" },
-    { ...window, id: 2, pid: process.pid, title: "Other Ozi" },
+    { ...window, id: 2, pid: process.pid, title: "Other T3" },
     { ...window, id: 3, pid: process.pid, title: "Ozi" },
   ];
   await snapshot.feedback!.activate("Ozi");
@@ -196,7 +196,7 @@ it("rejects compositor errors and cleans up its temporary image", async () => {
       send(socket, { Err: "window disappeared" });
     } else await original(request, socket);
   };
-  await expect(captureLinuxWindow("app.ozi.Ozi")).rejects.toThrow("window disappeared");
+  await expect(captureLinuxWindow("com.ozi.app")).rejects.toThrow("window disappeared");
   expect(await NodeFSP.stat(NodePath.dirname(capturePath!)).catch(() => undefined)).toBeUndefined();
 });
 

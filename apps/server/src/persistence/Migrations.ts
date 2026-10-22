@@ -70,11 +70,13 @@ import Migration0066 from "./Migrations/066_RepairClientSettlementTimestamps.ts"
 import Migration0067 from "./Migrations/067_WebhookDedupe.ts";
 import Migration0075 from "./Migrations/075_OziRepair.ts";
 import Migration0076 from "./Migrations/076_OziCompletion.ts";
+import Migration0080 from "./Migrations/080_OziFixes.ts";
 
-import Migration0077 from "./Migrations/077_RemoveSourceControl.ts";
-import Migration0078 from "./Migrations/078_RemoveRelay.ts";
-import Migration0079 from "./Migrations/079_RemoveWorkspaceFeatures.ts";
-import Migration0080 from "./Migrations/080_RemoveWorkspaceLaunch.ts";
+import Migration0081 from "./Migrations/081_RemoveSourceControl.ts";
+
+import Migration0082 from "./Migrations/082_RemoveRelay.ts";
+import Migration0083 from "./Migrations/083_RemoveWorkspaceFeatures.ts";
+import Migration0084 from "./Migrations/084_RemoveWorkspaceLaunch.ts";
 
 export const migrationEntries = [
   [1, "OrchestrationEvents", Migration0001],
@@ -145,10 +147,11 @@ export const migrationEntries = [
   [67, "WebhookDedupe", Migration0067],
   [75, "OziRepair", Migration0075],
   [76, "OziCompletion", Migration0076],
-  [77, "RemoveSourceControl", Migration0077],
-  [78, "RemoveRelay", Migration0078],
-  [79, "RemoveWorkspaceFeatures", Migration0079],
-  [80, "RemoveWorkspaceLaunch", Migration0080],
+  [80, "OziFixes", Migration0080],
+  [81, "RemoveSourceControl", Migration0081],
+  [82, "RemoveRelay", Migration0082],
+  [83, "RemoveWorkspaceFeatures", Migration0083],
+  [84, "RemoveWorkspaceLaunch", Migration0084],
 ] as const;
 
 export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);

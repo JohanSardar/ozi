@@ -58,7 +58,7 @@ it.runIf(hasDbus)("captures through real D-Bus marshalling on a private bus", as
     server = sessionBus({ busAddress: String(address) });
     server.on("error", () => undefined);
     await server.requestName("org.freedesktop.portal.Desktop", NameFlag.DO_NOT_QUEUE);
-    await server.requestName("org.gnome.Shell.Extensions.T3SnapShot", NameFlag.DO_NOT_QUEUE);
+    await server.requestName("org.gnome.Shell.Extensions.OziSnapShot", NameFlag.DO_NOT_QUEUE);
     await server.requestName("org.gnome.Shell", NameFlag.DO_NOT_QUEUE);
     await server.requestName("org.kde.KWin.ScreenShot2", NameFlag.DO_NOT_QUEUE);
     const png = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 0]);
@@ -164,13 +164,13 @@ it.runIf(hasDbus)("captures through real D-Bus marshalling on a private bus", as
       setup.close();
     }
     const portal = connect();
-    expect(await portal.backend("app.ozi.Ozi")).toBe("screenshot-portal");
+    expect(await portal.backend("com.ozi.app")).toBe("screenshot-portal");
     expect(await portal.capturePortal()).toEqual({ png });
     expect(target).toBe(8);
     portalVersion = 2;
     const extension = connect();
-    expect(await extension.backend("app.ozi.Ozi")).toBe("gnome-extension");
-    expect(await extension.captureExtension("app.ozi.Ozi")).toMatchObject({
+    expect(await extension.backend("com.ozi.app")).toBe("gnome-extension");
+    expect(await extension.captureExtension("com.ozi.app")).toMatchObject({
       png,
       window: { processId: 42 },
     });
@@ -181,15 +181,15 @@ it.runIf(hasDbus)("captures through real D-Bus marshalling on a private bus", as
         interface: "org.freedesktop.DBus",
         member: "GetNameOwner",
         signature: "s",
-        body: ["app.ozi.Ozi.SnapShot"],
+        body: ["com.ozi.app.SnapShot"],
       }),
     );
     expect(owner?.body[0]).toBe(clientName);
     extension.close();
     extensionVersion = 2;
     const updated = connect();
-    expect(await updated.backend("app.ozi.Ozi")).toBe("gnome-extension");
-    const snapshot = await updated.captureExtension("app.ozi.Ozi", {
+    expect(await updated.backend("com.ozi.app")).toBe("gnome-extension");
+    const snapshot = await updated.captureExtension("com.ozi.app", {
       flash: true,
       animate: true,
     });
@@ -202,14 +202,14 @@ it.runIf(hasDbus)("captures through real D-Bus marshalling on a private bus", as
     expect(animateFrame).toEqual([0.1, 0.8, 0.2, 0.1]);
     vi.stubEnv("XDG_CURRENT_DESKTOP", "KDE");
     const kde = connect();
-    expect(await kde.backend("app.ozi.Ozi")).toBe("kde");
+    expect(await kde.backend("com.ozi.app")).toBe("kde");
     expect(kde.feedbackAvailable).toBe(false);
     kde.close();
     const triggered = vi.fn();
     const failed = vi.fn();
     const niriBus = sessionBus({ busAddress: String(address) });
     stopNiriShortcut = await startNiriCaptureShortcut(
-      "app.ozi.Ozi.NiriTest",
+      "com.ozi.app.NiriTest",
       triggered,
       failed,
       niriBus,
@@ -218,11 +218,11 @@ it.runIf(hasDbus)("captures through real D-Bus marshalling on a private bus", as
       "call",
       "--session",
       "--dest",
-      "app.ozi.Ozi.NiriTest.SnapShot",
+      "com.ozi.app.NiriTest.SnapShot",
       "--object-path",
-      "/com/t3tools/SnapShot",
+      "/com/ozi/SnapShot",
       "--method",
-      "com.t3tools.SnapShot.Capture",
+      "com.ozi.SnapShot.Capture",
     ];
     await new Promise<void>((resolve, reject) => {
       NodeChildProcess.execFile(
@@ -239,9 +239,9 @@ it.runIf(hasDbus)("captures through real D-Bus marshalling on a private bus", as
     expect(failed).not.toHaveBeenCalled();
     const invalid = server.call(
       new Message({
-        destination: "app.ozi.Ozi.NiriTest.SnapShot",
-        path: "/com/t3tools/SnapShot",
-        interface: "com.t3tools.SnapShot",
+        destination: "com.ozi.app.NiriTest.SnapShot",
+        path: "/com/ozi/SnapShot",
+        interface: "com.ozi.SnapShot",
         member: "Capture",
         signature: "s",
         body: ["not allowed"],
@@ -251,7 +251,7 @@ it.runIf(hasDbus)("captures through real D-Bus marshalling on a private bus", as
     expect(triggered).toHaveBeenCalledOnce();
     await expect(
       startNiriCaptureShortcut(
-        "app.ozi.Ozi.NiriTest",
+        "com.ozi.app.NiriTest",
         triggered,
         failed,
         sessionBus({ busAddress: String(address) }),
@@ -259,7 +259,7 @@ it.runIf(hasDbus)("captures through real D-Bus marshalling on a private bus", as
     ).rejects.toThrow("already owns");
     stopNiriShortcut();
     const restarted = await startNiriCaptureShortcut(
-      "app.ozi.Ozi.NiriTest",
+      "com.ozi.app.NiriTest",
       triggered,
       failed,
       sessionBus({ busAddress: String(address) }),

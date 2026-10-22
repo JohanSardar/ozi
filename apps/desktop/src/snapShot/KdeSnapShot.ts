@@ -15,8 +15,8 @@ import { startNativeCaptureFeedback } from "./NativeCaptureFeedback.ts";
 export { isKdeCaptureSession } from "./linuxCaptureSession.ts";
 
 export const KDE_CAPTURE_EXECUTABLE = "t3-kde-snap-shot";
-const DESKTOP_FILE = "app.ozi.Ozi.KdeCapture.desktop";
-const MARKER = "X-T3Code-Capture-Helper=true";
+const DESKTOP_FILE = "com.ozi.app.KdeCapture.desktop";
+const MARKER = "X-Ozi-Capture-Helper=true";
 const decodeCapabilities = Schema.decodeUnknownSync(
   Schema.fromJsonString(Schema.Struct({ feedbackAvailable: Schema.optional(Schema.Boolean) })),
 );

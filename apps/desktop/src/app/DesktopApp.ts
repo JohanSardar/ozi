@@ -19,7 +19,6 @@ import * as DesktopWindow from "../window/DesktopWindow.ts";
 import * as PreviewPasskeys from "../preview/Passkeys.ts";
 import * as DesktopBackendPool from "../backend/DesktopBackendPool.ts";
 import * as DesktopEnvironment from "./DesktopEnvironment.ts";
-import * as DesktopLegacyLocalStorage from "./DesktopLegacyLocalStorage.ts";
 import * as DesktopLifecycle from "./DesktopLifecycle.ts";
 import * as DesktopLinuxUrlHandler from "./DesktopLinuxUrlHandler.ts";
 import * as DesktopObservability from "./DesktopObservability.ts";
@@ -60,7 +59,7 @@ export class DesktopDevelopmentBackendPortRequiredError extends Schema.TaggedErr
   {},
 ) {
   override get message(): string {
-    return "T3CODE_PORT is required in desktop development.";
+    return "OZI_PORT is required in desktop development.";
   }
 }
 
@@ -174,10 +173,6 @@ const bootstrap = Effect.gen(function* () {
   });
   yield* installDesktopIpcHandlers();
   yield* logBootstrapInfo("bootstrap ipc handlers registered");
-  // Before any window: the preload merges these items before the app reads storage.
-  yield* (yield* DesktopLegacyLocalStorage.DesktopLegacyLocalStorage).load(
-    yield* (yield* DesktopAppIdentity.DesktopAppIdentity).resolveUserDataPath,
-  );
 
   yield* snapShot.initialize;
 

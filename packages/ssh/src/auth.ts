@@ -60,7 +60,7 @@ export interface SshChildEnvironmentOptions {
   readonly authSecret?: string | null;
 }
 
-const SSH_ASKPASS_DIR_NAME = "t3code-ssh-askpass";
+const SSH_ASKPASS_DIR_NAME = "ozi-ssh-askpass";
 
 function joinSshAskpassPath(
   directory: string,
@@ -74,12 +74,12 @@ function joinSshAskpassPath(
 const ASKPASS_POSIX_SCRIPT = `#!/bin/sh
 # Invoked by ssh via SSH_ASKPASS when Ozi re-runs ssh with a cached password
 # from the renderer's in-app prompt. We never expose a native dialog here - if
-# T3_SSH_AUTH_SECRET is missing, that's a caller bug and we fail loudly.
-if [ "\${T3_SSH_AUTH_SECRET+x}" = "x" ]; then
-  printf "%s\\n" "$T3_SSH_AUTH_SECRET"
+# OZI_SSH_AUTH_SECRET is missing, that's a caller bug and we fail loudly.
+if [ "\${OZI_SSH_AUTH_SECRET+x}" = "x" ]; then
+  printf "%s\\n" "$OZI_SSH_AUTH_SECRET"
   exit 0
 fi
-printf 'Ozi ssh-askpass invoked without T3_SSH_AUTH_SECRET.\\n' >&2
+printf 'Ozi ssh-askpass invoked without OZI_SSH_AUTH_SECRET.\\n' >&2
 exit 1
 `;
 
@@ -89,13 +89,13 @@ powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0ssh-askpass.ps1" %*\r
 
 const ASKPASS_WINDOWS_SCRIPT = `# Invoked by ssh via SSH_ASKPASS (through ssh-askpass.cmd) when Ozi re-runs\r
 # ssh with a cached password from the renderer's in-app prompt. We never expose\r
-# a native dialog here - if T3_SSH_AUTH_SECRET is missing, that's a caller bug\r
+# a native dialog here - if OZI_SSH_AUTH_SECRET is missing, that's a caller bug\r
 # and we fail loudly.\r
-if ($null -ne $env:T3_SSH_AUTH_SECRET) {\r
-  [Console]::Out.WriteLine($env:T3_SSH_AUTH_SECRET)\r
+if ($null -ne $env:OZI_SSH_AUTH_SECRET) {\r
+  [Console]::Out.WriteLine($env:OZI_SSH_AUTH_SECRET)\r
   exit 0\r
 }\r
-[Console]::Error.WriteLine("Ozi ssh-askpass invoked without T3_SSH_AUTH_SECRET.")\r
+[Console]::Error.WriteLine("Ozi ssh-askpass invoked without OZI_SSH_AUTH_SECRET.")\r
 exit 1\r
 `;
 
@@ -103,7 +103,7 @@ const getDefaultSshAskpassDirectory = Effect.fn("ssh/auth.getDefaultSshAskpassDi
   function* () {
     const fs = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
-    const parentDirectory = yield* fs.makeTempDirectory({ prefix: "t3code-ssh-runtime-" });
+    const parentDirectory = yield* fs.makeTempDirectory({ prefix: "ozi-ssh-runtime-" });
     return path.join(parentDirectory, SSH_ASKPASS_DIR_NAME);
   },
 );
@@ -197,7 +197,7 @@ export const buildSshChildEnvironment = Effect.fn("ssh/auth.buildSshChildEnviron
     ...baseEnv,
     SSH_ASKPASS: sshAskpass,
     SSH_ASKPASS_REQUIRE: "force",
-    ...(input.authSecret === undefined ? {} : { T3_SSH_AUTH_SECRET: input.authSecret ?? "" }),
+    ...(input.authSecret === undefined ? {} : { OZI_SSH_AUTH_SECRET: input.authSecret ?? "" }),
     ...(platform === "win32" || baseEnv.DISPLAY || hostDisplay ? {} : { DISPLAY: "ozi" }),
   };
 });
