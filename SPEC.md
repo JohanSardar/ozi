@@ -5,7 +5,7 @@ Ozi is an agent runtime for anyone. You talk to one main agent; it delegates rea
 ## Glossary
 
 - **Main**: the one conversation the user talks to. Pi, Claude Opus 5.5 through the user's Claude subscription, high effort, fast off. Orchestration tools and `read_skill` only.
-- **Worker**: an agent thread main starts. Default Codex `gpt-6.1-sol`, xhigh, Fast; Claude or Pi when better suited.
+- **Worker**: an agent thread main starts. Default Codex `gpt-6.1-sol`, xhigh, Fast; Claude or Pi when better suited. Pi defaults to `claude-bridge/claude-opus-5-5`; its catalog discovers subscription models, including `claude-bridge/claude-sonnet-5-5`, without a `default` entry. Bridge workers load the same extension and config as main.
 - **Job**: one outcome. Its **lead** is the first worker thread for it; job ID = lead thread ID. **Helpers** are descendants that inherit the job ID.
 - **Card**: the panel view of a job. Columns: **Needs you > Running > Ready > Done**.
 - **Report**: a worker's checked outcome for the job's current request.
@@ -31,9 +31,9 @@ New code lives in `apps/server/src/ozi/` and `apps/web/src/components/ozi/`. Eve
 - Cards expose `jobId`, current `eventId`, title, column, agent, short status, `checking`, `checkState`, `requestEventId`, report, requests with owner thread IDs, `handledEventId`, and `updatedAt`. Secret values never enter cards. Reports contain their checked event ID, text and useful-finding flag.
 - `handle({commandId, jobId, eventId, evidence}) → CommandReceipt`. Errors: `UnknownJob`, `WrongJob`, `StaleEvent`, `InvalidEvidence`, no mutation.
 - Thread fields only: `jobId`, `visibility`, `handledEventId`. No job tables.
-- Column: any unresolved question/approval/secret/login/Blocked in the job → Needs you; else unresolved or unchecked work → Running; checked lead report for current request → Ready; handled → Done. Newer request, actionable event or result reopens.
+- Column: any unresolved question/approval/secret/login/Blocked in the job → Needs you; else unresolved or unchecked work → Running; checked lead report for current request → Ready; handled → Done. A stopped lead without a newer request shows Needs you, `Stopped`, and `checking: false`. Close hides it; a new request resumes Running. Newer request, actionable event or result reopens.
 - Close records `job.handled` against the exact displayed event. Automatic acceptance requires an unambiguous user message after that report; verified handling requires its successful check event. Both reject unresolved or newer obligations. Viewing, silence and answers never accept a report. Main reads exact events with `job_cards` and calls `handle_job`; a plain acknowledgement addressed to a Ready lead records acceptance atomically without another agent turn. `ozi close --command-id` retries the same command without closing a newer event. Close leaves active work and requests alone.
-- Main alone may pass `jobId` to delegation. Helpers inherit it; related follow-ups use the lead's existing send/queue path. An unavailable worker leaves a lead with its blocker and no agent run. Scheduled jobs inherit quiet visibility; internal threads do not appear in cards.
+- Main alone may pass `jobId` to delegation. Retries and related follow-ups pass the existing `jobId` or use the lead's send/queue path. Retrying a failed or unavailable lead reuses its thread and job; the new run supersedes its launch blocker. Helpers inherit the job. An unavailable worker leaves a lead with its blocker and no agent run. Scheduled jobs inherit quiet visibility; internal threads do not appear in cards.
 - The current request follows its source event through lead sends, steering and queued follow-ups; event order, not the clock, identifies it.
 
 ### Completion (`ozi/Completion.ts`)
@@ -156,7 +156,7 @@ Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` 
 - `m1.main-cannot-execute`: main has no shell/file/browser or Claude Code built-in tool; a call is rejected.
 - `m1.delegate-async`: request → main starts a Codex worker (gpt-6.1-sol, xhigh, Fast), confirms it started, its turn ends; worker result returns to main, which reports.
 - `m1.responsive`: while a worker runs, a second message gets an answer.
-- `m1.worker-choice`: main starts a Claude worker and a Pi worker when asked.
+- `m1.worker-choice`: main sees Pi's subscription models with Opus first and no `default`; Claude and Pi workers start with the selected models and bridge loading.
 - `m1.attachments`: a file sent with a message reaches main and the worker brief.
 - `m1.steer-queue-stop`: steer main mid-turn; queue a follow-up; stop main; stop a worker.
 - `m1.read-skill`: main loads a data-root skill by name; unknown name errors.
@@ -168,7 +168,7 @@ Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` 
 - `m2.lead-card`: a delegated request shows one Running card at once.
 - `m2.helper-same-job`: a worker's helper inherits the job; still one card.
 - `m2.second-outcome`: an unrelated request makes a second card.
-- `m2.followup-lead`: a related follow-up runs in the lead thread; no new card.
+- `m2.followup-lead`: a related follow-up runs in the lead thread; retrying a failed or unavailable lead with `jobId` ends with one Ready card, including after restart.
 - `m2.question-card`: a helper's question moves the card to Needs you; answering it on the card resumes that helper.
 - `m2.approval-card`: a worker approval shows on the card; deny and allow reach the owner.
 - `m2.secret-card`: a secret request shows on the card; the value never appears in card data.
@@ -193,7 +193,7 @@ Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` 
 - `m3.needs-user`: `needs_user` moves the card to Needs you at once.
 - `m3.close-exact`: closing the shown report → Done; a stale event is rejected; a newer result reopens.
 - `m3.accept-closes`: clear user acceptance closes the card.
-- `m3.close-vs-stop`: Close hides without stopping; Stop stops without closing.
+- `m3.close-vs-stop`: Close hides without stopping; Stop shows Needs you / Stopped without checking or accepting; close → Done, a new request → Running.
 - `m3.recovery`: a crash before fork or delivery recovers without losing or duplicating the report.
 
 ### M4 Information

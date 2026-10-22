@@ -63,7 +63,8 @@ const start = async (
                     ? undefined
                     : {
                         providerInstanceId: provider,
-                        model: provider === "pi" ? "anthropic/claude-opus-5-5" : "claude-opus-5-5",
+                        model:
+                          provider === "pi" ? "claude-bridge/claude-opus-5-5" : "claude-opus-5-5",
                       },
               },
             },
@@ -426,6 +427,20 @@ it("m3.close-vs-stop closes without interrupting and stops without accepting", a
   await h.ozi("stop", "--thread", other);
   await h.wait(other, "interrupted");
   expect((await job(other)).column).not.toBe("done");
+  expect(await job(other)).toMatchObject({
+    column: "needs_you",
+    status: "Stopped",
+    checking: false,
+  });
+  expect(await checks(other)).toEqual([]);
+  await h.ozi("close", other, displayed(await job(other)));
+  expect((await job(other)).column).toBe("done");
+  await h.script([
+    { match: "^resume-stopped$", role: "worker", steps: [{ say: "resumed" }, { wait: true }] },
+  ]);
+  await h.ozi("thread", other, "--message", "resume-stopped");
+  await h.wait(other, "text:resumed");
+  expect(await job(other)).toMatchObject({ column: "running", status: "Working", checking: false });
 });
 
 it("m3.recovery recovers a durable claim before fork and deduplicates delivery after crashes", async () => {
