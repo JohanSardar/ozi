@@ -4,7 +4,7 @@ import { editorLabelForPlatform, openInEditorMenuLabel } from "./editorLabels";
 
 describe("editorLabelForPlatform", () => {
   it("uses the editor name from the shared editor definitions", () => {
-    expect(editorLabelForPlatform("cursor", "MacIntel")).toBe("Cursor");
+    expect(editorLabelForPlatform("vscode", "MacIntel")).toBe("VS Code");
     expect(editorLabelForPlatform("vscode-insiders", "Win32")).toBe("VS Code Insiders");
   });
 

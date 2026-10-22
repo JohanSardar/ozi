@@ -73,7 +73,6 @@ function ConfiguredConnectOnboardingDialog() {
   const [openForAccount, setOpenForAccount] = useState<string | null>(null);
   const [step, setStep] = useState<OnboardingStep>("devices");
   const [exposeEnvironment, setExposeEnvironment] = useState(true);
-  const [publishAgentActivity, setPublishAgentActivity] = useState(true);
   const [dontShowAgain, setDontShowAgain] = useState(false);
   const [isApplying, setIsApplying] = useState(false);
   const [prefilledFromLinkState, setPrefilledFromLinkState] = useState(false);
@@ -120,7 +119,6 @@ function ConfiguredConnectOnboardingDialog() {
       setRequestedAccount(null);
       setPrefilledFromLinkState(false);
       setExposeEnvironment(true);
-      setPublishAgentActivity(true);
       setDontShowAgain(false);
       setStep(canManageRelay && controller.linkState.target !== null ? "publish" : "devices");
       setOpenForAccount(requestedAccount);
@@ -136,7 +134,6 @@ function ConfiguredConnectOnboardingDialog() {
       linkStateData.cloudUserId === openForAccount
     ) {
       setExposeEnvironment(linkStateData.managedTunnelActive ?? linkStateData.linked);
-      setPublishAgentActivity(linkStateData.publishAgentActivity);
     }
   }
 
@@ -166,23 +163,20 @@ function ConfiguredConnectOnboardingDialog() {
     if (linkStateData === null || controller.linkState.error !== null) return;
     // The wizard only ever enables — with both toggles off there is nothing to
     // apply, and an existing link must not be torn down from onboarding.
-    if (!exposeEnvironment && !publishAgentActivity) {
+    if (!exposeEnvironment) {
       setStep("devices");
       return;
     }
     setIsApplying(true);
     const ok = await controller.reconcileCloudState({
       managedTunnel: exposeEnvironment,
-      publish: publishAgentActivity,
     });
     setIsApplying(false);
     if (!ok) return;
     toastManager.add({
       type: "success",
       title: "T3 Connect enabled",
-      description: exposeEnvironment
-        ? "This environment is available to your other devices through T3 Connect."
-        : "This environment publishes agent activity to your mobile clients.",
+      description: "This environment is available to your other devices through T3 Connect.",
     });
     setStep("devices");
   };
@@ -227,7 +221,6 @@ function ConfiguredConnectOnboardingDialog() {
           {step === "publish" ? (
             <PublishStep
               exposeEnvironment={exposeEnvironment}
-              publishAgentActivity={publishAgentActivity}
               disabled={isApplying || !canManageRelay || linkStateData === null}
               operationError={controller.operationError ?? controller.linkState.error}
               onExposeEnvironmentChange={(enabled) => {
@@ -237,14 +230,6 @@ function ConfiguredConnectOnboardingDialog() {
                   readEnvironmentScope(primaryEnvironmentId, AuthRelayWriteScope)
                 )
                   setExposeEnvironment(enabled);
-              }}
-              onPublishAgentActivityChange={(enabled) => {
-                if (
-                  primaryEnvironmentId !== null &&
-                  readEnvironmentScope(primaryEnvironmentId, AuthRelayReadScope) &&
-                  readEnvironmentScope(primaryEnvironmentId, AuthRelayWriteScope)
-                )
-                  setPublishAgentActivity(enabled);
               }}
             />
           ) : (
@@ -286,24 +271,20 @@ function ConfiguredConnectOnboardingDialog() {
 }
 
 const STEP_LABELS: Record<OnboardingStep, string> = {
-  publish: "Publish",
+  publish: "Publish environment",
   devices: "Connect devices",
 };
 
 function PublishStep({
   exposeEnvironment,
-  publishAgentActivity,
   disabled,
   operationError,
   onExposeEnvironmentChange,
-  onPublishAgentActivityChange,
 }: {
   readonly exposeEnvironment: boolean;
-  readonly publishAgentActivity: boolean;
   readonly disabled: boolean;
   readonly operationError: string | null;
   readonly onExposeEnvironmentChange: (enabled: boolean) => void;
-  readonly onPublishAgentActivityChange: (enabled: boolean) => void;
 }) {
   return (
     <div className="space-y-3">
@@ -314,13 +295,6 @@ function PublishStep({
           checked={exposeEnvironment}
           disabled={disabled}
           onCheckedChange={onExposeEnvironmentChange}
-        />
-        <OnboardingToggleRow
-          title="Publish agent activity"
-          description="Send activity from this environment to your mobile clients for push notifications and Live Activities."
-          checked={publishAgentActivity}
-          disabled={disabled}
-          onCheckedChange={onPublishAgentActivityChange}
         />
       </div>
       {operationError ? <p className="text-xs text-destructive">{operationError}</p> : null}

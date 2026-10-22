@@ -260,99 +260,6 @@ it.effect("launches an installed editor with platform-safe arguments", () =>
   }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );
 
-for (const platform of ["darwin", "linux"] as const) {
-  it.effect.skipIf(windowsHost)(`launches Cursor in classic IDE mode on ${platform}`, () =>
-    Effect.gen(function* () {
-      const fileSystem = yield* FileSystem.FileSystem;
-      const path = yield* Path.Path;
-      const binDir = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-editors-" });
-      const cursorPath = path.join(binDir, "cursor");
-      yield* fileSystem.writeFileString(cursorPath, "#!/bin/sh\n");
-      yield* fileSystem.chmod(cursorPath, 0o755);
-
-      const spawned: ChildProcess.StandardCommand[] = [];
-      yield* Effect.gen(function* () {
-        const launcher = yield* ExternalLauncher.ExternalLauncher;
-        for (const cwd of [
-          "/workspace with spaces",
-          "/workspace with spaces/src/index.ts",
-          "/workspace with spaces/src/index.ts:12",
-          "/workspace with spaces/src/index.ts:12:4",
-        ]) {
-          yield* launcher.launchEditor({ editor: "cursor", cwd });
-        }
-      }).pipe(
-        Effect.provide(
-          layerTest({
-            platform,
-            env: { PATH: binDir },
-            onSpawn: (command) => spawned.push(command),
-          }),
-        ),
-      );
-
-      assert.deepEqual(
-        spawned.map((command) => ({ command: command.command, args: command.args })),
-        [
-          { command: "cursor", args: ["--classic", "/workspace with spaces"] },
-          { command: "cursor", args: ["--classic", "/workspace with spaces/src/index.ts"] },
-          {
-            command: "cursor",
-            args: ["--classic", "--goto", "/workspace with spaces/src/index.ts:12"],
-          },
-          {
-            command: "cursor",
-            args: ["--classic", "--goto", "/workspace with spaces/src/index.ts:12:4"],
-          },
-        ],
-      );
-    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
-  );
-}
-
-it.effect("launches Cursor in classic IDE mode through the Windows command shim", () =>
-  Effect.gen(function* () {
-    const fileSystem = yield* FileSystem.FileSystem;
-    const path = yield* Path.Path;
-    const binDir = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-editors-" });
-    yield* fileSystem.writeFileString(path.join(binDir, "cursor.CMD"), "@echo off\r\n");
-
-    let spawned: ChildProcess.StandardCommand | undefined;
-    yield* Effect.gen(function* () {
-      const launcher = yield* ExternalLauncher.ExternalLauncher;
-      yield* launcher.launchEditor({
-        editor: "cursor",
-        cwd: "C:\\workspace with spaces\\src\\index.ts:12:4",
-      });
-    }).pipe(
-      Effect.provide(
-        layerTest({
-          platform: "win32",
-          env: { PATH: binDir, PATHEXT: ".COM;.EXE;.BAT;.CMD" },
-          resolveExecutable: (command) =>
-            command === "cursor" ? "C:\\Program Files\\Cursor\\bin\\cursor.CMD" : command,
-          onSpawn: (command) => {
-            spawned = command;
-          },
-        }),
-      ),
-    );
-
-    assert.ok(spawned);
-    assert.equal(
-      spawned.command,
-      [
-        '^"C:\\Program^ Files\\Cursor\\bin\\cursor.CMD^"',
-        '^"--classic^"',
-        '^"--goto^"',
-        '^"C:\\workspace^ with^ spaces\\src\\index.ts:12:4^"',
-      ].join(" "),
-    );
-    assert.deepEqual(spawned.args, []);
-    assert.equal(spawned.options.shell, true);
-  }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
-);
-
 it.effect("opens a folder in File Explorer with Windows separators", () =>
   Effect.gen(function* () {
     const fileSystem = yield* FileSystem.FileSystem;
@@ -1218,24 +1125,6 @@ it.effect("discovers editors through the service API", () =>
 for (const { platform, installPath, editor, args } of [
   {
     platform: "darwin",
-    installPath: "Applications/Antigravity IDE.app/Contents/Resources/app/bin/antigravity-ide",
-    editor: "antigravity",
-    args: ["--goto", "/workspace with spaces/file.ts:12:4"],
-  },
-  {
-    platform: "linux",
-    installPath: ".local/bin/antigravity-ide",
-    editor: "antigravity",
-    args: ["--goto", "/workspace with spaces/file.ts:12:4"],
-  },
-  {
-    platform: "darwin",
-    installPath: "Applications/Cursor.app/Contents/Resources/app/bin/code",
-    editor: "cursor",
-    args: ["--classic", "--goto", "/workspace with spaces/file.ts:12:4"],
-  },
-  {
-    platform: "darwin",
     installPath: "Applications/Kiro.app/Contents/Resources/app/bin/code",
     editor: "kiro",
     args: ["--goto", "/workspace with spaces/file.ts:12:4"],
@@ -1251,12 +1140,6 @@ for (const { platform, installPath, editor, args } of [
     installPath: "Applications/Zed.app/Contents/MacOS/cli",
     editor: "zed",
     args: ["/workspace with spaces/file.ts:12:4"],
-  },
-  {
-    platform: "win32",
-    installPath: "Programs/Cursor/resources/app/bin/cursor.cmd",
-    editor: "cursor",
-    args: ['^"--classic^"', '^"--goto^"', '^"/workspace^ with^ spaces/file.ts:12:4^"'],
   },
   {
     platform: "win32",
@@ -1491,90 +1374,6 @@ it.effect("keeps the macOS VS Code Insiders bundle out of stable VS Code", () =>
     assert.notInclude(editors, "vscode");
     assert.include(editors, "vscode-insiders");
     assert.equal(spawned?.command, path.join(bin, "code-insiders"));
-  }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
-);
-
-for (const { platform, installPath, onPath } of [
-  { platform: "darwin", installPath: ".local/bin/agy", onPath: true },
-  { platform: "linux", installPath: ".local/bin/agy", onPath: false },
-  { platform: "win32", installPath: "agy/bin/agy.cmd", onPath: true },
-] as const) {
-  it.effect.skipIf(windowsHost && platform !== "win32")(
-    `does not report the agy CLI as the Antigravity IDE on ${platform}`,
-    () =>
-      Effect.gen(function* () {
-        const fs = yield* FileSystem.FileSystem;
-        const path = yield* Path.Path;
-        const home = yield* fs.makeTempDirectoryScoped({ prefix: "t3-agy-cli-" });
-        const executable = path.join(home, installPath);
-        yield* fs.makeDirectory(path.dirname(executable), { recursive: true });
-        yield* fs.writeFileString(executable, "#!/bin/sh\n");
-        yield* fs.chmod(executable, 0o755);
-        const editors = yield* Effect.gen(function* () {
-          const launcher = yield* ExternalLauncher.ExternalLauncher;
-          return yield* launcher.resolveAvailableEditors();
-        }).pipe(
-          Effect.provide(
-            layerTest({
-              platform,
-              env: {
-                HOME: home,
-                LOCALAPPDATA: home,
-                PATH: onPath ? path.dirname(executable) : path.join(home, "empty"),
-                PATHEXT: ".COM;.EXE;.BAT;.CMD",
-              },
-            }),
-          ),
-        );
-        assert.notInclude(editors, "antigravity");
-      }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
-  );
-}
-
-it.effect.skipIf(windowsHost)("ignores unusable app bundles and keeps PATH launchers first", () =>
-  Effect.gen(function* () {
-    const fs = yield* FileSystem.FileSystem;
-    const path = yield* Path.Path;
-    const home = yield* fs.makeTempDirectoryScoped({ prefix: "t3-editor-priority-" });
-    const executable = path.join(home, "Applications/Cursor.app/Contents/Resources/app/bin/code");
-    const env = { HOME: home, PATH: path.join(home, "bin") };
-    const discover = Effect.gen(function* () {
-      const launcher = yield* ExternalLauncher.ExternalLauncher;
-      return yield* launcher.resolveAvailableEditors();
-    });
-    const before = yield* discover.pipe(Effect.provide(layerTest({ platform: "darwin", env })));
-    yield* fs.makeDirectory(executable, { recursive: true });
-    assert.deepEqual(
-      yield* discover.pipe(Effect.provide(layerTest({ platform: "darwin", env }))),
-      before,
-    );
-    yield* fs.remove(executable, { recursive: true });
-    yield* fs.writeFileString(executable, "#!/bin/sh\n");
-    yield* fs.chmod(executable, 0o644);
-    assert.deepEqual(
-      yield* discover.pipe(Effect.provide(layerTest({ platform: "darwin", env }))),
-      before,
-    );
-    yield* fs.chmod(executable, 0o755);
-    yield* fs.makeDirectory(env.PATH);
-    yield* fs.writeFileString(path.join(env.PATH, "cursor"), "#!/bin/sh\n");
-    yield* fs.chmod(path.join(env.PATH, "cursor"), 0o755);
-    let spawned: ChildProcess.StandardCommand | undefined;
-    yield* Effect.gen(function* () {
-      const launcher = yield* ExternalLauncher.ExternalLauncher;
-      yield* launcher.launchEditor({ editor: "cursor", cwd: "/workspace" });
-    }).pipe(
-      Effect.provide(
-        layerTest({
-          platform: "darwin",
-          env: { ...env, PATH: `${env.PATH}:/usr/bin` },
-          onSpawn: (command) => {
-            spawned = command;
-          },
-        }),
-      ),
-    );
-    assert.equal(spawned?.command, "cursor");
   }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );
 

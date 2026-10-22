@@ -27,6 +27,8 @@ requirements:
   drawer: Clicking a card opens the worker conversation in a drawer.
   todos: The panel shows the user's external to-dos, clearly marked.
   t3-keep: Keep chat (attachments, steer/queue, stop), approval/question cards, delegation, scheduler, webhooks, secret entry, shared browser, visual replies, desktop shell, Pi/Claude/Codex adapters.
+  provider-scope: Only Pi, Claude and Codex providers ship.
+  client-scope: Only desktop and web clients ship.
   t3-cut: Cut other providers, thread list, projects, worktrees, PR tools, checkpoints, diffs, simulators, terminal, T3 coding instructions.
   minimal: Fewest words and least code.
   for-everybody: No user-specific paths or accounts in code; public repo ozi.
@@ -40,12 +42,12 @@ features:
     scenarios: [m1.cli-json]
     status: planned
   - id: providers-trimmed
-    reqs: [t3-cut, t3-keep, memory-plugin]
+    reqs: [t3-cut, t3-keep, memory-plugin, provider-scope, client-scope]
     module: server
     cli: [status]
     milestone: 1
     scenarios: [m1.fresh-install]
-    status: planned
+    status: building
   - id: main-loadout
     reqs: [main-pi, prompt, main-delegates, does-it-itself]
     module: main

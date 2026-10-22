@@ -964,16 +964,7 @@ it("shows readable models and only differing workspace details in agent tooltips
     if (!model?.trim()) expect(text()).not.toContain("My GPT");
   }
 
-  for (const driver of [
-    "codex",
-    "claudeAgent",
-    "cursor",
-    "opencode",
-    "grok",
-    "antigravity",
-    "pi",
-    "acpRegistry",
-  ]) {
+  for (const driver of ["codex", "claudeAgent", "pi"]) {
     state.projection = {
       ...projection,
       subagents: [{ ...projection.subagents[0], driver, model: null }],
@@ -1035,11 +1026,6 @@ it("shows readable models and only differing workspace details in agent tooltips
     ["codex", serviceTier, undefined, ""],
     ["claudeAgent", fastMode, true, "Fast mode on"],
     ["claudeAgent", fastMode, false, ""],
-    ["cursor", fastMode, true, "Fast mode on"],
-    ["cursor", fastMode, false, ""],
-    ["opencode", fastMode, true, "Fast mode on"],
-    ["cursor", fastMode, "true", ""],
-    ["cursor", serviceTier, "priority", ""],
   ] as const) {
     state.configs.set("test", {
       providers: [
@@ -1237,10 +1223,6 @@ it("shows readable models and only differing workspace details in agent tooltips
     ["codex", "custom/model-v2", "custom/model-v2"],
     ["claudeAgent", "gpt-5.4", "GPT-5.4"],
     ["claudeAgent", "claude-opus-4-6", "Claude Opus 4.6"],
-    ["cursor", "composer-2", "Composer 2"],
-    ["grok", "grok-4-fast", "Grok 4 Fast"],
-    ["antigravity", "gemini-3.8-flash-high", "Gemini 3.8 Flash High"],
-    ["opencode", "anthropic/claude-sonnet-4-6", "anthropic/Claude Sonnet 4.6"],
     ["codex", null, "Not reported"],
   ] as const) {
     state.projection = {

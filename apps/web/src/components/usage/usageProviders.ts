@@ -19,22 +19,6 @@ export const PROVIDER_PRESENTATION = {
     color: "#d97757",
     driverKind: ProviderDriverKind.make("claudeAgent"),
   },
-  grok: {
-    label: "Grok Build",
-    color: "color-mix(in oklab, var(--contrast-foreground) 72%, var(--background))",
-    driverKind: ProviderDriverKind.make("grok"),
-  },
-  cursor: { label: "Cursor", color: "#8b8b8b", driverKind: ProviderDriverKind.make("cursor") },
-  opencode: {
-    label: "OpenCode",
-    color: "#5b9bbd",
-    driverKind: ProviderDriverKind.make("opencode"),
-  },
-  antigravity: {
-    label: "Antigravity",
-    color: "#8c7bd1",
-    driverKind: ProviderDriverKind.make("antigravity"),
-  },
   pi: {
     label: "Pi",
     color: "#4d9f8a",

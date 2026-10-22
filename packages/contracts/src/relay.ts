@@ -8,150 +8,8 @@ import * as HttpApiSchema from "effect/http-api/HttpApiSchema";
 import * as HttpApiSecurity from "effect/http-api/HttpApiSecurity";
 import * as OpenApi from "effect/http-api/OpenApi";
 
-import {
-  DpopFailureReason,
-  EnvironmentId,
-  ThreadId,
-  TrimmedNonEmptyString,
-} from "./baseSchemas.ts";
+import { DpopFailureReason, EnvironmentId, TrimmedNonEmptyString } from "./baseSchemas.ts";
 import { ExecutionEnvironmentDescriptor } from "./environment.ts";
-
-export const RelayAgentAwarenessPlatform = Schema.Literals(["ios", "android"]);
-export type RelayAgentAwarenessPlatform = typeof RelayAgentAwarenessPlatform.Type;
-
-export const RelayAgentAwarenessPhase = Schema.Literals([
-  "starting",
-  "running",
-  "waiting_for_approval",
-  "waiting_for_input",
-  "completed",
-  "failed",
-  "stale",
-]);
-export type RelayAgentAwarenessPhase = typeof RelayAgentAwarenessPhase.Type;
-
-export const RelayAgentAwarenessPreferences = Schema.Struct({
-  liveActivitiesEnabled: Schema.Boolean,
-  notificationsEnabled: Schema.Boolean,
-  notifyOnApproval: Schema.Boolean,
-  notifyOnInput: Schema.Boolean,
-  notifyOnCompletion: Schema.Boolean,
-  notifyOnFailure: Schema.Boolean,
-});
-export type RelayAgentAwarenessPreferences = typeof RelayAgentAwarenessPreferences.Type;
-
-export const RelayApnsEnvironment = Schema.Literals(["sandbox", "production"]);
-export type RelayApnsEnvironment = typeof RelayApnsEnvironment.Type;
-
-export const RelayDeviceRegistrationRequest = Schema.Struct({
-  deviceId: TrimmedNonEmptyString,
-  label: TrimmedNonEmptyString,
-  platform: RelayAgentAwarenessPlatform,
-  iosMajorVersion: Schema.optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(18))),
-  androidApiLevel: Schema.optional(Schema.Int.check(Schema.isGreaterThanOrEqualTo(24))),
-  appVersion: Schema.optional(TrimmedNonEmptyString),
-  // APNs routing for this install: the topic must match the app's bundle id (dev/preview/prod
-  // variants differ) and development-signed builds receive sandbox tokens.
-  bundleId: Schema.optional(TrimmedNonEmptyString),
-  apsEnvironment: Schema.optional(RelayApnsEnvironment),
-  pushToken: Schema.optional(TrimmedNonEmptyString),
-  pushToStartToken: Schema.optional(TrimmedNonEmptyString),
-  preferences: RelayAgentAwarenessPreferences,
-}).check(
-  Schema.makeFilter((device) =>
-    device.platform === "ios"
-      ? device.iosMajorVersion !== undefined
-      : device.androidApiLevel !== undefined &&
-        device.iosMajorVersion === undefined &&
-        device.apsEnvironment === undefined &&
-        device.pushToStartToken === undefined,
-  ),
-);
-export type RelayDeviceRegistrationRequest = typeof RelayDeviceRegistrationRequest.Type;
-
-export const RelayClientDeviceRecord = Schema.Struct({
-  deviceId: TrimmedNonEmptyString,
-  label: TrimmedNonEmptyString,
-  platform: RelayAgentAwarenessPlatform,
-  iosMajorVersion: Schema.NullOr(Schema.Int.check(Schema.isGreaterThanOrEqualTo(18))),
-  androidApiLevel: Schema.optional(Schema.NullOr(Schema.Int)),
-  appVersion: Schema.NullOr(TrimmedNonEmptyString),
-  notifications: Schema.Struct({
-    enabled: Schema.Boolean,
-    notifyOnApproval: Schema.Boolean,
-    notifyOnInput: Schema.Boolean,
-    notifyOnCompletion: Schema.Boolean,
-    notifyOnFailure: Schema.Boolean,
-  }),
-  liveActivities: Schema.Struct({
-    enabled: Schema.Boolean,
-  }),
-  updatedAt: TrimmedNonEmptyString,
-});
-export type RelayClientDeviceRecord = typeof RelayClientDeviceRecord.Type;
-
-export const RelayListDevicesResponse = Schema.Struct({
-  devices: Schema.Array(RelayClientDeviceRecord),
-});
-export type RelayListDevicesResponse = typeof RelayListDevicesResponse.Type;
-
-// Installed clients decode v1 as iOS-only. Keep that response contract frozen.
-export const RelayListDevicesResponseV1 = Schema.Struct({
-  devices: Schema.Array(
-    Schema.Struct({
-      ...RelayClientDeviceRecord.fields,
-      platform: Schema.Literal("ios"),
-      iosMajorVersion: Schema.Int.check(Schema.isGreaterThanOrEqualTo(18)),
-    }),
-  ),
-});
-
-export const RelayLiveActivityRegistrationRequest = Schema.Struct({
-  deviceId: TrimmedNonEmptyString,
-  activityPushToken: TrimmedNonEmptyString,
-});
-export type RelayLiveActivityRegistrationRequest = typeof RelayLiveActivityRegistrationRequest.Type;
-
-export const RelayDeviceUnregistrationParams = Schema.Struct({
-  deviceId: TrimmedNonEmptyString,
-});
-export type RelayDeviceUnregistrationParams = typeof RelayDeviceUnregistrationParams.Type;
-
-export const RelayAgentActivityState = Schema.Struct({
-  environmentId: EnvironmentId,
-  threadId: ThreadId,
-  projectTitle: TrimmedNonEmptyString,
-  threadTitle: TrimmedNonEmptyString,
-  phase: RelayAgentAwarenessPhase,
-  headline: TrimmedNonEmptyString,
-  detail: Schema.optional(TrimmedNonEmptyString),
-  modelTitle: TrimmedNonEmptyString,
-  updatedAt: TrimmedNonEmptyString,
-  deepLink: TrimmedNonEmptyString,
-});
-export type RelayAgentActivityState = typeof RelayAgentActivityState.Type;
-
-export const RelayAgentActivityAggregateRow = Schema.Struct({
-  environmentId: EnvironmentId,
-  threadId: ThreadId,
-  projectTitle: TrimmedNonEmptyString,
-  threadTitle: TrimmedNonEmptyString,
-  modelTitle: TrimmedNonEmptyString,
-  phase: RelayAgentAwarenessPhase,
-  status: TrimmedNonEmptyString,
-  updatedAt: TrimmedNonEmptyString,
-  deepLink: TrimmedNonEmptyString,
-});
-export type RelayAgentActivityAggregateRow = typeof RelayAgentActivityAggregateRow.Type;
-
-export const RelayAgentActivityAggregateState = Schema.Struct({
-  title: TrimmedNonEmptyString,
-  subtitle: TrimmedNonEmptyString,
-  activeCount: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
-  updatedAt: TrimmedNonEmptyString,
-  activities: Schema.Array(RelayAgentActivityAggregateRow),
-});
-export type RelayAgentActivityAggregateState = typeof RelayAgentActivityAggregateState.Type;
 
 export const RelayManagedEndpointProviderKind = Schema.Literals([
   "manual",
@@ -259,30 +117,7 @@ export const RelayManagedEndpointRecoveryProofPayload = Schema.Union([
 export type RelayManagedEndpointRecoveryProofPayload =
   typeof RelayManagedEndpointRecoveryProofPayload.Type;
 
-export const RelayAgentActivityPublishProofPayload = Schema.Struct({
-  ...RelaySignedJwtRegisteredClaims,
-  environmentId: EnvironmentId,
-  threadId: ThreadId,
-  state: Schema.NullOr(RelayAgentActivityState),
-});
-export type RelayAgentActivityPublishProofPayload =
-  typeof RelayAgentActivityPublishProofPayload.Type;
-export type RelayAgentActivityPublishProof = string;
-
-export const RelayAgentActivityPublishRequest = Schema.Struct({
-  state: Schema.NullOr(RelayAgentActivityState).annotate({
-    description: "Current agent-awareness state, or null to remove the published state.",
-  }),
-  proof: TrimmedNonEmptyString.annotate({
-    description: "Environment-signed JWT covering this published activity state.",
-  }),
-}).annotate({ description: "Publishes a signed agent-awareness update from an environment." });
-export type RelayAgentActivityPublishRequest = typeof RelayAgentActivityPublishRequest.Type;
-
-export const RelayEnvironmentLinkScope = Schema.Literals([
-  "agent_activity_notifications",
-  "managed_tunnels",
-]);
+export const RelayEnvironmentLinkScope = Schema.Literals(["managed_tunnels"]);
 export type RelayEnvironmentLinkScope = typeof RelayEnvironmentLinkScope.Type;
 
 export const RelayEnvironmentLinkProofPayload = Schema.Struct({
@@ -301,12 +136,6 @@ export const RelayEnvironmentLinkProof = TrimmedNonEmptyString;
 export type RelayEnvironmentLinkProof = typeof RelayEnvironmentLinkProof.Type;
 
 export const RelayEnvironmentLinkChallengeRequest = Schema.Struct({
-  notificationsEnabled: Schema.Boolean.annotate({
-    description: "Whether this link may deliver push notifications.",
-  }),
-  liveActivitiesEnabled: Schema.Boolean.annotate({
-    description: "Whether this link may update Live Activities.",
-  }),
   managedTunnelsEnabled: Schema.Boolean.annotate({
     description: "Whether the relay should provision a managed tunnel for this environment.",
   }),
@@ -329,8 +158,6 @@ export const RelayEnvironmentLinkRequest = Schema.Struct({
   proof: RelayEnvironmentLinkProof.annotate({
     description: "Environment-signed proof bound to a previously issued link challenge.",
   }),
-  notificationsEnabled: Schema.Boolean,
-  liveActivitiesEnabled: Schema.Boolean,
   managedTunnelsEnabled: Schema.Boolean,
 }).annotate({ description: "Links an authenticated cloud user to a T3 environment." });
 export type RelayEnvironmentLinkRequest = typeof RelayEnvironmentLinkRequest.Type;
@@ -397,13 +224,6 @@ export const RelayEnvironmentEndpointFailure = Schema.Literals([
   "unknown",
 ]);
 export type RelayEnvironmentEndpointFailure = typeof RelayEnvironmentEndpointFailure.Type;
-
-export const RelayAgentActivityPublishProofInvalidReason = Schema.Literals([
-  "invalid_signature_or_payload",
-  "replayed_nonce",
-]);
-export type RelayAgentActivityPublishProofInvalidReason =
-  typeof RelayAgentActivityPublishProofInvalidReason.Type;
 
 export const RelayAuthInvalidReason = Schema.Literals([
   "missing_bearer",
@@ -567,33 +387,6 @@ export class RelayEnvironmentLinkLimitExceededError extends Schema.TaggedError<R
   }
 }
 
-export class RelayAgentActivityPublishProofExpiredError extends Schema.TaggedError<RelayAgentActivityPublishProofExpiredError>()(
-  "RelayAgentActivityPublishProofExpiredError",
-  {
-    code: Schema.Literal("agent_activity_publish_proof_expired"),
-    traceId: TrimmedNonEmptyString,
-  },
-  { httpApiStatus: 401 },
-) {
-  override get message(): string {
-    return "Relay agent activity publish proof expired";
-  }
-}
-
-export class RelayAgentActivityPublishProofInvalidError extends Schema.TaggedError<RelayAgentActivityPublishProofInvalidError>()(
-  "RelayAgentActivityPublishProofInvalidError",
-  {
-    code: Schema.Literal("agent_activity_publish_proof_invalid"),
-    reason: RelayAgentActivityPublishProofInvalidReason,
-    traceId: TrimmedNonEmptyString,
-  },
-  { httpApiStatus: 401 },
-) {
-  override get message(): string {
-    return `Relay agent activity publish proof is invalid: ${this.reason}`;
-  }
-}
-
 export class RelayInternalError extends Schema.TaggedError<RelayInternalError>()(
   "RelayInternalError",
   {
@@ -618,8 +411,6 @@ export const RelayProtectedError = Schema.Union([
   RelayEnvironmentLinkFailedError,
   RelayEnvironmentLinkUnavailableError,
   RelayEnvironmentLinkLimitExceededError,
-  RelayAgentActivityPublishProofExpiredError,
-  RelayAgentActivityPublishProofInvalidError,
   RelayInternalError,
 ]);
 export type RelayProtectedError = typeof RelayProtectedError.Type;
@@ -641,13 +432,6 @@ const RelayEnvironmentConnectErrors = [
   RelayEnvironmentConnectNotAuthorizedError,
   RelayEnvironmentEndpointUnavailableError,
   RelayEnvironmentEndpointTimedOutError,
-  RelayInternalError,
-] as const;
-
-const RelayAgentActivityPublishErrors = [
-  RelayAuthInvalidError,
-  RelayAgentActivityPublishProofExpiredError,
-  RelayAgentActivityPublishProofInvalidError,
   RelayInternalError,
 ] as const;
 
@@ -748,11 +532,9 @@ export type RelayEnvironmentConnectRequest = typeof RelayEnvironmentConnectReque
 
 export const RelayEnvironmentConnectScope = "environment:connect" as const;
 export const RelayEnvironmentStatusScope = "environment:status" as const;
-export const RelayMobileRegistrationScope = "mobile:registration" as const;
 export const RelayDpopAccessTokenScope = Schema.Literals([
   RelayEnvironmentConnectScope,
   RelayEnvironmentStatusScope,
-  RelayMobileRegistrationScope,
 ]);
 export type RelayDpopAccessTokenScope = typeof RelayDpopAccessTokenScope.Type;
 
@@ -760,9 +542,8 @@ export const RelayDpopTokenExchangeGrantType =
   "urn:ietf:params:oauth:grant-type:token-exchange" as const;
 export const RelayJwtSubjectTokenType = "urn:ietf:params:oauth:token-type:jwt" as const;
 export const RelayAccessTokenType = "urn:ietf:params:oauth:token-type:access_token" as const;
-export const RelayPublicClientId = Schema.Literals(["t3-mobile", "t3-web"]);
+export const RelayPublicClientId = Schema.Literals(["t3-web"]);
 export type RelayPublicClientId = typeof RelayPublicClientId.Type;
-export const RelayMobileClientId = "t3-mobile" as const;
 export const RelayWebClientId = "t3-web" as const;
 
 export const RelayDpopAccessTokenRequest = Schema.Struct({
@@ -1002,64 +783,6 @@ const RelayMetadataGroup = HttpApiGroup.make("metadata")
   )
   .annotate(OpenApi.Description, "OAuth and DPoP discovery metadata.");
 
-export const RelayRegisterDeviceEndpoint = HttpApiEndpoint.post(
-  "registerDevice",
-  "/v1/mobile/devices",
-  {
-    headers: RelayDpopRequestHeaders,
-    payload: RelayDeviceRegistrationRequest,
-    success: RelayOkResponse,
-    error: RelayAuthAndInternalErrors,
-  },
-).annotate(OpenApi.Summary, "Register or update a mobile device");
-
-export const RelayRegisterLiveActivityEndpoint = HttpApiEndpoint.post(
-  "registerLiveActivity",
-  "/v1/mobile/live-activities",
-  {
-    headers: RelayDpopRequestHeaders,
-    payload: RelayLiveActivityRegistrationRequest,
-    success: RelayOkResponse,
-    error: RelayAuthAndInternalErrors,
-  },
-).annotate(OpenApi.Summary, "Register a Live Activity push token");
-
-export const RelayAgentActivitySnapshotResponse = Schema.Struct({
-  aggregate: Schema.NullOr(RelayAgentActivityAggregateState),
-});
-export type RelayAgentActivitySnapshotResponse = typeof RelayAgentActivitySnapshotResponse.Type;
-
-export const RelayAgentActivitySnapshotEndpoint = HttpApiEndpoint.get(
-  "getAgentActivitySnapshot",
-  "/v1/mobile/agent-activity",
-  {
-    headers: RelayDpopRequestHeaders,
-    success: RelayAgentActivitySnapshotResponse,
-    error: RelayAuthAndInternalErrors,
-  },
-).annotate(OpenApi.Summary, "Read the current Live Activity aggregate");
-
-export const RelayUnregisterDeviceEndpoint = HttpApiEndpoint.delete(
-  "unregisterDevice",
-  "/v1/mobile/devices/:deviceId",
-  {
-    headers: RelayDpopRequestHeaders,
-    params: RelayDeviceUnregistrationParams,
-    success: RelayOkResponse,
-    error: RelayAuthAndInternalErrors,
-  },
-).annotate(OpenApi.Summary, "Unregister a mobile device");
-
-const RelayMobileGroup = HttpApiGroup.make("mobile")
-  .add(
-    RelayRegisterDeviceEndpoint,
-    RelayRegisterLiveActivityEndpoint,
-    RelayAgentActivitySnapshotEndpoint,
-    RelayUnregisterDeviceEndpoint,
-  )
-  .annotate(OpenApi.Description, "Mobile push-notification and Live Activity registration.")
-  .middleware(RelayDpopClientAuth);
-
 const RelayClientGroup = HttpApiGroup.make("client")
   .add(
     HttpApiEndpoint.get("listEnvironments", "/v1/environments", {
@@ -1067,16 +790,6 @@ const RelayClientGroup = HttpApiGroup.make("client")
       success: RelayListEnvironmentsResponse,
       error: RelayAuthAndInternalErrors,
     }).annotate(OpenApi.Summary, "List linked environments"),
-    HttpApiEndpoint.get("listDevices", "/v1/client/devices", {
-      headers: RelayBearerRequestHeaders,
-      success: RelayListDevicesResponseV1,
-      error: RelayAuthAndInternalErrors,
-    }).annotate(OpenApi.Summary, "List registered iOS devices (legacy clients)"),
-    HttpApiEndpoint.get("listDevicesV2", "/v2/client/devices", {
-      headers: RelayBearerRequestHeaders,
-      success: RelayListDevicesResponse,
-      error: RelayAuthAndInternalErrors,
-    }).annotate(OpenApi.Summary, "List registered mobile devices"),
     HttpApiEndpoint.post("linkEnvironment", "/v1/client/environment-links", {
       headers: RelayBearerRequestHeaders,
       payload: RelayEnvironmentLinkRequest,
@@ -1204,19 +917,6 @@ const RelayServerGroup = HttpApiGroup.make("server")
       error: RelayAuthAndInternalErrors,
     }).annotate(OpenApi.Summary, "Recover an environment's managed tunnel"),
     HttpApiEndpoint.post(
-      "publishAgentActivity",
-      "/v1/environments/:environmentId/threads/:threadId/agent-activity",
-      {
-        params: Schema.Struct({
-          environmentId: EnvironmentId,
-          threadId: ThreadId,
-        }),
-        payload: RelayAgentActivityPublishRequest,
-        success: RelayPublishResponse,
-        error: RelayAgentActivityPublishErrors,
-      },
-    ).annotate(OpenApi.Summary, "Publish agent activity"),
-    HttpApiEndpoint.post(
       "updateLinkPreferences",
       "/v1/environments/:environmentId/link-preferences",
       {
@@ -1266,7 +966,6 @@ export const RelayApi = HttpApi.make("RelayApi")
   .add(
     RelayHealthGroup,
     RelayMetadataGroup,
-    RelayMobileGroup,
     RelayClientGroup,
     RelayTokenGroup,
     RelayDpopClientGroup,

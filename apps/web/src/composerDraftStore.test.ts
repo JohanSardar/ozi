@@ -2391,59 +2391,6 @@ describe("composerDraftStore modelSelection", () => {
     );
   });
 
-  it("keeps explicit Cursor reset overrides on the selection", () => {
-    const store = useComposerDraftStore.getState();
-
-    store.setModelSelection(
-      threadRef,
-      modelSelection(CURSOR_DRIVER, "claude-opus-4-6", {
-        reasoning: "xhigh",
-        fastMode: true,
-        thinking: false,
-      }),
-    );
-
-    store.setProviderModelOptions(
-      threadRef,
-      CURSOR_DRIVER,
-      toSelections({ reasoning: "medium", fastMode: false, thinking: true }),
-    );
-
-    expect(
-      draftFor(threadId, TEST_ENVIRONMENT_ID)?.modelSelectionByProvider[CURSOR_INSTANCE],
-    ).toEqual(
-      modelSelection(CURSOR_DRIVER, "claude-opus-4-6", {
-        reasoning: "medium",
-        fastMode: false,
-        thinking: true,
-      }),
-    );
-  });
-
-  it("preserves the selected Cursor model when only traits change", () => {
-    const store = useComposerDraftStore.getState();
-
-    store.setProviderModelOptions(threadRef, CURSOR_DRIVER, toSelections({ reasoning: "high" }), {
-      model: "gpt-5.4",
-      persistSticky: true,
-    });
-
-    expect(
-      draftFor(threadId, TEST_ENVIRONMENT_ID)?.modelSelectionByProvider[CURSOR_INSTANCE],
-    ).toEqual(
-      modelSelection(CURSOR_DRIVER, "gpt-5.4", {
-        reasoning: "high",
-      }),
-    );
-    expect(
-      useComposerDraftStore.getState().stickyModelSelectionByProvider[CURSOR_INSTANCE],
-    ).toEqual(
-      modelSelection(CURSOR_DRIVER, "gpt-5.4", {
-        reasoning: "high",
-      }),
-    );
-  });
-
   it("updates only the draft when sticky persistence is omitted", () => {
     const store = useComposerDraftStore.getState();
 

@@ -1,3 +1,4 @@
+import { ClaudeProviderCapabilitiesV2 } from "../orchestration-v2/Adapters/ClaudeAdapterV2.ts";
 import { assert, describe, it } from "@effect/vitest";
 import {
   ProviderDriverKind,
@@ -22,15 +23,14 @@ import * as SubscriptionRef from "effect/SubscriptionRef";
 
 import * as ProjectionStore from "../orchestration-v2/ProjectionStore.ts";
 import * as ProviderSessionManager from "../orchestration-v2/ProviderSessionManager.ts";
-import { AcpProviderCapabilitiesV2 } from "@t3tools/provider-acp/server/adapter";
 import type { ProviderInstance } from "@t3tools/provider-core/server/driver";
 import * as ProviderAuthService from "./ProviderAuthService.ts";
 import * as ProviderInstanceRegistry from "./ProviderInstanceRegistry.ts";
 
-const instanceId = ProviderInstanceId.make("antigravity-personal");
-const otherInstanceId = ProviderInstanceId.make("antigravity-work");
+const instanceId = ProviderInstanceId.make("claudeAgent-personal");
+const otherInstanceId = ProviderInstanceId.make("claudeAgent-work");
 const unsupportedInstanceId = ProviderInstanceId.make("codex");
-const driverKind = ProviderDriverKind.make("antigravity");
+const driverKind = ProviderDriverKind.make("claudeAgent");
 const owner = "paired-client-owner";
 const otherOwner = "paired-client-other";
 const flowId = "test-sign-in-flow";
@@ -104,7 +104,7 @@ function makeSession(
     status,
     cwd: "/workspace",
     model: null,
-    capabilities: AcpProviderCapabilitiesV2,
+    capabilities: ClaudeProviderCapabilitiesV2,
     createdAt: nowUtc,
     updatedAt: nowUtc,
     lastError: null,

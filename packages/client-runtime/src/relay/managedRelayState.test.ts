@@ -1,7 +1,6 @@
 import { EnvironmentId } from "@t3tools/contracts";
 import {
   RelayAuthInvalidError,
-  type RelayClientDeviceRecord,
   type RelayClientEnvironmentRecord,
   type RelayEnvironmentStatusResponse,
 } from "@t3tools/contracts/relay";
@@ -40,25 +39,6 @@ const environment = {
   linkedAt: "2026-06-01T00:00:00.000Z",
 } satisfies RelayClientEnvironmentRecord;
 
-const device = {
-  deviceId: "device-1",
-  label: "Julius iPhone",
-  platform: "ios",
-  iosMajorVersion: 18,
-  appVersion: null,
-  notifications: {
-    enabled: true,
-    notifyOnApproval: true,
-    notifyOnInput: true,
-    notifyOnCompletion: true,
-    notifyOnFailure: true,
-  },
-  liveActivities: {
-    enabled: true,
-  },
-  updatedAt: "2026-06-01T00:00:00.000Z",
-} satisfies RelayClientDeviceRecord;
-
 function resetRegistry() {
   registry.dispose();
   registry = AtomRegistry.make();
@@ -68,7 +48,6 @@ function createClient(overrides?: Partial<ManagedRelay.ManagedRelayClient["Servi
   return ManagedRelay.ManagedRelayClient.of({
     relayUrl: "https://relay.example.test",
     listEnvironments: () => Effect.succeed([environment]),
-    listDevices: () => Effect.succeed([device]),
     createEnvironmentLinkChallenge: () => Effect.die("unused"),
     linkEnvironment: () => Effect.die("unused"),
     unlinkEnvironment: () => Effect.die("unused"),
@@ -80,10 +59,6 @@ function createClient(overrides?: Partial<ManagedRelay.ManagedRelayClient["Servi
         checkedAt: "2026-06-01T00:00:00.000Z",
       }),
     connectEnvironment: () => Effect.die("unused"),
-    registerDevice: () => Effect.die("unused"),
-    unregisterDevice: () => Effect.die("unused"),
-    registerLiveActivity: () => Effect.die("unused"),
-    getAgentActivitySnapshot: () => Effect.die("unused"),
     resetTokenCache: Effect.void,
     ...overrides,
   });
@@ -333,18 +308,6 @@ describe("createManagedRelayQueryManager", () => {
 
     manager.refreshEnvironments(registry, "account-1");
     await vi.waitFor(() => expect(listEnvironments).toHaveBeenCalledTimes(2));
-  });
-
-  it("loads device snapshots through the current account session", async () => {
-    const listDevices = vi.fn(() => Effect.succeed([device]));
-    const manager = createManager({ listDevices });
-    setSession();
-    const atom = manager.devicesAtom("account-1");
-
-    registry.get(atom);
-    await vi.waitFor(() => {
-      expect(readManagedRelaySnapshotState(registry.get(atom)).data).toEqual([device]);
-    });
   });
 
   it("reports token and relay request phases for environment status queries", async () => {

@@ -30,7 +30,7 @@ describe("provider auth state", () => {
     const method = { id: "browser", name: "Browser", description: null, type: "agent" };
     expect(
       decodeState({
-        instanceId: "cursor",
+        instanceId: "pi",
         phase: "waiting",
         flowId: null,
         authorizationUrl: null,
@@ -41,7 +41,7 @@ describe("provider auth state", () => {
         credentialOwner: "keychain",
       }),
     ).toEqual({
-      instanceId: "cursor",
+      instanceId: "pi",
       phase: "waiting",
       flowId: null,
       authorizationUrl: null,

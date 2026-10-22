@@ -9279,7 +9279,7 @@ describe("ClaudeAdapterV2 background wake turns", () => {
             attemptId: RunAttemptId.make("attempt-claude-mobile-notif-origin"),
             text: "Complete this task.",
             attachments: [],
-            messageCreationSource: "mobile",
+            messageCreationSource: "web",
           }),
         );
         yield* Queue.offer(

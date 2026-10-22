@@ -59,9 +59,6 @@ const { test } = Test.make({
 
 const clientConfig = (token: string) => ({
   url: "https://relay.example.com",
-  mobileTracingUrl: "https://axiom.example.com/v1/traces",
-  mobileTracingDataset: "relay-traces",
-  mobileTracingToken: Redacted.make(`mobile-${token}`),
   clientTracingUrl: "https://axiom.example.com/v1/traces",
   clientTracingDataset: "relay-traces",
   clientTracingToken: Redacted.make(`client-${token}`),

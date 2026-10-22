@@ -2,7 +2,6 @@
 import * as NodeHttp2 from "node:http2";
 import * as NodeNet from "node:net";
 import * as NodeTls from "node:tls";
-import * as NodeURL from "node:url";
 
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { it } from "@effect/vitest";
@@ -184,55 +183,6 @@ if (calls === 0) throw new Error("fetch did not call setTypeOfService");
       ]);
       expect(child.exitCode, child.stderr).toBe(0);
       expect(child.stdout.trim()).toBe("1.1");
-    }).pipe(Effect.provide(NodeServices.layer)),
-  );
-
-  it.effect("guards ordinary CLI and both ACP fast paths before their imports run", () =>
-    Effect.gen(function* () {
-      const dispatchModules = ["mcp/AcpMcpStdioBridge.ts", "cli/consoleStdin.ts", "binCli.ts"];
-      // Load the real entrypoint, but replace dispatch modules to avoid starting
-      // the app. Probe at import time, when those modules could first open sockets.
-      const preload = `
-import * as NodeModule from "node:module";
-import * as NodeNet from "node:net";
-
-Object.defineProperty(process, "platform", { value: "darwin" });
-NodeNet.Socket.prototype.setTypeOfService = () => {
-  throw Object.assign(new Error("setTypeOfService EINVAL"), { code: "EINVAL" });
-};
-NodeModule.registerHooks({
-  load(url, context, nextLoad) {
-    const path = ${JSON.stringify(dispatchModules)}.find((path) => url.endsWith("/src/" + path));
-    if (path === undefined) return nextLoad(url, context);
-    NodeNet.Socket.prototype.setTypeOfService.call(new NodeNet.Socket(), 0);
-    console.log(path);
-    return {
-      format: "module",
-      source: "export const runAcpMcpCliFastPath = async () => {}; export const attachConsoleStdin = () => {}; export const runCli = () => {};",
-      shortCircuit: true,
-    };
-  },
-});
-`;
-      const children = yield* Effect.forEach(
-        ["--version", "acp-mcp-bridge", "acp-mcp-call"],
-        (command) =>
-          runNode([
-            "--import",
-            `data:text/javascript,${encodeURIComponent(preload)}`,
-            NodeURL.fileURLToPath(new URL("./bin.ts", import.meta.url)),
-            command,
-          ]),
-      );
-      expect(
-        children.map((child) => child.exitCode),
-        children.map((child) => child.stderr).join("\n"),
-      ).toEqual([0, 0, 0]);
-      expect(children.map((child) => child.stdout.trim().split("\n"))).toEqual([
-        ["cli/consoleStdin.ts", "binCli.ts"],
-        ["mcp/AcpMcpStdioBridge.ts"],
-        ["mcp/AcpMcpStdioBridge.ts"],
-      ]);
     }).pipe(Effect.provide(NodeServices.layer)),
   );
 });

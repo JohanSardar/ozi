@@ -62,7 +62,7 @@ const SHELL_SNAPSHOT: OrchestrationV2ShellSnapshot = {
       },
       forkedFrom: null,
       createdBy: "user",
-      creationSource: "mobile",
+      creationSource: "web",
       latestRunId: null,
       activeRunId: null,
       status: "idle",

@@ -12,7 +12,6 @@ describe("removeAgentCredits", () => {
           "Co-authored-by: Alice <alice@example.com>",
           "Co-authored-by: Claude <noreply@anthropic.com>",
           "* Co-authored-by: Codex <noreply@openai.com>",
-          "co-authored-by: Cursor <cursoragent@cursor.com>",
           "Co-authored-by: Copilot <copilot@github.com>",
           "",
           "🤖 Generated with [Claude Code](https://claude.ai/code)",

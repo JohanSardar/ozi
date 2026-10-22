@@ -11,52 +11,6 @@ the version.
 
 ## What the workflow does
 
-- Workflow: `.github/workflows/release.yml`
-- Triggers:
-  - manual `workflow_dispatch` with `channel=stable`, the normal way to ship stable. Stable
-    and nightly dispatches must select `main`; preview may select any branch. The channel defaults
-    to preview so an omitted selection cannot publish a stable release.
-  - push tag matching `v*.*.*` for a stable release of an explicit commit
-  - scheduled nightly check every 30 minutes
-  - manual `workflow_dispatch` with `channel=nightly`
-  - manual `workflow_dispatch` with `channel=preview`, the maintainers' test train. It exercises the whole release flow (build, sign, notarize, smoke, publish) for a commit that end users must never receive, which is how an unmerged branch or a risky change gets a real release run before it lands. It builds the triggering commit with nightly's versioning under the `preview` prerelease identifier (`0.0.41-preview.<date>.<run>`) and publishes a GitHub prerelease plus the npm packages under the `preview` dist-tag. Preview is not on the schedule, no default npm dist-tag points at it, its desktop builds carry no update feed, and no updater manifest (`latest*.yml`, `nightly*.yml`, blockmaps) is attached, so a stable or nightly install cannot be offered one. The only ways onto it are downloading the release by hand, `npx t3@preview`, `T3CODE_CHANNEL=preview` for the install scripts, or `t3 update --channel preview` from a terminal; each prints a warning, and the CLI asks for confirmation when the running build is not itself a preview. The release itself is named as a maintainer test build and its body is a warning rather than generated notes: a changelog of unmerged branch history is not a changelog, and nightly and stable notes are unaffected because each series resolves its previous tag within its own channel. The hosted web app, AUR, and Discord announcements are skipped. Keep it; it costs nothing when idle.
-- A manual stable release builds the commit of the latest published nightly, not `main` HEAD.
-  Nightly is the release candidate: verify the nightly, then promote it. Merges to `main` keep
-  landing while you verify and never leak into the stable build.
-  - The version defaults to the one the nightly previewed (`0.0.39-nightly.*` ships as `0.0.39`).
-    Pass the `version` input to override it, for example for a minor bump.
-  - The stable tag is created on the nightly's commit when the GitHub Release is published.
-  - Pushing a `vX.Y.Z` tag by hand still works and builds exactly the tagged commit. Use it when
-    the commit to ship is not the latest nightly, such as a cherry-picked fix on a release branch.
-- Runs lint, typecheck, and tests alongside artifact builds. Publishing waits for every check.
-- Reads the shared production T3 Connect relay URL and Clerk client configuration before packaging clients.
-- Builds the platform-independent JS (server bundle, web client, Electron main) once in the `build_bundle` job and hands it to every platform job as the `js-bundle` artifact; the platform jobs only package it, so no runner rebuilds it.
-- Builds six desktop artifacts in parallel for both channels, each as its own job (`desktop_<platform>_<arch>`, one call of `release-desktop.yml`), gated only on the bundle. Every target builds on hardware of its own architecture except Windows arm64: its runners have 4 vCPUs, so it builds and signs (with jsign) on a Linux runner, and a `windows-11-arm` job runs the packaged natives and the CLI archive (`verify_runner`). The Windows jobs embed the same-arch Linux CLI archive as the WSL runtime and wait for that artifact partway through, not for the whole Linux job:
-  - macOS `arm64` DMG
-  - macOS `x64` DMG
-  - Linux `x64` and `arm64` AppImage and `.deb`, from one electron-builder run. The `.deb` updates in the app through electron-updater, which installs it with `dpkg`.
-  - Windows `x64` and `arm64` NSIS installer
-- Publishes one GitHub Release with all produced files.
-  - Stable tags with a suffix after `X.Y.Z` (for example `1.2.3-alpha.1`) are published as GitHub prereleases.
-  - Only plain stable `X.Y.Z` releases are marked as the repository's latest release.
-  - Nightly runs are always GitHub prereleases and never marked latest.
-  - Automatically generated release notes are pinned to the previous tag in the same channel, so stable compares to the previous stable tag and nightly compares to the previous nightly tag.
-- Includes Electron auto-update metadata (for example `latest*.yml`, `nightly*.yml`, and `*.blockmap`) in release assets.
-- Builds a self-contained CLI archive per platform (`t3-<version>-<platform>-<arch>.tar.gz`, `.zip` on Windows) in the same job as that target's desktop artifact and attaches them to the GitHub Release with a `SHA256SUMS` file, on every channel, for five targets: macOS arm64, Linux x64 and arm64, Windows x64 and arm64. Every archive is smoke-tested on hardware of its own architecture, and every one but Windows arm64 is also built and signed there. There is no macOS x64 archive: Node single-executables are unsupported on x64 macOS (the SEA docs list macOS as arm64 only) and the binary segfaults on start; the x64 desktop app is Electron and unaffected.
-  - The archive holds the server as a Node single-executable (`scripts/build-cli-archive.ts`), so unpacking it needs neither Node, npm, nor a compiler. It is the only form in which T3 Code manages a runtime: the desktop's SSH environments, the boot service, `t3 update`, and the install scripts all download and verify this archive against `SHA256SUMS`. The `t3` npm package exists for people who run `npx t3` or `npm install -g t3` themselves, and it downloads this same archive too; nothing in the product installs from npm. The `curl | sh` installers are `scripts/install.sh` and `scripts/install.ps1`; the marketing site copies them into its `public/` at build time (`apps/marketing/scripts/stage-install-scripts.mjs`) and serves them at `t3.codes/install.sh` and `/install.ps1`.
-  - The executable is built with a Node that supports `--build-sea` (`VP_NODE_VERSION=26.8.2`, kept in step with `SEA_NODE_VERSION` in `apps/server/vite.config.ts`), while the repo stays on `engines.node`.
-  - macOS archives are signed with the Developer ID certificate and notarized when the Apple secrets are present (ad hoc otherwise, which still runs from `curl`/`tar` installs). Windows executables use the same Azure Trusted Signing setup as the installer. Every native addon in the macOS archive is signed too, since the hardened runtime refuses unsigned libraries.
-  - Each archive is extracted and executed (`scripts/smoke-cli-archive.ts`) on its build runner, or on the `verify_runner` for Windows arm64.
-- After the GitHub Release is published, publishes the `t3` npm package with OIDC trusted publishing from the same workflow file. It is only a launcher (`scripts/npm-launcher/t3.mjs`): on first run it downloads its exact version's CLI archive from the GitHub Release, verifies it against `SHA256SUMS`, and unpacks it into `<T3 home>/runtime/versions/<version>`, the layout the install scripts and `t3 update` share. The executables are not on npm. They used to be, as `@t3code/t3-<platform>-<arch>` optional dependencies, but npm's publish-time scanning held those 80-250 MB packages back for up to an hour after the launcher was live, and every install in that window got a launcher with no executable. Those packages stay on npm at their old versions and get no new ones. Because the launcher reads from the release, `publish_cli` runs after `release`, never before.
-  - stable releases publish npm dist-tag `latest`
-  - nightly releases publish npm dist-tag `nightly`
-  - preview releases publish npm dist-tag `preview`, which nothing resolves unless asked for by name
-  - one-time setup: package `t3` needs a trusted publisher registered for this workflow file (see below).
-- Builds the hosted web app on Vercel while the desktop jobs run, and makes it live only after a release is published:
-  - stable releases are aliased to the `latest` hosted app channel
-  - nightly releases are aliased to the `nightly` hosted app channel
-- Signing is optional and auto-detected per platform from secrets.
-
 ## Pull request macOS previews
 
 Labeling a PR `preview:mac` publishes a signed, notarized Apple Silicon DMG with T3 Connect enabled
@@ -129,10 +83,6 @@ Required `production` environment variables:
 - `CLERK_JWT_AUDIENCE`
 - `CLERK_JWT_TEMPLATE`
 - `CLERK_CLI_OAUTH_CLIENT_ID`
-- `APNS_ENVIRONMENT`
-- `APNS_TEAM_ID`
-- `APNS_KEY_ID`
-- `APNS_BUNDLE_ID`
 
 Optional `production` environment variables:
 
@@ -145,7 +95,6 @@ Optional `production` environment variables:
 Required `production` environment secrets:
 
 - `CLERK_SECRET_KEY`
-- `APNS_PRIVATE_KEY`
 
 After changing a variable or secret, run the **Deploy T3 Connect relay** workflow manually from
 `main` with **force** unchecked. Alchemy compares the values the Worker reads and redeploys it when
@@ -167,11 +116,6 @@ vp run --filter t3code-relay deploy -- --stage "$USER" --env-file .env.local
 ```
 
 ### Managed tunnel cleanup rollout
-
-Keep `RELAY_TUNNEL_CLEANUP_MODE=off` for the first production deploy. That deploy applies the
-nullable allocation migration and adds the recovery endpoints. Web and mobile clients need no
-coordinated release. CLI and desktop server builds must reach users before cleanup is enabled,
-because those builds register recovery and replace a deleted tunnel after wake.
 
 1. Deploy the relay and migration with cleanup `off`.
 2. Release the server build and confirm current hosts register recovery. Older hosts stay marked
@@ -204,10 +148,10 @@ A deleted legacy tunnel keeps its allocation, so its hostname is kept. When the 
 - On a build with recovery, the connector is rejected and the host requests a replacement tunnel at
   the same hostname.
 - On an older build with a CLI link, startup provisions a new tunnel.
-- On an older build linked from web or mobile, the host stays offline until T3 Code on that computer
+- On an older build linked from web, the host stays offline until T3 Code on that computer
   is updated.
 
-Ship the web and mobile builds that show the offline reason before enabling legacy cleanup, so a
+Ship the web builds that show the offline reason before enabling legacy cleanup, so a
 user whose host is affected sees what to do. The relay adds the `tunnel_released_at` allocation
 column in its first deploy with this change; the legacy switch stays `off` until you set it.
 
@@ -221,7 +165,7 @@ column in its first deploy with this change; the legacy switch stays `off` until
    They include ones the reaper skips, so they are an upper bound on the backlog. The share of `wouldDeleteLegacy` in each sweep's `scanned` estimates how
    much of that total is eligible.
 3. Run the legacy steps of the disposable-host canary below.
-4. Before enabling, confirm the web and mobile builds that show the "update T3 Code on that computer"
+4. Before enabling, confirm the web builds that show the "update T3 Code on that computer"
    message are live. Without them, a user whose older host lost its tunnel only sees it as offline.
 5. Set the legacy mode to `enabled`. One sweep deletes at most 100 tunnels, four at a time, and
    stops starting new deletions after 90 seconds. A backlog of 20,000 takes about 17 hours if each
@@ -252,7 +196,7 @@ stage, test Cloudflare account, disposable host, and disposable T3 home. Keep pr
 `off` or `dry-run` until it passes. Do not stop a daily-use T3 server.
 
 1. Deploy the disposable stage with cleanup `dry-run`. Link a first disposable environment through
-   web or mobile settings and confirm its tunnel is healthy and recovery is registered.
+   web settings and confirm its tunnel is healthy and recovery is registered.
 2. Stop that host and restart the same T3 home on a different local port. Confirm the public
    hostname reaches the new port and sends nothing to the old one.
 3. Link a second disposable environment with a server build that predates recovery registration.
@@ -278,65 +222,10 @@ Legacy cleanup, on the same disposable stage:
 11. Confirm the sweep counts it in `wouldDeleteLegacy`, then set the legacy mode to `enabled` and
     deploy. Confirm the legacy tunnel is deleted and its allocation row remains.
 12. With the legacy host still on its old build, resume the child. A CLI-linked host provisions a
-    new tunnel on its next restart; a web- or mobile-linked host stays offline.
+    new tunnel on its next restart; a web-linked host stays offline.
 13. Update that host to the current build and start it. Confirm it requests recovery and is
     reachable at the same hostname.
 14. Remove `RELAY_LEGACY_TUNNEL_GRACE_MINUTES` from the disposable stage.
-
-## Marketing site deployment
-
-On nightly releases, the release workflow builds the same commit as a staged
-production deployment of the marketing site's Vercel project while the desktop
-jobs run, and promotes it with `vercel promote` after the release is published.
-Stable releases do not deploy the marketing site because they can promote an
-older nightly commit.
-
-The job looks up the `t3code-marketing` project using the existing `VERCEL_TOKEN`
-and `VERCEL_ORG_ID` secrets. It also respects the optional `VERCEL_TEAM_SLUG`
-variable. The Vercel project's root directory must be `apps/marketing`.
-Git deployments remain disabled in `apps/marketing/vercel.ts`.
-
-## Mobile TestFlight and store releases
-
-Merges to main publish compatible OTAs and build iOS prereleases with the `testflight`
-profile at version `3.0.0`. Build numbers increment automatically. The committed app
-version remains the App Store release version; Android keeps using that version.
-
-To release iOS, dispatch **Mobile EAS Production** with `mode=build`,
-`profile=production`, `platform=ios`, and the intended version, such as `2.0.1`.
-The workflow commits and pushes the version before building and uploading it.
-Select that build in App Store Connect for App Store review.
-
-To force a TestFlight rebuild, select `profile=testflight`, `platform=ios`, and
-leave the version blank. Submit the first `3.0.0` build for external beta review
-in App Store Connect. Later builds may still require review; uploads alone do
-not guarantee external approval. TestFlight builds expire after 90 days.
-
-Both release and TestFlight binaries receive compatible production-channel OTAs,
-separated by their major-version fingerprints. Manual `mode=update` uses the
-selected profile's version. Before releasing `3.0.0` to the App Store, advance
-`build.testflight.env.T3CODE_MOBILE_VERSION` in `apps/mobile/eas.json` to the next
-unreleased major and get its first beta build approved.
-
-## Android APK mirror
-
-`.github/workflows/mobile-android-apk.yml` checks the Google Play Alpha closed-testing
-track hourly. Each new beta gets one `android-beta-<build-number>` prerelease
-containing its APK. Unchanged checks publish nothing, and interrupted draft
-uploads resume on the next check.
-
-Normal Nightly releases include the newest processed internal-testing APK available
-when the release publishes. Internal builds do not create separate Android releases.
-If Play credentials or a processed APK are unavailable, the Nightly can still publish
-without an APK. Android submissions continue to go to internal testing; promote a
-build to Alpha to publish it as a beta.
-
-The APK is the universal APK Play generates and signs from the
-uploaded bundle, so no signing key lives in GitHub. The job skips itself until
-`GOOGLE_PLAY_SERVICE_ACCOUNT_JSON` holds a Play service account key with the "Release to
-production, exclude devices, and use Play App Signing" permission, which downloading generated
-APKs requires. The job reads tracks without opening a Play edit, so it can share the service
-account EAS Submit uses.
 
 ## Hosted web app release deployment
 
@@ -538,12 +427,6 @@ There is no dry-run tag path. Pushing any accepted non-nightly tag, including
 `latest`, creates a real GitHub Release, aliases the hosted app to `latest.app.t3.codes` and
 `app.t3.codes`, and can commit a version bump to `main` in the finalize job. Do not push a test tag
 to validate the workflow.
-
-The workflow has no non-publishing `workflow_dispatch` mode. Use normal CI or local quality gates to
-validate checks and builds without shipping. To exercise the complete release graph at lower stable
-risk, manually dispatch `channel=nightly`; this still publishes a real nightly npm package, GitHub
-prerelease, desktop updater release, hosted nightly alias, and marketing site, but it does not update stable app aliases or
-commit a version bump to `main`. Only run it when a real nightly release is acceptable.
 
 Manual `channel=stable` is also a real stable-channel release. Omitting signing secrets only makes
 platform artifacts unsigned; it does not prevent publication.

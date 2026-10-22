@@ -629,7 +629,6 @@ describe("ProviderContinuationService", () => {
           ),
         );
 
-        // Mirrors the ACP adapter's own dispatchIfCurrent: on a failed effect
         // it clears its sticky "continuation requested" flag before
         // re-raising. If this service pre-recovered the failure before
         // handing the effect here, this flag would stay stuck set and
@@ -682,8 +681,6 @@ describe("ProviderContinuationService", () => {
           ),
         );
 
-        // Mirrors the Muse adapter: dispatchIfCurrent forwards the dispatch
-        // effect without any failure handling of its own (unlike ACP or Pi),
         // so only the explicit clearIfCurrent callback can clear the sticky
         // "wake held" flag. Without it, a disabled instance leaves the flag
         // set forever and no later background turn is ever offered.
@@ -710,39 +707,6 @@ describe("ProviderContinuationService", () => {
       });
     },
   );
-
-  it.effect("keeps a Grok delegated completion queued instead of restarting active work", () => {
-    return Effect.gen(function* () {
-      const dispatched = yield* Queue.unbounded<unknown>();
-      yield* Effect.gen(function* () {
-        const requests = yield* ProviderContinuationRequests.ProviderContinuationRequests;
-        yield* requests.offer({
-          threadId,
-          providerThreadId,
-          driver: ProviderDriverKind.make("grok"),
-          detail: null,
-          delivery: "message_text",
-          delegatedCompletion: {
-            parentRunId,
-            generation: 1,
-            messageId: delegatedMessageId,
-          },
-        });
-        const command = (yield* Queue.take(dispatched)) as {
-          readonly dispatchMode: { readonly type: string };
-        };
-        assert.deepEqual(command.dispatchMode, { type: "queue_after_active" });
-      }).pipe(
-        Effect.provide(
-          layerTest({
-            dispatched,
-            getThreadRecords: () => Effect.succeed(delegatedProjection()),
-          }),
-        ),
-        Effect.scoped,
-      );
-    });
-  });
 
   it.effect(
     "drops stopped and disposed delegated completions instead of reviving them after recovery",

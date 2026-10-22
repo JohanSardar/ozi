@@ -36,7 +36,7 @@ describe("thread workflows", () => {
       thread: {
         id: "thread",
         activeProviderThreadId: "provider-thread",
-        modelSelection: { instanceId: "cursor", model: "grok-4.7" },
+        modelSelection: { instanceId: "pi", model: "openai/gpt-5.4" },
       },
       runs: [{ id: "run", status: "completed" }],
       providerSessions: [],

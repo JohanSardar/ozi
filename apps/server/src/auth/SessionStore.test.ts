@@ -838,16 +838,16 @@ it.layer(NodeServices.layer)("SessionStore.layer", (it) => {
       `;
 
       yield* sessions.recordClientConnection(issued.sessionId, {
-        surface: "mobile",
+        surface: "web",
         appVersion: "1.2.0",
       });
-      expect((yield* readRow)[0]).toEqual({ surface: "mobile", appVersion: "1.2.0" });
+      expect((yield* readRow)[0]).toEqual({ surface: "web", appVersion: "1.2.0" });
 
       yield* sessions.recordClientConnection(issued.sessionId, { appVersion: "1.3.0" });
-      expect((yield* readRow)[0]).toEqual({ surface: "mobile", appVersion: "1.3.0" });
+      expect((yield* readRow)[0]).toEqual({ surface: "web", appVersion: "1.3.0" });
 
       yield* sessions.recordClientConnection(issued.sessionId, {});
-      expect((yield* readRow)[0]).toEqual({ surface: "mobile", appVersion: "1.3.0" });
+      expect((yield* readRow)[0]).toEqual({ surface: "web", appVersion: "1.3.0" });
     }).pipe(Effect.provide(Layer.mergeAll(layerSessionStore(), SqlitePersistence.layerMemory))),
   );
 });

@@ -31,9 +31,6 @@ squashfs-root/
 dist-electron/
 .electron-runtime/
 .showcase/
-apps/mobile/.showcase/
-apps/mobile/.generated/
-apps/mobile/.android-cache/
 /.generated/
 artifacts/app-store/screenshots/
 .github/pr-assets/

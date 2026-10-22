@@ -497,7 +497,6 @@ export const EnvironmentCloudLinkStateResult = Schema.Struct({
   relayUrl: Schema.NullOr(Schema.String),
   relayIssuer: Schema.NullOr(Schema.String),
   managedTunnelActive: Schema.optional(Schema.Boolean),
-  publishAgentActivity: Schema.Boolean,
   holdWebhooksWhileOffline: Schema.optional(Schema.Boolean),
   linkRevoked: Schema.optional(Schema.Boolean),
   /** The latest check the server ran on its own, absent until one finishes. */
@@ -506,7 +505,6 @@ export const EnvironmentCloudLinkStateResult = Schema.Struct({
 export type EnvironmentCloudLinkStateResult = typeof EnvironmentCloudLinkStateResult.Type;
 
 export const EnvironmentCloudPreferencesRequest = Schema.Struct({
-  publishAgentActivity: Schema.Boolean,
   holdWebhooksWhileOffline: Schema.optional(Schema.Boolean),
 });
 export type EnvironmentCloudPreferencesRequest = typeof EnvironmentCloudPreferencesRequest.Type;

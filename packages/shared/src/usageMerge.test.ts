@@ -79,41 +79,6 @@ function environment(id: string, usageSummary: UsageSummary): EnvironmentUsage {
 }
 
 describe("mergeUsage", () => {
-  it("counts a Cursor account once across servers while retaining each server's other providers", () => {
-    const account = {
-      provider: "cursor" as const,
-      hostId: "cursor.com",
-      homePath: "cursor-account:account-hash",
-      volumeId: "account-hash",
-    };
-    const merged = mergeUsage(
-      [
-        environment(
-          "mac",
-          summary([bucket({ provider: "cursor", sourcePath: account.homePath })], [account]),
-        ),
-        environment(
-          "linux",
-          summary(
-            [
-              bucket({ provider: "cursor", sourcePath: account.homePath }),
-              bucket({ provider: "opencode", sourcePath: "/opencode" }),
-            ],
-            [account, { provider: "opencode", hostId: "linux", homePath: "/opencode" }],
-          ),
-        ),
-      ],
-      USAGE_CONTRACT_VERSION,
-    );
-    expect(
-      merged.providers.map((provider) => [provider.provider, provider.costUsd]).sort(),
-    ).toEqual([
-      ["cursor", 10],
-      ["opencode", 10],
-    ]);
-    expect(merged.duplicateSources).toHaveLength(1);
-  });
-
   it("sums environments that read different transcript directories", () => {
     const merged = mergeUsage(
       [
@@ -186,12 +151,12 @@ describe("mergeUsage", () => {
 
   it("counts overlapping provider roots once while keeping each environment's unique root", () => {
     const source = (homePath: string) => ({
-      provider: "opencode" as const,
+      provider: "pi" as const,
       hostId: "host",
       homePath,
     });
     const usage = (sourcePath: string, costUsd: number) =>
-      bucket({ provider: "opencode", sourcePath, costUsd });
+      bucket({ provider: "pi", sourcePath, costUsd });
     const merged = mergeUsage(
       [
         environment(
@@ -453,10 +418,10 @@ describe("mergeUsage", () => {
 
   it("keeps all supported providers when encoding a response", () => {
     const current = summary(
-      [bucket(), bucket({ provider: "grok" })],
+      [bucket(), bucket({ provider: "codex" })],
       [
         { provider: "claude", hostId: "mac", homePath: "/a" },
-        { provider: "grok", hostId: "mac", homePath: "/b" },
+        { provider: "codex", hostId: "mac", homePath: "/b" },
       ],
     );
     expect(encodeSummary(current)).toEqual(current);

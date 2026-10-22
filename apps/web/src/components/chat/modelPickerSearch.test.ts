@@ -10,12 +10,12 @@ describe("buildModelPickerSearchText", () => {
   it("builds provider-agnostic search text from generic fields", () => {
     expect(
       buildModelPickerSearchText({
-        driverKind: "opencode",
-        providerDisplayName: "opencode",
+        driverKind: "pi",
+        providerDisplayName: "pi",
         name: "Claude Opus 4.7",
         subProvider: "GitHub Copilot",
       }),
-    ).toBe("claude opus 4.7 github copilot opencode opencode");
+    ).toBe("claude opus 4.7 github copilot pi pi");
   });
 });
 
@@ -24,8 +24,8 @@ describe("scoreModelPickerSearch", () => {
     expect(
       scoreModelPickerSearch(
         {
-          driverKind: "opencode",
-          providerDisplayName: "opencode",
+          driverKind: "pi",
+          providerDisplayName: "pi",
           name: "Claude Opus 4.7",
           subProvider: "GitHub Copilot",
         },
@@ -50,8 +50,8 @@ describe("scoreModelPickerSearch", () => {
   it("ranks exact token matches ahead of fuzzier matches", () => {
     const exactScore = scoreModelPickerSearch(
       {
-        driverKind: "opencode",
-        providerDisplayName: "opencode",
+        driverKind: "pi",
+        providerDisplayName: "pi",
         name: "Claude Opus 4.7",
         subProvider: "GitHub Copilot",
       },
@@ -59,8 +59,8 @@ describe("scoreModelPickerSearch", () => {
     );
     const fuzzyScore = scoreModelPickerSearch(
       {
-        driverKind: "opencode",
-        providerDisplayName: "opencode",
+        driverKind: "pi",
+        providerDisplayName: "pi",
         name: "Claude Opus 4.7",
         subProvider: "GitHub Copilot",
       },
@@ -176,8 +176,8 @@ const catalog: CatalogModel[] = [
     "GPT-5.6 Luna",
     "GPT-5.5",
   ]),
-  ...instanceModels("grok", "Grok", ["Grok 4.7", "Grok 4.6", "Grok 4.5"]),
-  ...instanceModels("antigravity", "Antigravity", [
+  ...instanceModels("pi", "Pi", ["Grok 4.7", "Grok 4.6", "Grok 4.5"]),
+  ...instanceModels("pi", "Pi", [
     "Gemini 3.8 Flash (High)",
     "Gemini 3.8 Flash (Medium)",
     "Gemini 3.8 Flash (Low)",
@@ -191,20 +191,20 @@ const catalog: CatalogModel[] = [
     "Gemini 3.1 Pro (Low)",
   ]),
   {
-    driverKind: "opencode",
-    providerDisplayName: "OpenCode",
+    driverKind: "pi",
+    providerDisplayName: "Pi",
     name: "Kimi K3",
     subProvider: "Moonshot",
   },
   {
-    driverKind: "opencode",
-    providerDisplayName: "OpenCode",
+    driverKind: "pi",
+    providerDisplayName: "Pi",
     name: "Kimi K2.5",
     subProvider: "Moonshot",
   },
   {
-    driverKind: "opencode",
-    providerDisplayName: "OpenCode",
+    driverKind: "pi",
+    providerDisplayName: "Pi",
     name: "Kimi K2",
     subProvider: "Moonshot",
   },

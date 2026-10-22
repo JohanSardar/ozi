@@ -1,4 +1,4 @@
-import { EnvironmentId, ProviderDriverKind, type AcpRegistrySearchAgent } from "@t3tools/contracts";
+import { EnvironmentId } from "@t3tools/contracts";
 import { userEvent } from "vite-plus/test/browser";
 import { describe, expect, it, vi } from "vite-plus/test";
 
@@ -13,19 +13,6 @@ const settingsHooks = vi.hoisted(() => ({
   read: vi.fn(() => ({ providerInstances: {} })),
   mutate: vi.fn(),
   useMutation: vi.fn(),
-}));
-const preparedAgent = vi.hoisted((): AcpRegistrySearchAgent => ({
-  id: "kilo",
-  name: "Kilo Code",
-  version: "4.2.0",
-  description: "Kilo ACP agent",
-  authors: ["Kilo"],
-  license: "Apache-2.0",
-  website: null,
-  repository: null,
-  icon: "https://cdn.agentclientprotocol.com/registry/v1/latest/kilo.svg",
-  distribution: "binary",
-  integrity: "sha256",
 }));
 
 vi.mock(import("@t3tools/client-runtime/state/runtime"), async (original) => ({
@@ -50,55 +37,10 @@ vi.mock(import("../ui/toast"), async (original) => {
   const actual = await original();
   return { ...actual, toastManager: { ...actual.toastManager, add: actions.toast } };
 });
-// The registry search and the sign-in step talk to the environment over RPC; these
-// stand-ins expose the choices a user makes there.
-vi.mock(import("./AcpRegistrySearchStep"), async (original) => ({
-  ...(await original()),
-  AcpRegistrySearchStep: ((props: {
-    onPrepared: (agent: AcpRegistrySearchAgent) => void;
-    onManualConfiguration: () => void;
-    onLocalConfiguration: () => void;
-  }) => (
-    <div>
-      <button type="button" onClick={() => props.onPrepared(preparedAgent)}>
-        Use Kilo Code
-      </button>
-      <button type="button" onClick={props.onManualConfiguration}>
-        Enter registry agent
-      </button>
-      <button type="button" onClick={props.onLocalConfiguration}>
-        Use local command
-      </button>
-    </div>
-  )) as never,
-}));
-vi.mock(import("./ProviderWizardAuthenticationStep"), async (original) => ({
-  ...(await original()),
-  ProviderWizardAuthenticationStep: (props: {
-    environmentId: string;
-    instanceId: string;
-    onFinish: () => void;
-  }) => (
-    <section aria-label="Sign-in step">
-      {props.environmentId}/{props.instanceId}
-      <button type="button" onClick={props.onFinish}>
-        Finish sign-in
-      </button>
-    </section>
-  ),
-}));
 
 import { AddProviderInstanceDialog } from "./AddProviderInstanceDialog";
 
 const remoteEnvironmentId = EnvironmentId.make("remote-device");
-
-function deferred<T>() {
-  let resolve!: (value: T) => void;
-  const promise = new Promise<T>((done) => {
-    resolve = done;
-  });
-  return { promise, resolve };
-}
 
 const dialog = () => (
   <AddProviderInstanceDialog
@@ -125,7 +67,6 @@ async function type(selector: string, value: string) {
   await userEvent.fill(input(selector), value);
   await act(async () => input(selector).blur());
 }
-const signInStep = () => document.querySelector('[aria-label="Sign-in step"]');
 
 async function prepareCodexInstance() {
   await using stack = new AsyncDisposableStack();
@@ -147,23 +88,6 @@ function setup() {
 }
 
 describe("AddProviderInstanceDialog environment routing", () => {
-  it("creates a provider with its default identity without typing", async () => {
-    setup();
-    await using _screen = await render(dialog());
-    const grok = [...document.querySelectorAll('[role="radio"]')].find((radio) =>
-      radio.textContent?.includes("Grok"),
-    ) as HTMLElement;
-    await act(async () => grok.click());
-    await click("Next");
-    await click("Next");
-    await click("Add instance");
-    expect(settingsHooks.mutate).toHaveBeenCalledWith({
-      operation: "create",
-      instanceId: "grok",
-      instance: { driver: "grok", enabled: true, displayName: "Grok" },
-    });
-  });
-
   it("chooses an unused identity for another account without replacing configured instances", async () => {
     setup();
     settingsHooks.read.mockReturnValue({
@@ -191,104 +115,6 @@ describe("AddProviderInstanceDialog environment routing", () => {
 
     expect(settingsHooks.read).toHaveBeenCalledWith(remoteEnvironmentId);
     expect(settingsHooks.useMutation).toHaveBeenCalledWith(remoteEnvironmentId);
-  });
-
-  it("awaits an atomic create before closing and retains prepared ACP metadata", async () => {
-    setup();
-    const mutation = deferred<{ readonly _tag: "Success"; readonly value: unknown }>();
-    settingsHooks.mutate.mockReturnValueOnce(mutation.promise);
-    await using _screen = await render(dialog());
-    await click("Use Kilo Code");
-
-    expect(document.body.textContent).toContain("v4.2.0 · binary");
-    await click("Continue to sign-in");
-    expect(settingsHooks.mutate).toHaveBeenCalledWith({
-      operation: "create",
-      instanceId: "acpRegistry_kilo_code",
-      instance: {
-        driver: ProviderDriverKind.make("acpRegistry"),
-        enabled: true,
-        displayName: "Kilo Code",
-        config: {
-          agentId: "kilo",
-          distribution: "auto",
-          registryIconUrl: "https://cdn.agentclientprotocol.com/registry/v1/latest/kilo.svg",
-        },
-      },
-    });
-    expect(signInStep()).toBeNull();
-
-    await act(async () => mutation.resolve({ _tag: "Success", value: {} }));
-    expect(actions.onOpenChange).not.toHaveBeenCalled();
-    expect(signInStep()?.textContent).toContain("remote-device/acpRegistry_kilo_code");
-    expect(settingsHooks.mutate).toHaveBeenCalledTimes(1);
-    await click("Finish sign-in");
-    expect(actions.onOpenChange).toHaveBeenCalledWith(false);
-  });
-
-  it("configures a manually entered registry agent from the first provider screen", async () => {
-    setup();
-    await using _screen = await render(dialog());
-    await click("Enter registry agent");
-    await type("#add-provider-acpRegistry-manual-agentId", "devin");
-    await click("Next");
-    await click("Continue to sign-in");
-    expect(settingsHooks.mutate).toHaveBeenCalledWith({
-      operation: "create",
-      instanceId: "acpRegistry_custom",
-      instance: {
-        driver: "acpRegistry",
-        enabled: true,
-        config: { agentId: "devin" },
-      },
-    });
-    expect(signInStep()).not.toBeNull();
-  });
-
-  it("creates a local command in the selected environment without a sign-in step", async () => {
-    setup();
-    await using _screen = await render(dialog());
-    await click("Use local command");
-    await click("Next");
-    expect(document.body.textContent).toContain("Executable is required.");
-    expect(settingsHooks.mutate).not.toHaveBeenCalled();
-
-    await type("#add-provider-acpRegistry-manual-commandPath", "dsh");
-    const commandArgs = ["--profile", "acp", " literal $(value) ; ", ""];
-    for (const [index, argument] of commandArgs.entries()) {
-      await click("Add argument");
-      if (argument) await type(`input[aria-label="Argument ${index + 1}"]`, argument);
-    }
-    await click("Add variable");
-    await type('input[aria-label="Environment variable name 1"]', "DSH_PROFILE");
-    await act(async () =>
-      document
-        .querySelector<HTMLButtonElement>(
-          'button[aria-label="Mark environment variable DSH_PROFILE as sensitive"]',
-        )!
-        .click(),
-    );
-    await type('input[aria-label="Environment variable value 1"]', "work");
-    await click("Next");
-    await type("#add-provider-label", "Deepseek Harness");
-    await click("Add instance");
-
-    expect(settingsHooks.useMutation).toHaveBeenCalledWith(remoteEnvironmentId);
-    expect(settingsHooks.mutate).toHaveBeenCalledWith({
-      operation: "create",
-      instanceId: "acpRegistry_deepseek_harness",
-      instance: {
-        driver: "acpRegistry",
-        enabled: true,
-        displayName: "Deepseek Harness",
-        config: { source: "local", commandPath: "dsh", commandArgs },
-        environment: [
-          expect.objectContaining({ name: "DSH_PROFILE", value: "work", sensitive: false }),
-        ],
-      },
-    });
-    expect(actions.onOpenChange).toHaveBeenCalledWith(false);
-    expect(signInStep()).toBeNull();
   });
 
   it("keeps the dialog open when the atomic upsert fails", async () => {

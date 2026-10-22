@@ -17,14 +17,6 @@ const keyPair = NodeCrypto.generateKeyPairSync("ed25519", {
 
 const config = RelayConfiguration.RelayConfiguration.of({
   relayIssuer: "https://relay.example.test/",
-  apns: {
-    environment: "sandbox",
-    teamId: "team-id",
-    keyId: "key-id",
-    privateKey: Redacted.make("private-key"),
-    bundleId: "com.t3tools.t3code.dev",
-  },
-  apnsDeliveryJobSigningSecret: Redacted.make("job-secret"),
   clerkSecretKey: Redacted.make("clerk-secret"),
   clerkPublishableKey: "pk_test_test",
   clerkJwtAudience: "t3-code-relay",
@@ -43,8 +35,6 @@ describe("RelayTokens", () => {
       const token = yield* relayTokens.issueLinkChallenge({
         userId: "user_123",
         request: {
-          notificationsEnabled: true,
-          liveActivitiesEnabled: true,
           managedTunnelsEnabled: true,
         },
         jti: "challenge-1",
@@ -57,8 +47,6 @@ describe("RelayTokens", () => {
           token,
           userId: "user_123",
           request: {
-            notificationsEnabled: true,
-            liveActivitiesEnabled: true,
             managedTunnelsEnabled: true,
           },
           nowEpochSeconds: 150,
@@ -69,8 +57,6 @@ describe("RelayTokens", () => {
           token,
           userId: "attacker",
           request: {
-            notificationsEnabled: true,
-            liveActivitiesEnabled: true,
             managedTunnelsEnabled: true,
           },
           nowEpochSeconds: 150,
@@ -88,8 +74,8 @@ describe("RelayTokens", () => {
         jti: "access-token-1",
         issuedAtEpochSeconds: 100,
         expiresAtEpochSeconds: 1_900,
-        clientId: "t3-mobile",
-        scopes: ["environment:connect", "environment:status", "mobile:registration"],
+        clientId: "t3-web",
+        scopes: ["environment:connect", "environment:status"],
       });
 
       expect(
@@ -97,8 +83,8 @@ describe("RelayTokens", () => {
       ).toMatchObject({
         sub: "user_123",
         cnf: { jkt: "proof-key-thumbprint" },
-        client_id: "t3-mobile",
-        scope: ["environment:connect", "environment:status", "mobile:registration"],
+        client_id: "t3-web",
+        scope: ["environment:connect", "environment:status"],
       });
       expect(
         yield* relayTokens.verifyDpopAccessToken({ token, nowEpochSeconds: 1_961 }),
@@ -134,7 +120,7 @@ describe("RelayTokens", () => {
       const relayTokens = yield* RelayTokens.RelayTokens;
       expect(
         relayTokens.resolveDpopAccessTokenScopes({
-          clientId: "t3-mobile",
+          clientId: "t3-web",
           scope: "environment:status environment:connect environment:status",
         }),
       ).toEqual(["environment:status", "environment:connect"]);
@@ -154,7 +140,7 @@ describe("RelayTokens", () => {
           jti: "access-token-invalid-scope",
           iat: 100,
           exp: 200,
-          client_id: "t3-mobile",
+          client_id: "t3-web",
           scope: "environment:admin",
           cnf: { jkt: "proof-key-thumbprint" },
         },
@@ -178,7 +164,7 @@ describe("RelayTokens", () => {
           iat: 100,
           exp: 200,
           client_id: "t3-web",
-          scope: "environment:connect mobile:registration",
+          scope: "environment:connect invalid:scope",
           cnf: { jkt: "proof-key-thumbprint" },
         },
       });

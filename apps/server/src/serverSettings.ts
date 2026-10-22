@@ -8,8 +8,6 @@ import {
   type ProviderInstanceMutation,
   defaultInstanceIdForDriver,
   isProviderDriverKind,
-  ProviderDriverKind,
-  ProviderInstanceId,
   resolveProviderInstanceEnabled,
   ResponseStreamingMode,
   ServerSettings,
@@ -341,41 +339,13 @@ function migrateLegacySourceControlSettings(
   return { settings: { ...settings, sourceControlHosts }, secretMoves };
 }
 
-const HISTORY_RESTORED_DRIVERS: ReadonlySet<ProviderDriverKind> = new Set(
-  ["cursor", "grok", "opencode"].map((driver) => ProviderDriverKind.make(driver)),
-);
-
 function migrateLegacyProviderSettings(
   settings: ServerSettings,
   legacyProviders: Readonly<Record<string, unknown>>,
-  providerHistory: ReadonlyArray<{
-    readonly providerName: string;
-    readonly providerInstanceId: string | null;
-  }>,
 ): ServerSettings {
-  const usedProviders = new Set<string>(providerHistory.map(({ providerName }) => providerName));
-  const usedProviderInstances = new Set<string>(
-    providerHistory.map(
-      ({ providerName, providerInstanceId }) => providerInstanceId ?? providerName,
-    ),
-  );
-
-  const providerInstances: Record<ProviderInstanceId, ProviderInstanceConfig> = {};
-  for (const [instanceId, instance] of Object.entries(settings.providerInstances) as Array<
-    [ProviderInstanceId, ProviderInstanceConfig]
-  >) {
-    providerInstances[instanceId] =
-      instance.enabled === undefined &&
-      HISTORY_RESTORED_DRIVERS.has(instance.driver) &&
-      usedProviderInstances.has(instanceId)
-        ? { ...instance, enabled: true }
-        : instance;
-  }
+  const providerInstances = { ...settings.providerInstances };
 
   const legacyEntries = new Map(Object.entries(legacyProviders));
-  for (const driver of HISTORY_RESTORED_DRIVERS) {
-    if (!legacyEntries.has(driver)) legacyEntries.set(driver, {});
-  }
   for (const [kind, blob] of legacyEntries) {
     if (!isProviderDriverKind(kind) || blob === null || typeof blob !== "object") continue;
     if (Array.isArray(blob)) continue;
@@ -385,9 +355,7 @@ function migrateLegacyProviderSettings(
 
     const { enabled: rawEnabled, ...config } = blob as Record<string, unknown>;
     const explicitEnabled = typeof rawEnabled === "boolean" ? rawEnabled : undefined;
-    const enabled =
-      explicitEnabled ??
-      (HISTORY_RESTORED_DRIVERS.has(driver) && usedProviders.has(driver) ? true : undefined);
+    const enabled = explicitEnabled;
     const driverDefault = resolveProviderInstanceEnabled({ driver, config: {} });
     if (Object.keys(config).length === 0 && (enabled === undefined || enabled === driverDefault)) {
       continue;
@@ -405,18 +373,8 @@ function migrateLegacyProviderSettings(
   };
 }
 
-const ACP_REGISTRY_DRIVER = ProviderDriverKind.make("acpRegistry");
-
-function selectionSupportsTextGeneration(
-  settings: ServerSettings,
-  selection: ModelSelection,
-): boolean {
-  return settings.providerInstances[selection.instanceId]?.driver !== ACP_REGISTRY_DRIVER;
-}
-
 function resolveTextGenerationProvider(settings: ServerSettings): ServerSettings {
-  return isModelSelectionProviderEnabled(settings, settings.textGenerationModelSelection) &&
-    selectionSupportsTextGeneration(settings, settings.textGenerationModelSelection)
+  return isModelSelectionProviderEnabled(settings, settings.textGenerationModelSelection)
     ? settings
     : fallbackTextGenerationProvider(settings);
 }
@@ -688,32 +646,6 @@ const make = Effect.gen(function* () {
 
     // A file that failed to decode must stay on disk for the user to repair.
     const settingsFileTrusted = Option.isNone(parseFailure);
-    const providerHistory = yield* sql<{
-      readonly providerName: string;
-      readonly providerInstanceId: string | null;
-    }>`
-      SELECT DISTINCT
-        provider_name AS "providerName",
-        provider_instance_id AS "providerInstanceId"
-      FROM projection_thread_sessions
-      WHERE provider_name IN ('cursor', 'grok', 'opencode')
-      UNION
-      SELECT DISTINCT
-        provider_name AS "providerName",
-        provider_instance_id AS "providerInstanceId"
-      FROM provider_session_runtime
-      WHERE provider_name IN ('cursor', 'grok', 'opencode')
-    `.pipe(
-      Effect.mapError(
-        (cause) =>
-          new ServerSettingsError({
-            settingsPath,
-            operation: "read-provider-history",
-            cause,
-          }),
-      ),
-    );
-
     const legacyProjectRows =
       settings.projectSettingsFolded || !settingsFileTrusted
         ? []
@@ -740,7 +672,7 @@ const make = Effect.gen(function* () {
     const loaded = foldProviderInstanceEnabledFlags(
       legacyProviders === undefined
         ? settings
-        : migrateLegacyProviderSettings(settings, legacyProviders, providerHistory),
+        : migrateLegacyProviderSettings(settings, legacyProviders),
     );
     const folded = settingsFileTrusted
       ? foldLegacyProjectSettings(loaded, legacyProjectRows)

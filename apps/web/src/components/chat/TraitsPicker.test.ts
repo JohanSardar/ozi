@@ -4,7 +4,7 @@ import {
   ProviderDriverKind,
   type ProviderOptionDescriptor,
 } from "@t3tools/contracts";
-import { buildTraitsTriggerDisplay, buildUnavailableModelOptionDescriptors } from "./TraitsPicker";
+import { buildTraitsTriggerDisplay } from "./TraitsPicker";
 
 function selectDescriptor(
   id: string,
@@ -109,22 +109,6 @@ describe("buildTraitsTriggerDisplay", () => {
       ).toEqual({ label: "1M · High Ultrafast" });
     },
   );
-
-  it("pairs Cursor Fast with reasoning rather than the thinking toggle", () => {
-    expect(
-      buildTraitsTriggerDisplay({
-        provider: ProviderDriverKind.make("cursor"),
-        descriptors: [
-          CONTEXT_WINDOW,
-          { ...EFFORT, id: "reasoning_effort" },
-          fastModeDescriptor(true),
-          { id: "thinking", label: "Thinking", type: "boolean", currentValue: true },
-        ],
-        primarySelectDescriptorId: CONTEXT_WINDOW.id,
-        ultrathinkPromptControlled: false,
-      }),
-    ).toEqual({ label: "1M · High Fast · Thinking On" });
-  });
 
   it.each([true, false])("keeps boolean thinking %s independent of Fast", (currentValue) => {
     const thinking = {
@@ -252,47 +236,14 @@ describe("buildTraitsTriggerDisplay", () => {
   });
 });
 
-describe("buildUnavailableModelOptionDescriptors", () => {
-  it("shows only saved values without inventing alternatives", () => {
-    expect(
-      buildUnavailableModelOptionDescriptors([
-        { id: "variant", value: "max" },
-        { id: "agent", value: "build" },
-        { id: "fastMode", value: true },
-      ]),
-    ).toEqual([
-      {
-        id: "variant",
-        label: "Reasoning",
-        type: "select",
-        options: [{ id: "max", label: "max" }],
-        currentValue: "max",
-      },
-      {
-        id: "agent",
-        label: "Agent",
-        type: "select",
-        options: [{ id: "build", label: "build" }],
-        currentValue: "build",
-      },
-      {
-        id: "fastMode",
-        label: "Fast Mode",
-        type: "boolean",
-        currentValue: true,
-      },
-    ]);
-  });
-});
-
 it("shows Unknown until a matching provider report provides Default", () => {
   const selection = {
-    instanceId: ProviderInstanceId.make("opencode"),
+    instanceId: ProviderInstanceId.make("pi"),
     model: "ling",
     options: [],
   };
   const input = {
-    provider: ProviderDriverKind.make("opencode"),
+    provider: ProviderDriverKind.make("pi"),
     descriptors: [
       selectDescriptor(
         "variant",

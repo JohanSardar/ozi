@@ -15,15 +15,6 @@ type EditorDefinition = {
 };
 
 export const EDITORS = [
-  {
-    id: "cursor",
-    label: "Cursor",
-    commands: ["cursor"],
-    // File and workspace opens must target the IDE even when the Agents Window is active.
-    baseArgs: ["--classic"],
-    launchStyle: "goto",
-    remoteScheme: "cursor",
-  },
   { id: "trae", label: "Trae", commands: ["trae"], launchStyle: "goto" },
   { id: "kiro", label: "Kiro", commands: ["kiro"], baseArgs: ["ide"], launchStyle: "goto" },
   {
@@ -53,14 +44,6 @@ export const EDITORS = [
     commands: ["zed", "zeditor"],
     launchStyle: "direct-path",
     remoteScheme: "zed",
-  },
-  {
-    id: "antigravity",
-    label: "Antigravity",
-    // `agy` is the standalone Antigravity CLI, not the IDE. The IDE bundle
-    // ships `antigravity-ide`, so it comes first for install-folder lookups.
-    commands: ["antigravity-ide", "agy-ide"],
-    launchStyle: "goto",
   },
   {
     id: "idea",

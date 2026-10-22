@@ -81,9 +81,9 @@ describe("deriveProviderModelsForDisplay", () => {
 });
 
 describe("provider environment helpers", () => {
-  const cursorApiKeyField = {
-    name: "CURSOR_API_KEY",
-    label: "Cursor API key",
+  const apiKeyField = {
+    name: "OPENAI_API_KEY",
+    label: "OpenAI API key",
     sensitive: true,
   };
 
@@ -91,12 +91,12 @@ describe("provider environment helpers", () => {
     expect(
       nextProviderEnvironmentWithFieldValue(
         [{ name: "EXTRA_FLAG", value: "1", sensitive: false }],
-        cursorApiKeyField,
-        "  cursor-key  ",
+        apiKeyField,
+        "  api-key  ",
       ),
     ).toEqual([
       { name: "EXTRA_FLAG", value: "1", sensitive: false },
-      { name: "CURSOR_API_KEY", value: "cursor-key", sensitive: true },
+      { name: "OPENAI_API_KEY", value: "api-key", sensitive: true },
     ]);
   });
 
@@ -105,16 +105,16 @@ describe("provider environment helpers", () => {
       nextProviderEnvironmentWithFieldValue(
         [
           {
-            name: "CURSOR_API_KEY",
+            name: "OPENAI_API_KEY",
             value: "",
             sensitive: true,
             valueRedacted: true,
           },
         ],
-        cursorApiKeyField,
+        apiKeyField,
         "new-key",
       ),
-    ).toEqual([{ name: "CURSOR_API_KEY", value: "new-key", sensitive: true }]);
+    ).toEqual([{ name: "OPENAI_API_KEY", value: "new-key", sensitive: true }]);
   });
 
   it("applies the secure field default when replacing an existing non-sensitive value", () => {
@@ -132,14 +132,12 @@ describe("provider environment helpers", () => {
 
   it("separates dedicated provider secrets from the generic environment table", () => {
     const environment = [
-      { name: "CURSOR_API_KEY", value: "cursor-key", sensitive: true },
+      { name: "OPENAI_API_KEY", value: "api-key", sensitive: true },
       { name: "EXTRA_FLAG", value: "1", sensitive: false },
     ];
 
-    expect(readProviderEnvironmentVariable(environment, "CURSOR_API_KEY")?.value).toBe(
-      "cursor-key",
-    );
-    expect(providerEnvironmentWithoutNames(environment, new Set(["CURSOR_API_KEY"]))).toEqual([
+    expect(readProviderEnvironmentVariable(environment, "OPENAI_API_KEY")?.value).toBe("api-key");
+    expect(providerEnvironmentWithoutNames(environment, new Set(["OPENAI_API_KEY"]))).toEqual([
       { name: "EXTRA_FLAG", value: "1", sensitive: false },
     ]);
   });

@@ -31,7 +31,6 @@ import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
 import * as ServerConfig from "../config.ts";
 import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
-import * as AgentAwarenessRelay from "../relay/AgentAwarenessRelay.ts";
 import * as CliTokenManager from "./CliTokenManager.ts";
 import * as CloudLink from "./CloudLink.ts";
 import * as ConnectHttp from "./http.ts";
@@ -95,7 +94,6 @@ const layerLinkProofRoutes = HttpApiBuilder.layer(LinkProofTestApi).pipe(
     }),
     Layer.mock(ManagedEndpointRuntime.CloudManagedEndpointRuntime)({}),
     Layer.mock(CliTokenManager.CloudCliTokenManager)({}),
-    Layer.mock(AgentAwarenessRelay.AgentAwarenessRelay)({}),
     Layer.mock(HttpServer.HttpServer)({
       address: NetAddress.inetAddressFromIpStringUnsafe("0.0.0.0", 3773),
     }),

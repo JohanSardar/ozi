@@ -22,7 +22,7 @@ import {
 const emptyCapabilities = createModelCapabilities({ optionDescriptors: [] });
 const CODEX_DRIVER = ProviderDriverKind.make("codex");
 const CLAUDE_AGENT_DRIVER = ProviderDriverKind.make("claudeAgent");
-const OPENCODE_DRIVER = ProviderDriverKind.make("opencode");
+const PI_DRIVER = ProviderDriverKind.make("pi");
 
 const makeProvider = (
   provider: ProviderDriverKind,
@@ -85,9 +85,9 @@ it.layer(NodeServices.layer)("providerStatusCache", (it) => {
         status: "warning",
         auth: { status: "unknown" },
       });
-      const openCodeProvider = makeProvider(OPENCODE_DRIVER, {
+      const piProvider = makeProvider(PI_DRIVER, {
         status: "warning",
-        auth: { status: "unknown", type: "opencode" },
+        auth: { status: "unknown", type: "pi" },
       });
       const codexPath = yield* resolveProviderStatusCachePath({
         cacheDir: tempDir,
@@ -97,9 +97,9 @@ it.layer(NodeServices.layer)("providerStatusCache", (it) => {
         cacheDir: tempDir,
         instanceId: defaultInstanceIdForDriver(ProviderDriverKind.make("claudeAgent")),
       });
-      const openCodePath = yield* resolveProviderStatusCachePath({
+      const piPath = yield* resolveProviderStatusCachePath({
         cacheDir: tempDir,
-        instanceId: defaultInstanceIdForDriver(ProviderDriverKind.make("opencode")),
+        instanceId: defaultInstanceIdForDriver(ProviderDriverKind.make("pi")),
       });
 
       yield* writeProviderStatusCache({
@@ -111,13 +111,13 @@ it.layer(NodeServices.layer)("providerStatusCache", (it) => {
         provider: claudeProvider,
       });
       yield* writeProviderStatusCache({
-        filePath: openCodePath,
-        provider: openCodeProvider,
+        filePath: piPath,
+        provider: piProvider,
       });
 
       assert.deepStrictEqual(yield* readProviderStatusCache(codexPath), codexProvider);
       assert.deepStrictEqual(yield* readProviderStatusCache(claudePath), claudeProvider);
-      assert.deepStrictEqual(yield* readProviderStatusCache(openCodePath), openCodeProvider);
+      assert.deepStrictEqual(yield* readProviderStatusCache(piPath), piProvider);
     }),
   );
 

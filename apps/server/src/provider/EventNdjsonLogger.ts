@@ -61,7 +61,6 @@ const transientNativeMethods = new Set([
   "thread/realtime/transcript/delta",
   "turn/diff/updated",
 ]);
-const transientAcpUpdates = new Set(["agent_message_chunk", "agent_thought_chunk"]);
 
 export type EventNdjsonStream = "native" | "canonical" | "orchestration";
 
@@ -226,7 +225,6 @@ export function shouldPersistProviderEvent(stream: EventNdjsonStream, event: unk
     if (nativeType === "system" && Reflect.get(nativeEvent, "subtype") === "thinking_tokens") {
       return false;
     }
-    if (nativeType === "message.part.delta") return false;
     if (nativeType === "stream_event") {
       const streamEvent = Reflect.get(nativeEvent, "event");
       if (
@@ -240,30 +238,6 @@ export function shouldPersistProviderEvent(stream: EventNdjsonStream, event: unk
 
     const payload = Reflect.get(nativeEvent, "payload");
     if (typeof payload !== "object" || payload === null) return true;
-
-    if (method === "session/update") {
-      const update = Reflect.get(payload, "update");
-      if (typeof update !== "object" || update === null) return true;
-      const updateType = Reflect.get(update, "sessionUpdate");
-      return typeof updateType !== "string" || !transientAcpUpdates.has(updateType);
-    }
-
-    if (nativeType === "message.part.updated") {
-      const properties = Reflect.get(payload, "properties");
-      if (typeof properties !== "object" || properties === null) return true;
-      const part = Reflect.get(properties, "part");
-      if (typeof part !== "object" || part === null) return true;
-      const partType = Reflect.get(part, "type");
-      if (partType === "text" || partType === "reasoning") return false;
-      if (partType === "tool") {
-        // Running snapshots repeat growing output.
-        const state = Reflect.get(part, "state");
-        if (typeof state === "object" && state !== null) {
-          return Reflect.get(state, "status") !== "running";
-        }
-      }
-      return true;
-    }
 
     return true;
   } catch {

@@ -142,9 +142,3 @@ Provider update checks and restart continuation preferences are in
 there before refreshing to find newer versions. The same setting controls whether
 T3 Code downloads model catalog updates, so with it off new models may not appear
 until you enable it and refresh provider status.
-
-Install App Store or Google Play releases as usual. The mobile app can also
-download updates in the background and apply them when you next leave the app.
-It saves drafts and queued messages before restarting. If you keep the app open
-for a long time, it may ask to install immediately; choosing **Later** leaves the
-update queued for the next suitable moment.

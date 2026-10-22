@@ -287,7 +287,7 @@ describe("readCustomModelEntries", () => {
 });
 
 describe("provider-reported option display", () => {
-  const selection = createModelSelection(ProviderInstanceId.make("opencode"), "ling");
+  const selection = createModelSelection(ProviderInstanceId.make("pi"), "ling");
   const reported = { ...selection, options: [{ id: "variant", value: "default" }] };
   const descriptor = {
     id: "variant",

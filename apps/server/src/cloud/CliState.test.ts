@@ -13,7 +13,6 @@ import {
   CLOUD_LINK_REVOKED,
   CLOUD_LINKED_USER_ID,
   CLOUD_MINT_PUBLIC_KEY,
-  PUBLISH_AGENT_ACTIVITY_SECRET,
   RELAY_ENVIRONMENT_CREDENTIAL_SECRET,
   RELAY_ISSUER_SECRET,
   RELAY_URL_SECRET,
@@ -27,7 +26,6 @@ const persistedCloudLinkSecrets = [
   CLOUD_MINT_PUBLIC_KEY,
   CLOUD_ENDPOINT_RUNTIME_CONFIG,
   CLOUD_ENDPOINT_CONFIRMED_ORIGIN,
-  PUBLISH_AGENT_ACTIVITY_SECRET,
 ] as const;
 
 const layerTest = () =>
@@ -70,7 +68,7 @@ it.layer(NodeServices.layer)("CliState", (it) => {
         CLOUD_ENDPOINT_RUNTIME_CONFIG,
         CLOUD_ENDPOINT_CONFIRMED_ORIGIN,
       ];
-      const kept = [RELAY_URL_SECRET, PUBLISH_AGENT_ACTIVITY_SECRET];
+      const kept = [RELAY_URL_SECRET];
       for (const name of [...dropped, ...kept]) {
         yield* secrets.set(name, new TextEncoder().encode(name));
       }

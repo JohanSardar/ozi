@@ -36,7 +36,7 @@ function layerManagedRelayTest(
   );
   return ManagedRelay.layer({
     relayUrl,
-    clientId: "t3-mobile",
+    clientId: "t3-web",
     ...(accessTokenStore ? { accessTokenStore } : {}),
   }).pipe(Layer.provide(layerSigner), Layer.provide(layerHttpClient));
 }
@@ -207,7 +207,7 @@ describe("ManagedRelayClient", () => {
     let persistedTokens: ReadonlyArray<ManagedRelay.ManagedRelayAccessTokenCacheEntry> = [
       {
         accountId: "user-1",
-        clientId: "t3-mobile",
+        clientId: "t3-web",
         relayUrl: "https://relay.example.test",
         thumbprint: "client-thumbprint",
         scopes: [RelayEnvironmentStatusScope],
@@ -373,7 +373,7 @@ describe("ManagedRelayClient", () => {
     let persistedTokens: ReadonlyArray<ManagedRelay.ManagedRelayAccessTokenCacheEntry> = [
       {
         accountId: "user-1",
-        clientId: "t3-mobile",
+        clientId: "t3-web",
         relayUrl: "https://relay.example.test",
         thumbprint: "client-thumbprint",
         scopes: [RelayEnvironmentStatusScope],
@@ -621,8 +621,6 @@ describe("ManagedRelayClient", () => {
           clerkToken: "clerk-token",
           payload: {
             proof: "link-proof",
-            notificationsEnabled: true,
-            liveActivitiesEnabled: true,
             managedTunnelsEnabled: true,
           },
         })
@@ -673,76 +671,6 @@ describe("ManagedRelayClient", () => {
       ) {
         expect(error.relayError.dpopFailureReason).toBeUndefined();
       }
-    }).pipe(Effect.provide(layerManagedRelayTest(fetchFn)));
-  });
-
-  it.effect("lists account devices through the v2 Clerk bearer client endpoint", () => {
-    const fetchFn = ((input, init) => {
-      expect(String(input)).toBe("https://relay.example.test/v2/client/devices");
-      expect(init?.headers).toMatchObject({
-        authorization: "Bearer clerk-token",
-      });
-      return Promise.resolve(
-        Response.json({
-          devices: [
-            {
-              deviceId: "device-1",
-              label: "Julius's iPhone",
-              platform: "ios",
-              iosMajorVersion: 18,
-              appVersion: "1.0.0",
-              notifications: {
-                enabled: false,
-                notifyOnApproval: true,
-                notifyOnInput: true,
-                notifyOnCompletion: true,
-                notifyOnFailure: true,
-              },
-              liveActivities: {
-                enabled: true,
-              },
-              updatedAt: "2026-06-01T00:00:00.000Z",
-            },
-            {
-              deviceId: "device-2",
-              label: "Android phone",
-              platform: "android",
-              iosMajorVersion: null,
-              androidApiLevel: 36,
-              appVersion: "1.0.0",
-              notifications: {
-                enabled: true,
-                notifyOnApproval: true,
-                notifyOnInput: true,
-                notifyOnCompletion: true,
-                notifyOnFailure: true,
-              },
-              liveActivities: { enabled: true },
-              updatedAt: "2026-06-01T00:00:00.000Z",
-            },
-          ],
-        }),
-      );
-    }) satisfies typeof globalThis.fetch;
-
-    return Effect.gen(function* () {
-      const relayClient = yield* ManagedRelay.ManagedRelayClient;
-      const devices = yield* relayClient.listDevices({ clerkToken: "clerk-token" });
-      expect(devices).toMatchObject([
-        {
-          deviceId: "device-1",
-          label: "Julius's iPhone",
-          notifications: {
-            enabled: false,
-          },
-        },
-        {
-          deviceId: "device-2",
-          platform: "android",
-          iosMajorVersion: null,
-          androidApiLevel: 36,
-        },
-      ]);
     }).pipe(Effect.provide(layerManagedRelayTest(fetchFn)));
   });
 });

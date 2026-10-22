@@ -62,17 +62,8 @@ export function ProviderAuthenticationSection({
   const signedIn =
     provider.auth.status === "authenticated" ||
     (provider.auth.status === "unknown" && auth?.phase === "succeeded");
-  const isDiscovering =
-    provider.driver === "acpRegistry" &&
-    !active &&
-    !signedIn &&
-    !query.error &&
-    auth?.methods === undefined;
-  const needsExternalSetup =
-    !active &&
-    !signedIn &&
-    (provider.setup?.canAuthenticate === false ||
-      (provider.driver === "acpRegistry" && auth?.methods?.length === 0));
+  const isDiscovering = false;
+  const needsExternalSetup = !active && !signedIn && provider.setup?.canAuthenticate === false;
   const accountDescription = active
     ? auth?.phase === "starting"
       ? "Starting sign-in…"

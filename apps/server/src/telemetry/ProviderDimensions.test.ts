@@ -26,7 +26,7 @@ const providers = [
     { slug: "claude-opus-5-5", isCustom: false },
     { slug: "my-private-finetune", isCustom: true },
   ]),
-  provider("opencode", "opencode", [{ slug: "ollama/acme-internal", isCustom: false }]),
+  provider("pi", "pi", [{ slug: "ollama/acme-internal", isCustom: false }]),
 ];
 
 const thread = (
@@ -122,7 +122,7 @@ it("omits custom, user-configured, and unknown models and instance names", () =>
       tool: "t3_thread_send",
       providers,
       caller: thread("claudeAgent", "my-private-finetune"),
-      targets: [thread("opencode", "ollama/acme-internal"), thread("removed-instance", "gpt-5.5")],
+      targets: [thread("pi", "ollama/acme-internal"), thread("removed-instance", "gpt-5.5")],
       outcome: { outcome: "ok" },
     }).map(({ callerProvider, callerModel, targetProvider, targetModel }) => ({
       callerProvider,
@@ -134,7 +134,7 @@ it("omits custom, user-configured, and unknown models and instance names", () =>
     {
       callerProvider: "claudeAgent",
       callerModel: undefined,
-      targetProvider: "opencode",
+      targetProvider: "pi",
       targetModel: undefined,
     },
     {

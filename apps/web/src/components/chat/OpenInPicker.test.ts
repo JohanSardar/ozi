@@ -71,8 +71,8 @@ describe("resolveOpenInOptions", () => {
     ["Win32", "File Explorer", FileExplorerIcon],
     ["Linux x86_64", "Files", FolderClosedIcon],
   ] as const)("includes the file manager with its icon on %s", (platform, label, Icon) => {
-    expect(resolveOpenInOptions(platform, ["cursor", "vscode", "file-manager"])).toEqual([
-      expect.objectContaining({ value: "cursor", label: "Cursor" }),
+    expect(resolveOpenInOptions(platform, ["vscode", "vscode", "file-manager"])).toEqual([
+      expect.objectContaining({ value: "vscode", label: "VS Code" }),
       expect.objectContaining({ value: "vscode", label: "VS Code" }),
       expect.objectContaining({ value: "file-manager", label, Icon }),
     ]);

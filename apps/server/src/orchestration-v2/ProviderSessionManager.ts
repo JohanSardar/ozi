@@ -404,11 +404,7 @@ export const layerWithOptions = (
         readonly mcpCredentialId: string | undefined;
         readonly issued: boolean;
       }
-      /**
-       * Adapters like ACP and OpenCode consume the credential eagerly during
-       * openSession, so a racing release must not revoke it in that window
-       * (rotating afterwards cannot repair an already-configured process).
-       */
+
       const mcpCredentialReservations = new Map<string, number>();
       const mcpReservationKey = (threadId: ThreadId, mcpCredentialId: string) =>
         `${threadId}\0${mcpCredentialId}`;
@@ -735,7 +731,6 @@ export const layerWithOptions = (
 
       // Read as soon as the session leaves the live map: after that, a
       // replacement session with the same id can open and report tasks of its
-      // own on the same provider threads. OpenCode's background subagents run
       // on a server shared by its sessions and can outlive this one, so their
       // roster stays.
       const readReleasedBackgroundTasks = Effect.fn(

@@ -53,12 +53,12 @@ describe("userFacingDispatchErrorMessage", () => {
           _tag: "CommandPolicyCapabilityUnsupportedError",
           commandId: "command-2",
           threadId: "thread-1",
-          providerInstanceId: "grok",
+          providerInstanceId: "pi",
           capability: "rollback",
           detail: "provider conversation rollback is unavailable",
         },
       }),
-      "Grok cannot rewind its conversation, so this checkpoint cannot be restored on this thread.",
+      "Pi cannot rewind its conversation, so this checkpoint cannot be restored on this thread.",
     );
   });
 

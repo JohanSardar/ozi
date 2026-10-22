@@ -103,7 +103,6 @@ const linkedState: EnvironmentCloudLinkStateResult = {
   relayUrl: "https://relay.example.com",
   relayIssuer: "https://relay.example.com",
   managedTunnelActive: true,
-  publishAgentActivity: false,
 };
 
 type Controller = ReturnType<typeof useCloudLinkController>;
@@ -173,7 +172,7 @@ describe("useCloudLinkController", () => {
       await using screen = await mountController();
       testState.scopes.delete(scope);
 
-      expect(await screen.reconcile({ managedTunnel: true, publish: true })).toBe(false);
+      expect(await screen.reconcile({ managedTunnel: true })).toBe(false);
       expect(testState.getToken).not.toHaveBeenCalled();
       expectNoMutations();
     },
@@ -184,7 +183,7 @@ describe("useCloudLinkController", () => {
     testState.snapshot = null;
     await using screen = await mountController();
 
-    expect(await screen.reconcile({ managedTunnel: false, publish: true })).toBe(false);
+    expect(await screen.reconcile({ managedTunnel: false })).toBe(false);
     expect(testState.getToken).not.toHaveBeenCalled();
     expectNoMutations();
   });
@@ -199,7 +198,7 @@ describe("useCloudLinkController", () => {
         return "clerk-token";
       });
 
-      expect(await screen.reconcile({ managedTunnel: false, publish: false })).toBe(false);
+      expect(await screen.reconcile({ managedTunnel: false })).toBe(false);
       expectNoMutations();
     },
   );
@@ -212,7 +211,7 @@ describe("useCloudLinkController", () => {
       return "clerk-token";
     });
 
-    expect(await screen.reconcile({ managedTunnel: true, publish: true })).toBe(false);
+    expect(await screen.reconcile({ managedTunnel: true })).toBe(false);
     expectNoMutations();
   });
 
@@ -226,12 +225,11 @@ describe("useCloudLinkController", () => {
       return "clerk-token";
     });
 
-    expect(await screen.reconcile({ managedTunnel: true, publish: true })).toBe(true);
+    expect(await screen.reconcile({ managedTunnel: true })).toBe(true);
     expect(testState.link).not.toHaveBeenCalled();
     expect(testState.unlink).not.toHaveBeenCalled();
     expect(testState.preferences).toHaveBeenCalledExactlyOnceWith({
       target,
-      publishAgentActivity: true,
     });
   });
 
@@ -242,7 +240,7 @@ describe("useCloudLinkController", () => {
 
     expect(screen.controller?.managedTunnelActive).toBe(false);
     expect(screen.controller?.managedTunnelOutOfSync).toBe(true);
-    expect(await screen.reconcile({ managedTunnel: true, publish: false })).toBe(true);
+    expect(await screen.reconcile({ managedTunnel: true })).toBe(true);
     expect(testState.link).toHaveBeenCalledExactlyOnceWith({
       target,
       clerkToken: "clerk-token",
@@ -262,7 +260,7 @@ describe("useCloudLinkController", () => {
       managedTunnelOutOfSync: false,
     });
 
-    expect(await screen.reconcile({ managedTunnel: true, publish: false })).toBe(true);
+    expect(await screen.reconcile({ managedTunnel: true })).toBe(true);
     expect(testState.link).toHaveBeenCalledExactlyOnceWith({
       target,
       clerkToken: "clerk-token",
@@ -277,7 +275,7 @@ describe("useCloudLinkController", () => {
 
     expect(screen.controller?.managedTunnelActive).toBe(true);
     expect(screen.controller?.managedTunnelOutOfSync).toBe(false);
-    expect(await screen.reconcile({ managedTunnel: true, publish: false })).toBe(true);
+    expect(await screen.reconcile({ managedTunnel: true })).toBe(true);
     expect(testState.link).not.toHaveBeenCalled();
   });
 
@@ -289,7 +287,7 @@ describe("useCloudLinkController", () => {
       return AsyncResult.success({});
     });
 
-    expect(await screen.reconcile({ managedTunnel: false, publish: true })).toBe(false);
+    expect(await screen.reconcile({ managedTunnel: false })).toBe(false);
     expect(testState.link).toHaveBeenCalledOnce();
     expect(testState.preferences).not.toHaveBeenCalled();
     expect(testState.refreshLink).toHaveBeenCalledOnce();
@@ -300,7 +298,7 @@ describe("useCloudLinkController", () => {
     await using screen = await mountController();
     testState.getToken.mockRejectedValueOnce(new Error("Cloud sign-in unavailable"));
 
-    expect(await screen.reconcile({ managedTunnel: false, publish: false })).toBe(true);
+    expect(await screen.reconcile({ managedTunnel: false })).toBe(true);
     expect(testState.unlink).toHaveBeenCalledExactlyOnceWith({ target, clerkToken: null });
     expect(testState.link).not.toHaveBeenCalled();
     expect(testState.preferences).not.toHaveBeenCalled();
@@ -314,7 +312,7 @@ describe("useCloudLinkController", () => {
       throw new Error("Cloud sign-in unavailable");
     });
 
-    expect(await screen.reconcile({ managedTunnel: false, publish: false })).toBe(true);
+    expect(await screen.reconcile({ managedTunnel: false })).toBe(true);
     expect(testState.unlink).toHaveBeenCalledExactlyOnceWith({ target, clerkToken: null });
     expect(testState.link).not.toHaveBeenCalled();
     expect(testState.preferences).not.toHaveBeenCalled();

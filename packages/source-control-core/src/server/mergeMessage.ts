@@ -3,13 +3,12 @@ const AGENT_EMAILS = new Set([
   "claude@anthropic.com",
   "noreply@openai.com",
   "codex@openai.com",
-  "cursoragent@cursor.com",
   "copilot@github.com",
   "noreply@github.com",
 ]);
 
 const GENERATED_BY_AGENT =
-  /^(?:🤖\s*)?generated (?:with|by)\s+(?:claude(?: code)?|codex|cursor|github copilot|copilot|opencode|grok|antigravity)[.!]?$/i;
+  /^(?:🤖\s*)?generated (?:with|by)\s+(?:claude(?: code)?|codex|pi|github copilot|copilot)[.!]?$/i;
 
 export function removeAgentCredits(message: string): string {
   let fence: string | undefined;
@@ -42,7 +41,7 @@ export function removeAgentCredits(message: string): string {
       AGENT_EMAILS.has(email) &&
       (email !== "noreply@github.com" || /^github copilot$|^copilot$/i.test(author![1]!));
     const footer = text.replace(
-      /\[([^\]]+)\]\(https:\/\/(?:claude\.ai|www\.anthropic\.com|chatgpt\.com|openai\.com|cursor\.com|github\.com|opencode\.ai|x\.ai|antigravity\.google)(?:\/[^\s)]*)?\)/gi,
+      /\[([^\]]+)\]\(https:\/\/(?:claude\.ai|www\.anthropic\.com|chatgpt\.com|openai\.com|github\.com)(?:\/[^\s)]*)?\)/gi,
       "$1",
     );
     if (!agentAuthor && !GENERATED_BY_AGENT.test(footer)) return true;

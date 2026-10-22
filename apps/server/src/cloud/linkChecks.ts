@@ -106,9 +106,7 @@ export function isSupportedLinkProviderKind(request: RelayLinkProofRequest): boo
 export function linkProofScopes(
   request: RelayLinkProofRequest,
 ): RelayEnvironmentLinkProofPayload["scopes"] {
-  return request.endpoint.providerKind === "cloudflare_tunnel"
-    ? ["agent_activity_notifications", "managed_tunnels"]
-    : ["agent_activity_notifications"];
+  return request.endpoint.providerKind === "cloudflare_tunnel" ? ["managed_tunnels"] : [];
 }
 
 export function hasExactScope(input: {

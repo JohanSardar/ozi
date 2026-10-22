@@ -5004,7 +5004,7 @@ describe("CodexAdapterV2 post-settle continuation", () => {
             item: {
               type: "dynamicToolCall",
               id: "persistent-monitor",
-              namespace: "grok",
+              namespace: "pi",
               tool: "monitor",
               status,
               arguments: { persistent: true, command: "tail -f" },
@@ -7887,7 +7887,7 @@ describe("CodexAdapterV2 post-settle continuation", () => {
             item: {
               type: "dynamicToolCall",
               id: PERSISTENT_MONITOR_ITEM,
-              namespace: "grok",
+              namespace: "pi",
               tool: "monitor",
               status: "inProgress",
               arguments: { persistent: true, command: "tail -f" },
@@ -7922,7 +7922,7 @@ describe("CodexAdapterV2 post-settle continuation", () => {
             item: {
               type: "dynamicToolCall",
               id: PERSISTENT_MONITOR_ITEM,
-              namespace: "grok",
+              namespace: "pi",
               tool: "monitor",
               status: "completed",
               arguments: { persistent: true, command: "tail -f" },

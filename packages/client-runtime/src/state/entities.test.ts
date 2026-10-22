@@ -286,20 +286,21 @@ describe("V2 client presentation", () => {
   it("stacks earlier provider owners behind the current one, newest history first to go", () => {
     const codex = ProviderInstanceId.make("codex");
     const claude = ProviderInstanceId.make("claude");
-    const cursor = ProviderInstanceId.make("cursor");
-    const grok = ProviderInstanceId.make("grok");
+    const work = ProviderInstanceId.make("codex_work");
+    const pi = ProviderInstanceId.make("pi");
     const shell = presentThreadShell(environmentId, {
       ...v2ThreadShell,
-      providerInstanceId: grok,
-      modelSelection: { instanceId: grok, model: "grok-4" },
-      providerInstanceHistory: [codex, claude, cursor, grok],
+      providerInstanceId: pi,
+      modelSelection: { instanceId: pi, model: "pi-4" },
+      providerInstanceHistory: [codex, claude, work, pi],
     });
 
-    expect(resolveThreadProviderStack(shell)).toEqual([claude, cursor, grok]);
-    expect(
-      resolveThreadProviderStack({ ...shell, providerInstanceHistory: [codex, grok] }),
-    ).toEqual([codex, grok]);
-    expect(resolveThreadProviderStack({ ...shell, providerInstanceHistory: [] })).toEqual([grok]);
+    expect(resolveThreadProviderStack(shell)).toEqual([claude, work, pi]);
+    expect(resolveThreadProviderStack({ ...shell, providerInstanceHistory: [codex, pi] })).toEqual([
+      codex,
+      pi,
+    ]);
+    expect(resolveThreadProviderStack({ ...shell, providerInstanceHistory: [] })).toEqual([pi]);
     expect(
       presentThreadShell(environmentId, { ...v2ThreadShell, providerInstanceHistory: undefined })
         .providerInstanceHistory,

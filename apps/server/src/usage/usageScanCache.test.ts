@@ -90,12 +90,12 @@ describe("scan cache round trip", () => {
       size: 40,
       malformedRecords: 2,
       mtimeMs: 300,
-      provider: "grok",
+      provider: "pi",
       records: [
-        record({ provider: "grok", model: "grok-4.5-build", dedupeKey: "s:p:grok-4.5-build" }),
-        record({ provider: "grok", model: "<synthetic>", dedupeKey: "s:p:<synthetic>" }),
+        record({ provider: "pi", model: "grok-4.5-build", dedupeKey: "s:p:grok-4.5-build" }),
+        record({ provider: "pi", model: "<synthetic>", dedupeKey: "s:p:<synthetic>" }),
       ],
-      tailRecords: [record({ provider: "grok", model: "<synthetic>", dedupeKey: null })],
+      tailRecords: [record({ provider: "pi", model: "<synthetic>", dedupeKey: null })],
       position: position({ resumeOffset: 30, guardLength: 30, guardHash: 123 }),
     });
     const state = initialCodexScanState();

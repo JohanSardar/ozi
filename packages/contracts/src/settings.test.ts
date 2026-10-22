@@ -840,40 +840,31 @@ describe("ServerSettings.providerInstances (slice-2 invariant)", () => {
 });
 
 describe("provider enabled defaults", () => {
-  it("keeps Muse disabled until a configured instance opts in", () => {
-    const muse = ProviderDriverKind.make("muse");
-    expect(resolveProviderInstanceEnabled({ driver: muse, config: {} })).toBe(false);
-    expect(resolveProviderInstanceEnabled({ driver: muse, enabled: true, config: {} })).toBe(true);
-    expect(
-      resolveProviderInstanceEnabled({ driver: muse, enabled: true, config: { enabled: false } }),
-    ).toBe(false);
-  });
-
   it("enables only the stable bindings by default", () => {
     const enabledByDefault = (driver: string) =>
       resolveProviderInstanceEnabled({ driver: ProviderDriverKind.make(driver), config: {} });
     expect(enabledByDefault("codex")).toBe(true);
     expect(enabledByDefault("claudeAgent")).toBe(true);
-    for (const driver of ["cursor", "grok", "muse", "pi", "opencode", "antigravity"]) {
+    for (const driver of ["pi"]) {
       expect(enabledByDefault(driver)).toBe(false);
     }
   });
 
   it("resolves instance enabled state with explicit false winning", () => {
-    const grok = ProviderDriverKind.make("grok");
+    const pi = ProviderDriverKind.make("pi");
     const codex = ProviderDriverKind.make("codex");
-    expect(resolveProviderInstanceEnabled({ driver: grok, config: {} })).toBe(false);
+    expect(resolveProviderInstanceEnabled({ driver: pi, config: {} })).toBe(false);
     expect(resolveProviderInstanceEnabled({ driver: codex, config: {} })).toBe(true);
     expect(
       resolveProviderInstanceEnabled({ driver: ProviderDriverKind.make("ollama"), config: {} }),
     ).toBe(true);
-    expect(resolveProviderInstanceEnabled({ driver: grok, enabled: true, config: {} })).toBe(true);
+    expect(resolveProviderInstanceEnabled({ driver: pi, enabled: true, config: {} })).toBe(true);
     expect(resolveProviderInstanceEnabled({ driver: codex, enabled: false, config: {} })).toBe(
       false,
     );
-    expect(resolveProviderInstanceEnabled({ driver: grok, config: { enabled: true } })).toBe(true);
+    expect(resolveProviderInstanceEnabled({ driver: pi, config: { enabled: true } })).toBe(true);
     expect(
-      resolveProviderInstanceEnabled({ driver: grok, enabled: true, config: { enabled: false } }),
+      resolveProviderInstanceEnabled({ driver: pi, enabled: true, config: { enabled: false } }),
     ).toBe(false);
     expect(
       resolveProviderInstanceEnabled({ driver: codex, enabled: false, config: { enabled: true } }),

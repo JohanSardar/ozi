@@ -210,7 +210,6 @@ export const make = Effect.gen(function* () {
         );
 
         // The persisted item says when the command is done and what it finally printed.
-        // Providers that report output only in item snapshots (ACP, Pi) stream through here too.
         let snapshotOutput: string | undefined;
         let lost: Cause.Cause<unknown> | undefined;
         let settled: Extract<OrchestrationV2TurnItem, { type: "command_execution" }> | undefined;

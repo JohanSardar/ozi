@@ -78,12 +78,6 @@ function fnv1a(buffer: Buffer): number {
   return hash >>> 0;
 }
 
-/**
- * Grok sessions also ship multi-megabyte `chat_history` and `events` logs that
- * never carry usage, so the basename filter keeps a cold scan off those files.
- * Results keep `readdir` order, which the aggregator's first-seen dedupe relies
- * on.
- */
 export async function listTranscriptFiles(
   root: string,
   sinceMs: number,

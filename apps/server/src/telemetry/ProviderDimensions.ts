@@ -4,18 +4,7 @@ import type {
   ServerProvider,
 } from "@t3tools/contracts";
 
-/**
- * Drivers whose model catalogs are published by the vendor. Other drivers
- * (OpenCode, Pi, ACP agents) list models from the user's own configuration,
- * such as local Ollama tags, so their model names stay out of analytics.
- */
-const VENDOR_CATALOG_DRIVERS: ReadonlySet<string> = new Set([
-  "codex",
-  "claudeAgent",
-  "cursor",
-  "grok",
-  "antigravity",
-]);
+const VENDOR_CATALOG_DRIVERS: ReadonlySet<string> = new Set(["codex", "claudeAgent"]);
 
 export interface ProviderDimensions {
   readonly provider: string;

@@ -12,16 +12,10 @@ import type { McpProviderSessionConfig } from "./mcpSession.ts";
 // Other providers may never consume these references.
 const MAX_KEPT_HTML_RENDERS = 64;
 
-// Antigravity truncates long HTML arguments to a marked tail of at most 8,000 characters.
-const BOUNDED_TEXT_MARKER = "[Earlier output truncated]\n\n";
-const KEPT_HTML_END_LENGTH = 8_000;
-
 interface KeptHtmlRender {
   readonly title: string;
   readonly height: number;
-  readonly htmlLength: number;
   readonly htmlHash: string;
-  readonly htmlEnd: string;
   readonly reference: HtmlRenderReference;
 }
 
@@ -60,17 +54,8 @@ const matchingPageIndex = (
       ? Number(input.height)
       : input.height;
   const htmlHash = hashHtml(html);
-  const tail = html.startsWith(BOUNDED_TEXT_MARKER)
-    ? html.slice(BOUNDED_TEXT_MARKER.length)
-    : undefined;
   const matches = kept.flatMap((page, index) =>
-    page.title === input.title &&
-    page.height === height &&
-    (page.htmlHash === htmlHash ||
-      (tail !== undefined &&
-        tail.length > 0 &&
-        tail.length < page.htmlLength &&
-        page.htmlEnd.endsWith(tail)))
+    page.title === input.title && page.height === height && page.htmlHash === htmlHash
       ? [index]
       : [],
   );
@@ -116,12 +101,7 @@ const make = Effect.gen(function* () {
             {
               title: input.title,
               height: input.height,
-              htmlLength: input.html.length,
               htmlHash: hashHtml(input.html),
-              // Copy the tail so its backing storage cannot retain the entire HTML string.
-              htmlEnd: Buffer.from(input.html.slice(-KEPT_HTML_END_LENGTH), "utf16le").toString(
-                "utf16le",
-              ),
               reference,
             },
           ].slice(-MAX_KEPT_HTML_RENDERS),

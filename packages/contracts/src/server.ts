@@ -1,6 +1,5 @@
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
-import { AcpRegistryUrlAuthAction } from "./acpRegistry.ts";
 import {
   type EnvironmentMachineKind,
   ExecutionEnvironmentDescriptor,
@@ -63,7 +62,6 @@ export const ServerProviderAuth = Schema.Struct({
   type: Schema.optional(TrimmedNonEmptyString),
   label: Schema.optional(TrimmedNonEmptyString),
   email: Schema.optional(TrimmedNonEmptyString),
-  action: Schema.optional(AcpRegistryUrlAuthAction),
   canLogout: Schema.optional(Schema.Boolean),
   subscriptionSharing: Schema.optional(Schema.Boolean),
   profileId: Schema.optional(TrimmedNonEmptyString),
@@ -221,9 +219,6 @@ export const ServerProvider = Schema.Struct({
   driver: ProviderDriverKind,
   displayName: Schema.optional(TrimmedNonEmptyString),
   accentColor: Schema.optional(TrimmedNonEmptyString),
-  // Optional visual identity supplied by the owning provider driver. Clients
-  // must still validate remote URLs against that driver's trusted origin.
-  iconUrl: Schema.optional(TrimmedNonEmptyString.check(Schema.isMaxLength(2_048))),
   badgeLabel: Schema.optional(TrimmedNonEmptyString),
   continuation: Schema.optional(ServerProviderContinuation),
   showInteractionModeToggle: Schema.optional(Schema.Boolean),
@@ -239,15 +234,6 @@ export const ServerProvider = Schema.Struct({
       documentationUrl: Schema.optionalKey(TrimmedNonEmptyString.check(Schema.isMaxLength(2_048))),
     }),
   ),
-  nativeSessions: Schema.optional(
-    Schema.Struct({
-      canList: Schema.Boolean,
-      canLoad: Schema.Boolean,
-      canResume: Schema.Boolean,
-      canDelete: Schema.optional(Schema.Boolean),
-    }),
-  ),
-  configurableProviders: Schema.optional(Schema.Boolean),
   runtimePaths: Schema.optionalKey(
     Schema.Struct({
       homePath: TrimmedNonEmptyString,
