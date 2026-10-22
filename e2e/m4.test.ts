@@ -573,9 +573,7 @@ it("m4.removed rejects retired APIs and commands and removes their repository sl
     "__service-launcher",
     "__service-preflight",
   ])
-    await expect(h.ozi(command)).rejects.toThrow(
-      /unrecognized|unknown|not found|unexpected|invalid/i,
-    );
+    await expect(h.ozi(command)).rejects.toThrow(/Unknown subcommand/);
   const root = NodeURL.fileURLToPath(new URL("..", import.meta.url));
   for (const path of [
     "infra",

@@ -228,7 +228,7 @@ export async function startHarness(
         { cwd: dataRoot, env, timeout: 45_000, maxBuffer: 16 * 1024 * 1024 },
         (error, stdout, stderr) => {
           if (error) {
-            const message = `ozi ${args.join(" ")}: ${stdout || stderr || error.message}`;
+            const message = `ozi ${args.join(" ")}: ${[stdout, stderr].filter(Boolean).join("\n") || error.message}`;
             if (args[0] === "wait")
               void ozi<import("@t3tools/contracts").OziCheck[]>("checks").then(
                 async (checks) => {
