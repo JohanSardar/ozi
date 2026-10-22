@@ -44,7 +44,7 @@ export const makeCodexManagedRuntime = Effect.fn("makeCodexManagedRuntime")(func
   const auth = yield* makeCodexChatGptAuth({
     instanceId: options.instanceId,
     defaultReturnUrl: new URL(
-      "/welcome",
+      "/settings/providers",
       config.devUrl ?? `http://localhost:${config.port}`,
     ).toString(),
   });
