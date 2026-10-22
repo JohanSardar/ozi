@@ -34,6 +34,7 @@ New code lives in `apps/server/src/ozi/` and `apps/web/src/components/ozi/`. Eve
 - Column: any unresolved question/approval/secret/login/Blocked in the job → Needs you; else unresolved or unchecked work → Running; checked lead report for current request → Ready; handled → Done. Newer request, actionable event or result reopens.
 - M2 accepts close evidence against the exact current `eventId`; accepted/verified evidence requires M3. `ozi close --command-id` retries the same command without closing a newer event. Close leaves active work and requests alone.
 - Main alone may pass `jobId` to delegation. Helpers inherit it; related follow-ups use the lead's existing send/queue path. An unavailable worker leaves a lead with its blocker and no agent run. Scheduled jobs inherit quiet visibility; internal threads do not appear in cards.
+- The current request follows its source event through lead sends, steering and queued follow-ups; event order, not the clock, identifies it.
 
 ### Completion (`ozi/Completion.ts`)
 

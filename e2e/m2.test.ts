@@ -135,6 +135,32 @@ it("m2.followup-lead sends related follow-up work to the existing lead", async (
   await h.ozi("wait", "thread", card.jobId, "text:related result", "--timeout", "20");
   expect(await jobs()).toHaveLength(1);
   expect((await h.thread(card.jobId)).runs).toHaveLength(2);
+  await script([
+    {
+      match: "hold-related-request",
+      role: "main",
+      steps: [sent(card.jobId, "hold-related-work"), { say: "holding" }],
+    },
+    {
+      match: "^hold-related-work$",
+      role: "worker",
+      steps: [{ say: "lead holding" }, { wait: true }],
+    },
+    {
+      match: "steer-related-request",
+      role: "main",
+      steps: [sent(card.jobId, "steered-related-work"), { say: "steering" }],
+    },
+    { match: "^steered-related-work$", role: "worker", steps: [{ say: "steered related result" }] },
+  ]);
+  await h.ozi("say", "hold-related-request");
+  await h.ozi("wait", "thread", card.jobId, "text:lead holding", "--timeout", "20");
+  const before = (await jobs())[0]!.requestEventId;
+  await h.ozi("say", "steer-related-request");
+  await h.ozi("wait", "thread", card.jobId, "text:steered related result", "--timeout", "20");
+  const cards = await jobs();
+  expect(cards).toHaveLength(1);
+  expect(cards[0]!.requestEventId).not.toBe(before);
 });
 
 it("m2.question-card routes a helper question and answer to its owner", async () => {
@@ -231,7 +257,11 @@ it("m2.main-without-worker preserves unavailable and failed launches as blocked 
       role: "main",
       steps: [
         delegate("unavailable-worker", {
-          target: { providerInstanceId: "unavailable", model: "missing" },
+          target: {
+            providerInstanceId: "unavailable",
+            model: "missing",
+            options: { reasoningEffort: "xhigh", serviceTier: "priority" },
+          },
         }),
         { say: "blocker recorded" },
       ],
@@ -243,7 +273,12 @@ it("m2.main-without-worker preserves unavailable and failed launches as blocked 
   expect(await wait(card.jobId, "needs_you")).toMatchObject({
     requests: [expect.objectContaining({ kind: "blocked" })],
   });
-  expect((await h.thread(card.jobId)).runs).toEqual([]);
+  const unavailable = await h.thread(card.jobId);
+  expect(unavailable.runs).toEqual([]);
+  expect(unavailable.thread.modelSelection.options).toEqual([
+    { id: "reasoningEffort", value: "xhigh" },
+    { id: "serviceTier", value: "priority" },
+  ]);
   await script([
     {
       match: "failed-request",

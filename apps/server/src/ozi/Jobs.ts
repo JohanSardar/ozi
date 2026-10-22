@@ -1,5 +1,6 @@
 import {
   OZI_MAIN_THREAD_ID,
+  isOziMain,
   OziJobError,
   RuntimeRequestId,
   type OziJobCard,
@@ -7,6 +8,7 @@ import {
   type OziJobRequest,
   type OrchestrationV2DomainEvent,
   type OrchestrationV2DispatchCommandResult,
+  type OrchestrationV2Run,
   type ThreadId,
 } from "@t3tools/contracts";
 import * as IdAllocator from "@t3tools/provider-core/server/IdAllocator";
@@ -69,6 +71,7 @@ const make = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
   const readCards = Effect.fn("Jobs.readCards")(function* (mainThreadId: ThreadId) {
     const shell = yield* projections.getShellSnapshot();
+    const mains = new Set(shell.threads.filter(isOziMain).map((thread) => thread.id));
     const members = shell.threads.filter(
       (thread) =>
         thread.jobId != null &&
@@ -205,23 +208,57 @@ const make = Effect.gen(function* () {
           stored.event.type === "message.updated" &&
           threads.some(
             (thread) =>
-              thread.id === stored.event.threadId && thread.lineage.parentThreadId === mainThreadId,
+              thread.id === stored.event.threadId &&
+              thread.lineage.parentThreadId !== null &&
+              mains.has(thread.lineage.parentThreadId),
           ) &&
           stored.event.payload.role === "user" &&
           stored.event.payload.notification === undefined,
       );
       if (request?.event.type !== "message.updated" || request.event.payload.createdBy !== "user") {
-        const task = main.subagents.findLast(
+        const parentId =
+          threads.find((thread) => thread.id === request?.event.threadId)?.lineage.parentThreadId ??
+          lead.lineage.parentThreadId ??
+          mainThreadId;
+        const parent =
+          parentId === mainThreadId
+            ? main
+            : yield* projections.getThreadRecords(parentId, ["runs", "subagents"]);
+        const task = parent.subagents.findLast(
           (task) => task.childThreadId !== null && threadIds.has(task.childThreadId),
         );
-        const run = main.runs.find((run) => run.id === task?.runId);
+        const runs = new Map<string, OrchestrationV2Run>();
+        if (request) {
+          for (const { sequence, event } of stored) {
+            if (sequence > request.sequence) break;
+            if (
+              event.threadId === parentId &&
+              (event.type === "run.created" || event.type === "run.updated")
+            )
+              runs.set(event.payload.id, event.payload);
+          }
+        }
+        const run =
+          [...runs.values()].findLast((run) =>
+            ["preparing", "starting", "running", "waiting"].includes(run.status),
+          ) ?? parent.runs.find((run) => run.id === task?.runId);
         request =
           stored.findLast(
             (stored) =>
               stored.event.type === "message.updated" &&
-              stored.event.threadId === mainThreadId &&
+              stored.event.threadId === parentId &&
+              stored.event.payload.runId === run?.id &&
+              stored.event.payload.role === "user" &&
+              stored.event.payload.notification === undefined &&
+              (request === undefined || stored.sequence <= request.sequence),
+          ) ??
+          stored.findLast(
+            (stored) =>
+              stored.event.type === "message.updated" &&
+              stored.event.threadId === parentId &&
               stored.event.payload.id === run?.userMessageId,
-          ) ?? request;
+          ) ??
+          request;
       }
       const done = lead.handledEventId === current.event.id;
       const checking = !active && !requests.length;

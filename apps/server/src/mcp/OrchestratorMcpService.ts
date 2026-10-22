@@ -1254,13 +1254,6 @@ const make = Effect.gen(function* () {
     readonly parent: Pick<OrchestrationV2ThreadProjection, "thread">;
     readonly target: OrchestratorMcpTarget | undefined;
     readonly providers: ReadonlyArray<ServerProvider>;
-    /**
-     * Set only when the command that will dispatch this target already has a receipt: that
-     * dispatch can only replay the recorded result, never start anything new, so filtering
-     * candidates by the project's current settings would just refuse a retry that does no new
-     * work. Never set this for a resolution whose dispatch uses a different command id than the
-     * one checked for a receipt.
-     */
     readonly skipProjectEnablementFilter?: boolean;
   }): Effect.fn.Return<ResolvedTarget, OrchestratorMcpFailure> {
     const requestedInstanceId = input.target?.providerInstanceId;
@@ -2111,7 +2104,12 @@ const make = Effect.gen(function* () {
                   OZI_WORKER_SELECTION.instanceId,
                 model:
                   input.target?.model ?? provider?.models[0]?.slug ?? OZI_WORKER_SELECTION.model,
-                options: [],
+                options:
+                  input.target?.options ??
+                  (input.target?.providerInstanceId === undefined &&
+                  input.target?.driverKind === undefined
+                    ? (OZI_WORKER_SELECTION.options ?? [])
+                    : []),
               },
               supportedRuntimeModes: undefined,
             } satisfies ResolvedTarget);
