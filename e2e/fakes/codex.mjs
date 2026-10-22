@@ -1,20 +1,5 @@
-import * as Schema from "effect/Schema";
-import {
-  CLIENT_REQUEST_RESPONSES,
-  SERVER_NOTIFICATION_PARAMS,
-  SERVER_REQUEST_PARAMS,
-} from "effect-codex-app-server/rpc";
 import * as NodeFS from "node:fs";
 import { id, interpreter, launch, lines, sessionFile, write } from "./agent.mjs";
-
-const requestDecoders = {
-  "item/tool/requestUserInput": Schema.decodeUnknownSync(
-    SERVER_REQUEST_PARAMS["item/tool/requestUserInput"],
-  ),
-  "item/commandExecution/requestApproval": Schema.decodeUnknownSync(
-    SERVER_REQUEST_PARAMS["item/commandExecution/requestApproval"],
-  ),
-};
 
 if (launch("codex")) {
   const sessions = new Map();
@@ -38,8 +23,6 @@ if (launch("codex")) {
   const notify = (method, params) => {
     if (method === "item/started") params = { startedAtMs: Date.now(), ...params };
     if (method === "item/completed") params = { completedAtMs: Date.now(), ...params };
-    const schema = SERVER_NOTIFICATION_PARAMS[method];
-    if (schema) Schema.decodeUnknownSync(schema)(params);
     write({ method, params });
   };
   const open = (thread) => {
@@ -113,7 +96,6 @@ if (launch("codex")) {
                   availableDecisions: ["accept", "decline"],
                 },
         };
-        requestDecoders[request.method](request.params);
         write(request);
       },
     });
@@ -168,8 +150,6 @@ if (launch("codex")) {
     }
     const { method, params = {} } = frame;
     const reply = (result) => {
-      const schema = CLIENT_REQUEST_RESPONSES[method];
-      if (schema) Schema.decodeUnknownSync(schema)(result);
       if (frame.id !== undefined) write({ id: frame.id, result });
     };
     switch (method) {

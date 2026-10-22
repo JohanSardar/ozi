@@ -25,6 +25,7 @@ export type Step =
   | { ask: string }
   | { approval: string }
   | { wait: true }
+  | { exec: string }
   | { fail: string };
 export type Rule = {
   match: string;
@@ -32,6 +33,7 @@ export type Rule = {
   role?: "main" | "worker";
   steps: Step[];
   repeat?: boolean;
+  stage?: "author" | "baseline" | "candidate" | "observer";
 };
 export type FakeRecord = {
   provider: string;

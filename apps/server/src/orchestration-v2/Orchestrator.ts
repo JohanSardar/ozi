@@ -3,6 +3,7 @@ import type {
   OrchestrationV2SearchThreadResult,
   OrchestrationV2ThreadHistoryPage,
 } from "@t3tools/contracts";
+import * as RepairTasks from "../ozi/RepairTasks.ts";
 import {
   latestExecutedRun,
   latestRootProviderFailure,
@@ -956,7 +957,8 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
   }) =>
     input.adapter.getCapabilities().pipe(
       Effect.flatMap((capabilities) =>
-        capabilities.sessions.supportsMultipleProviderThreadsPerSession
+        capabilities.sessions.supportsMultipleProviderThreadsPerSession &&
+        !RepairTasks.isRepairThread(input.threadId)
           ? Effect.succeed(
               idAllocator.derive.providerSession({
                 providerInstanceId: input.providerInstanceId,
@@ -6877,6 +6879,12 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       events: Ref.Ref<Array<OrchestrationV2DomainEvent>>,
       effects: Ref.Ref<Array<PendingOrchestrationEffectV2>>,
     ) {
+      const repairTasks = yield* Effect.serviceOption(RepairTasks.RepairTasks);
+      const repair =
+        command.createdBy === "system" &&
+        command.creationSource === "server" &&
+        Option.isSome(repairTasks) &&
+        repairTasks.value.authorized(command.commandId, command.parentThreadId);
       const parentProjection = yield* projectionStore
         .getThreadRecords(command.parentThreadId, [
           "runs",
@@ -6899,7 +6907,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       const parentRun = parentProjection.runs.find(
         (candidate) => candidate.id === command.parentRunId,
       );
-      if (parentRun === undefined || !isBlockingRun(parentRun)) {
+      if (parentRun === undefined || (!isBlockingRun(parentRun) && !repair)) {
         return yield* new OrchestratorDispatchError({
           commandId: command.commandId,
           commandType: command.type,
@@ -7000,13 +7008,15 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         }),
         runtimeMode: command.runtimeMode,
         interactionMode: command.interactionMode,
-        jobId: command.jobId ?? parentProjection.thread.jobId ?? childThreadId,
-        visibility: parentProjection.messages.some(
-          (message) =>
-            message.id === parentRun.userMessageId && message.scheduledTaskId !== undefined,
-        )
-          ? "quiet"
-          : (parentProjection.thread.visibility ?? "user"),
+        jobId: repair ? null : (command.jobId ?? parentProjection.thread.jobId ?? childThreadId),
+        visibility: repair
+          ? "internal"
+          : parentProjection.messages.some(
+                (message) =>
+                  message.id === parentRun.userMessageId && message.scheduledTaskId !== undefined,
+              )
+            ? "quiet"
+            : (parentProjection.thread.visibility ?? "user"),
         branch: null,
         worktreePath: null,
       };
@@ -7017,6 +7027,9 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         parentNodeId: command.parentNodeId,
         origin: "app_owned",
         createdBy: command.createdBy,
+        ...(repair
+          ? { completionDelivery: { state: "disposed" as const, observedByRunId: null } }
+          : {}),
         driver: targetAdapter.driver,
         providerInstanceId: command.modelSelection.instanceId,
         providerThreadId: null,

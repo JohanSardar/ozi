@@ -77,6 +77,7 @@ export const OZI_MAIN_TOOL_NAMES = [
   "request_secret",
   "read_skill",
   "handle_job",
+  "log_mistake",
 ] as const;
 
 export const OziJobColumn = Schema.Literals(["needs_you", "running", "ready", "done"]);

@@ -1,6 +1,8 @@
 import { OrchestratorMcpFailure } from "@t3tools/contracts";
 import { OrchestratorToolkit } from "./tools.ts";
 import * as Effect from "effect/Effect";
+import * as Option from "effect/Option";
+import * as Repair from "../../../ozi/Repair.ts";
 
 import { readCaller } from "../../threadAccess.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
@@ -112,7 +114,29 @@ const handlers = {
     Effect.gen(function* () {
       const scope = yield* McpInvocationContext.McpInvocationContext;
       const service = yield* OrchestratorMcpService.OrchestratorMcpService;
-      return yield* service.readThread(scope, input);
+      const result = yield* service.readThread(scope, input);
+      const repair = yield* Effect.serviceOption(Repair.Repair);
+      if (Option.isNone(repair)) return result;
+      const sources = [
+        ...new Set([result.thread.threadId, ...result.items.map((item) => item.sourceThreadId)]),
+      ];
+      const events = (yield* Effect.forEach(
+        sources,
+        (id) => repair.value.events(id).pipe(Effect.orElseSucceed(() => [])),
+        { concurrency: 4 },
+      )).flat();
+      return {
+        ...result,
+        items: result.items.map((item) => {
+          const source = events.findLast(
+            (value) =>
+              (value.event.type === "turn-item.updated" &&
+                value.event.payload.id === item.itemId) ||
+              (value.event.type === "message.updated" && value.event.payload.id === item.messageId),
+          );
+          return source ? { ...item, sourceEventId: source.event.id } : item;
+        }),
+      };
     }),
   ),
   t3_thread_update: McpToolAccess.writesThreads(

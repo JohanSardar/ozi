@@ -582,9 +582,6 @@ importers:
       effect:
         specifier: 4.0.5
         version: 4.0.5
-      effect-codex-app-server:
-        specifier: workspace:*
-        version: link:../packages/effect-codex-app-server
       playwright:
         specifier: 1.60.0
         version: 1.60.0
