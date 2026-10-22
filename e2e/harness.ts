@@ -76,7 +76,13 @@ async function fileReady(path: string, pid: number, signal: AbortSignal) {
 }
 
 export async function startHarness(
-  options: { fresh?: boolean; testClock?: string; publicUrl?: string; publicUrlEnv?: string } = {},
+  options: {
+    fresh?: boolean;
+    testClock?: string;
+    publicUrl?: string;
+    publicUrlEnv?: string;
+    repairPause?: string;
+  } = {},
 ) {
   const root = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "ozi-e2e-"));
   const home = NodePath.join(root, "home");
@@ -120,6 +126,7 @@ export async function startHarness(
     OZI_FAKE_SCRIPT: script,
     OZI_FAKE_LOG: log,
     ...(options.testClock === undefined ? {} : { OZI_TEST_CLOCK: options.testClock }),
+    ...(options.repairPause === undefined ? {} : { OZI_TEST_REPAIR_PAUSE: options.repairPause }),
     ...(options.publicUrlEnv === undefined ? {} : { OZI_PUBLIC_URL: options.publicUrlEnv }),
     TZ: "UTC",
     CODEX_HOME: NodePath.join(root, "codex"),
@@ -258,6 +265,12 @@ export async function startHarness(
     dataRoot,
     port,
     ozi,
+    git: (...args: string[]) =>
+      new Promise<string>((resolve, reject) => {
+        NodeChildProcess.execFile("git", args, { cwd: dataRoot, env }, (error, stdout, stderr) =>
+          error ? reject(new Error(stderr || error.message)) : resolve(stdout.trim()),
+        );
+      }),
     status: () => ozi<Status>("status"),
     thread: (id: string) => ozi<Projection>("thread", id),
     wait: (id: string, state: string, timeout = 15) =>
@@ -284,6 +297,14 @@ export async function startHarness(
     },
     async restart() {
       await stopServer();
+      spawnServer();
+      await ready();
+    },
+    async crash() {
+      const exited = new Promise<void>((resolve) => server.once("exit", () => resolve()));
+      server.kill("SIGKILL");
+      await exited;
+      delete env.OZI_TEST_REPAIR_PAUSE;
       spawnServer();
       await ready();
     },

@@ -211,9 +211,13 @@ it("m5.correction-repairs authenticated correction freezes and replays a native 
   for (const name of ["author", "baseline", "candidate", "observer"])
     expect((await h.thread(evidence[name].childThreadId)).thread.visibility).toBe("internal");
   expect(await h.ozi("jobs")).toEqual([]);
-  expect(evidence.publication).toBe("disabled");
+  expect(evidence.publication).toBe("local");
+  await h.ozi("wait", "mistake", row.id, "shipped");
+  expect(await NodeFSP.readFile(NodePath.join(h.dataRoot, "prompt.md"), "utf8")).toBe(
+    "Fixed prompt\n",
+  );
+  await h.ozi("undo", row.id);
   expect(await NodeFSP.readFile(NodePath.join(h.dataRoot, "prompt.md"), "utf8")).toBe(original);
-  expect((await h.ozi<Mistake>("mistake", row.id)).status).toBe("testing");
   for (const provider of ["codex", "claudeAgent"]) {
     const title = `replay worker ${provider}`;
     const fallback: Rule = {
@@ -338,6 +342,8 @@ it("m5.correction-repairs authenticated correction freezes and replays a native 
     ]);
     await h.ozi("thread", worker.id, "--message", "verify source");
     await h.wait(worker.id, "text:source intact");
+    await h.ozi("wait", "mistake", logged.id, "shipped");
+    await h.ozi("undo", logged.id);
   }
 });
 

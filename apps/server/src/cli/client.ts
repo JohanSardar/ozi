@@ -445,7 +445,7 @@ const answerCommand = Command.make("answer", {
 
 const waitCommand = Command.make("wait", {
   ...locationFlags,
-  entity: Argument.Literals("entity", ["thread", "job", "check", "mistake", "replay"]),
+  entity: Argument.Literals("entity", ["thread", "job", "check", "mistake", "replay", "fix"]),
   id: Argument.String("id"),
   state: Argument.String("state"),
   timeout: Flag.Finite("timeout").pipe(
@@ -455,7 +455,7 @@ const waitCommand = Command.make("wait", {
 }).pipe(
   Command.withHandler((flags) =>
     Effect.gen(function* () {
-      if (flags.entity === "mistake" || flags.entity === "replay") {
+      if (flags.entity === "mistake" || flags.entity === "replay" || flags.entity === "fix") {
         const { state, token } = yield* connect(flags.baseDir);
         yield* print(
           yield* request(state.origin, token, "/api/ozi/repair", Schema.Unknown, {
@@ -687,7 +687,7 @@ const scheduleRmCommand = Command.make("rm", scheduleIdFlags).pipe(
   ),
 );
 
-const repairCommands = ["mistakes", "replays"].map((kind) =>
+const repairCommands = ["mistakes", "replays", "fixes"].map((kind) =>
   Command.make(kind, locationFlags).pipe(
     Command.withHandler((flags) =>
       Effect.gen(function* () {
@@ -697,6 +697,19 @@ const repairCommands = ["mistakes", "replays"].map((kind) =>
         );
       }),
     ),
+  ),
+);
+const undoCommand = Command.make("undo", { ...locationFlags, id: Argument.String("id") }).pipe(
+  Command.withHandler((flags) =>
+    Effect.gen(function* () {
+      const { state, token } = yield* connect(flags.baseDir);
+      yield* print(
+        yield* request(state.origin, token, "/api/ozi/repair", Schema.Unknown, {
+          kind: "undo",
+          id: flags.id,
+        }),
+      );
+    }),
   ),
 );
 const mistakeCommand = Command.make("mistake", {
@@ -761,6 +774,7 @@ export const clientCommands = [
   scheduleCommand,
   ...(process.env.OZI_TEST_CLOCK ? [testClockCommand] : []),
   ...repairCommands,
+  undoCommand,
   mistakeCommand,
   eventsCommand,
   statusCommand,

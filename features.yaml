@@ -197,11 +197,11 @@ features:
     status: passing
   - id: publish-undo
     reqs: [replay]
-    module: Repair
-    cli: [fixes, undo]
+    module: apps/server/src/ozi/Publisher.ts + Repair.ts + e2e/m6.test.ts
+    cli: [fixes, undo, wait]
     milestone: 6
     scenarios: [m6.publish, m6.recurrence-undo, m6.edit-conflict, m6.crash-publish]
-    status: planned
+    status: building
   - id: public-ready
     reqs: [for-everybody, minimal, t3-cut]
     module: repo

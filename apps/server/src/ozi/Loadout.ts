@@ -10,9 +10,9 @@ import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Path from "effect/Path";
 import type { ServerConfig } from "../config.ts";
+import { dataRootPermit } from "./DataRoot.ts";
 
-export const dataRoot = (config: ServerConfig["Service"]) =>
-  config.dataRoot;
+export const dataRoot = (config: ServerConfig["Service"]) => config.dataRoot;
 
 export const readMainPrompt = Effect.fn("Ozi.readMainPrompt")(function* (
   config: ServerConfig["Service"],
@@ -29,7 +29,7 @@ export const readMainPrompt = Effect.fn("Ozi.readMainPrompt")(function* (
       ),
     );
   return prompt.replaceAll("{{ADHD}}", adhd);
-});
+}, dataRootPermit.withPermits(1));
 
 const sha256 = (value: string) =>
   Effect.promise(() => crypto.subtle.digest("SHA-256", new TextEncoder().encode(value))).pipe(
