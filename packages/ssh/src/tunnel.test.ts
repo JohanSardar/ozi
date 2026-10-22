@@ -112,7 +112,7 @@ describe("ssh tunnel scripts", () => {
       script,
       "T3_RELEASE_BASE_URL='https://github.com/pingdotgg/t3code/releases/download'",
     );
-    assert.include(script, 'T3_RUNTIME_DIR="$HOME/.t3/runtime/versions/$T3_ARCHIVE_VERSION"');
+    assert.include(script, 'T3_RUNTIME_DIR="$HOME/.ozi/runtime/versions/$T3_ARCHIVE_VERSION"');
     assert.include(script, 'T3_ARCHIVE="t3-$T3_ARCHIVE_VERSION-$T3_PLATFORM-$T3_ARCH.tar.gz"');
     assert.include(script, "SHA256SUMS");
     assert.include(script, 'exec "$T3_RUNTIME_DIR/t3" "$@"');
@@ -122,7 +122,7 @@ describe("ssh tunnel scripts", () => {
     assert.notInclude(script, 'exec t3 "$@"');
     assert.include(
       script,
-      'T3_LOCK="$HOME/.t3/runtime/versions/.$T3_ARCHIVE_VERSION.install.lock"',
+      'T3_LOCK="$HOME/.ozi/runtime/versions/.$T3_ARCHIVE_VERSION.install.lock"',
     );
     assert.include(script, 'if ! kill -0 "$T3_LOCK_OWNER" 2>/dev/null; then');
     assert.include(script, 'if [ "$T3_LOCK_UNOWNED" -ge 5 ]; then');
@@ -1179,7 +1179,7 @@ describe("archive runner script", () => {
           assert.equal(result.exitCode, 0, result.stderr);
           assert.include(result.stdout, `t3 v${archiveVersion}`);
         }
-        const versionsDir = `${home}/.t3/runtime/versions`;
+        const versionsDir = `${home}/.ozi/runtime/versions`;
         assert.deepEqual(yield* fs.readDirectory(versionsDir), [archiveVersion]);
         assert.equal(
           (yield* fs.readFileString(`${versionsDir}/${archiveVersion}/.install-complete`)).trim(),
@@ -1268,7 +1268,7 @@ server.listen(Number(flag("--port")), "127.0.0.1", () => {
     const fs = yield* FileSystem.FileSystem;
     const root = yield* fs.makeTempDirectoryScoped({ prefix: "t3-launch-script-" });
     const home = `${root}/home`;
-    const stateDir = `${home}/.t3/ssh-launch/test-state`;
+    const stateDir = `${home}/.ozi/ssh-launch/test-state`;
     const fakeServer = `${root}/fake-t3.cjs`;
     const launch = `${root}/launch.sh`;
     yield* fs.makeDirectory(stateDir, { recursive: true });
@@ -1312,7 +1312,7 @@ server.listen(Number(flag("--port")), "127.0.0.1", () => {
     const startDefaultHomeServer = (flags: ReadonlyArray<string>) =>
       Effect.gen(function* () {
         const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
-        const args = [fakeServer, "serve", "--port", "0", "--base-dir", `${home}/.t3`, ...flags];
+        const args = [fakeServer, "serve", "--port", "0", "--base-dir", `${home}/.ozi`, ...flags];
         const server = yield* spawner.spawn(ChildProcess.make("node", args));
         const port = yield* server.stdout.pipe(
           Stream.decodeText(),
@@ -1474,7 +1474,7 @@ server.listen(Number(flag("--port")), "127.0.0.1", () => {
         assert.include(zombieState.stdout, "Z");
         yield* fs.writeFileString(`${stateDir}/pid`, `${zombie}\n`);
         yield* fs.writeFileString(
-          `${home}/.t3/userdata/server-runtime.json`,
+          `${home}/.ozi/userdata/server-runtime.json`,
           JSON.stringify({
             version: 1,
             pid: zombie,

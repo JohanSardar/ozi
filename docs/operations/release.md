@@ -245,9 +245,9 @@ Required GitHub Actions secrets:
 Optional GitHub Actions variables:
 
 - `VERCEL_TEAM_SLUG`: overrides the Vercel CLI scope when the team slug is preferred over the `VERCEL_ORG_ID` secret.
-- `T3CODE_WEB_ROUTER_URL`: defaults to `https://app.t3.codes`.
-- `T3CODE_WEB_LATEST_DOMAIN`: defaults to `latest.app.t3.codes`.
-- `T3CODE_WEB_NIGHTLY_DOMAIN`: defaults to `nightly.app.t3.codes`.
+- `OZI_WEB_ROUTER_URL`: defaults to `https://app.t3.codes`.
+- `OZI_WEB_LATEST_DOMAIN`: defaults to `latest.app.t3.codes`.
+- `OZI_WEB_NIGHTLY_DOMAIN`: defaults to `nightly.app.t3.codes`.
 
 Required Vercel domains:
 
@@ -345,7 +345,7 @@ available.
   - The desktop UI shows a rocket update button when an update is available; click once to download, click again after download to restart/install.
 - Provider: GitHub Releases (`provider: github`) configured at build time.
 - Repository slug source:
-  - `T3CODE_DESKTOP_UPDATE_REPOSITORY` (format `owner/repo`), if set.
+  - `OZI_DESKTOP_UPDATE_REPOSITORY` (format `owner/repo`), if set.
   - otherwise `GITHUB_REPOSITORY` from GitHub Actions.
 - Required release assets for updater:
   - platform installers (`.exe`, `.dmg`, `.AppImage`, `.deb`, plus macOS `.zip` for Squirrel.Mac update payloads)
