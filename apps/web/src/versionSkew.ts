@@ -1,10 +1,4 @@
-import type {
-  EnvironmentId,
-  ServerConfig,
-  ServerInstallation,
-  ServerSelfUpdateCapability,
-} from "@t3tools/contracts";
-import type { ServerUpdateState } from "@t3tools/client-runtime/state/server";
+import type { EnvironmentId, ServerConfig } from "@t3tools/contracts";
 import { compareSemverVersions, parseSemver } from "@t3tools/shared/semver";
 import * as Schema from "effect/Schema";
 
@@ -18,16 +12,6 @@ export interface VersionMismatch {
 }
 
 const VERSION_MISMATCH_DISMISSALS_STORAGE_KEY = "t3code:version-mismatch-dismissals:v1";
-
-const dismissedServerUpdateFailures = new WeakSet<ServerUpdateState>();
-
-export function isServerUpdateFailureDismissed(state: ServerUpdateState): boolean {
-  return state.status === "failed" && dismissedServerUpdateFailures.has(state);
-}
-
-export function dismissServerUpdateFailure(state: ServerUpdateState): void {
-  if (state.status === "failed") dismissedServerUpdateFailures.add(state);
-}
 
 const VersionMismatchDismissalsSchema = Schema.Struct({
   keys: Schema.Array(Schema.String),
@@ -81,41 +65,6 @@ export function resolveServerConfigVersionMismatch(
   serverConfig: Pick<ServerConfig, "environment"> | null | undefined,
 ): VersionMismatch | null {
   return resolveVersionMismatch(serverConfig?.environment.serverVersion);
-}
-
-export function resolveServerSelfUpdateCapability(
-  serverConfig: Pick<ServerConfig, "environment"> | null | undefined,
-): ServerSelfUpdateCapability | null {
-  return serverConfig?.environment.capabilities.serverSelfUpdate ?? null;
-}
-
-export function supportsDesktopAppUpdate(
-  serverConfig: Pick<ServerConfig, "environment"> | null | undefined,
-): boolean {
-  return serverConfig?.environment.capabilities.desktopAppUpdate === true;
-}
-
-export function supportsServerUpdateThreadContinuation(
-  serverConfig: Pick<ServerConfig, "environment"> | null | undefined,
-): boolean {
-  return serverConfig?.environment.capabilities.serverUpdateThreadContinuation === true;
-}
-
-export function manualServerUpdateCommand(
-  targetVersion: string,
-  installation?: ServerInstallation,
-): string {
-  if (installation?.kind === "npm-global") {
-    const prefix = `'${installation.prefix.replaceAll("'", "'\\''")}'`;
-    return `npm install --global --prefix ${prefix} t3@${targetVersion}`;
-  }
-  const runner =
-    installation?.kind === "pnpm-dlx" ? "pnpm dlx" : installation?.kind === "bunx" ? "bunx" : "npx";
-  return `${runner} t3@${targetVersion}`;
-}
-
-export function serverUpdateGuidance(capability: ServerSelfUpdateCapability): string {
-  return capability === "desktop-managed" ? "Update the desktop app" : "Update to stay in sync";
 }
 
 export function buildVersionMismatchDismissalKey(

@@ -88,36 +88,6 @@ describe("splitSharedServerPatch", () => {
 describe("pickSharedServerSettings", () => {});
 
 describe("filterSharedServerPatch", () => {
-  it.each([true, false])(
-    "resets a disabled default provider only on the originating environment (%s)",
-    (targetIsSource) => {
-      const settings = {
-        ...DEFAULT_SERVER_SETTINGS,
-        providerInstances: {
-          codex: { driver: ProviderDriverKind.make("codex"), enabled: false, config: {} },
-          claudeAgent: {
-            driver: ProviderDriverKind.make("claudeAgent"),
-            enabled: true,
-            config: {},
-          },
-        },
-        textGenerationModelSelection: {
-          instanceId: ProviderInstanceId.make("claudeAgent"),
-          model: "claude-opus-4-6",
-        },
-      };
-      const patch = {
-        textGenerationModelSelection: DEFAULT_SERVER_SETTINGS.textGenerationModelSelection,
-        continueThreadsAfterServerUpdate: true,
-      };
-      expect(filterSharedServerPatch(patch, undefined, settings, settings, targetIsSource)).toEqual(
-        targetIsSource
-          ? { textGenerationModelSelection: DEFAULT_SERVER_SETTINGS.textGenerationModelSelection }
-          : {},
-      );
-    },
-  );
-
   it.each(["missing", "disabled", "different-driver", "enabled"] as const)(
     "shares a custom model only when its target provider is enabled (%s)",
     (availability) => {
@@ -163,102 +133,10 @@ describe("filterSharedServerPatch", () => {
       ).toEqual(availability === "enabled" ? [{ environmentId: boxId, label: "Remote Box" }] : []);
     },
   );
-
-  it.each([true, false])("preserves supported restart preference %s", (enabled) => {
-    const patch = { continueThreadsAfterServerUpdate: enabled };
-    expect(filterSharedServerPatch(patch, restartCapabilities)).toEqual(patch);
-  });
-
-  it.each([undefined, {}, { threadRestartContinuation: false }])(
-    "omits only the unsupported restart preference with capabilities %j",
-    (capabilities) => {
-      expect(
-        filterSharedServerPatch({ continueThreadsAfterServerUpdate: true }, capabilities),
-      ).toEqual({});
-      expect(pickSharedServerSettings(DEFAULT_SERVER_SETTINGS, capabilities)).not.toHaveProperty(
-        "continueThreadsAfterServerUpdate",
-      );
-    },
-  );
 });
 
 describe("findSharedSettingsMismatches", () => {
   const primarySettings = { ...DEFAULT_SERVER_SETTINGS };
-
-  it.each([true, false])(
-    "detects remote restart continuation drift when the preference is %s",
-    (enabled) => {
-      const settings = { ...primarySettings, continueThreadsAfterServerUpdate: enabled };
-      const remoteSettings = { ...settings, continueThreadsAfterServerUpdate: !enabled };
-      const environment = {
-        environmentId: boxId,
-        label: "Remote Box",
-        syncEligible: true,
-        settings: remoteSettings,
-        capabilities: restartCapabilities,
-      };
-      expect(
-        findSharedSettingsMismatches({
-          primaryEnvironmentId: primaryId,
-          primarySettings: settings,
-          primaryCapabilities: restartCapabilities,
-          environments: [environment],
-        }),
-      ).toEqual([{ environmentId: boxId, label: "Remote Box" }]);
-      expect(
-        findSharedSettingsMismatches({
-          primaryEnvironmentId: primaryId,
-          primarySettings: settings,
-          primaryCapabilities: restartCapabilities,
-          environments: [
-            {
-              ...environment,
-              settings: Object.assign(
-                {},
-                remoteSettings,
-                pickSharedServerSettings(settings, restartCapabilities),
-              ),
-            },
-          ],
-        }),
-      ).toEqual([]);
-    },
-  );
-
-  it.each([
-    [undefined, restartCapabilities],
-    [restartCapabilities, undefined],
-    [undefined, undefined],
-  ])(
-    "ignores restart drift unless both servers support it (%j, %j)",
-    (primaryCapabilities, capabilities) => {
-      const environment = {
-        environmentId: boxId,
-        label: "Remote Box",
-        syncEligible: true,
-        capabilities,
-        settings: { ...primarySettings, continueThreadsAfterServerUpdate: true },
-      };
-      const input = {
-        primaryEnvironmentId: primaryId,
-        primarySettings,
-        primaryCapabilities,
-        environments: [environment],
-      };
-      expect(findSharedSettingsMismatches(input)).toEqual([]);
-      expect(
-        findSharedSettingsMismatches({
-          ...input,
-          environments: [
-            {
-              ...environment,
-              settings: { ...environment.settings },
-            },
-          ],
-        }),
-      ).toEqual([{ environmentId: boxId, label: "Remote Box" }]);
-    },
-  );
 
   it("lists sync-eligible environments whose shared settings differ", () => {
     const mismatches = findSharedSettingsMismatches({

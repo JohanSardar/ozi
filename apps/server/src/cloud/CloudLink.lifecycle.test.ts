@@ -1,7 +1,6 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { describe, expect, it } from "@effect/vitest";
 import * as Deferred from "effect/Deferred";
-import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as FileSystem from "effect/FileSystem";
@@ -15,7 +14,7 @@ import * as Stream from "effect/Stream";
 import { HttpClient, HttpClientResponse, HttpServer, type HttpClientRequest } from "effect/http";
 import * as NetAddress from "effect/net/NetAddress";
 
-import { DESKTOP_UPDATE_RESTART_MARKER_FILE, EnvironmentId } from "@t3tools/contracts";
+import { EnvironmentId } from "@t3tools/contracts";
 import * as EnvironmentAuth from "../auth/EnvironmentAuth.ts";
 import * as ServerSecretStore from "../auth/ServerSecretStore.ts";
 import * as ServerConfigModule from "../config.ts";
@@ -260,18 +259,6 @@ describe("releaseManagedTunnelOnShutdown", () => {
       );
     });
 
-  const writeDesktopUpdateRestartMarker = Effect.gen(function* () {
-    const fs = yield* FileSystem.FileSystem;
-    const path = yield* Path.Path;
-    const config = yield* ServerConfigModule.ServerConfig;
-    const runtimeDir = path.join(config.baseDir, "runtime");
-    const markerPath = path.join(runtimeDir, DESKTOP_UPDATE_RESTART_MARKER_FILE);
-    yield* fs.makeDirectory(runtimeDir, { recursive: true });
-    yield* fs.writeFileString(markerPath, "");
-    const { mtime } = yield* fs.stat(markerPath);
-    return Option.getOrThrow(mtime).getTime();
-  });
-
   const provideReleaseHarness =
     (harness: ReleaseHarness) =>
     <A, E, R>(effect: Effect.Effect<A, E, R>) =>
@@ -479,39 +466,6 @@ describe("releaseManagedTunnelOnShutdown", () => {
       expect(applyConfigCalls).toEqual([]);
       expect(requests).toEqual([]);
       expect(values.has(CLOUD_ENDPOINT_RUNTIME_CONFIG)).toBe(true);
-    }).pipe(provideReleaseHarness({ store, applyConfigCalls, requests }));
-  });
-
-  it.effect("keeps the tunnel once when the desktop app restarts it for an update", () => {
-    const { store, values } = makeMemorySecretStore(managedLinkSecrets);
-    const applyConfigCalls: Array<unknown> = [];
-    const requests: Array<HttpClientRequest.HttpClientRequest> = [];
-
-    return Effect.gen(function* () {
-      const link = yield* CloudLink.CloudLink;
-      yield* TestClock.setTime(yield* writeDesktopUpdateRestartMarker);
-
-      expect(yield* link.releaseManagedTunnelOnShutdown()).toBe(false);
-      expect(requests).toEqual([]);
-      expect(values.has(CLOUD_ENDPOINT_RUNTIME_CONFIG)).toBe(true);
-
-      expect(yield* link.releaseManagedTunnelOnShutdown()).toBe(true);
-      expect(requests).toHaveLength(1);
-    }).pipe(provideReleaseHarness({ store, applyConfigCalls, requests }));
-  });
-
-  it.effect("releases the tunnel when the desktop update marker is stale", () => {
-    const { store } = makeMemorySecretStore(managedLinkSecrets);
-    const applyConfigCalls: Array<unknown> = [];
-    const requests: Array<HttpClientRequest.HttpClientRequest> = [];
-
-    return Effect.gen(function* () {
-      const link = yield* CloudLink.CloudLink;
-      const writtenAt = yield* writeDesktopUpdateRestartMarker;
-      yield* TestClock.setTime(writtenAt + Duration.toMillis(Duration.minutes(2)));
-
-      expect(yield* link.releaseManagedTunnelOnShutdown()).toBe(true);
-      expect(requests).toHaveLength(1);
     }).pipe(provideReleaseHarness({ store, applyConfigCalls, requests }));
   });
 

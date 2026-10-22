@@ -1,4 +1,10 @@
-import type { ServerSelfUpdateOutcome } from "@t3tools/contracts";
+export interface ServerSelfUpdateOutcome {
+  readonly id: string;
+  readonly fromVersion: string;
+  readonly targetVersion: string;
+  readonly status: "committed" | "rolled-back" | "failed";
+  readonly reason?: string;
+}
 
 // Protocol 3 requires the standalone executable layout. Bump when runtimePaths
 // or the installed runtime tree changes incompatibly; launchers survive self-updates.
