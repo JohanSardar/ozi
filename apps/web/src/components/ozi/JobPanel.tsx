@@ -1,4 +1,5 @@
 import styles from "./ozi.module.css";
+import ChatMarkdown from "../ChatMarkdown";
 import { randomUUID } from "../../lib/utils";
 import {
   CommandId,
@@ -230,7 +231,9 @@ function JobCard({
         </>
       )}
       {card.column === "ready" && card.report && (
-        <div className={styles["ozi-report"]}>{card.report.text}</div>
+        <div className={styles["ozi-report"]}>
+          <ChatMarkdown text={card.report.text} />
+        </div>
       )}
       {card.column === "done" ? (
         <p className={styles["ozi-job-status"]}>Closed</p>

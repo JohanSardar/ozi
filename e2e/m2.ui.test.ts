@@ -104,7 +104,7 @@ it("m2.drawer opens the lead conversation while the main composer stays usable",
           tool: {
             name: "delegate_task",
             arguments: {
-              task: "drawer-worker-brief",
+              task: `drawer-worker-brief ${"Visit details. ".repeat(400)}`,
               title: "Arrange a visit",
               mode: "async",
               clientRequestId: "m2-drawer-worker",
@@ -122,7 +122,7 @@ it("m2.drawer opens the lead conversation while the main composer stays usable",
     {
       match: "drawer-direct-message",
       role: "worker",
-      steps: [{ say: "The job received your message" }],
+      steps: [{ say: `The job received **your message**\n\n\`\`\`\n${"x".repeat(400)}\n\`\`\`` }],
     },
     {
       match: "Still usable with a job open",
@@ -143,7 +143,13 @@ it("m2.drawer opens the lead conversation while the main composer stays usable",
   await page.getByRole("button", { name: job.title, exact: true }).click();
   const drawer = page.getByRole("complementary", { name: "Job details" });
   await drawer.getByText("Looking at available times", { exact: true }).waitFor();
-  await drawer.getByText("drawer-worker-brief", { exact: true }).first().waitFor();
+  await drawer.getByText("Brief from Ozi", { exact: true }).waitFor();
+  const brief = await drawer
+    .getByText("Brief from Ozi", { exact: true })
+    .locator("..")
+    .boundingBox();
+  const lead = await drawer.getByRole("region", { name: "Job conversation" }).boundingBox();
+  expect(lead!.height).toBeGreaterThan(brief!.height);
   expect(await main.getAttribute("data-main-composer")).toBe("retained");
   expect(await main.inputValue()).toBe("Keep this message");
   await main.fill("Still usable with a job open");
@@ -158,7 +164,7 @@ it("m2.drawer opens the lead conversation while the main composer stays usable",
     .fill("drawer-direct-message");
   await drawer.getByRole("combobox", { name: "When to send" }).selectOption("steer");
   await drawer.getByRole("button", { name: "Submit message", exact: true }).click();
-  await h.wait(job.jobId, "text:The job received your message", 20);
+  await h.wait(job.jobId, "text:The job received", 20);
   await h.wait(job.jobId, "completed", 20);
   expect(
     (await h.thread("ozi-main")).messages.some(
@@ -171,7 +177,9 @@ it("m2.drawer opens the lead conversation while the main composer stays usable",
   expect(await main.inputValue()).toBe("Keep this message too");
   const card = page.locator(`[data-job-id="${job.jobId}"]`);
   await h.ozi("wait", "job", job.jobId, "ready", "--timeout", "20");
-  await card.getByText("The job received your message", { exact: false }).waitFor();
+  await card.locator("strong", { hasText: "your message" }).waitFor();
+  expect(await card.textContent()).not.toContain("**");
+  expect(await card.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(true);
   await card.getByRole("button", { name: "Got it, close", exact: true }).click();
   await h.ozi("wait", "job", job.jobId, "done", "--timeout", "20");
   await page

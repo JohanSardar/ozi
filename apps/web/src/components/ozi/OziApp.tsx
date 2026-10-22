@@ -24,10 +24,12 @@ export function OziApp() {
     <OziWorkspace key={environment.environmentId} environment={environment} />
   ) : (
     <main className={styles["ozi-app"]}>
-      <p role="status">
-        {isReady ? "Connect your Ozi server in Connections." : "Loading connections…"}
-      </p>
-      <Link to="/settings/connections">Connections</Link>
+      <div className={styles["ozi-connect"]}>
+        <p role="status">
+          {isReady ? "Connect your Ozi server in Connections." : "Loading connections…"}
+        </p>
+        <Link to="/settings/connections">Connections</Link>
+      </div>
     </main>
   );
 }
