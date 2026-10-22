@@ -70,12 +70,6 @@ it("m6.audit desktop never uses T3 Code's identity or legacy state", async () =>
 });
 
 it("m6.audit bundled desktop starts ozi serve and pairs through Connections", async () => {
-  await exec(NodePath.join(repo, "node_modules/.bin/vp"), [
-    "run",
-    "--filter",
-    "@t3tools/desktop",
-    "build",
-  ]);
   const bundle = await NodeFSP.readFile(
     NodePath.join(repo, "apps/desktop/dist-electron/main.cjs"),
     "utf8",

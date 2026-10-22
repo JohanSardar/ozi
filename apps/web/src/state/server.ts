@@ -32,6 +32,13 @@ export const serverEnvironment = createServerEnvironmentAtoms(connectionAtomRunt
   initialConfigValueAtom: environmentSession.initialConfigValueAtom,
   environmentThemes: true,
 });
+export const environmentKeybindingsAtom = Atom.family((environmentId: EnvironmentId) =>
+  Atom.make((get) =>
+    mergeWithDefaultKeybindings(
+      get(serverEnvironment.configValueAtom(environmentId))?.keybindings ?? [],
+    ),
+  ),
+);
 export const environmentServerConfigsAtom = createEnvironmentServerConfigsAtom({
   catalogValueAtom: environmentCatalog.catalogValueAtom,
   serverConfigValueAtom: serverEnvironment.configValueAtom,
@@ -76,7 +83,6 @@ export const primaryServerSettingsAtom = Atom.make(
   (get): ServerSettings => get(primaryServerConfigAtom)?.settings ?? DEFAULT_SERVER_SETTINGS,
 ).pipe(Atom.withLabel("web-primary-server-settings"));
 
-/** Without a primary, global shortcuts follow unscoped Settings. */
 function createShortcutKeybindingsAtom(input: {
   readonly primaryEnvironmentIdAtom: Atom.Atom<EnvironmentId | null>;
   readonly primaryConfigAtom: Atom.Atom<ServerConfig | null>;
@@ -84,10 +90,8 @@ function createShortcutKeybindingsAtom(input: {
     ReadonlyMap<EnvironmentId, Pick<EnvironmentPresentation, "connection" | "serverConfig">>
   >;
 }) {
-  // Selected before merging, so unrelated config updates keep the merged array.
   const customAtom = Atom.make((get) => {
     if (get(input.primaryEnvironmentIdAtom) !== null) {
-      // A primary stays authoritative while its config loads.
       return get(input.primaryConfigAtom)?.keybindings ?? null;
     }
     const environments = [...get(input.environmentsAtom).values()];
@@ -103,8 +107,6 @@ function createShortcutKeybindingsAtom(input: {
   );
 }
 
-// Settings' presentations import this module; mirror their catalog order and
-// connection presentation here to avoid a cycle.
 const environmentConnectionsAtom = Atom.make((get) => {
   const environments = new Map<
     EnvironmentId,
