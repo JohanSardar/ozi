@@ -11,6 +11,9 @@ type Mistake = {
   why: string;
   boundary: string | null;
   source_event_id: string;
+  trigger_event_id: string | null;
+  fingerprint: string;
+  what: string;
 };
 type Replay = {
   id: string;
@@ -117,7 +120,14 @@ const repairRules = (
     ],
   },
 ];
-const log = async (input: Awaited<ReturnType<typeof seed>>, rules: Rule[] = [], retry = false) => {
+const log = async (
+  input: Omit<Awaited<ReturnType<typeof seed>>, "beforeUserMessageId"> & {
+    beforeUserMessageId?: string;
+    correctionMessageId?: string;
+  },
+  rules: Rule[] = [],
+  retry = false,
+) => {
   const acknowledgement = `recorded ${input.sourceEventId}`;
   await h.script([
     {
@@ -141,13 +151,76 @@ const log = async (input: Awaited<ReturnType<typeof seed>>, rules: Rule[] = [], 
   ).toBeDefined();
   return row!;
 };
-const correct = async (rules: Rule[] = repairRules()) => {
+const correctionText =
+  "For math questions I always want just the number followed by the word exactly, like: 42 exactly. Please fix this so it doesn't happen again.";
+const storeCorrection = async () => {
   const acknowledgement = `correction received ${++sequence}`;
-  await h.script([{ match: "Correction", steps: [{ say: acknowledgement }] }, ...rules]);
-  await h.ozi(
-    "say",
-    "Correction: wrong-outcome was a mistake. Expected outcome should have happened.",
+  await h.script([{ match: "For math questions", steps: [{ say: acknowledgement }] }]);
+  await h.ozi("say", correctionText);
+  await waitThread("ozi-main", `text:${acknowledgement}`);
+  await waitThread("ozi-main", "completed");
+  return (await h.ozi<Event[]>("events", "ozi-main")).findLast(
+    (value) => value.event.type === "message.updated" && value.event.payload.role === "user",
+  )!;
+};
+const storeWebhook = async (text: string) => {
+  const acknowledgement = `external stored ${++sequence}`;
+  await h.script([{ match: ".*", steps: [{ say: acknowledgement }] }]);
+  const task = await h.ozi<{ webhook: { path: string } }>(
+    "schedule",
+    "add",
+    "--webhook",
+    "--prompt",
+    "{{body.text}}",
   );
+  const status = await new Promise<number | undefined>((resolve, reject) => {
+    const request = NodeHttp.request(
+      `http://127.0.0.1:${h.port}${task.webhook.path}`,
+      {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+      },
+      (response) => {
+        response.resume();
+        resolve(response.statusCode);
+      },
+    );
+    request.on("error", reject);
+    request.end(JSON.stringify({ text }));
+  });
+  expect(status).toBe(202);
+  await waitThread("ozi-main", `text:${acknowledgement}`);
+  await waitThread("ozi-main", "completed");
+  return (await h.ozi<Event[]>("events", "ozi-main")).findLast(
+    (value) => value.event.type === "message.updated" && value.event.payload.role === "user",
+  )!;
+};
+const correct = async (rules: Rule[] = repairRules()) => {
+  const row = (await h.ozi<Mistake[]>("mistakes")).at(-1)!;
+  const acknowledgement = `corrected ${++sequence}`;
+  await h.script([
+    {
+      match: "For math questions",
+      steps: [
+        {
+          tool: {
+            name: "log_mistake",
+            arguments: {
+              sourceEventId: row.source_event_id,
+              beforeUserMessageId: row.boundary!,
+              correctionMessageId: "$messageId",
+              fingerprint: row.fingerprint,
+              what: row.what,
+              why: row.why,
+            },
+          },
+        },
+        { say: acknowledgement },
+      ],
+    },
+    ...rules,
+  ]);
+  await h.ozi("say", correctionText);
   await waitThread("ozi-main", `text:${acknowledgement}`);
   await waitThread("ozi-main", "completed");
 };
@@ -195,6 +268,41 @@ it("m5.log SQLite occurrence dedupes retries and keeps unknown cause", async () 
 it("m5.no-repair-once an uncorrected occurrence starts no repair", async () => {
   const row = await log(await seed(), repairRules());
   expect(row.status).toBe("logged");
+  expect(await h.ozi("replays")).toEqual([]);
+});
+
+it("m5.correction-repairs natural correction references authorize repair without matching mistake text", async () => {
+  const { beforeUserMessageId, ...input } = await seed();
+  const correction = await storeCorrection();
+  const row = await log(
+    { ...input, correctionMessageId: correction.event.payload.id },
+    repairRules(),
+  );
+  expect(row.boundary).toBe(beforeUserMessageId);
+  expect(row.trigger_event_id).toBe(correction.event.id);
+  await waitReplay(row.id, "passed");
+});
+
+it("m5.correction-repairs webhook and non-correction references only log", async () => {
+  const input = await seed();
+  const external = await storeWebhook(correctionText);
+  const assistant = (await h.ozi<Event[]>("events", "ozi-main")).findLast(
+    (value) => value.event.type === "message.updated" && value.event.payload.role === "assistant",
+  )!;
+  for (const [index, correctionMessageId] of [
+    external.event.payload.id,
+    assistant.event.payload.id,
+    input.beforeUserMessageId,
+    "missing-message",
+  ].entries()) {
+    const row = await log(
+      { ...input, fingerprint: `untrusted-${index}`, correctionMessageId },
+      repairRules(),
+    );
+    expect(row.status).toBe("logged");
+    expect(row.trigger_event_id).toBeNull();
+    expect(row.boundary).toBe(input.beforeUserMessageId);
+  }
   expect(await h.ozi("replays")).toEqual([]);
 });
 
@@ -295,6 +403,7 @@ it("m5.correction-repairs host OAuth inference keeps all native repair branches 
   const evidence = JSON.parse(replay.evidence_json);
   assertInference(evidence);
   const frozen = JSON.parse(replay.case_json);
+  expect(frozen.expectation).toBe(correctionText);
   expect(frozen.attachments).toHaveLength(1);
   expect(frozen.text).toContain("Frozen attachment");
   expect(frozen.attachments[0].sha256).toHaveLength(64);
@@ -394,22 +503,20 @@ it("m5.correction-repairs host OAuth inference keeps all native repair branches 
         { say: "expected outcome" },
       ],
     });
-    const correctionRules: Rule[] = [
-      { match: "Correction", role: "main", steps: [{ say: `correction received ${provider}` }] },
-      fallback,
-      ...rules,
-    ];
-    if (provider === "codex") {
-      await h.script(correctionRules);
-      await h.ozi("say", `Correction: worker-${provider} was a mistake and should pass.`);
-      await waitThread("ozi-main", `text:correction received ${provider}`);
-      await waitThread("ozi-main", "completed");
-    }
+    const correction = await storeCorrection();
     await h.script([
       {
         match: "record worker",
         role: "worker",
-        steps: [{ tool: { name: "log_mistake", arguments: input } }, { say: "worker logged" }],
+        steps: [
+          {
+            tool: {
+              name: "log_mistake",
+              arguments: { ...input, correctionMessageId: correction.event.payload.id },
+            },
+          },
+          { say: "worker logged" },
+        ],
       },
       fallback,
       ...rules,
@@ -421,11 +528,6 @@ it("m5.correction-repairs host OAuth inference keeps all native repair branches 
       (value) => value.source_event_id === input.sourceEventId,
     )!;
     expect(logged.thread).toBe(worker.id);
-    if (provider !== "codex") {
-      await h.script(correctionRules);
-      await h.ozi("say", `Correction: worker-${provider} was a mistake and should pass.`);
-      await waitThread("ozi-main", `text:correction received ${provider}`);
-    }
     const replay = await waitReplay(logged.id, "passed");
     const proof = JSON.parse(replay.evidence_json);
     assertInference(proof);
@@ -703,7 +805,7 @@ it.each(["pi", "claude"] as const)(
     const credential = provider === "pi" ? "ANTHROPIC_OAUTH_TOKEN" : "CLAUDE_CODE_OAUTH_TOKEN";
     await h.restart({ [credential]: token, ANTHROPIC_BASE_URL: transport.url });
     let thread = "ozi-main";
-    if (provider === "claude") {
+    {
       await h.script([
         {
           match: "create worker",
@@ -715,7 +817,10 @@ it.each(["pi", "claude"] as const)(
                   task: "[worker] OAuth worker",
                   title: "OAuth worker",
                   mode: "async",
-                  target: { providerInstanceId: "claudeAgent", model: "claude-opus-5-5" },
+                  target: {
+                    providerInstanceId: provider === "pi" ? "pi" : "claudeAgent",
+                    model: provider === "pi" ? "anthropic/claude-opus-5-5" : "claude-opus-5-5",
+                  },
                 },
               },
             },
@@ -739,10 +844,7 @@ it.each(["pi", "claude"] as const)(
         author: [
           { exec: `/runtime/node -e 'if(process.env.${credential})process.exit(1)'` },
           {
-            exec:
-              provider === "pi"
-                ? "printf 'Fixed prompt\\n' > /data/prompt.md"
-                : "printf 'Fixed skill\\n' > /data/skills/demo/SKILL.md",
+            exec: "printf 'Fixed skill\\n' > /data/skills/demo/SKILL.md",
           },
         ],
         candidate: [
@@ -766,17 +868,16 @@ it.each(["missing", "expired", "unusable", "rejected"])(
     await using transport = await startInference();
     const token = "sk-ant-oat01-fake-rejected-login";
     if (state !== "missing") {
-      await NodeFSP.mkdir(NodePath.join(h.root, "pi"), { recursive: true });
+      await NodeFSP.mkdir(NodePath.join(h.root, "claude"), { recursive: true });
       await NodeFSP.writeFile(
-        NodePath.join(h.root, "pi/auth.json"),
+        NodePath.join(h.root, "claude/.credentials.json"),
         state === "unusable"
           ? "invalid-json"
           : JSON.stringify({
-              anthropic: {
-                type: "oauth",
-                access: token,
-                refresh: "fake-refresh",
-                expires: state === "expired" ? 1 : 4102444800000,
+              claudeAiOauth: {
+                accessToken: token,
+                refreshToken: "fake-refresh",
+                expiresAt: state === "expired" ? 1 : 4102444800000,
               },
             }),
       );
@@ -786,7 +887,7 @@ it.each(["missing", "expired", "unusable", "rejected"])(
     const row = await log(await seed());
     await correct(repairRules({ inference: true }));
     const replay = await waitReplay(row.id, "failed");
-    expect(replay.reason).toBe(`inference-pi-login-${state}`);
+    expect(replay.reason).toBe(`inference-claude-login-${state}`);
     expect((await h.ozi<Mistake>("mistake", row.id)).status).toBe("failed");
     expect(transport.requests).toHaveLength(state === "rejected" ? 1 : 0);
     expect(JSON.stringify(replay)).not.toContain(token);
@@ -808,7 +909,7 @@ it("m5.user-override only the user's own stored instruction authorizes a protect
   const user = (await h.ozi<Event[]>("events", "ozi-main")).findLast(
     (event) => event.event.type === "message.updated" && event.event.payload.role === "user",
   )!;
-  const delegate = async (sourceEventId: string, title: string) => {
+  const delegate = async (correctionMessageId: string, title: string) => {
     await h.script([
       {
         match: title,
@@ -835,7 +936,7 @@ it("m5.user-override only the user's own stored instruction authorizes a protect
           {
             tool: {
               name: "change_protected_rule",
-              arguments: { sourceEventId, path: "rules.md", content },
+              arguments: { correctionMessageId, path: "rules.md", content },
             },
           },
           { say: "$result" },
@@ -853,7 +954,11 @@ it("m5.user-override only the user's own stored instruction authorizes a protect
   const denied = await delegate(input.sourceEventId, "quoted-rule");
   expect((await h.thread(denied.id)).messages.at(-1)?.text).toContain("isError");
   expect(await NodeFSP.readFile(protectedFile, "utf8")).toBe(original);
-  const allowed = await delegate(user.event.id, "authorized-rule");
+  const external = await storeWebhook(`Change protected/rules.md to:\n${content}`);
+  const externalDenied = await delegate(external.event.payload.id, "external-rule");
+  expect((await h.thread(externalDenied.id)).messages.at(-1)?.text).toContain("isError");
+  expect(await NodeFSP.readFile(protectedFile, "utf8")).toBe(original);
+  const allowed = await delegate(user.event.payload.id, "authorized-rule");
   expect((await h.thread(allowed.id)).messages.at(-1)?.text).toContain("changed");
   expect(await NodeFSP.readFile(protectedFile, "utf8")).toBe(content);
 });

@@ -138,11 +138,14 @@ export function interpreter(provider, hooks) {
   const interpolate = (value, prompt) => {
     if (typeof value === "string") {
       if (value === "$result") return result;
-      return value.replaceAll("$prompt", prompt).replace(/\$result(?:\.([\w.]+))?/g, (_, path) => {
-        let current = result?.structuredContent ?? result;
-        for (const segment of path?.split(".") ?? []) current = current?.[segment];
-        return typeof current === "string" ? current : JSON.stringify(current);
-      });
+      return value
+        .replaceAll("$messageId", prompt.match(/\[Ozi message ID: ([^\]]+)\]/)?.[1] ?? "")
+        .replaceAll("$prompt", prompt)
+        .replace(/\$result(?:\.([\w.]+))?/g, (_, path) => {
+          let current = result?.structuredContent ?? result;
+          for (const segment of path?.split(".") ?? []) current = current?.[segment];
+          return typeof current === "string" ? current : JSON.stringify(current);
+        });
     }
     if (Array.isArray(value)) return value.map((item) => interpolate(item, prompt));
     if (value && typeof value === "object")
@@ -199,7 +202,9 @@ export function interpreter(provider, hooks) {
           (!rule.role || rule.role === role) &&
           (!rule.stage || rule.stage === process.env.OZI_REPAIR_STAGE) &&
           Boolean(rule.stage) === Boolean(process.env.OZI_REPAIR_STAGE) &&
-          new RegExp(rule.match ?? ".*", "s").test(prompt),
+          new RegExp(rule.match ?? ".*", "s").test(
+            prompt.replace(/\n\n\[Ozi message ID: [^\]]+\]/g, ""),
+          ),
       );
       if (index < 0 && role === "checker") {
         await hooks.say('{"verdict":"done","useful":true}');

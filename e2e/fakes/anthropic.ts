@@ -9,8 +9,13 @@ export type AnthropicRequest = {
   speed?: string;
 };
 
-export async function startAnthropic() {
+export type AnthropicReply =
+  | { text: string }
+  | { tool: string; arguments: Record<string, unknown> };
+
+export async function startAnthropic(reply?: (input: AnthropicRequest) => AnthropicReply) {
   const requests: AnthropicRequest[] = [];
+  const headers: NodeHttp.IncomingHttpHeaders[] = [];
   const server = NodeHttp.createServer(async (request, response) => {
     let body = "";
     for await (const chunk of request) body += chunk;
@@ -26,8 +31,14 @@ export async function startAnthropic() {
     }
     const input = JSON.parse(body) as AnthropicRequest;
     requests.push(input);
+    headers.push(request.headers);
     const tool = input.tools?.find((entry) => entry.name.endsWith("__read_skill"));
-    const useTool = tool && !JSON.stringify(input.messages).includes('"tool_result"');
+    const answer =
+      reply?.(input) ??
+      (tool && !JSON.stringify(input.messages).includes('"tool_result"')
+        ? { tool: tool.name, arguments: { name: "demo" } }
+        : { text: "bridge-ok" });
+    const useTool = "tool" in answer;
     response.writeHead(200, { "content-type": "text/event-stream" });
     const emit = (type: string, data: object) =>
       response.write(`event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`);
@@ -46,14 +57,14 @@ export async function startAnthropic() {
     emit("content_block_start", {
       index: 0,
       content_block: useTool
-        ? { type: "tool_use", id: "tool_skill", name: tool.name, input: {} }
+        ? { type: "tool_use", id: "tool_skill", name: answer.tool, input: {} }
         : { type: "text", text: "" },
     });
     emit("content_block_delta", {
       index: 0,
       delta: useTool
-        ? { type: "input_json_delta", partial_json: '{"name":"demo"}' }
-        : { type: "text_delta", text: "bridge-ok" },
+        ? { type: "input_json_delta", partial_json: JSON.stringify(answer.arguments) }
+        : { type: "text_delta", text: answer.text },
     });
     emit("content_block_stop", { index: 0 });
     emit("message_delta", {
@@ -73,6 +84,7 @@ export async function startAnthropic() {
   return {
     url: `http://127.0.0.1:${address.port}`,
     requests,
+    headers,
     close: () =>
       new Promise<void>((resolve, reject) => {
         server.closeAllConnections();
