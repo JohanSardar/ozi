@@ -18,7 +18,6 @@ import { Check, ChevronDown, ChevronUp, Copy } from "lucide";
 import { cn } from "~/lib/utils";
 import { Button, buttonVariants } from "~/components/ui/button";
 import { MorphIcon } from "~/components/MorphIcon";
-import { useComposerDraftStore } from "~/composerDraftStore";
 import { useCopyToClipboard } from "~/hooks/useCopyToClipboard";
 import {
   buildVisibleToastLayout,
@@ -27,7 +26,8 @@ import {
   shouldRenderThreadScopedToast,
 } from "./toast.logic";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./tooltip";
-import { useThreadRouteTarget } from "~/hooks/useThreadRouteTarget";
+import { usePrimaryEnvironmentId } from "~/state/environments";
+import { OZI_MAIN_THREAD_ID } from "@t3tools/contracts";
 
 export type ThreadToastData = {
   threadRef?: ScopedThreadRef | null;
@@ -410,21 +410,8 @@ interface ToastProviderProps extends Toast.Provider.Props {
 }
 
 function useActiveThreadRefFromRoute(): ScopedThreadRef | null {
-  const routeTarget = useThreadRouteTarget();
-  const activeDraftSession = useComposerDraftStore((store) =>
-    routeTarget?.kind === "draft" ? store.getDraftSession(routeTarget.draftId) : null,
-  );
-
-  if (routeTarget?.kind === "server") {
-    return routeTarget.threadRef;
-  }
-  if (routeTarget?.kind === "draft" && activeDraftSession) {
-    return {
-      environmentId: activeDraftSession.environmentId,
-      threadId: activeDraftSession.threadId,
-    };
-  }
-  return null;
+  const environmentId = usePrimaryEnvironmentId();
+  return environmentId ? { environmentId, threadId: OZI_MAIN_THREAD_ID } : null;
 }
 
 function ThreadToastVisibleAutoDismiss({

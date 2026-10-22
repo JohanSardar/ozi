@@ -6,7 +6,7 @@ import {
   type ScopedThreadRef,
 } from "@t3tools/contracts";
 
-import type { ComposerImageAttachment } from "~/composerDraftStore";
+import type { ComposerImageAttachment } from "~/composerAttachments";
 import { usePreviewAvailable } from "~/browser/previewRuntime";
 import { useEnvironmentScope } from "~/state/session";
 
@@ -41,7 +41,7 @@ export function PreviewPanel({
         <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-3 p-8 text-center">
           <p className="max-w-sm text-sm text-muted-foreground">
             {canOperatePreview
-              ? "Preview is only available in the T3 Code desktop app."
+              ? "The shared browser is unavailable on this connection."
               : "Pair this client again with preview access to control browser previews."}
           </p>
         </div>

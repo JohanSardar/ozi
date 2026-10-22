@@ -47,7 +47,11 @@ New code lives in `apps/server/src/ozi/` and `apps/web/src/components/ozi/`. Eve
 
 ### JobPanel (`components/ozi/JobPanel.tsx`)
 
-- `<JobPanel mainThreadId/>`: cards in four columns, questions/approvals/secrets/reports on the card, Close and Stop, drawer with the lead's conversation (lazy), to-dos below jobs labeled with their source. One main composer, always usable. No thread list.
+- The app opens at `/` into `ozi-main`. No thread list, projects, drafts, workspace selectors or branch controls. Settings retain connections, providers, appearance, keybindings, scheduled tasks and licenses. New schedules target main.
+- `JobPanel` renders supplied `OziJobCard[]` with answer, handle, stop and open callbacks. Four sections with counts and empty states; Needs you count in the title bar. Questions, approvals, private entry and reports stay on cards. Close and Stop are separate. Status indicators are static.
+- Opening a card mounts `JobDrawer`, which loads the lead's brief and conversation on demand. Its composer addresses the lead. The main composer remains mounted and usable. HTML replies, MCP apps and the shared browser remain available. To-dos below jobs, labeled with their source, arrive in M4.
+- Until the Jobs RPCs land, the app shows job updates as unavailable and disables job mutations. It does not derive cards from thread shells or acknowledge commands optimistically. Request responses and stop already use the existing owner-specific commands.
+- Remaining integration: add a client-runtime subscription atom for `OZI_WS_METHODS.jobsSubscribe` with `{}` payload and a command atom for `OZI_WS_METHODS.jobsHandle`, then expose them through a web `useOziJobs` hook. In `OziWorkspace`, replace the unavailable source with its cards and freshness state and connect `onHandle` to the command, preserving its command ID and exact event ID. Keep the last cards on disconnect and surface `OziJobError`, including `StaleEvent`. The drawer E2E also needs the server's `ozi jobs` command.
 
 ## Retained surface
 

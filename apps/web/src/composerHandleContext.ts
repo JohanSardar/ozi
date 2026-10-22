@@ -1,5 +1,5 @@
 import { createContext, use } from "react";
-import type { ChatComposerHandle } from "./components/chat/ChatComposer";
+type ChatComposerHandle = { focusAtEnd: () => void };
 
 export type ComposerHandleRef = React.RefObject<ChatComposerHandle | null>;
 

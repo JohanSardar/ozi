@@ -76,7 +76,6 @@ catalog:
   remark-parse: 11.0.0
   remark-rehype: 11.1.2
   unified: 11.0.5
-  "@legendapp/list": 3.3.5
 minimumReleaseAgeExclude:
   - tsc-rs
   - "@tsc-rs/*"
@@ -120,7 +119,6 @@ minimumReleaseAgeExclude:
   - "@distilled.cloud/gcp@1.0.0-rc.13"
   - "@distilled.cloud/infisical@1.0.0-rc.13"
   - "@distilled.cloud/zerossl@1.0.0-rc.13"
-  - "@legendapp/list@3.3.5"
 overrides:
   "@exodus/bytes>@noble/hashes": 1.8.0
   dbus-next>usocket: "-"
@@ -188,7 +186,6 @@ patchedDependencies:
   dbus-next@0.10.2: patches/dbus-next@0.10.2.patch
   node-pty@1.2.0-beta.15: patches/node-pty@1.2.0-beta.15.patch
   app-builder-lib@26.16.1: patches/app-builder-lib@26.16.1.patch
-  "@legendapp/list@3.3.5": patches/@legendapp__list@3.3.5.patch
 peerDependencyRules:
   allowAny:
     - vite

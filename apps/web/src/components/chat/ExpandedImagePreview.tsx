@@ -1,6 +1,6 @@
 import type { SnapShotSource } from "@t3tools/contracts";
 
-import type { ComposerFileAttachment } from "../../composerDraftStore";
+type ComposerFileAttachment = ChatFileAttachment & { file: File | null };
 import { type ChatFileAttachment, type ChatImageAttachment, isVideoAttachment } from "../../types";
 import type {
   AssetCreateUrlResult,

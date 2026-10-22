@@ -426,12 +426,6 @@ export function CloudEnvironmentConnectRows({
             <div className="flex items-center gap-2">
               <ConnectionStatusDot
                 dotClassName={dotClassName}
-                pingClassName={
-                  savedConnection?.tone === "connecting" ||
-                  (savedConnection === null && availability === "checking")
-                    ? "bg-warning/60 duration-2000"
-                    : null
-                }
                 tooltipText={
                   unsupportedDetail !== null
                     ? unsupportedDetail
