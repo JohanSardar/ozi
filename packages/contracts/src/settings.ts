@@ -46,7 +46,7 @@ const DEFAULT_DIFF_LAYOUT: DiffLayout = "stacked";
 
 export const SidebarProjectSortOrder = Schema.Literals(["updated_at", "created_at", "manual"]);
 export type SidebarProjectSortOrder = typeof SidebarProjectSortOrder.Type;
-export const DEFAULT_SIDEBAR_PROJECT_SORT_ORDER: SidebarProjectSortOrder = "updated_at";
+const DEFAULT_SIDEBAR_PROJECT_SORT_ORDER: SidebarProjectSortOrder = "updated_at";
 
 export const SidebarThreadSortOrder = Schema.Literals(["updated_at", "created_at"]);
 export type SidebarThreadSortOrder = typeof SidebarThreadSortOrder.Type;
@@ -59,8 +59,8 @@ export const SidebarProjectGroupingMode = Schema.Literals([
 ]);
 export type SidebarProjectGroupingMode = typeof SidebarProjectGroupingMode.Type;
 const DEFAULT_SIDEBAR_PROJECT_GROUPING_MODE: SidebarProjectGroupingMode = "repository";
-export const MIN_SIDEBAR_THREAD_PREVIEW_COUNT = 1;
-export const MAX_SIDEBAR_THREAD_PREVIEW_COUNT = 15;
+const MIN_SIDEBAR_THREAD_PREVIEW_COUNT = 1;
+const MAX_SIDEBAR_THREAD_PREVIEW_COUNT = 15;
 export const SidebarThreadPreviewCount = Schema.Int.check(
   Schema.isBetween({
     minimum: MIN_SIDEBAR_THREAD_PREVIEW_COUNT,
@@ -69,10 +69,8 @@ export const SidebarThreadPreviewCount = Schema.Int.check(
 );
 export type SidebarThreadPreviewCount = typeof SidebarThreadPreviewCount.Type;
 const DEFAULT_SIDEBAR_THREAD_PREVIEW_COUNT: SidebarThreadPreviewCount = 6;
-export const MIN_SIDEBAR_AUTO_SETTLE_AFTER_DAYS = 1;
-export const MAX_SIDEBAR_AUTO_SETTLE_AFTER_DAYS = 90;
-export const MIN_GLASS_OPACITY = 40;
-export const MAX_GLASS_OPACITY = 100;
+const MIN_GLASS_OPACITY = 40;
+const MAX_GLASS_OPACITY = 100;
 export const GlassOpacity = Schema.Int.check(
   Schema.isBetween({
     minimum: MIN_GLASS_OPACITY,
@@ -82,15 +80,15 @@ export const GlassOpacity = Schema.Int.check(
 export type GlassOpacity = typeof GlassOpacity.Type;
 const DEFAULT_GLASS_OPACITY: GlassOpacity = 80;
 
-export const MIN_APPEARANCE_CONTRAST = 50;
-export const MAX_APPEARANCE_CONTRAST = 200;
+const MIN_APPEARANCE_CONTRAST = 50;
+const MAX_APPEARANCE_CONTRAST = 200;
 export const AppearanceContrast = Schema.Int.check(
   Schema.isBetween({ minimum: MIN_APPEARANCE_CONTRAST, maximum: MAX_APPEARANCE_CONTRAST }),
 );
 export type AppearanceContrast = typeof AppearanceContrast.Type;
 const DEFAULT_APPEARANCE_CONTRAST: AppearanceContrast = 100;
-export const MIN_PANEL_ANIMATION_DURATION_MS = 0;
-export const MAX_PANEL_ANIMATION_DURATION_MS = 400;
+const MIN_PANEL_ANIMATION_DURATION_MS = 0;
+const MAX_PANEL_ANIMATION_DURATION_MS = 400;
 export const PanelAnimationDurationMs = Schema.Int.check(
   Schema.isBetween({
     minimum: MIN_PANEL_ANIMATION_DURATION_MS,
@@ -124,12 +122,9 @@ export const CodeFontSize = Schema.Int.check(
 export type CodeFontSize = typeof CodeFontSize.Type;
 export const DEFAULT_CODE_FONT_SIZE: CodeFontSize = 13;
 
-export const MIN_TERMINAL_FONT_SIZE = 8;
-export const MAX_TERMINAL_FONT_SIZE = 20;
-
 export const EnvironmentIdentificationMode = Schema.Literals(["artwork", "pill", "none"]);
 export type EnvironmentIdentificationMode = typeof EnvironmentIdentificationMode.Type;
-export const DEFAULT_ENVIRONMENT_IDENTIFICATION_MODE: EnvironmentIdentificationMode = "artwork";
+const DEFAULT_ENVIRONMENT_IDENTIFICATION_MODE: EnvironmentIdentificationMode = "artwork";
 
 export const SnapShotKeyChord = KeybindingShortcut.check(
   Schema.makeFilter(
@@ -231,15 +226,15 @@ export const DefaultThemePreference = Schema.String.check(Schema.isMaxLength(64)
 // would let a client write a theme no client can resolve, bypassing both.
 export type DefaultThemePreference = typeof DefaultThemePreference.Type;
 
-export const DEFAULT_BROWSER_VIEWPORT: PreviewViewportSetting = FILL_PREVIEW_VIEWPORT;
-export const DEFAULT_BROWSER_AUTO_SHOW_FLOATING_PREVIEW = true;
-export const BROWSER_RECORDING_FRAME_RATES = [30, 60] as const;
+const DEFAULT_BROWSER_VIEWPORT: PreviewViewportSetting = FILL_PREVIEW_VIEWPORT;
+const DEFAULT_BROWSER_AUTO_SHOW_FLOATING_PREVIEW = true;
+const BROWSER_RECORDING_FRAME_RATES = [30, 60] as const;
 export const BrowserRecordingFrameRate = Schema.Literals(BROWSER_RECORDING_FRAME_RATES);
 export type BrowserRecordingFrameRate = typeof BrowserRecordingFrameRate.Type;
-export const DEFAULT_BROWSER_RECORDING_FRAME_RATE: BrowserRecordingFrameRate = 30;
+const DEFAULT_BROWSER_RECORDING_FRAME_RATE: BrowserRecordingFrameRate = 30;
 export const BrowserLinkTarget = Schema.Literals(["system", "app"]);
 export type BrowserLinkTarget = typeof BrowserLinkTarget.Type;
-export const DEFAULT_BROWSER_LINK_TARGET: BrowserLinkTarget = "system";
+const DEFAULT_BROWSER_LINK_TARGET: BrowserLinkTarget = "system";
 /**
  * What the address bar searches with when the input is not an address.
  * "custom" uses `browserCustomSearchUrl`, a template with `%s` for the query.
@@ -254,8 +249,8 @@ export const BrowserSearchEngine = Schema.Literals([
   "custom",
 ]);
 export type BrowserSearchEngine = typeof BrowserSearchEngine.Type;
-export const DEFAULT_BROWSER_SEARCH_ENGINE: BrowserSearchEngine = "duckduckgo";
-export const BROWSER_CUSTOM_SEARCH_URL_MAX_LENGTH = 2048;
+const DEFAULT_BROWSER_SEARCH_ENGINE: BrowserSearchEngine = "duckduckgo";
+const BROWSER_CUSTOM_SEARCH_URL_MAX_LENGTH = 2048;
 export const BrowserCustomSearchUrl = Schema.String.check(
   Schema.isMaxLength(BROWSER_CUSTOM_SEARCH_URL_MAX_LENGTH),
 );
@@ -503,10 +498,6 @@ declare module "effect/Schema" {
   }
 }
 
-export function secretSetting<S extends Schema.Top>(schema: S): S["Rebuild"] {
-  return schema.annotateKey({ settingsSecret: true });
-}
-
 /** A masked form field is a credential too, so none is saved or sent to clients as plain text. */
 export function isSecretSetting(schema: Schema.Top): boolean {
   const annotations = Schema.resolveAnnotationsKey(schema) ?? Schema.resolveAnnotations(schema);
@@ -707,24 +698,6 @@ export const ProjectSettingsOverrides = Schema.Struct({
 } satisfies Record<ProjectScopedServerSettingKey | "providerInstances", unknown>);
 export type ProjectSettingsOverrides = typeof ProjectSettingsOverrides.Type;
 
-/**
- * Whether `null` is a stored override value for this key rather than "unset".
- * Clients writing a project override treat null for every other key as a
- * request to remove the override, so a picker's "Inherit" item and the row's
- * reset do the same thing.
- */
-export function isNullableProjectSettingsOverride(key: ProjectScopedServerSettingKey): boolean {
-  return NULLABLE_PROJECT_SETTINGS_OVERRIDES.has(key);
-}
-const NULLABLE_PROJECT_SETTINGS_OVERRIDES: ReadonlySet<ProjectScopedServerSettingKey> = new Set<
-  {
-    [K in ProjectScopedServerSettingKey]: null extends ProjectSettingsOverrides[K] ? K : never;
-  }[ProjectScopedServerSettingKey]
->(["defaultModelSelection"]);
-
-/** Reclaimable bytes from which the offline `t3 doctor` repair is worth suggesting. */
-export const DATABASE_COMPACTION_RECOMMENDED_BYTES = 1024 ** 3;
-
 /** Live SQLite file accounting for the environment's state database. */
 export const DatabaseStorageStatus = Schema.Struct({
   databaseBytes: Schema.Number,
@@ -736,14 +709,6 @@ export const DatabaseStorageStatus = Schema.Struct({
   compactCommand: Schema.String,
 });
 export type DatabaseStorageStatus = typeof DatabaseStorageStatus.Type;
-
-/** Only suggest the offline conversion when it can reclaim enough to matter. */
-export function shouldRecommendDatabaseCompaction(status: DatabaseStorageStatus): boolean {
-  return (
-    !status.incrementalVacuumEnabled &&
-    status.reclaimableBytes >= DATABASE_COMPACTION_RECOMMENDED_BYTES
-  );
-}
 
 export const StorageCleanupReportEntry = Schema.Struct({
   kind: Schema.Literals(["worktree", "browser-artifacts", "logs"]),

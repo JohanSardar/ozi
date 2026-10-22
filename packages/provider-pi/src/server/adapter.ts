@@ -72,7 +72,7 @@ import {
 } from "./mcpInjection.ts";
 import { PI_FILE_CHANGE_TOOLS } from "./mcpExtensionSource.ts";
 
-export const PI_PROVIDER = ProviderDriverKind.make("pi");
+const PI_PROVIDER = ProviderDriverKind.make("pi");
 const PI_DRIVER_KIND = PI_PROVIDER;
 const DEFAULT_PI_SETTINGS = Schema.decodeSync(PiSettings)({});
 
@@ -404,9 +404,7 @@ interface PiWake {
   readonly events: Array<PiRpcRecord>;
 }
 
-export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
-  options: PiAdapterV2Options,
-) {
+const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (options: PiAdapterV2Options) {
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
   const agentScope = yield* AgentScope;
   const fileSystem = yield* FileSystem.FileSystem;

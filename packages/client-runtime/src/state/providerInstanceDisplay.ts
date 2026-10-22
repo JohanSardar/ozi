@@ -1,7 +1,6 @@
 import {
   defaultInstanceIdForDriver,
   PROVIDER_DISPLAY_NAMES,
-  type ProviderDriverKind,
   type ServerProvider,
 } from "@t3tools/contracts";
 
@@ -52,26 +51,4 @@ export function providerAccentForegroundColor(accentColor: string) {
   const blackContrast = (luminance + 0.05) / 0.05;
   const whiteContrast = 1.05 / (luminance + 0.05);
   return blackContrast >= whiteContrast ? "#000000" : "#ffffff";
-}
-
-export function shouldShowInstanceBadge(
-  entry: {
-    readonly driverKind: ProviderDriverKind;
-    readonly accentColor?: string | undefined;
-    readonly enabled: boolean;
-  },
-  entries: Iterable<{
-    readonly driverKind: ProviderDriverKind;
-    readonly enabled: boolean;
-  }>,
-): boolean {
-  if (entry.accentColor) return true;
-  let sharedProviderCount = 0;
-  for (const candidate of entries) {
-    if (candidate.driverKind !== entry.driverKind) continue;
-    // Historical threads still need to distinguish accounts that are all disabled.
-    if (entry.enabled && !candidate.enabled) continue;
-    if (++sharedProviderCount > 1) return true;
-  }
-  return false;
 }

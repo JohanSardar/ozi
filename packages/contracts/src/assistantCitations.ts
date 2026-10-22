@@ -3,7 +3,7 @@ import { EnvironmentId, MessageId, NonNegativeInt, ThreadId } from "./baseSchema
 
 export const ASSISTANT_CITATION_MAX_TEXT_LENGTH = 8_000;
 export const ASSISTANT_CITATION_MAX_COMMENT_LENGTH = 8_000;
-export const ASSISTANT_CITATION_CONTEXT_LENGTH = 32;
+const ASSISTANT_CITATION_CONTEXT_LENGTH = 32;
 
 /**
  * Positions are UTF-16 offsets, not Markdown offsets.

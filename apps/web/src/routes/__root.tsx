@@ -1,7 +1,7 @@
 import { Outlet, createRootRoute, Link } from "@tanstack/react-router";
 import { useEffect } from "react";
 import { useAtomValue } from "@effect/atom-react";
-import { APP_BASE_NAME, APP_DISPLAY_NAME, APP_STAGE_LABEL } from "../branding";
+import { APP_DISPLAY_NAME, APP_STAGE_LABEL } from "../branding";
 import { resolveServerBackedAppDisplayName } from "../branding.logic";
 import { resolveInitialServerAuthGateState } from "../environments/primary";
 import { isHostedStaticApp, hasHostedPairingRequest } from "../hostedPairing";
@@ -150,7 +150,7 @@ function DocumentTitleSync() {
   const primaryServerVersion =
     useAtomValue(primaryServerConfigAtom)?.environment.serverVersion ?? null;
   const title = resolveServerBackedAppDisplayName({
-    baseName: APP_BASE_NAME,
+    baseName: APP_DISPLAY_NAME,
     fallbackDisplayName: APP_DISPLAY_NAME,
     fallbackStageLabel: APP_STAGE_LABEL,
     primaryServerVersion,

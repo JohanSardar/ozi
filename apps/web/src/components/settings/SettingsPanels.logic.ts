@@ -1,39 +1,11 @@
 import type {
   ProviderInstanceConfig,
-  PreviewViewportSetting,
   ProviderInstanceId,
   ServerSettings,
   UnifiedSettings,
 } from "@t3tools/contracts";
-import { DEFAULT_UNIFIED_SETTINGS } from "@t3tools/contracts/settings";
+
 import * as Duration from "effect/Duration";
-
-type TypographySettings = Pick<
-  UnifiedSettings,
-  | "fontFamilySans"
-  | "fontFamilyComposer"
-  | "fontFamilyCode"
-  | "fontSizeInterface"
-  | "fontSizePrompt"
-  | "fontSizeCode"
->;
-
-export function getChangedTypographySettingLabels(settings: TypographySettings): string[] {
-  return [
-    ...(settings.fontFamilySans !== DEFAULT_UNIFIED_SETTINGS.fontFamilySans ||
-    settings.fontSizeInterface !== DEFAULT_UNIFIED_SETTINGS.fontSizeInterface
-      ? ["Interface font"]
-      : []),
-    ...(settings.fontFamilyComposer !== DEFAULT_UNIFIED_SETTINGS.fontFamilyComposer ||
-    settings.fontSizePrompt !== DEFAULT_UNIFIED_SETTINGS.fontSizePrompt
-      ? ["Prompt font"]
-      : []),
-    ...(settings.fontFamilyCode !== DEFAULT_UNIFIED_SETTINGS.fontFamilyCode ||
-    settings.fontSizeCode !== DEFAULT_UNIFIED_SETTINGS.fontSizeCode
-      ? ["Code font"]
-      : []),
-  ];
-}
 
 export type BrowserDefaultSettings = Pick<
   UnifiedSettings,
@@ -48,99 +20,6 @@ export type BrowserDefaultSettings = Pick<
   | "browserCustomSearchUrl"
   | "browserAutoShowFloatingPreview"
 >;
-
-function isSamePreviewViewport(
-  left: PreviewViewportSetting,
-  right: PreviewViewportSetting,
-): boolean {
-  if (left._tag !== right._tag) return false;
-  if (left._tag === "fill" || right._tag === "fill") return true;
-  if (left.width !== right.width || left.height !== right.height) return false;
-  return left._tag === "preset" && right._tag === "preset"
-    ? left.presetId === right.presetId
-    : true;
-}
-
-export function getChangedBrowserSettingLabels(settings: BrowserDefaultSettings): string[] {
-  return [
-    ...(isSamePreviewViewport(
-      settings.browserDefaultViewport,
-      DEFAULT_UNIFIED_SETTINGS.browserDefaultViewport,
-    )
-      ? []
-      : ["Browser viewport"]),
-    ...(settings.browserDefaultZoomFactor !== DEFAULT_UNIFIED_SETTINGS.browserDefaultZoomFactor
-      ? ["Browser zoom"]
-      : []),
-    ...(settings.browserDefaultAppearance !== DEFAULT_UNIFIED_SETTINGS.browserDefaultAppearance
-      ? ["Browser appearance"]
-      : []),
-    ...(settings.browserRecordingFrameRate !== DEFAULT_UNIFIED_SETTINGS.browserRecordingFrameRate
-      ? ["Recording frame rate"]
-      : []),
-    ...(settings.browserRecordingShowKeyPresses ? ["Recording key presses"] : []),
-    ...(settings.browserRecordingShowMousePresses ? ["Recording mouse presses"] : []),
-    ...(settings.browserLinkTarget !== DEFAULT_UNIFIED_SETTINGS.browserLinkTarget
-      ? ["Open links in"]
-      : []),
-    ...(settings.browserSearchEngine !== DEFAULT_UNIFIED_SETTINGS.browserSearchEngine ||
-    settings.browserCustomSearchUrl !== DEFAULT_UNIFIED_SETTINGS.browserCustomSearchUrl
-      ? ["Search engine"]
-      : []),
-    ...(settings.browserAutoShowFloatingPreview !==
-    DEFAULT_UNIFIED_SETTINGS.browserAutoShowFloatingPreview
-      ? ["Floating preview"]
-      : []),
-  ];
-}
-
-function collapseOtelSignalsUrl(input: {
-  readonly tracesUrl: string;
-  readonly metricsUrl: string;
-}): string | null {
-  const tracesSuffix = "/traces";
-  const metricsSuffix = "/metrics";
-  if (!input.tracesUrl.endsWith(tracesSuffix) || !input.metricsUrl.endsWith(metricsSuffix)) {
-    return null;
-  }
-
-  const tracesBase = input.tracesUrl.slice(0, -tracesSuffix.length);
-  const metricsBase = input.metricsUrl.slice(0, -metricsSuffix.length);
-  if (tracesBase !== metricsBase) {
-    return null;
-  }
-
-  return `${tracesBase}/{traces,metrics}`;
-}
-
-export function formatDiagnosticsDescription(input: {
-  readonly localTracingEnabled: boolean;
-  readonly otlpTracesEnabled: boolean;
-  readonly otlpTracesUrl?: string | undefined;
-  readonly otlpMetricsEnabled: boolean;
-  readonly otlpMetricsUrl?: string | undefined;
-}): string {
-  const mode = input.localTracingEnabled ? "Local trace file" : "Terminal logs only";
-  const tracesUrl = input.otlpTracesEnabled ? input.otlpTracesUrl : undefined;
-  const metricsUrl = input.otlpMetricsEnabled ? input.otlpMetricsUrl : undefined;
-
-  if (tracesUrl && metricsUrl) {
-    const collapsedUrl = collapseOtelSignalsUrl({ tracesUrl, metricsUrl });
-    return collapsedUrl
-      ? `${mode}. Exporting OTEL to ${collapsedUrl}.`
-      : `${mode}. Exporting OTEL traces to ${tracesUrl} and metrics to ${metricsUrl}.`;
-  }
-
-  if (tracesUrl) {
-    return `${mode}. Exporting OTEL traces to ${tracesUrl}.`;
-  }
-
-  if (metricsUrl) {
-    return `${mode}. Exporting OTEL metrics to ${metricsUrl}.`;
-  }
-
-  return `${mode}.`;
-}
 
 export function buildProviderInstanceUpdatePatch(input: {
   readonly settings: Pick<ServerSettings, "providerInstances">;

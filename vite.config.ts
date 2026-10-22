@@ -1,4 +1,3 @@
-import "vite-plus/test/config";
 import { defineConfig } from "vite-plus";
 import * as NodeURL from "node:url";
 

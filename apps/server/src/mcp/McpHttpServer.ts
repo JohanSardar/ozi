@@ -133,7 +133,7 @@ type McpAuthMiddleware = (
   HttpServerRequest.HttpServerRequest
 >;
 
-export const normalizeMcpHttpResponse = (
+const normalizeMcpHttpResponse = (
   response: HttpServerResponse.HttpServerResponse,
 ): HttpServerResponse.HttpServerResponse => {
   const bodyIsEmpty =
@@ -334,7 +334,7 @@ const layerMcpAuthMiddleware = HttpRouter.middleware<{
  * `structuredContent` in place of the text blocks when a result has both, so
  * both carry the same bounded snapshot.
  */
-export const MAX_SNAPSHOT_TEXT_BYTES = 20_000;
+const MAX_SNAPSHOT_TEXT_BYTES = 20_000;
 const MAX_SNAPSHOT_VISIBLE_TEXT_CHARS = 8_000;
 const MAX_SNAPSHOT_ELEMENT_NAME_CHARS = 200;
 const MAX_SNAPSHOT_LOG_ENTRIES = 40;
@@ -881,17 +881,6 @@ const registerHtmlPreview = Effect.fn("McpHttpServer.registerHtmlPreview")(funct
   );
 });
 
-const resultThreadKeys = ["childThreadId", "targetThreadId", "boundThreadId", "threadId"] as const;
-
-/** Thread ids a handoff tool result names: the thread that received the work. */
-const resultThreadIds = (content: unknown): ReadonlyArray<string> => {
-  if (typeof content !== "object" || content === null) return [];
-  const record = content as Readonly<Record<string, unknown>>;
-  if (Array.isArray(record.threads)) return record.threads.flatMap(resultThreadIds);
-  const key = resultThreadKeys.find((candidate) => typeof record[candidate] === "string");
-  return key === undefined ? [] : [record[key] as string];
-};
-
 /**
  * Runs a tool registration against a server that records one anonymous
  * `mcp.tool.invoked` event per call: the tool, the calling agent's provider,
@@ -920,7 +909,7 @@ const withToolCatalog = Effect.fnUntraced(function* <A, E, R>(
  * each request instead. Registration must not get one: the services it
  * captures would replace the request's.
  */
-export const toolkitRegistration = <Tools extends Record<string, Tool.Any>, EX, RX>(
+const toolkitRegistration = <Tools extends Record<string, Tool.Any>, EX, RX>(
   toolkit: Toolkit.Toolkit<Tools>,
   handlers: McpToolAccess.HandlersLayer<Tools, EX, RX>,
 ) => {
@@ -944,7 +933,7 @@ const imageToolRegistration = <Tools extends Record<string, Tool.Any>, A, E, R, 
     Layer.provide(McpToolAccess.HandlersLayer.layer(handlers)),
   );
 
-export const layerHtmlToolkit = Layer.mergeAll(
+const layerHtmlToolkit = Layer.mergeAll(
   toolkitRegistration(HtmlRenderToolkit, HtmlHandlers.layerRender),
   imageToolRegistration(registerHtmlPreview(), HtmlHandlers.layerPreview),
 ).pipe(Layer.provide(HtmlRender.layer));
@@ -959,34 +948,31 @@ const layerPreviewSnapshotRegistration = imageToolRegistration(
   PreviewHandlers.layerSnapshot,
 );
 
-export const layerPreviewToolkit = Layer.mergeAll(
+const layerPreviewToolkit = Layer.mergeAll(
   layerPreviewStandardToolkitRegistration,
   layerPreviewSnapshotRegistration,
 );
 
-export const layerOrchestratorToolkit = toolkitRegistration(
+const layerOrchestratorToolkit = toolkitRegistration(
   OrchestratorToolkit,
   OrchestratorHandlers.layer,
 ).pipe(Layer.provide(OrchestratorMcpService.layer), Layer.provide(ThreadMetadataMcpService.layer));
 
-export const layerThreadToolkit = toolkitRegistration(ThreadToolkit, ThreadHandlers.layer);
+const layerThreadToolkit = toolkitRegistration(ThreadToolkit, ThreadHandlers.layer);
 
 const layerPreviewControlsRegistration = toolkitRegistration(
   PreviewControlsToolkit,
   PreviewControlsHandlers.layer,
 );
 
-export const layerEnvironmentToolkit = toolkitRegistration(
+const layerEnvironmentToolkit = toolkitRegistration(
   EnvironmentToolkit,
   EnvironmentHandlers.layer,
 ).pipe(Layer.provide(ThreadCommandExecutor.layer));
 
-export const layerAttachmentToolkit = toolkitRegistration(
-  AttachmentToolkit,
-  AttachmentHandlers.layer,
-);
+const layerAttachmentToolkit = toolkitRegistration(AttachmentToolkit, AttachmentHandlers.layer);
 
-export const layerMcpTransport = McpServer.layerHttp({
+const layerMcpTransport = McpServer.layerHttp({
   name: "Ozi",
   version: packageJson.version,
   path: "/mcp",

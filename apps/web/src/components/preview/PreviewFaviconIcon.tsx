@@ -6,7 +6,7 @@ import { cn } from "~/lib/utils";
 
 import { BrowserMockup } from "./BrowserMockup";
 
-export function FaviconImage(props: {
+function FaviconImage(props: {
   sources: ReadonlyArray<string | null | undefined>;
   fallback: ReactNode;
   className?: string | undefined;

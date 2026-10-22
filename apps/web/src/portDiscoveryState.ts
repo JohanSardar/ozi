@@ -3,7 +3,6 @@ import {
   PREVIEW_URL_MAX_LENGTH,
   type DiscoveredLocalServer,
   type EnvironmentId,
-  type ThreadId,
 } from "@t3tools/contracts";
 import { isLoopbackHost } from "@t3tools/shared/preview";
 
@@ -17,7 +16,7 @@ interface DiscoveredPortsState {
   readonly configuredUrlProbing: boolean;
 }
 
-export function boundConfiguredLocalServerUrls(
+function boundConfiguredLocalServerUrls(
   urls: ReadonlyArray<string> | undefined,
 ): ReadonlyArray<string> {
   const bounded: string[] = [];
@@ -40,13 +39,6 @@ export function boundConfiguredLocalServerUrls(
   return bounded;
 }
 
-function useDiscoveredPorts(
-  environmentId: EnvironmentId | null,
-  configuredUrls?: ReadonlyArray<string>,
-): ReadonlyArray<DiscoveredLocalServer> {
-  return useDiscoveredPortsState(environmentId, configuredUrls).servers;
-}
-
 export function useDiscoveredPortsState(
   environmentId: EnvironmentId | null,
   configuredUrls?: ReadonlyArray<string>,
@@ -64,14 +56,4 @@ export function useDiscoveredPortsState(
     servers: query.data?.servers ?? EMPTY_PORTS,
     configuredUrlProbing: query.data?.configuredUrlProbing === true,
   };
-}
-
-export function useThreadDiscoveredPorts(input: {
-  readonly environmentId: EnvironmentId | null;
-  readonly threadId: ThreadId | null;
-}): ReadonlyArray<DiscoveredLocalServer> {
-  const ports = useDiscoveredPorts(input.environmentId);
-  return input.threadId
-    ? ports.filter((port) => port.terminal?.threadId === input.threadId)
-    : EMPTY_PORTS;
 }

@@ -14,7 +14,7 @@ import * as HostProcess from "@t3tools/shared/HostProcess";
  * redirected is a valid descriptor and is left alone, as is any run whose
  * output is not a console (the desktop backend, scripts).
  */
-export function needsConsoleStdin(input: {
+function needsConsoleStdin(input: {
   readonly platform: NodeJS.Platform;
   readonly env: NodeJS.ProcessEnv;
   readonly stdinOpen: boolean;
@@ -67,11 +67,5 @@ export function attachConsoleStdin(): number | undefined {
   }
   const stdin = new NodeTty.ReadStream(fd);
   Object.defineProperty(process, "stdin", { value: stdin, configurable: true, enumerable: true });
-  consoleStdinFd = fd;
   return fd;
 }
-
-let consoleStdinFd: number | undefined;
-
-/** The stdin to hand an interactive child: the reopened console, or the inherited one. */
-export const interactiveStdin = (): number | "inherit" => consoleStdinFd ?? "inherit";

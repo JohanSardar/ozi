@@ -108,7 +108,7 @@ export class ProjectService extends Context.Service<
   }
 >()("t3/project/ProjectService") {}
 
-export const make = Effect.gen(function* () {
+const make = Effect.gen(function* () {
   const projects = yield* ProjectStore.ProjectStoreV2;
   const workspacePaths = yield* WorkspacePaths.WorkspacePaths;
   const eventSink = yield* EventSink.EventSinkV2;

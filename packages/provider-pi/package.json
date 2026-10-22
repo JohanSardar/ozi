@@ -31,8 +31,6 @@
     "pi-claude-bridge": "0.9.3"
   },
   "devDependencies": {
-    "@effect/platform-node": "catalog:",
-    "@types/node": "catalog:",
-    "vite-plus": "catalog:"
+    "@types/node": "catalog:"
   }
 }

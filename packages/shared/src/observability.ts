@@ -243,9 +243,7 @@ function normalizeJsonValue(value: unknown, seen: WeakSet<object> = new WeakSet(
   );
 }
 
-export function compactTraceAttributes(
-  attributes: Readonly<Record<string, unknown>>,
-): TraceAttributes {
+function compactTraceAttributes(attributes: Readonly<Record<string, unknown>>): TraceAttributes {
   const entries: Array<[string, unknown]> = [];
   for (const [key, value] of Object.entries(attributes)) {
     if (value !== undefined) {
@@ -303,7 +301,7 @@ function truncateNestedValue(value: unknown): unknown {
  * Returns a new record when anything was clamped; never mutates the input (the live span's
  * attributes are shared with other tracers).
  */
-export function truncateTraceAttributes(attributes: TraceAttributes): TraceAttributes {
+function truncateTraceAttributes(attributes: TraceAttributes): TraceAttributes {
   let truncated: Record<string, unknown> | undefined;
   for (const [key, value] of Object.entries(attributes)) {
     if (typeof value === "string" && ALWAYS_TRUNCATED_TRACE_ATTRIBUTES.has(key)) {

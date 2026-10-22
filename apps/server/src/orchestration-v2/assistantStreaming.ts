@@ -25,7 +25,7 @@ const TOP_LEVEL_HEADING_PATTERN = /^#{1,6}(?:[ \t]|$)/;
  * A section title holds the boundary until a content line follows it, so a
  * title never lands alone and waits above a block that is still streaming.
  */
-export function splitBufferedAssistantText(text: string): { ready: string; rest: string } {
+function splitBufferedAssistantText(text: string): { ready: string; rest: string } {
   let openFence: { marker: string; indent: number } | null = null;
   let boundary = -1;
   let lineStart = 0;

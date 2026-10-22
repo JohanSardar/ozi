@@ -80,7 +80,7 @@ export function withCreationProvenance(
   }
 }
 
-export function existingThreadIdsForCommand(
+function existingThreadIdsForCommand(
   command: OrchestrationV2ServerCommand,
 ): ReadonlyArray<ThreadId> {
   switch (command.type) {
@@ -1189,28 +1189,6 @@ const make = Effect.gen(function* () {
     streamDomainEvents: orchestrator.streamDomainEvents,
   });
 });
-
-const layerLegacyV1ThreadImporterNoop = Layer.succeed(
-  LegacyV1ThreadImporter.LegacyV1ThreadImporter,
-  LegacyV1ThreadImporter.LegacyV1ThreadImporter.of({
-    pendingThreadCount: Effect.succeed(0),
-    reconcileShells: Effect.succeed({ importedThreadCount: 0, importedMessageCount: 0 }),
-    ensureTranscript: () => Effect.succeed({ importedThreadCount: 0, importedMessageCount: 0 }),
-    importPendingTranscripts: Effect.succeed({ importedThreadCount: 0, importedMessageCount: 0 }),
-  }),
-);
-
-export const layer: Layer.Layer<
-  ThreadManagementService,
-  never,
-  | Orchestrator.OrchestratorV2
-  | ProviderSessionManager.ProviderSessionManagerV2
-  | ServerSettings.ServerSettingsService
-  | CommandReceiptStore.CommandReceiptStoreV2
-> = Layer.effect(ThreadManagementService, make).pipe(
-  Layer.provide(layerLegacyV1ThreadImporterNoop),
-  Layer.provide(ThreadCommandExecutor.layer),
-);
 
 export const layerWithLegacyImporter: Layer.Layer<
   ThreadManagementService,

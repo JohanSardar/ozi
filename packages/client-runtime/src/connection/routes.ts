@@ -70,7 +70,7 @@ function routeHostname(route: ConnectionRoute): string | null {
   }
 }
 
-export function connectionRouteKind(route: ConnectionRoute): ConnectionRouteKind {
+function connectionRouteKind(route: ConnectionRoute): ConnectionRouteKind {
   switch (route.target._tag) {
     case "SshConnectionTarget":
       return "ssh";
@@ -98,7 +98,7 @@ const ROUTE_KIND_RANK: Record<ConnectionRouteKind, number> = {
   ssh: 4,
 };
 
-export function insertRoute(
+function insertRoute(
   routes: ReadonlyArray<ConnectionRoute>,
   route: ConnectionRoute,
 ): ReadonlyArray<ConnectionRoute> {
@@ -371,7 +371,6 @@ export function routesAfterRemoving(
   return routes.filter((route) => {
     if (route === removed) return false;
     if (!isLearned(route)) return true;
-    const profile = Option.getOrNull(route.profile);
     return credentialConnectionId(connectionRouteId(route.target)) !== removedId;
   });
 }

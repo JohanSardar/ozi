@@ -3,7 +3,7 @@ import { NonNegativeInt, TrimmedNonEmptyString } from "./baseSchemas.ts";
 
 const FILESYSTEM_PATH_MAX_LENGTH = 512;
 
-export const FILESYSTEM_METADATA_BATCH_LIMIT = 64;
+const FILESYSTEM_METADATA_BATCH_LIMIT = 64;
 
 export const FilesystemGetMetadataInput = Schema.Struct({
   // Absolute host paths, including ~/ paths. Relative paths need a workspace

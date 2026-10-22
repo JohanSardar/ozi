@@ -13,7 +13,7 @@ import * as ThreadSnapshotLoader from "./threadSnapshotHttp.ts";
 
 const DEFAULT_BOUNDED_THREAD_SNAPSHOT_TIMEOUT_MS = 6_000;
 
-export const fetchEnvironmentBoundedThreadSnapshot = Effect.fn(
+const fetchEnvironmentBoundedThreadSnapshot = Effect.fn(
   "clientRuntime.state.fetchEnvironmentBoundedThreadSnapshot",
 )(function* (input: {
   readonly prepared: PreparedConnection;

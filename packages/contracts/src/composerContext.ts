@@ -12,7 +12,7 @@ import {
  * Bytes never live here: image and file records bind to a `ChatAttachment` by id.
  */
 
-export const COMPOSER_CONTEXT_KINDS = [
+const COMPOSER_CONTEXT_KINDS = [
   "image",
   "file",
   "element",

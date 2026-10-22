@@ -127,7 +127,3 @@ export function applyHistoryPageMeta(
     latestLocalTurnOrdinal: current.latestLocalTurnOrdinal,
   };
 }
-
-export function shouldShowLoadEarlierControl(history: ThreadHistoryMeta): boolean {
-  return history.hasMoreHistory || history.error !== null;
-}

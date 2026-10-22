@@ -153,20 +153,6 @@ export function useSettingsSearchTarget<T extends HTMLElement>(id: string | unde
   return targetRef;
 }
 
-export function SettingsSearchTarget({
-  children,
-  ...targetProps
-}: ComponentPropsWithoutRef<"div">) {
-  const targetRef = useSettingsSearchTarget<HTMLDivElement>(targetProps.id);
-  return (
-    <div {...targetProps} ref={targetRef} tabIndex={targetProps.id ? -1 : targetProps.tabIndex}>
-      {children}
-    </div>
-  );
-}
-
-export const SETTINGS_PICKER_TRIGGER_CLASSNAME = "min-w-0 max-w-none shrink-0";
-
 export function PolicyTooltip({ children }: { readonly children: string }) {
   return (
     <Tooltip>
@@ -241,26 +227,6 @@ export function SettingsSection({
         {children}
       </SettingsGroup>
     </section>
-  );
-}
-
-export function SettingsUnavailableGroup({
-  children,
-  message,
-}: {
-  children: ReactNode;
-  message?: ReactNode;
-}) {
-  if (message === undefined) return children;
-
-  return (
-    <div className="border-border/60 bg-muted/20 py-1.5">
-      <div className="flex items-start gap-2 px-3 py-2 text-xs leading-relaxed text-muted-foreground sm:px-4">
-        <InfoIcon className="mt-0.5 size-3.5 shrink-0 text-warning" />
-        <p>{message}</p>
-      </div>
-      <div className="[&_h3]:opacity-64 [&_p]:opacity-64">{children}</div>
-    </div>
   );
 }
 
@@ -463,14 +429,4 @@ export function SettingsPageContainer({
       </div>
     </SettingsSearchTargetProvider>
   );
-}
-
-export function scrollToSettingsTarget(
-  targetId: string,
-  { highlight = true }: { readonly highlight?: boolean } = {},
-): boolean {
-  const target = document.getElementById(targetId);
-  if (!target) return false;
-  scrollAndFocusSettingsTarget(target, highlight);
-  return true;
 }

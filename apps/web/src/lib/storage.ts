@@ -1,5 +1,3 @@
-import { Debouncer } from "@tanstack/react-pacer";
-
 export interface StateStorage<R = unknown> {
   getItem: (name: string) => string | null | Promise<string | null>;
   setItem: (name: string, value: string) => R;
@@ -40,34 +38,4 @@ function isStateStorage(
 
 export function resolveStorage(storage: Partial<StateStorage> | null | undefined): StateStorage {
   return isStateStorage(storage) ? storage : createMemoryStorage();
-}
-
-export function createDeferredStorage<TValue>(
-  baseStorage: Partial<StateStorage> | null | undefined,
-  serialize: (value: TValue) => string,
-  debounceMs: number = 300,
-): DeferredStorage<TValue> {
-  const resolvedStorage = resolveStorage(baseStorage);
-  const debouncedSetItem = new Debouncer(
-    (name: string, value: TValue) => {
-      resolvedStorage.setItem(name, serialize(value));
-    },
-    { wait: debounceMs },
-  );
-
-  return {
-    getItem: (name) => resolvedStorage.getItem(name),
-    setItem: (name, value) => {
-      debouncedSetItem.maybeExecute(name, value);
-    },
-    removeItem: (name) => {
-      debouncedSetItem.cancel();
-      // cancel() leaves the captured value in Pacer's lastArgs.
-      debouncedSetItem.reset();
-      resolvedStorage.removeItem(name);
-    },
-    flush: () => {
-      debouncedSetItem.flush();
-    },
-  };
 }

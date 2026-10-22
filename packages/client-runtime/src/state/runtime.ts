@@ -2,7 +2,7 @@ import type { QueryPersistence } from "./queryPersistence.ts";
 import { createCommandPermissions } from "./commandPermissions.ts";
 import { followStreamInEnvironment } from "./environmentStreams.ts";
 import { reuseUnchanged } from "./serverConfigProjection.ts";
-export { runStreamInEnvironment, followStreamInEnvironment } from "./environmentStreams.ts";
+export { followStreamInEnvironment } from "./environmentStreams.ts";
 import {
   type ClientGuardedRpcTag,
   EnvironmentId,
@@ -299,27 +299,6 @@ export function createAtomCommandScheduler(): AtomCommandScheduler {
   };
 }
 
-export const scheduleAtomCommandEffect =
-  /* Every atom command passes through this scheduler; the command owns its tracing boundary. */
-  Effect.fnUntraced(function* <W, A, E, R>(
-    registry: AtomRegistry.AtomRegistry,
-    scheduler: AtomCommandScheduler,
-    concurrency: AtomCommandConcurrency<W>,
-    input: W,
-    effect: Effect.Effect<A, E, R>,
-  ): Effect.fn.Return<A, E, R> {
-    const context = yield* Effect.context<R>();
-    const result = yield* Effect.promise((signal) =>
-      scheduler.schedule<W, A, E>(registry, concurrency, input, async () => {
-        const exit = await Effect.runPromiseExitWith(context)(effect, { signal });
-        return Exit.isSuccess(exit)
-          ? AsyncResult.success(exit.value)
-          : AsyncResult.failure(exit.cause);
-      }),
-    );
-    return result._tag === "Success" ? result.value : yield* Effect.failCause(result.cause);
-  });
-
 export async function runAtomCommand<W, A, E>(
   registry: AtomRegistry.AtomRegistry,
   command: AtomCommand<W, A, E>,
@@ -351,7 +330,7 @@ export function squashAtomCommandFailure(result: {
   return Cause.squash(result.cause);
 }
 
-export async function settleAsyncResult<A, E>(
+async function settleAsyncResult<A, E>(
   execute: () => Promise<Exit.Exit<A, E>>,
 ): Promise<SettledAsyncResult<A, E>> {
   try {
@@ -361,7 +340,7 @@ export async function settleAsyncResult<A, E>(
   }
 }
 
-export async function executeAtomCommand<A, E>(
+async function executeAtomCommand<A, E>(
   execute: () => Promise<Exit.Exit<A, E>>,
   options: AtomCommandOptions = {},
   reporter: AtomCommandReporter = console,
@@ -435,7 +414,7 @@ export function createRuntimeCommand<R, ER, W, A, E>(
   };
 }
 
-export function reportAtomCommandResult(
+function reportAtomCommandResult(
   result: AtomCommandResult<unknown, unknown>,
   options: AtomCommandOptions = {},
   reporter: AtomCommandReporter = console,
@@ -464,7 +443,7 @@ export async function settlePromise<A>(
   }
 }
 
-export function environmentRpcKey<Input>(target: {
+function environmentRpcKey<Input>(target: {
   readonly environmentId: EnvironmentIdType;
   readonly input: Input;
 }): string {
@@ -539,14 +518,6 @@ const refreshEveryUntilFinal =
       },
       { initialValueTarget: self },
     );
-
-/**
- * A query result's data alone. A refetch always publishes a new result (a new
- * timestamp, `waiting` on and off), while equal data keeps its identity, so a
- * reader of only this skips the refetches that changed nothing.
- */
-export const selectEnvironmentQueryData = <A, E>(result: AsyncResult.AsyncResult<A, E>): A | null =>
-  Option.getOrNull(AsyncResult.value(result));
 
 export function createEnvironmentQueryAtomFamily<R, ER, Input, A, E>(
   runtime: Atom.AtomRuntime<EnvironmentRegistry.EnvironmentRegistry | R, ER>,

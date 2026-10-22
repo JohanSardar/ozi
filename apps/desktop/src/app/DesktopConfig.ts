@@ -1,6 +1,6 @@
 import { OtlpHeadersFromString, OtlpProtocol } from "@t3tools/shared/observability";
 import * as Config from "effect/Config";
-import * as ConfigProvider from "effect/ConfigProvider";
+
 import * as Option from "effect/Option";
 
 const trimNonEmptyOption = (value: string): Option.Option<string> => {
@@ -25,11 +25,6 @@ const commaSeparatedStrings = (name: string) =>
     ),
   );
 
-const compactEnv = (env: Readonly<Record<string, string | undefined>>): Record<string, string> =>
-  Object.fromEntries(
-    Object.entries(env).filter((entry): entry is [string, string] => entry[1] !== undefined),
-  );
-
 export const DesktopConfig = Config.all({
   appDataDirectory: trimmedString("APPDATA"),
   xdgConfigHome: trimmedString("XDG_CONFIG_HOME"),
@@ -52,6 +47,3 @@ export const DesktopConfig = Config.all({
   ),
   appImagePath: trimmedString("APPIMAGE"),
 });
-
-export const layerTest = (env: Readonly<Record<string, string | undefined>>) =>
-  ConfigProvider.layer(ConfigProvider.fromEnv({ env: compactEnv(env) }));

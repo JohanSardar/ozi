@@ -126,7 +126,7 @@ function dropProviderWorkspaceSnapshot(provider: ServerProvider, cwd: string): S
     : provider;
 }
 
-export function upsertProviderWorkspaceSnapshot(
+function upsertProviderWorkspaceSnapshot(
   provider: ServerProvider,
   cwd: string,
   scopedSnapshot: ProviderWorkspaceSnapshot,
@@ -200,7 +200,7 @@ const mergeProviderModels = (
     : mergedModels;
 };
 
-export const mergeProviderSnapshot = (
+const mergeProviderSnapshot = (
   previousProvider: ServerProvider | undefined,
   nextProvider: ServerProvider,
 ): ServerProvider => {
@@ -217,30 +217,6 @@ export const mergeProviderSnapshot = (
         : {}),
   };
 };
-
-export const mergeProviderSnapshots = (
-  previousProviders: ReadonlyArray<ServerProvider>,
-  nextProviders: ReadonlyArray<ServerProvider>,
-): ReadonlyArray<ServerProvider> => {
-  const mergedProviders = new Map(
-    previousProviders.map((provider) => [snapshotInstanceKey(provider), provider] as const),
-  );
-
-  for (const provider of nextProviders) {
-    mergedProviders.set(
-      snapshotInstanceKey(provider),
-      mergeProviderSnapshot(mergedProviders.get(snapshotInstanceKey(provider)), provider),
-    );
-  }
-
-  return orderProviderSnapshots([...mergedProviders.values()]);
-};
-
-export const selectProvidersByKind = (
-  providers: ReadonlyArray<ServerProvider>,
-  providerKinds: ReadonlySet<ProviderDriverKind>,
-): ReadonlyArray<ServerProvider> =>
-  providers.filter((provider) => providerKinds.has(provider.driver));
 
 const haveProvidersChanged = (
   previousProviders: ReadonlyArray<ServerProvider>,

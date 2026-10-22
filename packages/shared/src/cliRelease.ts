@@ -1,7 +1,4 @@
 const CLI_RELEASE_REPOSITORY = "pingdotgg/t3code";
-export const CLI_RELEASES_PAGE_URL = `https://github.com/${CLI_RELEASE_REPOSITORY}/releases`;
-export const CLI_RELEASE_CHECKSUMS_FILE = "SHA256SUMS";
-export const CLI_RELEASE_BASE_URL_ENV = "OZI_RELEASE_BASE_URL";
 
 /**
  * Kept in step with the build_linux_cli matrix, build_windows_arm64_cli, and
@@ -20,14 +17,6 @@ const CLI_ARCHIVE_PLATFORM_KEYS = [
 ] as const;
 export type CliArchivePlatformKey = (typeof CLI_ARCHIVE_PLATFORM_KEYS)[number];
 
-export function cliArchivePlatformKey(
-  platform: NodeJS.Platform,
-  arch: string,
-): CliArchivePlatformKey | undefined {
-  const key = `${platform}-${arch}`;
-  return CLI_ARCHIVE_PLATFORM_KEYS.find((candidate) => candidate === key);
-}
-
 /**
  * Windows ships bsdtar in System32, which reads both formats; a Git-for-Windows
  * GNU tar earlier on PATH cannot open the zip, so the system copy is named by
@@ -42,10 +31,6 @@ export function cliArchiveTarCommand(
   return `${systemRoot}\\System32\\tar.exe`;
 }
 
-export function cliArchiveFileName(version: string, platformKey: CliArchivePlatformKey): string {
-  return `t3-${version}-${platformKey}.${platformKey.startsWith("win32") ? "zip" : "tar.gz"}`;
-}
-
 const CLI_RELEASE_DEFAULT_BASE_URL = `https://github.com/${CLI_RELEASE_REPOSITORY}/releases/download`;
 
 export function cliReleaseDownloadBaseUrl(
@@ -55,52 +40,4 @@ export function cliReleaseDownloadBaseUrl(
   return `${(baseUrl?.trim() || CLI_RELEASE_DEFAULT_BASE_URL).replace(/\/+$/, "")}/v${version}`;
 }
 
-export function parseChecksums(text: string): ReadonlyMap<string, string> {
-  const checksums = new Map<string, string>();
-  for (const line of text.split(/\r?\n/)) {
-    const match = /^([0-9a-fA-F]{64})\s+\*?(\S.*)$/.exec(line.trim());
-    if (match?.[1] !== undefined && match[2] !== undefined) {
-      checksums.set(match[2], match[1].toLowerCase());
-    }
-  }
-  return checksums;
-}
-
 export type CliReleaseChannel = "stable" | "nightly" | "preview";
-export const CLI_RELEASE_CHANNELS: ReadonlyArray<CliReleaseChannel> = [
-  "stable",
-  "nightly",
-  "preview",
-];
-
-export function cliReleaseChannelOf(version: string): CliReleaseChannel {
-  const channel = /^[^-+]+-(nightly|preview)\.\d{8}\.\d+$/.exec(version)?.[1];
-  return channel === "nightly" || channel === "preview" ? channel : "stable";
-}
-
-/**
- * Callers walk pages until a channel match turns up; a busy nightly train can push the newest
- * preview or stable release past any single page.
- */
-export function cliReleaseIndexPageUrl(page: number): string {
-  return `https://api.github.com/repos/${CLI_RELEASE_REPOSITORY}/releases?per_page=100&page=${page}`;
-}
-
-/**
- * Drafts are skipped because their assets are not downloadable.
- */
-export function newestCliReleaseVersion(
-  releases: ReadonlyArray<{
-    readonly tag_name: string;
-    readonly draft?: boolean | undefined;
-  }>,
-  channel: CliReleaseChannel,
-): string | undefined {
-  for (const release of releases) {
-    if (release.draft) continue;
-    const version = /^v(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)$/.exec(release.tag_name)?.[1];
-    if (version === undefined) continue;
-    if (cliReleaseChannelOf(version) === channel) return version;
-  }
-  return undefined;
-}

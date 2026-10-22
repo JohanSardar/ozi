@@ -1,5 +1,3 @@
-import * as Context from "effect/Context";
-import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
 export class PtySpawnError extends Schema.TaggedError<PtySpawnError>()("PtySpawnError", {
@@ -40,10 +38,3 @@ export interface PtySpawnInput {
   rows: number;
   env: NodeJS.ProcessEnv;
 }
-
-export class PtyAdapter extends Context.Service<
-  PtyAdapter,
-  {
-    readonly spawn: (input: PtySpawnInput) => Effect.Effect<PtyProcess, PtySpawnError>;
-  }
->()("@t3tools/shared/PtyAdapter") {}

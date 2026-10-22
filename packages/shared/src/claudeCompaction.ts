@@ -18,13 +18,6 @@ export function formatClaudeResumeCompactionQuestion(input: {
   return `This session is ${ageLabel} old and uses ${input.estimatedTokens.toLocaleString("en-US")} tokens. Compact it before continuing?`;
 }
 
-const CLAUDE_RESUME_COMPACTION_QUESTION_PATTERN =
-  /^This session is (?:\d+h \d+m|\d+m) old and uses \d{1,3}(?:,\d{3})* tokens\. Compact it before continuing\?$/u;
-
-export function isClaudeResumeCompactionQuestion(question: string): boolean {
-  return CLAUDE_RESUME_COMPACTION_QUESTION_PATTERN.test(question);
-}
-
 /**
  * Context size below which Ozi does not suggest or run a Claude compaction:
  * the stale-thread Compact chip and idle compaction. Matches Claude Code's

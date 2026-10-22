@@ -69,19 +69,6 @@ export function readHtmlRenderReference(value: unknown): HtmlRenderReference | u
   };
 }
 
-export function htmlRenderReferencesEqual(left: HtmlRenderReference, right: HtmlRenderReference) {
-  return (
-    left.attachmentId === right.attachmentId &&
-    left.title === right.title &&
-    left.height === right.height &&
-    (left.heights ?? []).length === (right.heights ?? []).length &&
-    (left.heights ?? []).every(
-      ([width, height], index) =>
-        right.heights?.[index]?.[0] === width && right.heights[index][1] === height,
-    )
-  );
-}
-
 // The taller of the heights measured at the nearest widths on each side. A
 // breakpoint between two measured widths can make the page as tall as either.
 function measuredHeight(heights: NonNullable<HtmlRenderReference["heights"]>, width: number) {

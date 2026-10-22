@@ -77,7 +77,7 @@ function removeRouteMetadata(
   };
 }
 
-export function catalogRoutes(
+function catalogRoutes(
   document: ConnectionCatalogDocument,
   environmentId: EnvironmentId,
 ): ReadonlyArray<PersistedConnectionTarget> {

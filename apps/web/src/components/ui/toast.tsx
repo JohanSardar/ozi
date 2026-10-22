@@ -749,7 +749,7 @@ function AnchoredToasts() {
   );
 }
 
-export { hiddenToastActionProps, stackedThreadToast } from "./toastHelpers";
+export { stackedThreadToast } from "./toastHelpers";
 export type { StackedThreadToastOptions } from "./toastHelpers";
 
 export {

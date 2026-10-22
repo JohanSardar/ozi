@@ -82,11 +82,11 @@ export const homeConfig = Config.String("OZI_HOME").pipe(
   Config.map(Option.getOrUndefined),
 );
 
-export const traceFileConfig = Config.String("OZI_TRACE_FILE").pipe(
+const traceFileConfig = Config.String("OZI_TRACE_FILE").pipe(
   Config.option,
   Config.map(Option.getOrUndefined),
 );
-export const traceMaxFilesConfig = Config.Int("OZI_TRACE_MAX_FILES").pipe(Config.withDefault(10));
+const traceMaxFilesConfig = Config.Int("OZI_TRACE_MAX_FILES").pipe(Config.withDefault(10));
 
 const EnvServerConfig = Config.all({
   logLevel: Config.LogLevel("OZI_LOG_LEVEL").pipe(Config.withDefault("Info")),

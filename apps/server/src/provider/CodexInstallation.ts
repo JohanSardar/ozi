@@ -96,7 +96,7 @@ const RELEASES: Readonly<Record<string, CodexReleaseAsset>> = {
     archiveBytes: 153839991,
   },
 };
-export const resolveCodexReleaseAsset = (platform: NodeJS.Platform, arch: string) =>
+const resolveCodexReleaseAsset = (platform: NodeJS.Platform, arch: string) =>
   RELEASES[`${platform}-${arch}`] ?? null;
 export class CodexInstallationError extends Schema.TaggedError<CodexInstallationError>()(
   "CodexInstallationError",
@@ -157,7 +157,7 @@ export interface CodexInstallationOptions {
 }
 const isRunning = (state: ProviderInstallState) =>
   ["downloading", "extracting", "verifying"].includes(state.phase);
-export const makeCodexInstallation = Effect.fn("makeCodexInstallation")(function* (
+const makeCodexInstallation = Effect.fn("makeCodexInstallation")(function* (
   options: CodexInstallationOptions,
 ) {
   const manifestService = yield* ModelManifest.ModelManifest;

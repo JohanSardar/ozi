@@ -60,7 +60,7 @@ export interface CatalogMatching {
 const familyOf = (matching: CatalogMatching | undefined, slug: string) =>
   matching?.family?.(slug) ?? slug;
 
-export function classifyCatalogModels(
+function classifyCatalogModels(
   models: ReadonlyArray<ServerProviderModel>,
   catalog: ProviderCatalog | undefined,
   matching?: CatalogMatching,
@@ -77,7 +77,7 @@ export function classifyCatalogModels(
   });
 }
 
-export function applyCatalogDefault(
+function applyCatalogDefault(
   models: ReadonlyArray<ServerProviderModel>,
   catalog: ProviderCatalog | undefined,
   matching?: CatalogMatching,

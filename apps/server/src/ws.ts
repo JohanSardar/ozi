@@ -163,7 +163,7 @@ const resolveDiscoveryForConfig = <A, E, R>(
     Effect.map(Option.getOrElse(onTimeout)),
   );
 
-export const resolveAvailableEditorsForConfig = <A, E, R>(
+const resolveAvailableEditorsForConfig = <A, E, R>(
   discovery: Effect.Effect<ReadonlyArray<A>, E, R>,
 ) => resolveDiscoveryForConfig(discovery, () => []);
 
@@ -194,7 +194,7 @@ const resolveEditorConfig = Effect.fn("ws.resolveEditorConfig")(function* <E, R>
   };
 });
 
-export const withLateEditorConfig = <E, R>(
+const withLateEditorConfig = <E, R>(
   config: ClientServerConfig,
   liveUpdates: Stream.Stream<ServerConfigStreamEvent, E, R>,
   launcher: EditorDiscovery,
@@ -375,14 +375,14 @@ function toAuthAccessStreamEvent(
 const isClientSurface = Schema.is(ClientSurface);
 const MAX_CLIENT_APP_VERSION_LENGTH = 64;
 
-export function hasCompatibleOrchestrationProtocol(url: URL): boolean {
+function hasCompatibleOrchestrationProtocol(url: URL): boolean {
   return (
     url.searchParams.get(ORCHESTRATION_PROTOCOL_QUERY_PARAM) ===
     String(ORCHESTRATION_PROTOCOL_VERSION)
   );
 }
 
-export function shouldUseBoundedThreadSnapshot(input: {
+function shouldUseBoundedThreadSnapshot(input: {
   readonly acceptBoundedSnapshot?: boolean;
 }): boolean {
   return input.acceptBoundedSnapshot === true;
@@ -434,7 +434,7 @@ const canReplayPersistedRange = Effect.fnUntraced(function* (
   return true;
 });
 
-export const subscribeOrchestrationV2Thread = Effect.fn("ws.orchestrationV2.subscribeThread")(
+const subscribeOrchestrationV2Thread = Effect.fn("ws.orchestrationV2.subscribeThread")(
   function* (input: {
     readonly threadId: ThreadId;
     readonly afterSequence?: number;
@@ -630,7 +630,7 @@ export const subscribeOrchestrationV2Thread = Effect.fn("ws.orchestrationV2.subs
   },
 );
 
-export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subscribeShell")(
+const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subscribeShell")(
   function* (input: {
     readonly afterSequence?: number;
     readonly requestCompletionMarker?: boolean;
@@ -772,7 +772,7 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
   },
 );
 
-export const layerWsRpc = (
+const layerWsRpc = (
   currentSession: EnvironmentAuth.AuthenticatedSession,
   clientOrigin: OrchestrationClientOrigin,
   previewAutomationBroker: PreviewAutomationBroker.PreviewAutomationBroker["Service"],
@@ -1585,7 +1585,7 @@ export const layerWsRpc = (
 
 // RpcServer's default sends a socket-level Defect frame instead, and the client
 // ends every pending request on the socket with it.
-export const WS_RPC_SERVER_OPTIONS = {
+const WS_RPC_SERVER_OPTIONS = {
   disableTracing: true,
   disableFatalDefects: true,
 } as const;

@@ -32,7 +32,7 @@ export type CliShimTarget =
  * app's Ozi home are written in, so the command the server shows is absolute and
  * `sudo`, which clears the environment, still runs against this install's home.
  */
-export const renderCliShim = (input: {
+const renderCliShim = (input: {
   readonly target: CliShimTarget;
   readonly shimPath: string;
   readonly oziHome: string;

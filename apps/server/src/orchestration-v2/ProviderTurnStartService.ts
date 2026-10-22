@@ -461,7 +461,6 @@ export const layer: Layer.Layer<
           return;
         }
       }
-      const { worktreePath, branch } = projection.thread;
       const selectInheritedBackgroundItems = (
         current: ProjectionStore.ProjectionRuntimeRecoveryState,
       ): ReturnType<typeof RunExecutionService.selectInheritedBackgroundTurnItems> =>

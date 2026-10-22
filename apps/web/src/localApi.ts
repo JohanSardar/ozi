@@ -75,7 +75,7 @@ function createBrowserLocalApi(): LocalApi {
   };
 }
 
-export function createLocalApi(): LocalApi {
+function createLocalApi(): LocalApi {
   return createBrowserLocalApi();
 }
 

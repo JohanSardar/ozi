@@ -352,7 +352,7 @@ function taskStatusForRun(
   }
 }
 
-export function delegatedTaskRun(
+function delegatedTaskRun(
   childProjection: Pick<OrchestrationV2ThreadProjection, "runs" | "contextTransfers">,
   task: OrchestrationV2Subagent,
 ): OrchestrationV2Run | undefined {
@@ -372,7 +372,7 @@ export function delegatedTaskRun(
     : childProjection.runs.find((run) => run.id === spawnTransfer.targetRunId);
 }
 
-export function hasPendingChildRuns(
+function hasPendingChildRuns(
   childProjection: Pick<OrchestrationV2ThreadProjection, "runs">,
   delegatedRun: OrchestrationV2Run | undefined,
 ): boolean {
@@ -670,12 +670,6 @@ function stableOperationMessageId(input: {
       stablePart(input.requestKey),
     ].join(":"),
   );
-}
-
-function taskPrompt(input: OrchestratorMcpDelegateTaskInput): string {
-  return input.role === undefined || input.role === "general"
-    ? input.task
-    : `Act as the ${input.role} sub-agent for this task.\n\n${input.task}`;
 }
 
 function threadSettlement(
@@ -2041,7 +2035,7 @@ const make = Effect.gen(function* () {
           parentNodeId: parentRun.rootNodeId,
           ...(input.jobId === undefined ? {} : { jobId: input.jobId }),
           ...(launchFailure === undefined ? {} : { launchFailure }),
-          task: taskPrompt(input),
+          task: input.task,
           ...(input.title === undefined ? {} : { title: input.title }),
           modelSelection: target.modelSelection,
           runtimeMode,
@@ -2072,7 +2066,6 @@ const make = Effect.gen(function* () {
         );
       }
       const taskId = taskEvent.event.payload.id;
-      const childThreadId = taskEvent.event.payload.childThreadId;
 
       if (input.mode !== "wait") {
         return yield* readTask(scope, taskId, false, true);

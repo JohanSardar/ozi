@@ -113,7 +113,7 @@ const parseRedirect = (value: string): URL | undefined => {
  * Loopback redirects match on everything but the port (RFC 8252 §7.3), since
  * CLI agents listen on whatever port is free; https redirects match exactly.
  */
-export const redirectMatches = (registered: string, presented: string): boolean => {
+const redirectMatches = (registered: string, presented: string): boolean => {
   const left = parseRedirect(registered);
   const right = parseRedirect(presented);
   if (left === undefined || right === undefined) return false;

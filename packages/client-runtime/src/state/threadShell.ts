@@ -61,7 +61,7 @@ function subagentRequest(thread: OrchestrationV2ThreadShell): PendingSubagentReq
   return kind === "user_input" ? "user_input" : "approval";
 }
 
-export function pendingSubagentRequestsByThread(
+function pendingSubagentRequestsByThread(
   threads: ReadonlyArray<OrchestrationV2ThreadShell>,
 ): ReadonlyMap<ThreadId, PendingSubagentRequest> {
   const requests = new Map<ThreadId, PendingSubagentRequest>();
@@ -81,16 +81,6 @@ export function pendingSubagentRequestsByThread(
     }
   }
   return requests.size === 0 ? EMPTY_SUBAGENT_REQUESTS : requests;
-}
-
-export function childThreadInputsTitle(
-  children: ReadonlyArray<Pick<EnvironmentThreadShell, "hasPendingApprovals">>,
-): string {
-  const approvals = children.filter((child) => child.hasPendingApprovals).length;
-  const need = approvals === 0 ? "input" : approvals === children.length ? "approval" : "you";
-  return children.length === 1
-    ? `Subagent needs ${need}`
-    : `${children.length} subagents need ${need}`;
 }
 
 const sameWireThreadShell = Schema.toEquivalence(OrchestrationV2ThreadShell);

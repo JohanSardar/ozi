@@ -124,22 +124,6 @@ export function readMcpAppReference(value: unknown): McpAppReference | undefined
   };
 }
 
-export function mcpAppReferencesEqual(left: McpAppReference, right: McpAppReference): boolean {
-  return (
-    left.attachmentId === right.attachmentId &&
-    left.server === right.server &&
-    left.tool === right.tool &&
-    left.resourceUri === right.resourceUri
-  );
-}
-
-export function readMcpAppResourceUri(meta: unknown): string | undefined {
-  if (!Predicate.isObject(meta)) return undefined;
-  const nested = Predicate.isObject(meta.ui) ? meta.ui.resourceUri : undefined;
-  const uri = nested ?? meta["ui/resourceUri"];
-  return typeof uri === "string" && uri.startsWith(MCP_APP_RESOURCE_SCHEME) ? uri : undefined;
-}
-
 export function mcpAppToolCallableByApp(meta: unknown): boolean {
   const visibility =
     Predicate.isObject(meta) && Predicate.isObject(meta.ui) ? meta.ui.visibility : undefined;
@@ -151,7 +135,7 @@ export function mcpAppToolCallableByApp(meta: unknown): boolean {
  * construction: undeclared origins stay blocked, and nothing loads from the
  * host's own origin ('self' would reach Ozi's API).
  */
-export function mcpAppContentSecurityPolicy(csp: McpAppCsp | undefined): string {
+function mcpAppContentSecurityPolicy(csp: McpAppCsp | undefined): string {
   const resources = csp?.resourceDomains?.join(" ") ?? "";
   const list = (domains: ReadonlyArray<string> | undefined, fallback: string) =>
     domains === undefined || domains.length === 0 ? fallback : domains.join(" ");

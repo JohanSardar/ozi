@@ -9,7 +9,7 @@ import { runMigrations } from "./Migrations.ts";
 import { initializeV2Database } from "./initializeV2Database.ts";
 import * as ServerConfig from "../config.ts";
 
-export const WAL_SIZE_LIMIT_BYTES = 32 * 1024 * 1024;
+const WAL_SIZE_LIMIT_BYTES = 32 * 1024 * 1024;
 
 const layerSetup = Layer.effectDiscard(
   Effect.gen(function* () {
@@ -51,7 +51,7 @@ const layerSetup = Layer.effectDiscard(
   }),
 );
 
-export const layerFromPath = Effect.fn("makeSqlitePersistenceLive")(function* (dbPath: string) {
+const layerFromPath = Effect.fn("makeSqlitePersistenceLive")(function* (dbPath: string) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   yield* fs.makeDirectory(path.dirname(dbPath), { recursive: true });
@@ -71,11 +71,6 @@ export const layerFromPath = Effect.fn("makeSqlitePersistenceLive")(function* (d
     }),
   );
 }, Layer.unwrap);
-
-export const layerMemory = Layer.provideMerge(
-  layerSetup,
-  NodeSqliteClient.layer({ filename: ":memory:" }),
-);
 
 export const layerConfig = Layer.unwrap(
   Effect.gen(function* () {

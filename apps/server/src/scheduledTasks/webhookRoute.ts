@@ -7,7 +7,7 @@ import type * as HttpServerRequest from "effect/http/HttpServerRequest";
 import * as HttpServerResponse from "effect/http/HttpServerResponse";
 import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 import * as ScheduledTaskService from "./ScheduledTaskService.ts";
-export const WEBHOOK_MAX_BODY_BYTES = 1024 * 1024;
+const WEBHOOK_MAX_BODY_BYTES = 1024 * 1024;
 const json = (status: number, body: Record<string, string>, outcome: string) =>
   HttpServerResponse.jsonUnsafe(body, { status, headers: { "x-ozi-hook-outcome": outcome } });
 export const layer = HttpApiBuilder.group(

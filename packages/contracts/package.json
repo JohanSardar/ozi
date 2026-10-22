@@ -22,7 +22,5 @@
   "dependencies": {
     "effect": "catalog:"
   },
-  "devDependencies": {
-    "vite-plus": "catalog:"
-  }
+  "devDependencies": {}
 }

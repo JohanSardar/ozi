@@ -38,9 +38,7 @@ import { PreviewSnapshotToolkit, PreviewStandardToolkit, PreviewToolkit } from "
  * preference, which is desktop-local and unreadable from here — filling in
  * `true` would silently override it for every `preview_open`.
  */
-export function normalizePreviewOpenInput(
-  input: PreviewAutomationOpenInput,
-): PreviewAutomationOpenInput {
+function normalizePreviewOpenInput(input: PreviewAutomationOpenInput): PreviewAutomationOpenInput {
   const open = input.open ?? input.show;
   return {
     ...input,
@@ -118,7 +116,7 @@ const UploadedRecordingArtifact = Schema.Struct({
 });
 const decodeUploadedRecordingArtifact = Schema.decodeUnknownEffect(UploadedRecordingArtifact);
 
-export const claimPreviewRecording = Effect.fn("PreviewToolkit.claimRecording")(function* (
+const claimPreviewRecording = Effect.fn("PreviewToolkit.claimRecording")(function* (
   threadId: ThreadId,
   response: unknown,
 ) {

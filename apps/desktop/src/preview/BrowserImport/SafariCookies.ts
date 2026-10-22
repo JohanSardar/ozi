@@ -40,7 +40,7 @@ function readCString(buffer: Buffer, start: number): string {
   return buffer.toString("utf8", start, end === -1 ? buffer.length : end);
 }
 
-export function parseBinaryCookies(buffer: Buffer): ReadonlyArray<ImportedCookie> {
+function parseBinaryCookies(buffer: Buffer): ReadonlyArray<ImportedCookie> {
   if (buffer.length < 8 || buffer.toString("latin1", 0, 4) !== "cook") {
     throw new SafariCookieReadError({ reason: "readFailed" });
   }
@@ -153,7 +153,7 @@ export function parseBinaryCookies(buffer: Buffer): ReadonlyArray<ImportedCookie
   return cookies;
 }
 
-export const isPermissionDenied = (error: PlatformError.PlatformError): boolean => {
+const isPermissionDenied = (error: PlatformError.PlatformError): boolean => {
   // TCC denies with EPERM, which Effect tags `Unknown` rather than
   // `PermissionDenied` — so the errno is what identifies it. EACCES (and the
   // `PermissionDenied` tag it maps to) is an ordinary POSIX permission or

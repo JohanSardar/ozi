@@ -38,7 +38,6 @@
   "devDependencies": {
     "@effect/openapi-generator": "catalog:",
     "@effect/platform-node": "catalog:",
-    "@types/node": "catalog:",
-    "vite-plus": "catalog:"
+    "@types/node": "catalog:"
   }
 }

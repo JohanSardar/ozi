@@ -233,7 +233,7 @@ export const make = Effect.gen(function* () {
   });
 });
 
-export const layerIdentity = Layer.effect(ServerEnvironmentIdentity, makeIdentity);
+const layerIdentity = Layer.effect(ServerEnvironmentIdentity, makeIdentity);
 
 export const layer = Layer.effect(ServerEnvironment, make).pipe(
   Layer.provideMerge(layerIdentity),

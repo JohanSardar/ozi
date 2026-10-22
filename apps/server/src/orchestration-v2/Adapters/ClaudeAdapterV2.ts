@@ -64,7 +64,6 @@ import {
   type ChatAttachment,
   ClaudeSettings,
   TrimmedNonEmptyString,
-  defaultInstanceIdForDriver,
   type ModelSelection,
   type OrchestrationV2ConversationMessage,
   type OrchestrationV2ExecutionNode,
@@ -156,7 +155,7 @@ import {
 } from "../../provider/claudeUsageLimits.ts";
 import type { ManagedServerProvider } from "@t3tools/provider-core/server/snapshot";
 import { mergeProviderInstanceEnvironment } from "@t3tools/provider-core/server/instanceEnvironment";
-import { T3_CODE_ORCHESTRATION_INSTRUCTIONS } from "@t3tools/provider-core/server/orchestrationInstructions";
+import { OZI_WORKER_ROLE } from "@t3tools/provider-core/server/orchestrationInstructions";
 import {
   mcpToolPresentation,
   normalizeMcpText,
@@ -173,7 +172,6 @@ import { providerMessageTextWithAttachmentPaths } from "@t3tools/provider-core/s
 import * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAdapter";
 import {
   ProviderAdapterDriverCreateError,
-  type ProviderAdapterDriver,
   type ProviderAdapterDriverCreateInput,
 } from "@t3tools/provider-core/server/adapterDriver";
 import {
@@ -187,8 +185,8 @@ import {
   subagentThreadTitle,
 } from "@t3tools/provider-core/server/subagentProjection";
 
-export const CLAUDE_PROVIDER = ProviderDriverKind.make("claudeAgent");
-export const CLAUDE_AGENT_SDK_QUERY_PROTOCOL = "claude-agent-sdk.query" as const;
+const CLAUDE_PROVIDER = ProviderDriverKind.make("claudeAgent");
+const CLAUDE_AGENT_SDK_QUERY_PROTOCOL = "claude-agent-sdk.query" as const;
 
 function claudeContextWindow(modelSelection: ModelSelection): number | null {
   return (
@@ -230,7 +228,7 @@ function claudeMessageInputTokens(usage: {
   );
 }
 
-export function claudeProviderTurnTokenUsage(
+function claudeProviderTurnTokenUsage(
   usage: {
     readonly input_tokens: number;
     readonly cache_creation_input_tokens?: number | null;
@@ -289,8 +287,6 @@ function mergeClaudeStreamUsage(
     output_tokens: delta.output_tokens,
   };
 }
-export const CLAUDE_DEFAULT_INSTANCE_ID = defaultInstanceIdForDriver(CLAUDE_PROVIDER);
-const DEFAULT_CLAUDE_SETTINGS = Schema.decodeSync(ClaudeSettings)({});
 // Entry extensions the Claude SDK runs through node instead of executing.
 const CLAUDE_SCRIPT_EXTENSIONS = [".js", ".mjs", ".tsx", ".ts", ".jsx"];
 // The SDK puts no deadline on control requests. The CLI answers
@@ -326,7 +322,7 @@ function spawnClaudeProcessGroup(options: ClaudeSpawnOptions): ClaudeSpawnedProc
   return child;
 }
 
-export const ClaudeProviderCapabilitiesV2 = {
+const ClaudeProviderCapabilitiesV2 = {
   sessions: {
     supportsMultipleProviderThreadsPerSession: false,
     supportsModelSwitchInSession: true,
@@ -425,7 +421,7 @@ export interface ClaudeAgentSdkQueryPresetTools {
 }
 export type ClaudeAgentSdkQueryTools = ClaudeAgentSdkQueryToolList | ClaudeAgentSdkQueryPresetTools;
 
-export const CLAUDE_READ_ONLY_ALLOWED_TOOLS = ["Read", "Glob", "Grep"] as const;
+const CLAUDE_READ_ONLY_ALLOWED_TOOLS = ["Read", "Glob", "Grep"] as const;
 
 function claudeAgentSdkQueryToolsForSdk(
   tools: ClaudeAgentSdkQueryTools,
@@ -589,7 +585,7 @@ function closeClaudeQuery(queryRuntime: ClaudeQuery) {
 // sdkMessages generator). The raw generator's return() queues behind the
 // in-flight read of the next CLI message and never settles while the CLI is
 // idle, deadlocking stream interruption (and with it, session scope close).
-export function claudeQueryMessages(queryRuntime: ClaudeQuery): AsyncIterable<SDKMessage, void> {
+function claudeQueryMessages(queryRuntime: ClaudeQuery): AsyncIterable<SDKMessage, void> {
   return { [Symbol.asyncIterator]: () => queryRuntime };
 }
 
@@ -729,7 +725,7 @@ export type ClaudeAgentSdkProtocolLogger = (
   event: ClaudeAgentSdkProtocolLogEvent,
 ) => Effect.Effect<void>;
 
-export function loggedClaudeQueryOptions(
+function loggedClaudeQueryOptions(
   options: ClaudeAgentSdkQueryOptions,
 ): ClaudeAgentSdkLoggedQueryOptions {
   return {
@@ -758,7 +754,7 @@ export function loggedClaudeQueryOptions(
   };
 }
 
-export function makeClaudeAgentSdkProtocolLogger(input: {
+function makeClaudeAgentSdkProtocolLogger(input: {
   readonly nativeEventLogger: ProviderEventLoggers.EventNdjsonLogger | undefined;
   readonly threadId: ThreadId;
   readonly providerSessionId: OrchestrationV2ProviderSession["id"];
@@ -1228,7 +1224,7 @@ function claudeLiveSelectionFlagSettings(
   };
 }
 
-export function makeClaudeQueryOptions(input: {
+function makeClaudeQueryOptions(input: {
   readonly modelSelection: ModelSelection;
   readonly nativeThreadId: string;
   readonly resume: boolean;
@@ -1340,7 +1336,7 @@ export function makeClaudeQueryOptions(input: {
     systemPrompt: input.systemPrompt ?? {
       type: "preset" as const,
       preset: "claude_code" as const,
-      append: [T3_CODE_ORCHESTRATION_INSTRUCTIONS, ...launchAppendSystemPrompt].join("\n\n"),
+      append: [OZI_WORKER_ROLE, ...launchAppendSystemPrompt].join("\n\n"),
     },
     ...(Object.keys(extraArgs).length === 0 ? {} : { extraArgs }),
   };
@@ -1390,11 +1386,11 @@ const readClaudeAppendSystemPromptFile = Effect.fnUntraced(function* (input: {
     );
 });
 
-export const CLAUDE_T3_MCP_TOOL_WILDCARD = "mcp__t3-code__*";
+const CLAUDE_T3_MCP_TOOL_WILDCARD = "mcp__t3-code__*";
 
 // Must stay in sync with the Tool.Readonly annotations on OrchestratorToolkit;
 // ClaudeAdapterV2.test.ts cross-checks this list against the toolkit.
-export const CLAUDE_READ_ONLY_T3_MCP_ALLOWED_TOOLS: ReadonlyArray<string> = [
+const CLAUDE_READ_ONLY_T3_MCP_ALLOWED_TOOLS: ReadonlyArray<string> = [
   "mcp__t3-code__orchestrator_capabilities",
   "mcp__t3-code__list_scheduled_tasks",
   "mcp__t3-code__t3_thread_list",
@@ -1421,7 +1417,7 @@ export const CLAUDE_READ_ONLY_T3_MCP_ALLOWED_TOOLS: ReadonlyArray<string> = [
 // delegate_task mode=wait) legitimately block for up to an hour
 // (MAX_WAIT_TIMEOUT_MS in OrchestratorMcpService), so the budget sits just
 // above that and the server's own wait timeout is what ends a long call.
-export const CLAUDE_T3_MCP_TOOL_TIMEOUT_MS = 65 * 60 * 1_000;
+const CLAUDE_T3_MCP_TOOL_TIMEOUT_MS = 65 * 60 * 1_000;
 
 // The SDK's `allowedTools` only pre-approves tool calls; availability is the separate `tools`
 // option. Attaching the t3-code MCP server therefore always pre-approves its tools (headless
@@ -1429,7 +1425,7 @@ export const CLAUDE_T3_MCP_TOOL_TIMEOUT_MS = 65 * 60 * 1_000;
 // pre-approve only the annotated read-only orchestrator tools so a read-only session cannot
 // silently spawn threads or scheduled tasks.
 
-export function claudeMcpQueryOverrides(input: {
+function claudeMcpQueryOverrides(input: {
   readonly mcpSession: McpProviderSession.McpProviderSessionConfig | undefined;
   readonly readOnlySandbox: boolean;
   readonly evidenceOnly?: boolean;
@@ -1731,7 +1727,7 @@ function isSupportedClaudeImageMimeType(
   return supportedClaudeImageMimeTypes.has(mimeType);
 }
 
-export function makeClaudeUserMessage(input: {
+function makeClaudeUserMessage(input: {
   readonly text: string;
   readonly priority?: SDKUserMessage["priority"];
   readonly skills?: ReadonlyMap<string, ClaudeSkillTarget>;
@@ -1860,7 +1856,7 @@ const makeClaudeUserMessageWithAttachments = Effect.fnUntraced(function* (input:
   } satisfies SDKUserMessage;
 });
 
-export function isClaudePromptUuid(value: string): value is NonNullable<SDKUserMessage["uuid"]> {
+function isClaudePromptUuid(value: string): value is NonNullable<SDKUserMessage["uuid"]> {
   return /^[^-]+-[^-]+-[^-]+-[^-]+-[^-]+$/.test(value);
 }
 
@@ -2004,7 +2000,7 @@ const CLAUDE_BYPASS_FULLY_AVAILABLE: ClaudeBypassAvailability = {
   autoDisabled: false,
 };
 
-export function claudeRuntimeQueryPolicyForRuntimePolicy(
+function claudeRuntimeQueryPolicyForRuntimePolicy(
   runtimePolicy: ProviderAdapter.ProviderAdapterV2RuntimePolicy,
   availability: ClaudeBypassAvailability = CLAUDE_BYPASS_FULLY_AVAILABLE,
 ): ClaudeRuntimeQueryPolicy {
@@ -2101,7 +2097,7 @@ function claudeRuntimeQueryPolicyKey(policy: ClaudeRuntimeQueryPolicy): string {
 // Live-query reuse must key on the effective allowlist (including the
 // MCP-derived pre-approvals), not just the runtime policy: policies that
 // share a policy key can still differ in MCP pre-approvals.
-export function claudeEffectiveQueryPolicyKey(
+function claudeEffectiveQueryPolicyKey(
   queryPolicy: ClaudeRuntimeQueryPolicy,
   mcpOverrides: {
     readonly allowedTools?: ReadonlyArray<string>;
@@ -2162,7 +2158,7 @@ const CLAUDE_KNOWN_TOOL_CLASSIFICATIONS: Record<
   write: { itemType: "file_change", requestKind: "file-change" },
 };
 
-export function classifyClaudeNativeTool(toolName: string): ClaudeToolClassification {
+function classifyClaudeNativeTool(toolName: string): ClaudeToolClassification {
   const normalizedName = normalizedClaudeToolName(toolName);
   const known = CLAUDE_KNOWN_TOOL_CLASSIFICATIONS[normalizedName];
   return known === undefined
@@ -2741,7 +2737,7 @@ function parentToolUseIdFromSdkMessage(message: SDKMessage): string | null {
     : null;
 }
 
-export function permissionResultFromDecision(input: {
+function permissionResultFromDecision(input: {
   readonly toolName: string;
   readonly decision: ProviderApprovalDecision;
   readonly toolInput: Record<string, unknown>;
@@ -2796,7 +2792,7 @@ function toSessionPermissionUpdates(
   ];
 }
 
-export const awaitClaudeApprovalDecision = Effect.fn("awaitClaudeApprovalDecision")(function* (
+const awaitClaudeApprovalDecision = Effect.fn("awaitClaudeApprovalDecision")(function* (
   decision: Deferred.Deferred<ProviderApprovalDecision>,
   signal: AbortSignal,
 ) {
@@ -3492,9 +3488,7 @@ type PendingClaudeRuntimeRequest =
       readonly answers: Deferred.Deferred<ProviderUserInputAnswers, never>;
     };
 
-export function claudeUserInputQuestions(
-  input: unknown,
-): ReadonlyArray<OrchestrationV2UserInputQuestion> {
+function claudeUserInputQuestions(input: unknown): ReadonlyArray<OrchestrationV2UserInputQuestion> {
   const value =
     typeof input === "object" && input !== null && Reflect.get(input, "type") === "record"
       ? Reflect.get(input, "value")
@@ -3542,7 +3536,7 @@ export function claudeUserInputQuestions(
   });
 }
 
-export function claudeSdkUserInputAnswers(
+function claudeSdkUserInputAnswers(
   answers: ProviderUserInputAnswers,
 ): NonNullable<AskUserQuestionInput["answers"]> {
   return Object.fromEntries(
@@ -3557,7 +3551,7 @@ export function claudeSdkUserInputAnswers(
   );
 }
 
-export function claudeTodoSteps(input: unknown): ReadonlyArray<OrchestrationV2PlanStep> {
+function claudeTodoSteps(input: unknown): ReadonlyArray<OrchestrationV2PlanStep> {
   const value =
     typeof input === "object" && input !== null && Reflect.get(input, "type") === "record"
       ? Reflect.get(input, "value")
@@ -3725,7 +3719,7 @@ function claudeTaskSteps(tasks: ClaudeTaskList): ReadonlyArray<OrchestrationV2Pl
   return [...tasks].map(([id, task]) => ({ id: `task-${id}`, ...task }));
 }
 
-export function claudeProposedPlan(input: unknown): string | null {
+function claudeProposedPlan(input: unknown): string | null {
   const value =
     typeof input === "object" && input !== null && Reflect.get(input, "type") === "record"
       ? Reflect.get(input, "value")
@@ -3753,7 +3747,7 @@ export interface ClaudeAdapterV2Options {
   };
 }
 
-export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
+const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
   adapterOptions: ClaudeAdapterV2Options,
 ) {
   const mcpSessions = yield* McpProviderSessions.McpProviderSessions;
@@ -10249,13 +10243,3 @@ export const createClaudeAdapterV2 = Effect.fn("ClaudeAdapterV2Driver.create")(
       ),
     ),
 );
-
-export const ClaudeAdapterV2Driver: ProviderAdapterDriver<
-  ClaudeSettings,
-  ClaudeAdapterV2DriverEnv
-> = {
-  driverKind: CLAUDE_PROVIDER,
-  configSchema: ClaudeSettings,
-  defaultConfig: (): ClaudeSettings => DEFAULT_CLAUDE_SETTINGS,
-  create: (input) => createClaudeAdapterV2(input, {}),
-};

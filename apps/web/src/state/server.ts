@@ -1,11 +1,9 @@
 import {
   DEFAULT_SERVER_SETTINGS,
-  type EditorId,
   type EnvironmentId,
   type EnvironmentTheme,
   type ServerConfig,
   type ServerConfigStreamEvent,
-  type ServerLifecycleLegacyThreadMigrationPayload,
   type ServerLifecycleWelcomePayload,
   type ServerProvider,
   type ServerSettings,
@@ -44,8 +42,6 @@ interface PrimaryServerState {
   readonly latestEvent: ServerConfigStreamEvent | null;
   readonly welcome: ServerLifecycleWelcomePayload | null;
 }
-
-const EMPTY_AVAILABLE_EDITORS: ReadonlyArray<EditorId> = [];
 export const EMPTY_SERVER_PROVIDERS: ReadonlyArray<ServerProvider> = [];
 const EMPTY_PRIMARY_SERVER_STATE: PrimaryServerState = {
   config: null,
@@ -76,37 +72,12 @@ export const primaryServerConfigAtom = Atom.make(
   (get): ServerConfig | null => get(primaryServerStateAtom).config,
 ).pipe(Atom.withLabel("web-primary-server-config"));
 
-export const primaryServerConfigEventAtom = Atom.make(
-  (get): ServerConfigStreamEvent | null => get(primaryServerStateAtom).latestEvent,
-).pipe(Atom.withLabel("web-primary-server-config-event"));
-
-export const primaryServerWelcomeAtom = Atom.make(
-  (get): ServerLifecycleWelcomePayload | null => get(primaryServerStateAtom).welcome,
-).pipe(Atom.withLabel("web-primary-server-welcome"));
-
-export const primaryServerLegacyThreadMigrationAtom = Atom.make(
-  (get): ServerLifecycleLegacyThreadMigrationPayload | null => {
-    const environmentId = get(primaryEnvironmentIdAtom);
-    if (environmentId === null) {
-      return null;
-    }
-    return Option.getOrNull(
-      AsyncResult.value(get(serverEnvironment.legacyThreadMigration({ environmentId, input: {} }))),
-    );
-  },
-).pipe(Atom.withLabel("web-primary-server-legacy-thread-migration"));
-
 export const primaryServerSettingsAtom = Atom.make(
   (get): ServerSettings => get(primaryServerConfigAtom)?.settings ?? DEFAULT_SERVER_SETTINGS,
 ).pipe(Atom.withLabel("web-primary-server-settings"));
 
-export const primaryServerProvidersAtom = Atom.make(
-  (get): ReadonlyArray<ServerProvider> =>
-    get(primaryServerConfigAtom)?.providers ?? EMPTY_SERVER_PROVIDERS,
-).pipe(Atom.withLabel("web-primary-server-providers"));
-
 /** Without a primary, global shortcuts follow unscoped Settings. */
-export function createShortcutKeybindingsAtom(input: {
+function createShortcutKeybindingsAtom(input: {
   readonly primaryEnvironmentIdAtom: Atom.Atom<EnvironmentId | null>;
   readonly primaryConfigAtom: Atom.Atom<ServerConfig | null>;
   readonly environmentsAtom: Atom.Atom<
@@ -160,11 +131,6 @@ export const primaryServerKeybindingsAtom = createShortcutKeybindingsAtom({
   primaryConfigAtom: primaryServerConfigAtom,
   environmentsAtom: environmentConnectionsAtom,
 }).pipe(Atom.withLabel("web-primary-server-keybindings"));
-
-export const primaryServerAvailableEditorsAtom = Atom.make(
-  (get): ReadonlyArray<EditorId> =>
-    get(primaryServerConfigAtom)?.availableEditors ?? EMPTY_AVAILABLE_EDITORS,
-).pipe(Atom.withLabel("web-primary-server-available-editors"));
 
 const EMPTY_ENVIRONMENT_THEMES: ReadonlyArray<EnvironmentTheme> = [];
 

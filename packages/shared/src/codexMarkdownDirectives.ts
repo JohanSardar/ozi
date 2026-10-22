@@ -10,7 +10,6 @@ import remarkParse from "remark-parse";
 import { unified, type Processor } from "unified";
 
 import {
-  codexArtifactTemplatePresentationLabel,
   resolveCodexArtifactTemplate,
   type CodexArtifactTemplate,
 } from "./codexArtifactTemplates.ts";
@@ -345,64 +344,6 @@ export function renderCodexInlineDirectivesAsMarkdown(markdown: string): string 
   }
 
   return renderDirectiveMatches(markdown, (match) => match.markdown);
-}
-
-export function renderCodexDirectivesForCopy(markdown: string): string {
-  if (
-    !markdown.includes(`:${CODEX_FILE_CITATION_NAME}`) &&
-    !markdown.includes(`:${CODEX_FOLLOW_UP_NAME}`) &&
-    !markdown.includes(`::${CODEX_ARTIFACT_TEMPLATE_NAME}`)
-  ) {
-    return markdown;
-  }
-
-  return renderDirectiveMatches(markdown, (match) => {
-    if (match.markdown !== undefined) return match.markdown;
-    if (match.template === undefined) return undefined;
-    return `${match.template.displayName} (${codexArtifactTemplatePresentationLabel(match.template.artifactKind)})`;
-  });
-}
-
-export function splitCodexArtifactTemplateMarkdown(
-  markdown: string,
-): ReadonlyArray<CodexArtifactTemplateMarkdownSegment> {
-  if (!markdown.includes(`::${CODEX_ARTIFACT_TEMPLATE_NAME}`)) {
-    return [{ kind: "markdown", markdown, sourceOffset: 0 }];
-  }
-
-  const matches: DirectiveMatch[] = [];
-  collectDirectiveMatches(parseCodexMarkdown(markdown), matches);
-  const templates = matches
-    .filter(
-      (match): match is DirectiveMatch & { readonly template: CodexArtifactTemplate } =>
-        match.template !== undefined,
-    )
-    .sort((left, right) => left.start - right.start);
-  if (templates.length === 0) {
-    return [{ kind: "markdown", markdown, sourceOffset: 0 }];
-  }
-
-  const segments: CodexArtifactTemplateMarkdownSegment[] = [];
-  let cursor = 0;
-  for (const match of templates) {
-    if (match.start > cursor) {
-      segments.push({
-        kind: "markdown",
-        markdown: markdown.slice(cursor, match.start),
-        sourceOffset: cursor,
-      });
-    }
-    segments.push({
-      kind: "artifact-template",
-      sourceOffset: match.start,
-      template: match.template,
-    });
-    cursor = match.end;
-  }
-  if (cursor < markdown.length) {
-    segments.push({ kind: "markdown", markdown: markdown.slice(cursor), sourceOffset: cursor });
-  }
-  return segments;
 }
 
 export function artifactTemplateFromHastProperties(

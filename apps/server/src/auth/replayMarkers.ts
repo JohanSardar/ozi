@@ -17,14 +17,14 @@ const REPLAY_MARKER_PREFIXES = [DPOP_REPLAY_MARKER_PREFIX];
  * for DPoP, 7 for cloud proofs). After that, the time check rejects a replay by
  * itself.
  */
-export const REPLAY_MARKER_MAX_AGE = Duration.days(1);
+const REPLAY_MARKER_MAX_AGE = Duration.days(1);
 
 /**
  * `ServerSecretStore` saves each secret as `<name>.bin`, so only
  * `<marker prefix>*.bin` names match. Other secrets and the `*.bin.<uuid>.tmp`
  * files that `set` writes are never touched.
  */
-export const pruneExpiredReplayMarkers = Effect.fn("replayMarkers.pruneExpired")(function* () {
+const pruneExpiredReplayMarkers = Effect.fn("replayMarkers.pruneExpired")(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const { secretsDir } = yield* ServerConfig.ServerConfig;

@@ -34,8 +34,6 @@ type DesktopApplicationMenuRuntimeServices =
   | DesktopWindow.DesktopWindow
   | ElectronDialog.ElectronDialog;
 
-const { logInfo: logUpdaterInfo } = makeComponentLogger("desktop-updater");
-
 const { logError: logMenuError } = makeComponentLogger("desktop-menu");
 
 const dispatchMenuAction = Effect.fn("desktop.menu.dispatchMenuAction")(function* (

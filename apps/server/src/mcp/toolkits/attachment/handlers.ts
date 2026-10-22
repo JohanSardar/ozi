@@ -14,7 +14,7 @@ import * as McpToolAccess from "../../McpToolAccess.ts";
 import { newCommandId, readThread, unavailable } from "../../threadAccess.ts";
 import { AttachmentToolkit } from "./tools.ts";
 
-export function resolveAttachmentReferences(
+function resolveAttachmentReferences(
   requested: ReadonlyArray<ChatAttachment>,
   stored: ReadonlyArray<ChatAttachment>,
 ) {

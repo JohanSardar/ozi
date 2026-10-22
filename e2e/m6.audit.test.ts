@@ -150,3 +150,13 @@ it("m6.audit tests and provider fakes live only in e2e", async () => {
   }
   expect(violations).toEqual([]);
 });
+
+it("m6.audit Knip finds no unused files, exports or dependencies", async () => {
+  await exec(NodePath.join(repo, "node_modules/.bin/knip"), [
+    "--include",
+    "files,dependencies,exports,nsExports,duplicates",
+    "--preprocessor",
+    "./scripts/knip-schemas.ts",
+    "--no-config-hints",
+  ]);
+}, 360_000);

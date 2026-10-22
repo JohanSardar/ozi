@@ -111,7 +111,7 @@ const makeNodeSampler = Effect.gen(function* () {
   });
 });
 
-export const stallMs = ({ delayMaxNs, activeMs }: EventLoopReadings) => {
+const stallMs = ({ delayMaxNs, activeMs }: EventLoopReadings) => {
   const delayMs = Math.round(delayMaxNs / 1e6) - RESOLUTION_MS;
   // libuv's clock keeps running while the system sleeps on macOS and Windows, so a
   // sleep also reads as delay, but the loop spent it idle in poll.
@@ -141,7 +141,7 @@ export interface StallLogOptions {
   readonly maxBytes: number;
 }
 
-export const layerWith = (
+const layerWith = (
   makeSampler: Effect.Effect<Effect.Effect<EventLoopReadings>, never, Scope.Scope>,
   stallLog: StallLogOptions,
 ) =>

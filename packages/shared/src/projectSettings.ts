@@ -27,17 +27,6 @@ const ENVIRONMENT_SOURCES: ProjectSettingSources = Object.fromEntries(
   PROJECT_SCOPED_SERVER_SETTING_KEYS.map((key) => [key, "environment"]),
 ) as Record<ProjectScopedServerSettingKey, ProjectSettingSource>;
 
-export function hasProjectSettingsOverrides(
-  settings: Pick<ServerSettings, "projectSettingsOverrides">,
-): boolean {
-  for (const entry of Object.values(settings.projectSettingsOverrides)) {
-    // A forward-compatible decode can leave an unknown value as a present
-    // undefined; that is not an override.
-    if (Object.values(entry).some((value) => value !== undefined)) return true;
-  }
-  return false;
-}
-
 /**
  * The project aggregate's own model and workspace fields. They remain the
  * source of truth until the server has folded them into the override record;
@@ -104,27 +93,6 @@ function resolveProjectOverrides(
     if (fallback !== null) effective.textGenerationModelSelection = fallback;
   }
   return { settings: effective as ServerSettings, sources, overrides };
-}
-
-export function withProjectSettingsOverrides(
-  settings: Pick<ServerSettings, "projectSettingsOverrides">,
-  projectId: ProjectId,
-  next: ProjectSettingsOverrides | null,
-): ServerSettings["projectSettingsOverrides"] {
-  const { [projectId]: _removed, ...rest } = settings.projectSettingsOverrides;
-  return next === null || Object.keys(next).length === 0 ? rest : { ...rest, [projectId]: next };
-}
-
-export function clearProjectSettingsOverrides(
-  settings: Pick<ServerSettings, "projectSettingsOverrides">,
-  projectId: ProjectId,
-  keys: readonly ProjectScopedServerSettingKey[],
-): ProjectSettingsOverrides | null {
-  const current = settings.projectSettingsOverrides[projectId];
-  if (current === undefined) return null;
-  const next = { ...current };
-  for (const key of keys) delete next[key];
-  return Object.keys(next).length === 0 ? null : next;
 }
 
 export const resolveProjectSettings = resolveProjectOverrides;

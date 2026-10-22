@@ -7,7 +7,7 @@ import {
 import type { EnvironmentId } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
-import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
+import { AsyncResult, Atom } from "effect/reactivity";
 
 import { connectionAtomRuntime } from "../connection/runtime";
 import { appAtomRegistry } from "../rpc/atomRegistry";
@@ -32,18 +32,4 @@ export function usePreviewStreamAccess(environmentId: EnvironmentId): PreviewStr
 
 export function refreshPreviewStreamAccess(environmentId: EnvironmentId): void {
   appAtomRegistry.refresh(previewStreamAccessAtom(environmentId));
-}
-
-export function readPreviewStreamAccess(
-  environmentId: EnvironmentId,
-  refresh: boolean,
-): Promise<PreviewStreamAccess | null> {
-  const atom = previewStreamAccessAtom(environmentId);
-  if (refresh) appAtomRegistry.refresh(atom);
-  return Effect.runPromise(
-    AtomRegistry.getResult(appAtomRegistry, atom, { suspendOnWaiting: true }).pipe(
-      Effect.timeout("10 seconds"),
-      Effect.orElseSucceed(() => null),
-    ),
-  );
 }

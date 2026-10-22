@@ -160,7 +160,7 @@ async function guardMatches(
  * to one character without validating it, so an ASCII marker matches exactly
  * where its bytes do.
  */
-export function transcriptLineGate(markers: readonly [string, ...string[]]) {
+function transcriptLineGate(markers: readonly [string, ...string[]]) {
   if (markers.length === 1) {
     const marker = Buffer.from(markers[0]);
     return (line: Buffer) => line.includes(marker);

@@ -124,7 +124,7 @@ export function redactServerSettingsForClient(settings: ServerSettings): ServerS
   );
 }
 
-export function applyProviderInstanceMutation(
+function applyProviderInstanceMutation(
   settings: ServerSettings,
   mutation: ProviderInstanceMutation,
 ): ServerSettings {
@@ -241,7 +241,7 @@ const makeTest = Effect.fn("serverSettings.makeTest")(function* (
   } satisfies ServerSettingsService["Service"];
 });
 
-export const layerTest = (overrides: DeepPartial<ServerSettings> = {}) =>
+const layerTest = (overrides: DeepPartial<ServerSettings> = {}) =>
   Layer.effect(ServerSettingsService, makeTest(overrides));
 
 // Migrate saved token delivery without accepting it in settings writes or

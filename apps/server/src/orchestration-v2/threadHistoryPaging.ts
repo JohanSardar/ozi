@@ -25,7 +25,7 @@ export const THREAD_HISTORY_MAX_RAW_TURNS = 150;
 
 export const THREAD_HISTORY_SNAPSHOT_ROW_LIMIT = THREAD_HISTORY_PAGE_POLICY.maxItems + 2;
 
-export const THREAD_HISTORY_CURSOR_MAX_LENGTH = 4_096;
+const THREAD_HISTORY_CURSOR_MAX_LENGTH = 4_096;
 
 export type ThreadHistoryPagePolicy = {
   readonly maxUserTurns?: number | undefined;
@@ -109,7 +109,7 @@ export function projectedRowEncodedBytes(row: HistoryRow): number {
  * charge the nested item a second time. Inherited rows only appear in the
  * visible list.
  */
-export function projectedRowBoundedSnapshotEncodedBytes(
+function projectedRowBoundedSnapshotEncodedBytes(
   row: OrchestrationV2ProjectedTurnItem,
   threadId: ThreadId | string,
 ): number {
@@ -128,7 +128,7 @@ function encodeCursorPayload(payload: ThreadHistoryCursorPayload): string {
   return Buffer.from(JSON.stringify(payload), "utf8").toString("base64url");
 }
 
-export function encodeThreadHistoryCursor(input: {
+function encodeThreadHistoryCursor(input: {
   readonly snapshotSequence: number;
   readonly sourceThreadId: ThreadId | string;
   readonly sourceItemId: TurnItemId | string;
@@ -191,9 +191,7 @@ function isThreadHistoryTurnStart(item: HistoryRow["item"]): boolean {
  * notification starts a turn when it is its run's first input. ProjectionStore's `run_starts` window query
  * applies the same rule.
  */
-export function threadHistoryTurnStarts(
-  items: ReadonlyArray<HistoryRow["item"]>,
-): ReadonlyArray<boolean> {
+function threadHistoryTurnStarts(items: ReadonlyArray<HistoryRow["item"]>): ReadonlyArray<boolean> {
   const startedRuns = new Set<string>();
   return items.map((item) => {
     if (item.type !== "user_message" && item.type !== "notification") return false;
@@ -449,7 +447,7 @@ function messagesForBoundedProjection(
  * Used as a cheap partial-timeline watermark so old missing turn-item updates
  * cannot append newest when the bounded window has no local rows.
  */
-export function computeLatestLocalTurnOrdinal(
+function computeLatestLocalTurnOrdinal(
   turnItems: ReadonlyArray<{ readonly ordinal: number }>,
 ): number | null {
   let latest: number | null = null;
@@ -459,20 +457,6 @@ export function computeLatestLocalTurnOrdinal(
     }
   }
   return latest;
-}
-
-export function boundedTimelineEncodedBytes(input: {
-  readonly visibleTurnItems: ReadonlyArray<OrchestrationV2ProjectedTurnItem>;
-  readonly turnItems: ReadonlyArray<OrchestrationV2TurnItem>;
-}): number {
-  let total = 0;
-  for (const row of input.visibleTurnItems) {
-    total += projectedRowEncodedBytes(row);
-  }
-  for (const item of input.turnItems) {
-    total += bytesOfJson(item);
-  }
-  return total;
 }
 
 export function buildBoundedThreadProjection(input: {

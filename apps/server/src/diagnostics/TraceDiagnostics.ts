@@ -73,10 +73,7 @@ const DEFAULT_SLOW_SPAN_THRESHOLD_MS = 1_000;
 const TOP_LIMIT = 10;
 const RECENT_LIMIT = 20;
 
-export function toRotatedTracePaths(
-  traceFilePath: string,
-  maxFiles: number,
-): ReadonlyArray<string> {
+function toRotatedTracePaths(traceFilePath: string, maxFiles: number): ReadonlyArray<string> {
   const backupCount = Math.max(0, Math.floor(maxFiles));
   const backups = Array.from(
     { length: backupCount },
@@ -195,9 +192,7 @@ const latestSeenFirst = (
   right: ServerTraceDiagnosticsLogEvent,
 ) => DateTime.toEpochMillis(right.seenAt) - DateTime.toEpochMillis(left.seenAt);
 
-export function makeTraceDiagnosticsAggregator(
-  slowSpanThresholdMs = DEFAULT_SLOW_SPAN_THRESHOLD_MS,
-) {
+function makeTraceDiagnosticsAggregator(slowSpanThresholdMs = DEFAULT_SLOW_SPAN_THRESHOLD_MS) {
   let parseErrorCount = 0;
   let recordCount = 0;
   let failureCount = 0;
@@ -379,7 +374,7 @@ export function makeTraceDiagnosticsAggregator(
 /**
  * Succeeds with false when the file does not exist.
  */
-export function streamTraceFileLines(
+function streamTraceFileLines(
   fileSystem: FileSystem.FileSystem,
   path: string,
   onLine: (line: string) => void,

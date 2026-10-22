@@ -67,7 +67,7 @@ const PI_RPC_DISCOVERY_TIMEOUT_MS = 30_000;
  * get_entries arrived in 0.80.3 and agent_settled landed in source at 0.80.4.
  * Version 0.80.5 was the first published package containing both hooks.
  */
-export const MINIMUM_PI_VERSION = "0.80.5";
+const MINIMUM_PI_VERSION = "0.80.5";
 
 interface PiDiscovery extends PiDiscoveredCommands {
   readonly models: ReadonlyArray<ServerProviderModel>;

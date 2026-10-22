@@ -306,7 +306,7 @@ const closeRun = (
   );
 };
 
-export const waitForHttpReady = (
+const waitForHttpReady = (
   options: BackendProcessContext & { readonly timeout: Duration.Duration },
 ): Effect.Effect<void, BackendReadinessTimeoutError, HttpClient.HttpClient> => {
   const readinessUrl = new URL(BACKEND_READINESS_PATH, options.httpBaseUrl);
@@ -370,7 +370,7 @@ function drainBackendOutput(
 
 const encodeBootstrapJson = Schema.encodeEffect(Schema.fromJsonString(DesktopBackendBootstrap));
 
-export const runBackendProcess = Effect.fn("runBackendProcess")(function* (
+const runBackendProcess = Effect.fn("runBackendProcess")(function* (
   options: RunBackendProcessOptions,
 ): Effect.fn.Return<BackendProcessExit, BackendProcessError, BackendProcessRunRequirements> {
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;

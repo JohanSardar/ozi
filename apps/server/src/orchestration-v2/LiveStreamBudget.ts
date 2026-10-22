@@ -15,7 +15,7 @@ export class LiveStreamBufferError extends Schema.TaggedError<LiveStreamBufferEr
   { message: Schema.String },
 ) {}
 
-export const LIVE_STREAM_MAX_ITEMS = 1_000;
+const LIVE_STREAM_MAX_ITEMS = 1_000;
 const LIVE_STREAM_MAX_SERIALIZED_BYTES = 8 * 1024 * 1024;
 
 export interface RetainedLiveItem<A> {
@@ -344,11 +344,6 @@ type ReplayLiveInput<A extends { readonly sequence: number }, E, R> = {
   readonly afterSequence?: number;
   readonly filter?: (event: A) => boolean;
 };
-
-export const replayAndBufferLiveEvents = <A extends { readonly sequence: number }, E, R>(
-  input: ReplayLiveInput<A, E, R>,
-  limits?: LiveStreamLimits,
-) => replayAndBufferProjectedLiveEvents({ ...input, project: (event: A) => event }, limits);
 
 export const replayAndBufferProjectedLiveEvents = <
   A extends { readonly sequence: number },

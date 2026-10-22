@@ -79,10 +79,6 @@
       "types": "./src/server/ModelCatalog.ts",
       "import": "./src/server/ModelCatalog.ts"
     },
-    "./server/nativeProtocolLogging": {
-      "types": "./src/server/nativeProtocolLogging.ts",
-      "import": "./src/server/nativeProtocolLogging.ts"
-    },
     "./server/notification": {
       "types": "./src/server/notification.ts",
       "import": "./src/server/notification.ts"
@@ -126,10 +122,6 @@
     "./server/randomUuid": {
       "types": "./src/server/randomUuid.ts",
       "import": "./src/server/randomUuid.ts"
-    },
-    "./server/runtimeInstructions": {
-      "types": "./src/server/runtimeInstructions.ts",
-      "import": "./src/server/runtimeInstructions.ts"
     },
     "./server/selectionTransition": {
       "types": "./src/server/selectionTransition.ts",
@@ -193,8 +185,6 @@
     "effect": "catalog:"
   },
   "devDependencies": {
-    "@effect/platform-node": "catalog:",
-    "@types/node": "catalog:",
-    "vite-plus": "catalog:"
+    "@types/node": "catalog:"
   }
 }

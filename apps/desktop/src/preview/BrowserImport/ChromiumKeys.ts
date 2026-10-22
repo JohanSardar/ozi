@@ -94,9 +94,7 @@ const readKeychainSecret = Effect.fn("ChromiumKeys.readKeychainSecret")(function
  * Its exit codes distinguish a missing key, denied access, and an unavailable
  * keyring without parsing localized error messages.
  */
-export const readLinuxSecret = Effect.fn("ChromiumKeys.readLinuxSecret")(function* (
-  application: string,
-) {
+const readLinuxSecret = Effect.fn("ChromiumKeys.readLinuxSecret")(function* (application: string) {
   return yield* Effect.scoped(
     Effect.gen(function* () {
       const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
@@ -158,7 +156,7 @@ const WINDOWS_DPAPI_SCRIPT =
   "$plain=[Security.Cryptography.ProtectedData]::Unprotect($encrypted,$null,[Security.Cryptography.DataProtectionScope]::CurrentUser);" +
   "[Console]::Out.Write([Convert]::ToBase64String($plain))";
 
-export const decodeWindowsWrappedKey = Effect.fn("ChromiumKeys.decodeWindowsWrappedKey")(function* (
+const decodeWindowsWrappedKey = Effect.fn("ChromiumKeys.decodeWindowsWrappedKey")(function* (
   contents: string,
 ) {
   const state = yield* decodeWindowsLocalState(contents).pipe(
@@ -177,7 +175,7 @@ export const decodeWindowsWrappedKey = Effect.fn("ChromiumKeys.decodeWindowsWrap
   return wrappedBuffer.subarray(DPAPI_PREFIX.length);
 });
 
-export const unwrapWindowsDpapiKey = Effect.fn("ChromiumKeys.unwrapWindowsDpapiKey")(function* (
+const unwrapWindowsDpapiKey = Effect.fn("ChromiumKeys.unwrapWindowsDpapiKey")(function* (
   wrapped: Buffer,
 ) {
   const environment = yield* HostProcess.Environment;

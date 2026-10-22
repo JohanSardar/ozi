@@ -240,7 +240,7 @@ export class PipeWriteStalled extends Schema.TaggedError<PipeWriteStalled>()("Pi
   }
 }
 
-export const writeAllToFileDescriptor = Effect.fn("writeAllToFileDescriptor")(function* (
+const writeAllToFileDescriptor = Effect.fn("writeAllToFileDescriptor")(function* (
   fd: number,
   payload: Buffer,
 ) {
@@ -288,7 +288,7 @@ export const writeAllToFileDescriptor = Effect.fn("writeAllToFileDescriptor")(fu
   }
 });
 
-export function requireWriteProgress(
+function requireWriteProgress(
   fd: number,
   remainingBytes: number,
   written: number,

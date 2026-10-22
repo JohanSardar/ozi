@@ -70,7 +70,7 @@ export const DEFAULT_WHEN_VARIABLE =
   ) ?? "composerFocus";
 const KNOWN_WHEN_VARIABLES = new Set(DEFAULT_WHEN_VARIABLES);
 
-export function shortcutToKeybindingInput(shortcut: KeybindingShortcut): string {
+function shortcutToKeybindingInput(shortcut: KeybindingShortcut): string {
   const parts: string[] = [];
   if (shortcut.modKey) parts.push("mod");
   if (shortcut.metaKey) parts.push("meta");

@@ -170,7 +170,7 @@ function latestStartedRun(
   );
 }
 
-export const make = Effect.gen(function* () {
+const make = Effect.gen(function* () {
   const settings = yield* ServerSettings.ServerSettingsService;
   const projections = yield* ProjectionStore.ProjectionStoreV2;
   const completion = yield* Completion.Completion;

@@ -142,7 +142,7 @@ function nextConfigBlobWithValue(
   return base;
 }
 
-export function deriveProviderModelsForDisplay(input: {
+function deriveProviderModelsForDisplay(input: {
   readonly liveModels: ReadonlyArray<ServerProviderModel> | undefined;
   readonly customModels: ReadonlyArray<CustomModelDefinition>;
 }): ReadonlyArray<ServerProviderModel> {
@@ -184,21 +184,21 @@ function ProviderAuthEmail(props: { readonly email: string | undefined }) {
   );
 }
 
-export function readProviderEnvironmentVariable(
+function readProviderEnvironmentVariable(
   environment: ReadonlyArray<ProviderInstanceEnvironmentVariable> | undefined,
   name: string,
 ): ProviderInstanceEnvironmentVariable | undefined {
   return environment?.find((variable) => variable.name === name);
 }
 
-export function providerEnvironmentWithoutNames(
+function providerEnvironmentWithoutNames(
   environment: ReadonlyArray<ProviderInstanceEnvironmentVariable> | undefined,
   names: ReadonlySet<string>,
 ): ReadonlyArray<ProviderInstanceEnvironmentVariable> {
   return (environment ?? []).filter((variable) => !names.has(variable.name));
 }
 
-export function nextProviderEnvironmentWithFieldValue(
+function nextProviderEnvironmentWithFieldValue(
   environment: ReadonlyArray<ProviderInstanceEnvironmentVariable> | undefined,
   field: ProviderEnvironmentField,
   value: string,
@@ -289,7 +289,7 @@ function ProviderEnvironmentFieldRow(props: {
   );
 }
 
-export function ProviderEnvironmentSection(props: {
+function ProviderEnvironmentSection(props: {
   readonly environment: ReadonlyArray<ProviderInstanceEnvironmentVariable>;
   readonly onChange: (environment: ReadonlyArray<ProviderInstanceEnvironmentVariable>) => void;
 }) {
