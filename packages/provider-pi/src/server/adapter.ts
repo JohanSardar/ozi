@@ -473,6 +473,14 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
         mcpSession,
         extensionPath,
         runtimeMode: input.runtimePolicy.runtimeMode,
+        ...(input.runtimePolicy.mainPromptPath === undefined
+          ? {}
+          : {
+              mainPromptPath: input.runtimePolicy.mainPromptPath,
+              mainSystemPrompt: yield* provideCacheFs(
+                fileSystem.readFileString(input.runtimePolicy.mainPromptPath),
+              ),
+            }),
       });
       const scopedLaunch = yield* agentScope.wrap({
         command: options.settings.binaryPath || "pi",
@@ -2437,7 +2445,18 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
             const continuation =
               turnInput.message.createdBy === "agent" &&
               turnInput.message.creationSource === "provider";
-            if (!continuation) yield* applySelection(turnInput.modelSelection);
+            if (!continuation || input.runtimePolicy.mainPromptPath !== undefined)
+              yield* applySelection(turnInput.modelSelection);
+            if (input.runtimePolicy.mainPromptPath !== undefined) {
+              const selected = yield* request({ type: "get_state" });
+              const model = recordField(selected, "model");
+              if (
+                recordString(model, "provider") !== "anthropic" ||
+                recordString(model, "id") !== "claude-opus-5-5" ||
+                recordString(selected, "thinkingLevel") !== "high"
+              )
+                return yield* protocolError("Pi rejected the main agent loadout");
+            }
             if (turnInput.appThread.title !== appliedSessionName) {
               yield* request({
                 type: "set_session_name",
@@ -3017,6 +3036,14 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
               extensionPath: undefined,
               disableExtensions: true,
               disableTools: true,
+              ...(input.runtimePolicy.mainPromptPath === undefined
+                ? {}
+                : {
+                    mainPromptPath: input.runtimePolicy.mainPromptPath,
+                    mainSystemPrompt: yield* provideCacheFs(
+                      fileSystem.readFileString(input.runtimePolicy.mainPromptPath),
+                    ),
+                  }),
             });
             const nativeId = yield* Effect.scoped(
               Effect.gen(function* () {

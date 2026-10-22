@@ -1,4 +1,5 @@
 import { OrchestrationMessageContext } from "./composerContext.ts";
+import { OziEffectiveLoadout, OziThreadRole } from "./ozi.ts";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as SchemaAST from "effect/SchemaAST";
@@ -371,6 +372,8 @@ export type OrchestrationV2LimitRecoveryUpdate = typeof OrchestrationV2LimitReco
 
 export const OrchestrationV2AppThread = Schema.Struct({
   ...OrchestrationV2CreationFields,
+  role: Schema.optional(OziThreadRole),
+  effectiveLoadout: Schema.optional(OziEffectiveLoadout),
   id: ThreadId,
   projectId: ProjectId,
   title: TrimmedNonEmptyString,
@@ -1805,6 +1808,8 @@ export type OrchestrationV2LatestVisibleMessageSummary =
 
 export const OrchestrationV2ThreadShell = Schema.Struct({
   ...OrchestrationV2CreationFields,
+  role: Schema.optional(OziThreadRole),
+  effectiveLoadout: Schema.optional(OziEffectiveLoadout),
   id: ThreadId,
   projectId: ProjectId,
   title: Schema.String,

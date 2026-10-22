@@ -1,5 +1,7 @@
 import {
   ModelSelection,
+  isOziMain,
+  isOziMainSelection,
   OrchestrationV2AppThread,
   ProjectId,
   ProviderInstanceId,
@@ -82,10 +84,33 @@ export const layerFromProjectStore: Layer.Layer<
     return RuntimePolicyV2.of({
       resolve: Effect.fn("RuntimePolicyV2.resolve")(function* (input) {
         const instance = yield* providerInstances.getInstance(input.modelSelection.instanceId);
-        const supportedRuntimeModes =
-          instance === undefined
-            ? undefined
-            : (yield* instance.snapshot.getSnapshot).supportedRuntimeModes;
+        const snapshot = instance === undefined ? undefined : yield* instance.snapshot.getSnapshot;
+        if (isOziMain(input.thread)) {
+          const model = snapshot?.models.find(
+            (candidate) => candidate.slug === input.modelSelection.model,
+          );
+          const thinking = model?.capabilities?.optionDescriptors?.find(
+            (option) => option.id === "thinking",
+          );
+          if (
+            !isOziMainSelection(input.modelSelection) ||
+            snapshot?.driver !== "pi" ||
+            !snapshot.enabled ||
+            !snapshot.installed ||
+            snapshot.status === "error" ||
+            snapshot.auth.status === "unauthenticated" ||
+            thinking?.type !== "select" ||
+            !thinking.options.some((option) => option.id === "high")
+          ) {
+            return yield* new RuntimePolicyResolveError({
+              projectId: input.thread.projectId,
+              providerInstanceId: input.modelSelection.instanceId,
+              cause:
+                "Main requires available Pi anthropic/claude-opus-5-5, high thinking, fast off.",
+            });
+          }
+        }
+        const supportedRuntimeModes = snapshot?.supportedRuntimeModes;
         const cwd =
           input.thread.worktreePath ??
           (yield* projects.get(input.thread.projectId).pipe(

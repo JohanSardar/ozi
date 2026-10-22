@@ -67,6 +67,7 @@ export class ServerConfig extends Context.Service<
     readonly host: string | undefined;
     readonly cwd: string;
     readonly baseDir: string;
+    readonly dataRoot?: string;
     readonly staticDir: string | undefined;
     readonly devUrl: URL | undefined;
     readonly devAuthToken?: Redacted.Redacted<string> | undefined;
@@ -207,6 +208,7 @@ const makeTest = Effect.fn("ServerConfig.makeTest")(function* (
     otelEnvironment: OtelEnvironment.none,
     cwd,
     baseDir,
+    dataRoot: `${baseDir}/data`,
     ...derivedPaths,
     mode: "web",
     autoBootstrapProjectFromCwd: false,

@@ -1,6 +1,12 @@
-import type { EnvironmentId, ProviderInstanceId, ThreadId } from "@t3tools/contracts";
+import type {
+  EnvironmentId,
+  ProviderInstanceId,
+  ThreadId,
+  OziThreadRole,
+} from "@t3tools/contracts";
 
 export interface McpProviderSessionConfig {
+  readonly role?: OziThreadRole;
   readonly environmentId: EnvironmentId;
   readonly threadId: ThreadId;
   readonly providerSessionId: string;

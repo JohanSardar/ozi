@@ -45,6 +45,7 @@ export const baseDirFlag = Flag.String("base-dir").pipe(
   ),
   Flag.optional,
 );
+const dataRootFlag = Flag.String("data-root").pipe(Flag.optional);
 const devUrlFlag = Flag.String("dev-url").pipe(
   Flag.withSchema(Schema.URLFromString),
   Flag.withDescription("Dev web URL to proxy/redirect to (equivalent to VITE_DEV_SERVER_URL)."),
@@ -128,6 +129,7 @@ const EnvServerConfig = Config.all({
   ),
   port: Config.Port("T3CODE_PORT").pipe(Config.option, Config.map(Option.getOrUndefined)),
   host: Config.String("T3CODE_HOST").pipe(Config.option, Config.map(Option.getOrUndefined)),
+  dataRoot: Config.String("OZI_DATA_ROOT").pipe(Config.option, Config.map(Option.getOrUndefined)),
   t3Home: Config.String("T3CODE_HOME").pipe(Config.option, Config.map(Option.getOrUndefined)),
   devUrl: Config.URL("VITE_DEV_SERVER_URL").pipe(Config.option, Config.map(Option.getOrUndefined)),
   devAllowedOrigins: Config.String("T3CODE_DEV_ALLOWED_ORIGINS").pipe(
@@ -189,6 +191,7 @@ export interface CliServerFlags {
   readonly mode: Option.Option<ServerConfig.RuntimeMode>;
   readonly port: Option.Option<number>;
   readonly host: Option.Option<string>;
+  readonly dataRoot?: Option.Option<string>;
   readonly baseDir: Option.Option<string>;
   readonly cwd: Option.Option<string>;
   readonly devUrl: Option.Option<URL>;
@@ -215,6 +218,7 @@ export const projectLocationFlags = {
 } as const;
 
 export const sharedServerCommandFlags = {
+  dataRoot: dataRootFlag,
   mode: modeFlag,
   port: portFlag,
   host: hostFlag,
@@ -266,6 +270,7 @@ export const resolveServerConfig = Effect.fn("config.resolveServerConfig")(funct
     mode: flags.mode ?? Option.none(),
     port: flags.port ?? Option.none(),
     host: flags.host ?? Option.none(),
+    dataRoot: flags.dataRoot ?? Option.none(),
     baseDir: flags.baseDir ?? Option.none(),
     cwd: flags.cwd ?? Option.none(),
     devUrl: flags.devUrl ?? Option.none(),
@@ -461,6 +466,11 @@ export const resolveServerConfig = Effect.fn("config.resolveServerConfig")(funct
     cwd,
     baseDir,
     ...derivedPaths,
+    dataRoot: path.resolve(
+      yield* expandHomePath(
+        Option.getOrUndefined(normalizedFlags.dataRoot) ?? env.dataRoot ?? "~/ozi",
+      ),
+    ),
     serverTracePath,
     host,
     staticDir,

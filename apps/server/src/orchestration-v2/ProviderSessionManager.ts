@@ -4,6 +4,7 @@ import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
 import {
   isOrchestrationV2WorkActive,
   ModelSelection,
+  isOziMain,
   OrchestrationV2DomainEvent,
   OrchestrationV2ProviderSession,
   type OrchestrationV2ProviderThread,
@@ -449,11 +450,16 @@ export const layerWithOptions = (
                 // the credential it started with, so a thread that detaches and
                 // re-attaches across a workspace handoff must come back to the
                 // same token or the process's tool calls fail auth.
-                const { browser: browserToolsAvailable, device: deviceToolsAvailable } =
-                  yield* agentAccessSettings(threadId);
+                const thread = (yield* projectionStore
+                  .getThreadRecords(threadId, [])
+                  .pipe(Effect.orDie)).thread;
+                const main = isOziMain(thread);
+                const access = yield* agentAccessSettings(threadId);
+                const browserToolsAvailable = !main && access.browser;
+                const deviceToolsAvailable = !main && access.device;
                 const capabilities = new Set<
                   import("../mcp/McpInvocationContext.ts").McpCapability
-                >(["orchestration", "worktree", "pull-requests"]);
+                >(main ? ["orchestration"] : ["orchestration", "worktree", "pull-requests"]);
                 if (browserToolsAvailable) capabilities.add("preview");
                 if (deviceToolsAvailable) capabilities.add("device");
                 const existing = yield* mcpSessions.read(threadId);
@@ -488,6 +494,7 @@ export const layerWithOptions = (
                 const credential = yield* mcpSessionRegistry.issue({
                   threadId,
                   providerInstanceId,
+                  role: thread.role ?? "worker",
                   browserToolsAvailable,
                   capabilities,
                 });

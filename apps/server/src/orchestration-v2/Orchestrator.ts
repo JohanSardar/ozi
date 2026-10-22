@@ -20,6 +20,9 @@ import {
   ORCHESTRATION_V2_WORKSPACE_PREPARATION_FAILURE_CODE,
   type ChatAttachment,
   CommandId,
+  OZI_MAIN_THREAD_ID,
+  isOziMain,
+  isOziMainSelection,
   isOrchestrationV2WorkActive,
   isProviderNativeSubagentThread,
   MessageId,
@@ -2420,6 +2423,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       createdBy: command.createdBy,
       creationSource: command.creationSource,
       id: command.threadId,
+      role: command.threadId === OZI_MAIN_THREAD_ID ? "main" : "worker",
       projectId: command.projectId,
       title: command.title,
       providerInstanceId: command.modelSelection.instanceId,
@@ -11482,6 +11486,36 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         sequence: receipt.resultSequence,
         storedEvents,
       } satisfies OrchestratorV2DispatchResult;
+    }
+
+    const oziThreadId = commandThreadId(command);
+    const oziThread = yield* projectionStore
+      .getThreadShell(oziThreadId)
+      .pipe(
+        Effect.mapError(
+          (cause) => new OrchestratorProjectionError({ threadId: oziThreadId, cause }),
+        ),
+      );
+    if (oziThread !== null && isOziMain(oziThread)) {
+      const selection = "modelSelection" in command ? command.modelSelection : undefined;
+      if (
+        (selection !== undefined &&
+          command.type !== "delegated_task.request" &&
+          !isOziMainSelection(selection)) ||
+        command.type === "provider.switch" ||
+        (command.type === "thread.metadata.update" &&
+          ((command.worktreePath !== undefined &&
+            command.worktreePath !== oziThread.worktreePath) ||
+            (command.branch !== undefined && command.branch !== oziThread.branch))) ||
+        (oziThread.id === OZI_MAIN_THREAD_ID &&
+          (command.type === "thread.delete" || command.type === "thread.archive"))
+      ) {
+        return yield* new OrchestratorDispatchError({
+          commandId: command.commandId,
+          commandType: command.type,
+          cause: "The main agent loadout and thread are fixed.",
+        });
+      }
     }
 
     // A limited sender checked these modes before dispatching; the thread's

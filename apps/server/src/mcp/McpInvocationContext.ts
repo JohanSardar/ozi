@@ -5,6 +5,7 @@ import {
   OrchestratorMcpFailure,
   PreviewAutomationUnavailableError,
   type ProviderInstanceId,
+  type OziThreadRole,
   type RuntimeMode,
   type ThreadId,
 } from "@t3tools/contracts";
@@ -21,6 +22,7 @@ const ALL_MCP_CAPABILITIES = [
 export type McpCapability = (typeof ALL_MCP_CAPABILITIES)[number];
 
 export interface McpThreadCaller {
+  readonly role?: OziThreadRole;
   readonly threadId: ThreadId;
   readonly providerSessionId: string;
   readonly providerInstanceId: ProviderInstanceId;

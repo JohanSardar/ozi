@@ -1,3 +1,6 @@
+import { prepareLoadout } from "../ozi/Loadout.ts";
+import { mcpTools } from "../ozi/McpTools.ts";
+import { isOziMain } from "@t3tools/contracts";
 import { modelSelectionsEqual } from "@t3tools/shared/model";
 import { projectComposerContextForProvider } from "@t3tools/shared/composerContextReferences";
 import {
@@ -533,9 +536,44 @@ export const layer: Layer.Layer<
       });
       const { isCurrentAttemptInStatus } = runControls;
 
-      const resolvedRuntimePolicy = yield* runtimePolicy.resolve({
+      let resolvedRuntimePolicy = yield* runtimePolicy.resolve({
         thread: projection.thread,
         modelSelection: run.modelSelection,
+      });
+      const prepared = yield* prepareLoadout(
+        serverConfig,
+        projection.thread,
+        run.modelSelection,
+        providerThread.driver,
+        [...mcpTools.keys()],
+      ).pipe(
+        Effect.provideService(FileSystem.FileSystem, fileSystem),
+        Effect.provideService(Path.Path, path),
+      );
+      resolvedRuntimePolicy = {
+        ...resolvedRuntimePolicy,
+        ...(prepared.mainPromptPath === undefined
+          ? {}
+          : { mainPromptPath: prepared.mainPromptPath }),
+      };
+      const loadoutAt = yield* DateTime.now;
+      const currentThread = (yield* projectionStore.getThreadRecords(projection.thread.id, []))
+        .thread;
+      yield* eventSink.write({
+        events: [
+          {
+            id: yield* idAllocator.allocate.event({ threadId: projection.thread.id }),
+            type: "thread.metadata-updated",
+            threadId: projection.thread.id,
+            providerInstanceId: run.providerInstanceId,
+            occurredAt: loadoutAt,
+            payload: {
+              ...currentThread,
+              role: currentThread.role ?? (isOziMain(currentThread) ? "main" : "worker"),
+              effectiveLoadout: prepared.effectiveLoadout,
+            },
+          },
+        ],
       });
       if (!(yield* isCurrentAttemptInStatus("starting"))) return;
       const existingSessionProjection = projection.providerSessions.find(

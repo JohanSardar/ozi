@@ -15,6 +15,7 @@ import { AiError, McpProtocol, McpSchema, McpServer, Tool, Toolkit } from "effec
 import { HttpRouter, HttpServerRequest, HttpServerResponse } from "effect/http";
 import {
   OrchestratorMcpFailure,
+  OZI_MAIN_TOOL_NAMES,
   PreviewAutomationError,
   type RunId,
   ThreadId,
@@ -72,6 +73,21 @@ import {
 } from "./toolkits/device/tools.ts";
 import * as HtmlHandlers from "./toolkits/html/handlers.ts";
 import { HtmlPreviewTool, HtmlPreviewToolkit, HtmlRenderToolkit } from "./toolkits/html/tools.ts";
+import { mcpTools } from "../ozi/McpTools.ts";
+import * as Skills from "../ozi/Skills.ts";
+
+const MainMcpRequest = Schema.Struct({
+  id: Schema.optional(Schema.Unknown),
+  method: Schema.String,
+  params: Schema.optional(
+    Schema.Struct({
+      name: Schema.optional(Schema.String),
+      arguments: Schema.optional(Schema.Record(Schema.String, Schema.Unknown)),
+    }),
+  ),
+});
+
+const mainToolNames: ReadonlySet<string> = new Set(OZI_MAIN_TOOL_NAMES);
 
 const mcpResourceMetadataUrl = (request: HttpServerRequest.HttpServerRequest) =>
   HttpServerRequest.toURL(request).pipe(
@@ -155,6 +171,9 @@ const looksLikeProviderToken = (token: string) => token.length > 0 && !token.inc
 
 const makeMcpAuthMiddleware = Effect.gen(function* () {
   const registry = yield* McpSessionRegistry.McpSessionRegistry;
+  const threadService = yield* Effect.serviceOption(
+    ThreadManagementService.ThreadManagementService,
+  );
   const clients = yield* Effect.serviceOption(McpClientAuthenticator);
   return Effect.fn("McpHttpServer.authenticateRequest")(function* (httpEffect) {
     const request = yield* HttpServerRequest.HttpServerRequest;
@@ -177,6 +196,60 @@ const makeMcpAuthMiddleware = Effect.gen(function* () {
         presentedToken: token.length > 0,
         offerOAuth: Option.isSome(clients) && !looksLikeProviderToken(token),
       });
+    }
+    if (invocation.thread?.role === "main" || invocation.thread?.role === "main-fork") {
+      if (request.method === "POST") {
+        const decoded = yield* request.json.pipe(
+          Effect.flatMap(Schema.decodeUnknownEffect(MainMcpRequest)),
+          Effect.option,
+        );
+        if (Option.isNone(decoded))
+          return HttpServerResponse.jsonUnsafe({ error: "Invalid MCP request." }, { status: 400 });
+        const rpc = decoded.value;
+        const reply = (result: unknown) =>
+          HttpServerResponse.jsonUnsafe({ jsonrpc: "2.0", id: rpc.id, result });
+        const denied = () =>
+          reply({
+            isError: true,
+            content: [{ type: "text", text: "This tool is unavailable to main." }],
+          });
+        if (rpc.method === "tools/list")
+          return reply({
+            tools: [...mcpTools.values()].filter((tool) => mainToolNames.has(tool.name)),
+          });
+        if (rpc.method === "tools/call") {
+          if (!mainToolNames.has(rpc.params?.name ?? "")) return denied();
+          if (Option.isNone(threadService)) return denied();
+          const threads = threadService.value;
+          const args = rpc.params?.arguments ?? {};
+          if (args.bindToCurrentThread === false) return denied();
+          for (const key of ["threadId", "thread", "sourceThreadId", "targetThreadId"]) {
+            const target = args[key];
+            if (typeof target !== "string") continue;
+            let threadId: string | null = target;
+            const visited = new Set<string>();
+            while (
+              threadId !== null &&
+              threadId !== invocation.thread.threadId &&
+              !visited.has(threadId)
+            ) {
+              visited.add(threadId);
+              const shell: import("@t3tools/contracts").OrchestrationV2ThreadShell | null =
+                yield* threads
+                  .getThreadShell(ThreadId.make(threadId))
+                  .pipe(Effect.orElseSucceed(() => null));
+              threadId = shell?.lineage.parentThreadId ?? null;
+            }
+            if (threadId !== invocation.thread.threadId) return denied();
+          }
+        } else if (
+          rpc.method !== "initialize" &&
+          rpc.method !== "ping" &&
+          !rpc.method.startsWith("notifications/")
+        ) {
+          return denied();
+        }
+      }
     }
     return yield* httpEffect.pipe(
       Effect.provideService(McpInvocationContext.McpInvocationContext, invocation),
@@ -827,8 +900,16 @@ const withToolAnalytics =
   /* Request instrumentation already owns the span; keep this helper in that context. */
   Effect.fnUntraced(function* <A, E, R>(registration: Effect.Effect<A, E, R>) {
     const server = yield* McpServer.McpServer;
+    const catalogServer = McpServer.McpServer.of({
+      ...server,
+      addTool: (options) =>
+        Effect.sync(() => {
+          mcpTools.set(options.tool.name, options.tool);
+        }).pipe(Effect.andThen(server.addTool(options))),
+    });
     const analytics = yield* Effect.serviceOption(AnalyticsService.AnalyticsService);
-    if (Option.isNone(analytics)) return yield* registration;
+    if (Option.isNone(analytics))
+      return yield* registration.pipe(Effect.provideService(McpServer.McpServer, catalogServer));
     const registry = yield* Effect.serviceOption(ProviderRegistry.ProviderRegistry);
     const threads = yield* Effect.serviceOption(ThreadManagementService.ThreadManagementService);
     const shellOf = (threadId: string) =>
@@ -931,7 +1012,7 @@ const withToolAnalytics =
     const recordingServer = McpServer.McpServer.of({
       ...server,
       addTool: (options) =>
-        server.addTool({
+        catalogServer.addTool({
           ...options,
           handle:
             /* Request instrumentation already owns the span; keep this helper in that context. */
@@ -1066,6 +1147,7 @@ export const layerMcpTransport = McpServer.layerHttp({
 }).pipe(Layer.provide(layerMcpAuthMiddleware));
 
 export const layer = Layer.mergeAll(
+  toolkitRegistration(Skills.SkillToolkit, Skills.layer),
   layerPreviewToolkit,
   layerOrchestratorToolkit,
   layerThreadToolkit,

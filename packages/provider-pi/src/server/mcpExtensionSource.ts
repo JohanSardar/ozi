@@ -347,9 +347,10 @@ export default async function t3McpExtension(pi: ExtensionAPI) {
 
   // Tool exposure arrived with registerMcpServer in Pi 0.99. Keep the HTTP
   // bridge as the credential owner: mcp.json overrides native registrations.
+  const mainPromptPath = process.env.OZI_MAIN_PROMPT_PATH;
   const supportsExposure = "registerMcpServer" in pi && typeof pi.registerMcpServer === "function";
   const directTools = new Set(["orchestrator_capabilities", "delegate_task", "task_status"]);
-  let deferOptionalTools = supportsExposure;
+  let deferOptionalTools = supportsExposure && !mainPromptPath;
   let catalog: ReadonlyArray<McpTool> = [];
 
   const client = createMcpClient(endpoint, token);
@@ -416,6 +417,10 @@ export default async function t3McpExtension(pi: ExtensionAPI) {
   await ensureStarted().catch(() => undefined);
 
   const reconcileDiscovery = (ctx: Pick<ExtensionContext, "model">) => {
+    if (mainPromptPath) {
+      pi.setActiveTools(catalog.map((tool) => "mcp__t3-code__" + tool.name));
+      return;
+    }
     if (!supportsExposure) return;
     // A disabled or replaced search builtin cannot discover deferred tools.
     const hasToolSearch = hasBuiltinToolSearch();
@@ -449,8 +454,9 @@ export default async function t3McpExtension(pi: ExtensionAPI) {
   });
 
   // Keep guidance in the system prompt so leading slash commands still expand.
-  pi.on("before_agent_start", (event, ctx) => {
+  pi.on("before_agent_start", async (event, ctx) => {
     reconcileDiscovery(ctx);
+    if (mainPromptPath) return { systemPrompt: await NodeFSP.readFile(mainPromptPath, "utf8") };
     const sections = event.systemPromptOptions?.sections;
     if (sections && typeof sections === "object" && event.systemPromptOptions?.forceSystemPrompt === undefined) {
       // A full prompt override bypasses Pi's later section rendering.

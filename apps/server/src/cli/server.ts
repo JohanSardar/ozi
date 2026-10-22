@@ -34,9 +34,9 @@ const runServerCommand = Effect.fn("server.runServerCommand")(function* (
   );
 });
 
-export const runDefaultServerCommand = Effect.fn("server.runDefaultServerCommand")(function* (
-  flags: CliServerFlags,
-) {
+export const runDefaultServerCommand = Effect.fn("server.runDefaultServerCommand")(function* <
+  Flags extends CliServerFlags,
+>(flags: Flags) {
   if (Option.isSome(flags.cwd)) {
     const cwd = flags.cwd.value.trim();
     const fs = yield* FileSystem.FileSystem;

@@ -1,5 +1,6 @@
 import {
   ContextTransferId,
+  isOziMain,
   OrchestrationV2Actor,
   OrchestrationV2AppThread,
   OrchestrationV2ContextSourcePoint,
@@ -84,6 +85,7 @@ export const layer: Layer.Layer<ThreadForkServiceV2> = Layer.succeed(
       }
       const targetThread: OrchestrationV2AppThread = {
         ...input.sourceProjection.thread,
+        role: isOziMain(input.sourceProjection.thread) ? "main-fork" : "worker",
         // PR context follows the conversation; watching remains the source thread's responsibility.
         pullRequests: input.sourceProjection.thread.pullRequests?.map(
           ({ watch: _watch, ...link }) => link,

@@ -1,4 +1,4 @@
-import { ProviderInstanceId, ThreadId } from "@t3tools/contracts";
+import { ProviderInstanceId, ThreadId, type OziThreadRole } from "@t3tools/contracts";
 import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
 import * as Crypto from "effect/Crypto";
@@ -13,6 +13,7 @@ import * as McpInvocationContext from "./McpInvocationContext.ts";
 import * as McpProviderSession from "@t3tools/provider-core/server/mcpSession";
 
 export interface McpCredentialRequest {
+  readonly role?: OziThreadRole;
   readonly threadId: ThreadId;
   readonly providerInstanceId: ProviderInstanceId;
   /**
@@ -106,6 +107,7 @@ const makeWithOptions = Effect.fn("McpSessionRegistry.make")(function* (
         environmentId,
         requestNamespace: providerSessionId,
         thread: {
+          ...(request.role === undefined ? {} : { role: request.role }),
           threadId: ThreadId.make(request.threadId),
           providerSessionId,
           providerInstanceId: ProviderInstanceId.make(request.providerInstanceId),
@@ -113,8 +115,9 @@ const makeWithOptions = Effect.fn("McpSessionRegistry.make")(function* (
         client: undefined,
         capabilities: new Set<McpInvocationContext.McpCapability>([
           "orchestration",
-          "worktree",
-          "pull-requests",
+          ...(request.role === "main" || request.role === "main-fork"
+            ? []
+            : (["worktree", "pull-requests"] as const)),
           ...(request.capabilities ?? (browserToolsAvailable ? (["preview"] as const) : [])),
         ]),
         issuedAt,
@@ -126,6 +129,7 @@ const makeWithOptions = Effect.fn("McpSessionRegistry.make")(function* (
       });
       return {
         config: {
+          ...(request.role === undefined ? {} : { role: request.role }),
           environmentId,
           threadId: scope.thread.threadId,
           providerSessionId,

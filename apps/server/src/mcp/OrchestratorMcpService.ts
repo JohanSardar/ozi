@@ -1,3 +1,4 @@
+import { isOziMain, OZI_WORKER_SELECTION } from "@t3tools/contracts";
 import {
   CommandId,
   type RunId,
@@ -2070,7 +2071,17 @@ const make = Effect.gen(function* () {
       const isRetryOfAcceptedDelegation = yield* threadManagement.hasReceipt(commandId);
       const target = yield* resolveTargetRechecking({
         parent,
-        target: input.target,
+        target:
+          isOziMain(parent.thread) &&
+          input.target?.providerInstanceId === undefined &&
+          input.target?.driverKind === undefined &&
+          input.target?.model === undefined
+            ? {
+                providerInstanceId: OZI_WORKER_SELECTION.instanceId,
+                model: OZI_WORKER_SELECTION.model,
+                options: input.target?.options ?? OZI_WORKER_SELECTION.options,
+              }
+            : input.target,
         providers,
         skipProjectEnablementFilter: isRetryOfAcceptedDelegation,
       });
@@ -2084,6 +2095,8 @@ const make = Effect.gen(function* () {
         input.interactionMode,
       );
       let workspaceStrategy: OrchestrationV2ThreadLaunchWorkspaceStrategy | undefined;
+      if (isOziMain(parent.thread) && input.isolation === "worktree")
+        return yield* failure("invalid_request", "Main delegates in the shared workspace.");
       if (input.isolation === "worktree" && !isRetryOfAcceptedDelegation) {
         const project = yield* requireProject(parent.thread.projectId);
         const base = yield* gitDriver

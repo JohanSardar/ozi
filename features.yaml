@@ -48,18 +48,18 @@ features:
     status: planned
   - id: main-loadout
     reqs: [main-pi, prompt, main-delegates, does-it-itself]
-    module: main
+    module: ozi/Loadout.ts
     cli: [status, thread]
     milestone: 1
     scenarios: [m1.main-loadout, m1.main-cannot-execute]
-    status: planned
+    status: building
   - id: delegation
     reqs: [workers, firstmate, other-machines, main-delegates]
     module: main
     cli: [say, thread]
     milestone: 1
     scenarios: [m1.delegate-async, m1.responsive, m1.worker-choice]
-    status: planned
+    status: building
   - id: chat-controls
     reqs: [t3-keep]
     module: server
@@ -69,11 +69,11 @@ features:
     status: planned
   - id: skills
     reqs: [prompt, info-tools]
-    module: main
+    module: ozi/Skills.ts
     cli: [say]
     milestone: 1
     scenarios: [m1.read-skill]
-    status: planned
+    status: building
   - id: remote-client
     reqs: [desktop-remote]
     module: web

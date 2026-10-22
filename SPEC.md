@@ -17,7 +17,7 @@ Ozi is an agent runtime for anyone. You talk to one main agent; it delegates rea
 - **Replay**: rerun of the user's message before a mistake, on a branch, with stubbed effects, judged by an **observer**.
 - **Fix**: a change to the data root that passed replay; one local git commit. **Undo** reverts it.
 - **Protected**: `protected/` in the data root. Repair can't change it; the user can, by asking.
-- **Data root**: a git repo (default `~/ozi`) holding `prompt.md`, `skills/`, `protected/`. Never in the code repo.
+- **Data root**: a git repo (`--data-root`, `OZI_DATA_ROOT`, default `~/ozi`) holding `prompt.md`, optional `adhd.md`, `skills/`, `protected/`. Never in the code repo.
 - **Home**: server state directory (default `~/.ozi`), holding SQLite.
 - **To-do**: a user task from an external MCP source, shown read-only.
 
@@ -51,9 +51,14 @@ New code lives in `apps/server/src/ozi/` and `apps/web/src/components/ozi/`. Eve
 
 ## Main agent
 
-- Prompt: `prompt.md` from the data root, verbatim, `{{ADHD}}` replaced by `adhd.md` if present, else empty. ≤400 words.
+- Startup creates the sole main thread, `ozi-main`, in a Workspace project rooted at `<home>/workspace`. Main delegates in that workspace.
+- Thread projections and shells expose `role: "main" | "main-fork" | "worker"` and `effectiveLoadout: {provider, model, options: [{id, value}], toolNames, systemPromptSha256}`. Tool names describe the injected MCP catalog; the hash covers the server-owned prompt. Main forks retain the restricted loadout with role `main-fork`.
+- Main selections are fixed on launch, resume and fork: Pi `anthropic/claude-opus-5-5`, `thinking: high`, `fastMode: false`. Unavailable selections fail. Main cannot change workspace, provider or model, or archive/delete itself.
+- Pi main disables built-in tools, extension/skill/context/prompt-template discovery, and loads only the injected MCP bridge. The server checks the role allowlist on tool calls and limits thread targets to main's own descendants.
+- Prompt: `prompt.md` from the data root, verbatim, `{{ADHD}}` replaced by `adhd.md` if present, else empty. ≤400 words. Reread at each turn; edits apply on the next turn.
 - Tools: delegation, steer/queue/stop, schedules, secrets, job handling, `log_mistake`, `read_skill(name)`. No shell, files, browser or ambient extensions.
-- Skills: `skills/<name>/SKILL.md` in the data root, read on demand.
+- Skills: `read_skill(name)` reads `skills/<name>/SKILL.md` on demand. Unknown names and path or symlink escapes fail.
+- Default main delegation: Codex `gpt-6.1-sol`, `reasoningEffort: xhigh`, `serviceTier: priority`. Workers receive one short role instruction to finish their brief, use available tools, handle computer-solvable interactions, ask only for missing decisions or human-only actions, avoid CAPTCHA solvers, and report plainly.
 
 ## CLI
 

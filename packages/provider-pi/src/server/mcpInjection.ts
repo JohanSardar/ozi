@@ -249,6 +249,8 @@ export function buildPiRpcLaunch(input: {
   readonly ephemeral?: boolean;
   readonly disableExtensions?: boolean;
   readonly disableTools?: boolean;
+  readonly mainPromptPath?: string;
+  readonly mainSystemPrompt?: string;
   readonly runtimeMode?: "approval-required" | "auto-accept-edits" | "auto" | "full-access";
 }): {
   readonly args: ReadonlyArray<string>;
@@ -271,7 +273,23 @@ export function buildPiRpcLaunch(input: {
       : input.sessionPath !== undefined
         ? ["--session", input.sessionPath]
         : []),
-    ...launchArgs,
+    ...(input.mainPromptPath === undefined
+      ? launchArgs
+      : [
+          "--provider",
+          "anthropic",
+          "--model",
+          "claude-opus-5-5",
+          "--thinking",
+          "high",
+          "--no-tools",
+          "--no-extensions",
+          "--no-skills",
+          "--no-context-files",
+          "--no-prompt-templates",
+          "--system-prompt",
+          input.mainSystemPrompt ?? "",
+        ]),
     // Restrictions follow user launch args so a configured --tools or
     // --extension cannot silently re-enable unattended text-generation code.
     ...(input.disableExtensions === true ? ["--no-extensions"] : []),
@@ -290,11 +308,13 @@ export function buildPiRpcLaunch(input: {
   delete environment[T3_MCP_URL_ENV];
   delete environment[T3_MCP_BEARER_ENV];
   delete environment[T3_PI_MCP_EXTENSION_PATH_ENV];
+  delete environment.OZI_MAIN_PROMPT_PATH;
 
   return {
     args,
     env: {
       ...environment,
+      ...(input.mainPromptPath === undefined ? {} : { OZI_MAIN_PROMPT_PATH: input.mainPromptPath }),
       ...(hasT3Extension && input.extensionPath !== undefined
         ? { [T3_PI_MCP_EXTENSION_PATH_ENV]: input.extensionPath }
         : {}),

@@ -1,15 +1,13 @@
 import {
   CommandId,
-  DEFAULT_MODEL,
-  DEFAULT_PROVIDER_INTERACTION_MODE,
+  OZI_MAIN_THREAD_ID,
+  OZI_MAIN_SELECTION,
   DEFAULT_SERVER_SETTINGS,
   type ModelSelection,
   type Project,
   ProjectId,
-  ProviderInstanceId,
   ThreadId,
 } from "@t3tools/contracts";
-import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
 import * as Cause from "effect/Cause";
 import * as Console from "effect/Console";
 import * as Context from "effect/Context";
@@ -19,7 +17,13 @@ import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Fiber from "effect/Fiber";
+import * as FileSystem from "effect/FileSystem";
+import { prepareLoadout } from "./ozi/Loadout.ts";
+import * as EventSink from "./orchestration-v2/EventSink.ts";
+import * as IdAllocator from "@t3tools/provider-core/server/IdAllocator";
 import * as Layer from "effect/Layer";
+import * as Option from "effect/Option";
+import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
 import * as Path from "effect/Path";
 import * as Queue from "effect/Queue";
 import * as Ref from "effect/Ref";
@@ -178,10 +182,7 @@ const recordStartupHeartbeat = Effect.gen(function* () {
   yield* analytics.recordOwners(yield* getServerOwners, "server");
 });
 
-export const getAutoBootstrapThreadModelSelection = (): ModelSelection => ({
-  instanceId: ProviderInstanceId.make("codex"),
-  model: DEFAULT_MODEL,
-});
+export const getAutoBootstrapThreadModelSelection = (): ModelSelection => OZI_MAIN_SELECTION;
 
 interface AutoBootstrapWelcomeTargets {
   readonly bootstrapProjectId?: ProjectId;
@@ -268,66 +269,61 @@ const resolveAutoBootstrapWelcomeTargets = Effect.gen(function* () {
   const threadLaunch = yield* ThreadLaunch.ThreadLaunchService;
   const path = yield* Path.Path;
 
-  let bootstrapProjectId: ProjectId | undefined;
-  let bootstrapThreadId: ThreadId | undefined;
-
-  if (serverConfig.autoBootstrapProjectFromCwd) {
-    const threadModelSelection = getAutoBootstrapThreadModelSelection();
-    const { project } = yield* projects.bootstrap({
+  const fsOption = yield* Effect.serviceOption(FileSystem.FileSystem);
+  const eventOption = yield* Effect.serviceOption(EventSink.EventSinkV2);
+  const idsOption = yield* Effect.serviceOption(IdAllocator.IdAllocatorV2);
+  if (Option.isNone(fsOption) || Option.isNone(eventOption) || Option.isNone(idsOption))
+    return yield* Effect.die("Ozi startup services unavailable.");
+  const fs = fsOption.value;
+  const workspaceRoot = path.join(serverConfig.baseDir, "workspace");
+  yield* fs.makeDirectory(workspaceRoot, { recursive: true });
+  const { project } = yield* projects.bootstrap({
+    commandId: CommandId.make(yield* randomUUID),
+    projectId: ProjectId.make(yield* randomUUID),
+    title: "Workspace",
+    workspaceRoot,
+  });
+  const shell = yield* threads.getShellSnapshot();
+  if (!shell.threads.some((thread) => thread.id === OZI_MAIN_THREAD_ID)) {
+    yield* threadLaunch.launch({
       commandId: CommandId.make(yield* randomUUID),
-      projectId: ProjectId.make(yield* randomUUID),
-      title: path.basename(serverConfig.cwd) || "project",
-      workspaceRoot: serverConfig.cwd,
+      threadId: OZI_MAIN_THREAD_ID,
+      projectId: project.id,
+      title: "Ozi",
+      modelSelection: getAutoBootstrapThreadModelSelection(),
+      interactionMode: "default",
+      runtimeMode: "full-access",
+      workspaceStrategy: { type: "root" },
+      createdBy: "system",
+      creationSource: "server",
     });
-    const shell = yield* threads.getShellSnapshot();
-    const existingThread = shell.threads.find(
-      (thread) =>
-        thread.projectId === project.id && thread.lineage.relationshipToParent !== "subagent",
-    );
-    if (existingThread === undefined) {
-      const serverSettings = yield* ServerSettings.ServerSettingsService;
-      const settings = yield* serverSettings.getSettings;
-      const launched = yield* threadLaunch
-        .launch({
-          commandId: CommandId.make(yield* randomUUID),
-          projectId: project.id,
-          title: "New thread",
-          modelSelection:
-            resolveProjectSettings(settings, project.id, project).settings.defaultModelSelection ??
-            threadModelSelection,
-          interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
-          runtimeMode: resolveProjectSettings(settings, project.id, project).settings
-            .defaultRuntimeMode,
-          workspaceStrategy: { type: "root" },
-          createdBy: "system",
-          creationSource: "server",
-        })
-        .pipe(
-          // The bootstrap thread is optional; its launch must not prevent opening the app.
-          Effect.catchTags({
-            ThreadManagementProviderInstanceDisabledError: (error) =>
-              Effect.logInfo("Skipped bootstrap thread because its provider instance is disabled", {
-                projectId: project.id,
-                instanceId: error.instanceId,
-              }).pipe(Effect.as(undefined)),
-            ThreadLaunchError: (error) =>
-              Effect.logWarning("Failed to launch bootstrap thread", {
-                projectId: project.id,
-                operation: error.operation,
-              }).pipe(Effect.as(undefined)),
-          }),
-        );
-      bootstrapProjectId = project.id;
-      bootstrapThreadId = launched?.threadId;
-    } else {
-      bootstrapProjectId = project.id;
-      bootstrapThreadId = existingThread.id;
-    }
   }
-
+  const projection = yield* threads.getThreadRecords(OZI_MAIN_THREAD_ID, []);
+  const loadout = yield* prepareLoadout(
+    serverConfig,
+    projection.thread,
+    OZI_MAIN_SELECTION,
+    "pi",
+    [],
+  ).pipe(Effect.provideService(FileSystem.FileSystem, fs), Effect.provideService(Path.Path, path));
+  const events = eventOption.value;
+  const ids = idsOption.value;
+  const now = yield* DateTime.now;
+  yield* events.write({
+    events: [
+      {
+        id: yield* ids.allocate.event({ threadId: OZI_MAIN_THREAD_ID }),
+        type: "thread.metadata-updated",
+        threadId: OZI_MAIN_THREAD_ID,
+        providerInstanceId: OZI_MAIN_SELECTION.instanceId,
+        occurredAt: now,
+        payload: { ...projection.thread, role: "main", effectiveLoadout: loadout.effectiveLoadout },
+      },
+    ],
+  });
   return {
-    ...(bootstrapProjectId ? { bootstrapProjectId } : {}),
-    ...(bootstrapThreadId ? { bootstrapThreadId } : {}),
+    bootstrapProjectId: project.id,
+    bootstrapThreadId: OZI_MAIN_THREAD_ID,
   } satisfies AutoBootstrapWelcomeTargets;
 });
 
@@ -563,13 +559,10 @@ const make = Effect.fn("serverRuntimeStartup.make")(function* (options?: Startup
           workerFiberRef: effectWorkerFiber,
         }),
       ),
-      autoBootstrap: (serverConfig.autoBootstrapProjectFromCwd
-        ? runStartupPhase(
-            "welcome.autobootstrap",
-            resolveAutoBootstrapWelcomeTargets.pipe(Effect.provideService(Crypto.Crypto, crypto)),
-          )
-        : Effect.succeed({})
-      ).pipe(Effect.map((targets): AutoBootstrapWelcomeTargets => targets)),
+      autoBootstrap: runStartupPhase(
+        "welcome.autobootstrap",
+        resolveAutoBootstrapWelcomeTargets.pipe(Effect.provideService(Crypto.Crypto, crypto)),
+      ),
     });
     yield* Effect.logInfo("V2 orchestration recovery completed", recovery);
     // Runs after activation: the status check fetches every enabled project's
