@@ -305,19 +305,11 @@ export function createEnvironmentSummaryAtoms(input: {
     );
     return previous !== null && mapsEqual(previous, next) ? previous : next;
   });
-  const pullRequestsSupportedAtom = Atom.make((get) =>
-    get(environmentIdsAtom).some(
-      (environmentId) =>
-        get(input.presentationAtom(environmentId))?.serverConfig?.environment.capabilities
-          .pullRequests === true,
-    ),
-  );
   return {
     environmentIdsAtom,
     connectedEnvironmentIdsAtom,
     identitiesAtom,
     environmentsAtom,
     machineByIdAtom,
-    pullRequestsSupportedAtom,
   };
 }

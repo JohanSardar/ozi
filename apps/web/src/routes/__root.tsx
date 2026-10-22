@@ -70,11 +70,6 @@ function EnvironmentThemeSync() {
 
 function ContrastAppearanceSync() {
   const appearanceContrast = useClientSettings((settings) => settings.appearanceContrast);
-  const diffColorScheme = useClientSettings((settings) => settings.diffColorScheme);
-
-  useEffect(() => {
-    document.documentElement.dataset.diffColorScheme = diffColorScheme;
-  }, [diffColorScheme]);
 
   const chatWidth = useClientSettings((settings) => settings.chatWidth);
   useEffect(() => {

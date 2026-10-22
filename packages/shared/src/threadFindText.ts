@@ -20,7 +20,6 @@ import {
   inlineCodeFilePathCandidate,
   resolveMarkdownFileLinkTarget,
 } from "./markdownLinks.ts";
-import { upgradeLegacyContextMessage } from "./composerContextLegacy.ts";
 import { parseComposerContextHref } from "./composerContextReferences.ts";
 import { assistantCitationLabel, parseAssistantCitationHref } from "./assistantCitations.ts";
 import type { OrchestrationV2ConversationMessage } from "@t3tools/contracts";
@@ -216,7 +215,7 @@ export function searchableMessageSegments(
   skills: readonly InlineSkill[] = [],
 ): readonly string[] | null {
   if (message.role === "user") {
-    const text = message.context ? message.text : upgradeLegacyContextMessage(message.text).text;
+    const text = message.text;
     return markdownThreadFindText(text, true, cwd, skills);
   }
   if (message.role !== "assistant") return null;

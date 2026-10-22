@@ -1,4 +1,5 @@
-"use client";
+import { setActivePreviewTab } from "~/previewStateStore";
+("use client");
 
 import { scopeThreadRef, scopedThreadKey } from "@t3tools/client-runtime/environment";
 import { settlePromise } from "@t3tools/client-runtime/state/runtime";
@@ -58,7 +59,6 @@ import {
   usePreviewMiniPlayerStore,
 } from "~/previewMiniPlayerStore";
 import { readEnvironmentScope, useEnvironmentScope } from "~/state/session";
-import { useRightPanelStore } from "~/rightPanelStore";
 
 import { previewBridge } from "./previewBridge";
 import { subscribePreviewAction } from "./previewActionBus";
@@ -454,7 +454,7 @@ export function PreviewView({
       });
       return;
     }
-    useRightPanelStore.getState().openBrowser(threadRef, result.value.tabId);
+    setActivePreviewTab(threadRef, result.value.tabId);
     await closePreviewSession({ closePreview, snapshot, tabId, threadRef });
   };
 
@@ -465,7 +465,6 @@ export function PreviewView({
       return;
     }
     usePreviewMiniPlayerStore.getState().open(threadRef, browserMiniPlayerSource(tabId));
-    useRightPanelStore.getState().close(threadRef);
   };
 
   const desktopCall = (op: ((tabId: string) => Promise<void>) | undefined) => () => {

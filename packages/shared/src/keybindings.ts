@@ -199,7 +199,6 @@ export const DEFAULT_KEYBINDINGS: ReadonlyArray<KeybindingRule> = [
   { key: "mod+shift+x", command: "composer.workspace" },
   { key: "mod+shift+g", command: "composer.branch" },
   { key: "mod+shift+l", command: "composer.previousWorktree" },
-  { key: "mod+shift+k", command: "pullRequest.copyNumber" },
   { key: "mod+shift+arrowup", command: "modelPicker.previousProvider", when: "modelPickerOpen" },
   { key: "mod+shift+arrowdown", command: "modelPicker.nextProvider", when: "modelPickerOpen" },
   { key: "mod+o", command: "editor.openFavorite" },

@@ -229,10 +229,6 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
   --color-update-surface: var(--update-surface);
   --color-success-foreground: var(--success-foreground);
   --color-success: var(--success);
-  --color-diff-addition: var(--diff-addition);
-  --color-diff-deletion: var(--diff-deletion);
-  --color-diff-addition-foreground: var(--diff-addition-foreground);
-  --color-diff-deletion-foreground: var(--diff-deletion-foreground);
   --color-info-foreground: var(--info-foreground);
   --color-info: var(--info);
   --color-destructive-foreground: var(--destructive-foreground);
@@ -1544,16 +1540,6 @@ code {
   font-size: var(--font-size-code, inherit);
 }
 
-/* @pierre/diffs surfaces (diffs, file previews, annotatable code, search
-   lines) render inside shadow roots but consult these hooks with their own
-   literal stacks as fallback. Custom properties inherit across the shadow
-   boundary, so defining them once here routes every code surface through the
-   appearance font tokens. */
-:root {
-  --diffs-font-family: var(--font-mono);
-  --diffs-header-font-family: var(--font-sans);
-}
-
 /* Window drag region (frameless titlebar) */
 .drag-region {
   -webkit-app-region: drag;
@@ -1984,13 +1970,6 @@ code {
   overflow: visible;
 }
 
-:root {
-  --diff-addition: var(--success);
-  --diff-deletion: var(--destructive);
-  --diff-addition-foreground: light-dark(var(--color-emerald-600), var(--color-emerald-400));
-  --diff-deletion-foreground: light-dark(var(--color-red-600), var(--color-red-400));
-}
-
 /* Chat width setting. Comfortable keeps the default --chat-content-max-width,
    which sizes the timeline lane, the composer, and ChatCanvas's width probe. */
 :root[data-chat-width="wide"] {
@@ -1999,48 +1978,6 @@ code {
 
 :root[data-chat-width="full"] {
   --chat-content-max-width: 100%;
-}
-
-:root[data-diff-color-scheme="blue-orange"] {
-  --diff-addition: light-dark(var(--color-blue-600), var(--color-blue-400));
-  --diff-deletion: light-dark(var(--color-orange-600), var(--color-orange-400));
-  --diff-addition-foreground: var(--diff-addition);
-  --diff-deletion-foreground: var(--diff-deletion);
-  --diffs-addition-color-override: var(--diff-addition);
-  --diffs-deletion-color-override: var(--diff-deletion);
-  --trees-status-added-override: var(--diff-addition);
-  --trees-status-deleted-override: var(--diff-deletion);
-  --trees-status-untracked-override: var(--diff-addition);
-  --trees-git-added-color-override: var(--diff-addition);
-  --trees-git-deleted-color-override: var(--diff-deletion);
-  --trees-git-untracked-color-override: var(--diff-addition);
-}
-
-.diff-render-surface diffs-container {
-  border: 0;
-  border-radius: 0;
-  overflow: clip;
-  background: var(--code-background);
-  color: var(--code-foreground);
-}
-
-/* Pierre's find panel and match highlights read these. */
-.diff-render-surface {
-  --diffs-search-panel-bg: var(--popover);
-  --diffs-search-panel-fg: var(--popover-foreground);
-  --diffs-search-panel-accent: var(--primary);
-  --diffs-search-panel-font: var(--font-sans);
-}
-
-/* Pierre's file renderer owns its own surface tokens. Keep the root of a file
-   preview on the same themeable code surface as the diff panel. */
-.diff-render-surface diffs-container,
-.file-preview-virtualizer diffs-container {
-  --diffs-bg: var(--code-background) !important;
-  --diffs-light-bg: var(--code-background) !important;
-  --diffs-dark-bg: var(--code-background) !important;
-  background-color: var(--code-background) !important;
-  color: var(--code-foreground) !important;
 }
 
 .ultrathink-frame {

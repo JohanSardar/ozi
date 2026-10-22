@@ -5,7 +5,6 @@ import {
   CommandId,
   ContextTransferId,
   EventId,
-  MessageId,
   type ModelSelection,
   NodeId,
   type OrchestrationV2AppThread,
@@ -22,19 +21,16 @@ import {
 } from "@t3tools/contracts";
 import * as DateTime from "effect/DateTime";
 import * as Deferred from "effect/Deferred";
-import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
-import * as Queue from "effect/Queue";
 import * as Ref from "effect/Ref";
 import * as Scheduler from "effect/Scheduler";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
-import * as TestClock from "effect/testing/TestClock";
 import * as Tracer from "effect/Tracer";
 import * as SqlClient from "effect/sql/SqlClient";
 import * as Statement from "effect/sql/Statement";
@@ -50,8 +46,6 @@ import * as EventStore from "./EventStore.ts";
 import * as IdAllocator from "@t3tools/provider-core/server/IdAllocator";
 import * as ProjectionMaintenance from "./ProjectionMaintenance.ts";
 import * as ProjectionStore from "./ProjectionStore.ts";
-import * as ProjectStore from "./ProjectStore.ts";
-import * as TurnItemPositionStore from "./TurnItemPositionStore.ts";
 
 const isLiveStreamBufferError = Schema.is(LiveStreamBufferError);
 const encodeJson = Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown));
@@ -69,7 +63,6 @@ const layerEffectOutboxProvided = EffectOutbox.layer.pipe(Layer.provide(layerDat
 const layerCommandReceiptStoreProvided = CommandReceiptStore.layer.pipe(
   Layer.provide(layerDatabase),
 );
-const layerIsolatedOutbox = Layer.fresh(EffectOutbox.layer.pipe(Layer.provideMerge(layerDatabase)));
 const layerProjectionMaintenanceProvided = ProjectionMaintenance.layer.pipe(
   Layer.provide(layerStoresProvided),
 );

@@ -6,7 +6,6 @@ import {
   PROVIDER_SEND_TURN_MAX_IMAGE_BYTES,
   PROVIDER_SEND_TURN_SUPPORTED_IMAGE_MIME_TYPES,
 } from "./chatAttachment.ts";
-import { ProjectFaviconPath } from "./project.ts";
 import { ToolActivityNativeAppReference } from "./providerRuntime.ts";
 
 const ASSET_PATH_MAX_LENGTH = 1024;
@@ -38,21 +37,8 @@ export const AssetResource = Schema.Union([
     itemId: TurnItemId,
     index: NonNegativeInt,
   }),
-  Schema.TaggedStruct("project-favicon", {
-    cwd: TrimmedNonEmptyString.check(Schema.isMaxLength(ASSET_PATH_MAX_LENGTH)),
-    // A cache-key hint only. The server reads the authoritative path from the
-    // project projection before it issues the signed URL.
-    path: Schema.optional(ProjectFaviconPath),
-  }),
   Schema.TaggedStruct("native-app-icon", {
     app: ToolActivityNativeAppReference,
-  }),
-  // An upload a pull request body points at on GitHub. A private repository serves these only
-  // to a request that carries a credential, which the client has none of, so the server fetches
-  // them with the `gh` credential the repository at `cwd` authenticates with.
-  Schema.TaggedStruct("github-media", {
-    cwd: TrimmedNonEmptyString.check(Schema.isMaxLength(ASSET_PATH_MAX_LENGTH)),
-    url: TrimmedNonEmptyString.check(Schema.isMaxLength(2048)),
   }),
 ]);
 export type AssetResource = typeof AssetResource.Type;

@@ -1,7 +1,6 @@
 import {
   OrchestrationV2ThreadShell,
   RepositoryIdentity,
-  ThreadPullRequestLink,
   type OrchestrationProjectShell,
   type OrchestrationV2ShellSnapshot,
   type OrchestrationV2ShellStreamItem,
@@ -9,17 +8,9 @@ import {
 import * as Schema from "effect/Schema";
 
 const sameThreadShell = Schema.toEquivalence(OrchestrationV2ThreadShell);
-const sameLinks = Schema.toEquivalence(Schema.UndefinedOr(Schema.Array(ThreadPullRequestLink)));
 const sameRepositoryIdentity = Schema.toEquivalence(
   Schema.UndefinedOr(Schema.NullOr(RepositoryIdentity)),
 );
-
-export function sameThreadPullRequests(
-  left: OrchestrationV2ThreadShell["pullRequests"],
-  right: OrchestrationV2ThreadShell["pullRequests"],
-): boolean {
-  return left === right || sameLinks(left, right);
-}
 
 /**
  * Links are compared apart from the rest of the row because a deferred snapshot arrives without
@@ -35,10 +26,7 @@ export function reuseUnchangedThreadShells(
   const threads = next.threads.map((thread) => {
     const prior = previousById.get(thread.id);
     if (prior === undefined) return thread;
-    const candidate =
-      thread.pullRequests === undefined && prior.pullRequests !== undefined
-        ? { ...thread, pullRequests: prior.pullRequests }
-        : thread;
+    const candidate = thread;
     const retained = sameThreadShell(prior, candidate) ? prior : candidate;
     if (retained !== thread) changed = true;
     return retained;

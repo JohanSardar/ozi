@@ -111,7 +111,6 @@ export type BrowserDefaultSettings = Pick<
   | "browserSearchEngine"
   | "browserCustomSearchUrl"
   | "browserAutoShowFloatingPreview"
-  | "pullRequestLinksOpenInApp"
 >;
 
 function isSamePreviewViewport(
@@ -155,9 +154,6 @@ export function getChangedBrowserSettingLabels(settings: BrowserDefaultSettings)
     ...(settings.browserAutoShowFloatingPreview !==
     DEFAULT_UNIFIED_SETTINGS.browserAutoShowFloatingPreview
       ? ["Floating preview"]
-      : []),
-    ...(settings.pullRequestLinksOpenInApp !== DEFAULT_UNIFIED_SETTINGS.pullRequestLinksOpenInApp
-      ? ["Open pull requests in Ozi"]
       : []),
   ];
 }

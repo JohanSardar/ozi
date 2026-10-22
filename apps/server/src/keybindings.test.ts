@@ -2,11 +2,9 @@ import { KeybindingCommand, KeybindingRule, KeybindingsConfig } from "@t3tools/c
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import { assertFailure } from "@effect/vitest/utils";
-import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
-import * as Logger from "effect/Logger";
 import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 import * as ServerConfig from "./config.ts";
@@ -17,12 +15,6 @@ import * as HostProcess from "@t3tools/shared/HostProcess";
 const KeybindingsConfigJson = Schema.fromJsonString(KeybindingsConfig);
 const encodeKeybindingsConfigJson = Schema.encodeEffect(KeybindingsConfigJson);
 const decodeKeybindingsConfigJson = Schema.decodeUnknownEffect(KeybindingsConfigJson);
-const encodeResolvedKeybindingFromConfig = Schema.encodeEffect(
-  Keybindings.ResolvedKeybindingFromConfig,
-);
-const decodeResolvedKeybindingFromConfigExit = Schema.decodeUnknownExit(
-  Keybindings.ResolvedKeybindingFromConfig,
-);
 const layerKeybindings = () => {
   return Keybindings.layer.pipe(
     Layer.provideMerge(

@@ -781,10 +781,6 @@ describe("server state projection", () => {
         removeThread: () => Effect.void,
         loadServerConfig: () => Effect.succeed(Option.some(CONFIG)),
         saveServerConfig: (_environmentId, config) => Queue.offer(savedConfigs, config),
-        loadVcsRefs: () => Effect.succeed(Option.none()),
-        saveVcsRefs: () => Effect.void,
-        removeVcsRefs: () => Effect.void,
-        clearVcsRefs: () => Effect.void,
         clear: () => Effect.void,
       });
 
@@ -842,10 +838,6 @@ describe("server state projection", () => {
         removeThread: () => Effect.void,
         loadServerConfig: () => Effect.succeedSome(CONFIG),
         saveServerConfig: (_environmentId, config) => Queue.offer(savedConfigs, config),
-        loadVcsRefs: () => Effect.succeedNone,
-        saveVcsRefs: () => Effect.void,
-        removeVcsRefs: () => Effect.void,
-        clearVcsRefs: () => Effect.void,
         clear: () => Effect.void,
       });
 
@@ -906,10 +898,6 @@ describe("server state projection", () => {
         removeThread: () => Effect.void,
         loadServerConfig: () => Effect.succeedSome(CONFIG),
         saveServerConfig: (_environmentId, config) => Queue.offer(savedConfigs, config),
-        loadVcsRefs: () => Effect.succeedNone,
-        saveVcsRefs: () => Effect.void,
-        removeVcsRefs: () => Effect.void,
-        clearVcsRefs: () => Effect.void,
         clear: () => Effect.void,
       });
 
@@ -975,10 +963,6 @@ describe("server state projection", () => {
         removeThread: () => Effect.void,
         loadServerConfig: () => Effect.succeedSome(CONFIG),
         saveServerConfig: (_environmentId, config) => Queue.offer(savedConfigs, config),
-        loadVcsRefs: () => Effect.succeedNone,
-        saveVcsRefs: () => Effect.void,
-        removeVcsRefs: () => Effect.void,
-        clearVcsRefs: () => Effect.void,
         clear: () => Effect.void,
       });
 

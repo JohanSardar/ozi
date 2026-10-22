@@ -5,12 +5,10 @@ import * as ConfigProvider from "effect/ConfigProvider";
 import * as Deferred from "effect/Deferred";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
-import * as Base64Url from "effect/encoding/Base64Url";
 import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Queue from "effect/Queue";
-import * as Schema from "effect/Schema";
 import * as Terminal from "effect/Terminal";
 import * as TestClock from "effect/testing/TestClock";
 import * as HttpClient from "effect/http/HttpClient";
@@ -32,32 +30,9 @@ interface RecordedTokenRequest {
   readonly params: URLSearchParams;
 }
 
-const TestIdTokenHeaderJson = Schema.fromJsonString(Schema.Struct({ alg: Schema.Literal("none") }));
-const TestIdTokenPayloadJson = Schema.fromJsonString(Schema.Struct({ email: Schema.String }));
-const encodeTestIdTokenHeader = Schema.encodeSync(TestIdTokenHeaderJson);
-const encodeTestIdTokenPayload = Schema.encodeSync(TestIdTokenPayloadJson);
-const idTokenWithEmail = (() => {
-  const header = Base64Url.encode(encodeTestIdTokenHeader({ alg: "none" }));
-  const payload = Base64Url.encode(encodeTestIdTokenPayload({ email: "theo@example.test" }));
-  return `${header}.${payload}.`;
-})();
-
-const TestTokenResponseJson = Schema.fromJsonString(
-  Schema.Struct({
-    access_token: Schema.String,
-    refresh_token: Schema.String,
-    id_token: Schema.String,
-    expires_in: Schema.Number,
-    token_type: Schema.String,
-  }),
-);
-const encodeTestTokenResponse = Schema.encodeSync(TestTokenResponseJson);
-
 const provideTestEnv = Effect.provide(
   ConfigProvider.layer(ConfigProvider.fromEnv({ env: TEST_ENV })),
 );
-
-const isAuthorizationError = Schema.is(CliTokenManager.CloudCliAuthorizationError);
 
 const makeTestTerminal = (queue: Queue.Queue<Terminal.UserInput>) =>
   Terminal.make({
@@ -115,54 +90,6 @@ interface DeviceFlowServer {
   readonly requests: Array<RecordedTokenRequest>;
   readonly tokenReplies: Array<{ readonly status: number; readonly body: string }>;
 }
-
-const DEVICE_AUTHORIZATION_BODY = JSON.stringify({
-  device_code: "device-code-1",
-  user_code: "BCDF-GHJK",
-  verification_uri: "https://accounts.example.test/device",
-  verification_uri_complete: "https://accounts.example.test/device?user_code=BCDF-GHJK",
-  expires_in: 600,
-  interval: 5,
-});
-
-const oauthError = (error: string) => ({ status: 400, body: JSON.stringify({ error }) });
-const tokenGranted = {
-  status: 200,
-  body: encodeTestTokenResponse({
-    access_token: "access-token-1",
-    refresh_token: "refresh-token-1",
-    id_token: idTokenWithEmail,
-    expires_in: 3600,
-    token_type: "bearer",
-  }),
-};
-
-const layerDeviceFlow = (server: DeviceFlowServer) =>
-  Layer.succeed(
-    HttpClient.HttpClient,
-    HttpClient.make((request) =>
-      Effect.sync(() => {
-        const body =
-          request.body._tag === "Uint8Array" ? new TextDecoder().decode(request.body.body) : "";
-        server.requests.push({ url: request.url, params: new URLSearchParams(body) });
-        const reply = request.url.endsWith("/oauth/device_authorization")
-          ? { status: 200, body: DEVICE_AUTHORIZATION_BODY }
-          : ((server.tokenReplies.length > 1
-              ? server.tokenReplies.shift()
-              : server.tokenReplies[0]) ?? oauthError("invalid_grant"));
-        return HttpClientResponse.fromWeb(
-          request,
-          new Response(reply.body, {
-            status: reply.status,
-            headers: { "content-type": "application/json" },
-          }),
-        );
-      }),
-    ),
-  );
-
-const tokenRequests = (requests: ReadonlyArray<RecordedTokenRequest>) =>
-  requests.filter((request) => request.url.endsWith("/oauth/token"));
 
 const layerStalledBody = Layer.succeed(
   HttpClient.HttpClient,

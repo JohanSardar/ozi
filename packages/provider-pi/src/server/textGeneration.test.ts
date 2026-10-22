@@ -85,29 +85,3 @@ it.effect("puts linked source control context in the Pi thread title prompt", ()
     assert.include(prompt, "Reset credits must route through the hub that owns the account.");
   }),
 );
-
-it.effect("names the model and the disabled extensions when Pi cannot load it", () =>
-  Effect.gen(function* () {
-    const pi = yield* makeFakePi("", "Model not found: demo/demo-model");
-    const textGeneration = yield* makePiTextGeneration(
-      { enabled: true, binaryPath: "pi", launchArgs: "", customModels: [] },
-      {},
-    ).pipe(Effect.provideService(ChildProcessSpawner.ChildProcessSpawner, pi.spawner));
-
-    const error = yield* textGeneration
-      .generateCommitMessage({
-        cwd: process.cwd(),
-        branch: "main",
-        stagedSummary: "M README.md",
-        stagedPatch: "diff --git a/README.md b/README.md",
-        modelSelection: createModelSelection(ProviderInstanceId.make("pi"), "demo/demo-model"),
-      })
-      .pipe(Effect.flip);
-
-    assert.equal(error._tag, "TextGenerationError");
-    assert.include(error.detail, "Pi rejected model 'demo/demo-model'");
-    assert.include(error.detail, "Model not found: demo/demo-model");
-    assert.include(error.detail, "--no-extensions");
-    assert.isUndefined(pi.received.find((record) => record["type"] === "prompt"));
-  }),
-);

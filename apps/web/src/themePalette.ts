@@ -822,7 +822,6 @@ export function updateThemeColorFamily(
   const selectedOnCanvas = selectedOn(canvas);
   const accent = parseThemeRgbColor(colors.accent, { r: 168, g: 67, b: 112 });
   const canvasIsDark = themeRelativeLuminance(canvas) < 0.179;
-  const terminalIsDark = themeRelativeLuminance(selectedOnCanvas) < 0.179;
   const colorOf = (color: ThemeRgbColor) => themeRgbToThemeColor(color);
   const foregroundOn = (background: ThemeRgbColor) => colorOf(readableThemeForeground(background));
   const selectedToneOn = (background: ThemeRgbColor) =>

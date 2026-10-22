@@ -25,12 +25,6 @@ import {
   ScheduledTaskUpsertSchedule,
 } from "./scheduledTask.ts";
 import { ProviderInteractionMode, ProviderRequestKind, RuntimeMode } from "./providerPolicy.ts";
-import { PullRequestState } from "./pullRequest.ts";
-import {
-  ThreadLinkedPullRequest,
-  ThreadPullRequestKey,
-  ThreadPullRequestLinkSource,
-} from "./threadPullRequest.ts";
 import { ThreadTitleRegeneration } from "./threadTitle.ts";
 import {
   OrchestrationV2Actor,
@@ -248,50 +242,6 @@ export const OrchestratorMcpTaskCancelResult = Schema.Struct({
 });
 export type OrchestratorMcpTaskCancelResult = typeof OrchestratorMcpTaskCancelResult.Type;
 
-export const OrchestratorMcpCreateThreadRequest = Schema.Struct({
-  prompt: Schema.optional(OrchestratorMcpPrompt),
-  title: Schema.optional(OrchestratorMcpTitle),
-  target: Schema.optional(OrchestratorMcpTarget),
-  runtimeMode: Schema.optional(OrchestratorMcpRuntimeMode),
-  interactionMode: Schema.optional(OrchestratorMcpInteractionMode),
-});
-export type OrchestratorMcpCreateThreadRequest = typeof OrchestratorMcpCreateThreadRequest.Type;
-
-export const OrchestratorMcpCreateThreadsInput = Schema.Struct({
-  threads: Schema.Array(OrchestratorMcpCreateThreadRequest).check(
-    Schema.isMinLength(1),
-    Schema.isMaxLength(20),
-  ),
-  clientRequestId: Schema.optional(OrchestratorMcpClientRequestId),
-});
-export type OrchestratorMcpCreateThreadsInput = typeof OrchestratorMcpCreateThreadsInput.Type;
-
-export const OrchestratorMcpCreatedThreadStatus = Schema.Union([
-  Schema.Literal("idle"),
-  Schema.Literal("preparing"),
-  Schema.Literal("starting"),
-  OrchestratorMcpDelegatedTaskStatus,
-  Schema.Literal("rolled_back"),
-]);
-export type OrchestratorMcpCreatedThreadStatus = typeof OrchestratorMcpCreatedThreadStatus.Type;
-
-export const OrchestratorMcpCreatedThread = Schema.Struct({
-  threadId: ThreadId,
-  runId: Schema.NullOr(RunId),
-  status: OrchestratorMcpCreatedThreadStatus,
-  title: Schema.String,
-  createdBy: OrchestrationV2Actor,
-  creationSource: OrchestrationV2CreationSource,
-  providerInstanceId: ProviderInstanceId,
-  model: Schema.String,
-});
-export type OrchestratorMcpCreatedThread = typeof OrchestratorMcpCreatedThread.Type;
-
-export const OrchestratorMcpCreateThreadsResult = Schema.Struct({
-  threads: Schema.Array(OrchestratorMcpCreatedThread),
-});
-export type OrchestratorMcpCreateThreadsResult = typeof OrchestratorMcpCreateThreadsResult.Type;
-
 export const OrchestratorMcpThreadStatus = Schema.Union([
   Schema.Literal("idle"),
   OrchestrationV2RunStatus,
@@ -319,15 +269,6 @@ export const OrchestratorMcpThreadListInput = Schema.Struct({
 });
 export type OrchestratorMcpThreadListInput = typeof OrchestratorMcpThreadListInput.Type;
 
-/** A pull request linked to a thread; `state` is null until the host has been read. */
-export const OrchestratorMcpThreadPullRequest = Schema.Struct({
-  ...ThreadPullRequestKey.fields,
-  url: TrimmedNonEmptyString,
-  source: ThreadPullRequestLinkSource,
-  state: Schema.NullOr(PullRequestState),
-});
-export type OrchestratorMcpThreadPullRequest = typeof OrchestratorMcpThreadPullRequest.Type;
-
 export const OrchestratorMcpThreadListItem = Schema.Struct({
   threadId: ThreadId,
   title: Schema.String,
@@ -339,9 +280,6 @@ export const OrchestratorMcpThreadListItem = Schema.Struct({
   model: Schema.String,
   runtimeMode: RuntimeMode,
   interactionMode: ProviderInteractionMode,
-  linkedPullRequest: Schema.NullOr(ThreadLinkedPullRequest),
-  /** Missing on older servers. */
-  pullRequests: Schema.optional(Schema.Array(OrchestratorMcpThreadPullRequest)),
   settled: Schema.Boolean,
   settledAt: Schema.NullOr(IsoDateTime),
   snoozed: Schema.Boolean,
@@ -388,9 +326,6 @@ export const OrchestratorMcpThreadDetail = Schema.Struct({
   model: Schema.String,
   runtimeMode: RuntimeMode,
   interactionMode: ProviderInteractionMode,
-  linkedPullRequest: Schema.NullOr(ThreadLinkedPullRequest),
-  /** Missing on older servers. */
-  pullRequests: Schema.optional(Schema.Array(OrchestratorMcpThreadPullRequest)),
   titleRegeneration: Schema.NullOr(ThreadTitleRegeneration),
   branch: Schema.NullOr(Schema.String),
   worktreePath: Schema.NullOr(Schema.String),

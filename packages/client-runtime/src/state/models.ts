@@ -1,7 +1,5 @@
 import { backgroundWorkHoldsCompletion } from "@t3tools/shared/orchestrationV2PendingBackgroundWork";
-import { threadPullRequestsOf } from "@t3tools/shared/threadPullRequests";
 import type {
-  ThreadLinkedPullRequest,
   EnvironmentId,
   MessageId,
   OrchestrationProjectShell,
@@ -131,9 +129,6 @@ export interface EnvironmentThreadShell {
   readonly pinnedAt: string | null;
   readonly pinOrderKey: string | null;
   readonly activeOrderKey: string | null;
-  readonly pullRequests: ReadonlyArray<import("@t3tools/contracts").ThreadPullRequestLink>;
-  readonly linkedPullRequest?: ThreadLinkedPullRequest | null;
-  readonly branchPullRequest?: ThreadLinkedPullRequest | null;
   /**
    * Server-tracked visited watermark. `undefined` means the environment's
    * server predates visited tracking and clients should fall back to any
@@ -243,9 +238,6 @@ export function presentThreadShell(
     interactionMode: thread.interactionMode,
     branch: thread.branch,
     worktreePath: thread.worktreePath,
-    pullRequests: threadPullRequestsOf(thread),
-    linkedPullRequest: thread.linkedPullRequest ?? null,
-    branchPullRequest: thread.branchPullRequest ?? null,
     lineage: thread.lineage,
     forkedFrom: thread.forkedFrom,
     activeProviderThreadId: thread.activeProviderThreadId,

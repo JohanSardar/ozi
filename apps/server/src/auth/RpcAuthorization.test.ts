@@ -10,19 +10,15 @@ import {
   AuthOrchestrationOperateScope,
   ORCHESTRATION_V2_WS_METHODS,
   AuthOrchestrationReadScope,
-  AuthSourceControlWriteScope,
   AuthPreviewOperateScope,
   AuthRelayReadScope,
   AuthRelayWriteScope,
-  AuthTerminalReadScope,
-  AuthTerminalOperateScope,
   WS_METHODS,
   WsRpcGroup,
 } from "@t3tools/contracts";
 import { describe, expect, it } from "@effect/vitest";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import * as Stream from "effect/Stream";
 import * as RpcTest from "effect/rpc/RpcTest";
 
 import { RPC_REQUIRED_SCOPES, requiredScopeForRpcMethod } from "./RpcAuthorization.ts";
@@ -74,49 +70,6 @@ describe("RPC authorization scopes", () => {
   it("requires permission to operate on a thread before uploading feedback", () => {
     expect(requiredScopeForRpcMethod(WS_METHODS.providerUploadFeedback)).toBe(
       AuthOrchestrationOperateScope,
-    );
-  });
-
-  it("requires write access to import agent session history", () => {
-    expect(requiredScopeForRpcMethod(WS_METHODS.agentSessionsScan)).toBe(
-      AuthOrchestrationReadScope,
-    );
-    expect(requiredScopeForRpcMethod(WS_METHODS.agentSessionsImport)).toBe(
-      AuthOrchestrationOperateScope,
-    );
-  });
-
-  it("reads the reviewer menu under the same scope as the pull request it belongs to", () => {
-    expect(requiredScopeForRpcMethod(WS_METHODS.pullRequestsChecks)).toBe(
-      AuthOrchestrationReadScope,
-    );
-    expect(requiredScopeForRpcMethod(WS_METHODS.pullRequestsReviewerCandidates)).toBe(
-      requiredScopeForRpcMethod(WS_METHODS.pullRequestsDetail),
-    );
-    expect(requiredScopeForRpcMethod(WS_METHODS.pullRequestsRequestReviewers)).toBe(
-      requiredScopeForRpcMethod(WS_METHODS.pullRequestsComment),
-    );
-  });
-
-  it("requires source control writes to start, retry, or cancel project clones", () => {
-    for (const method of [
-      WS_METHODS.projectCloneStart,
-      WS_METHODS.projectCloneRetry,
-      WS_METHODS.projectCloneCancel,
-    ]) {
-      expect(requiredScopeForRpcMethod(method)).toBe(AuthSourceControlWriteScope);
-    }
-    expect(requiredScopeForRpcMethod(WS_METHODS.subscribeProjectClones)).toBe(
-      AuthOrchestrationReadScope,
-    );
-  });
-
-  it("separates viewing pull request file progress from writing it", () => {
-    expect(requiredScopeForRpcMethod(WS_METHODS.pullRequestsFilesViewed)).toBe(
-      AuthOrchestrationReadScope,
-    );
-    expect(requiredScopeForRpcMethod(WS_METHODS.pullRequestsSetFilesViewed)).toBe(
-      AuthSourceControlWriteScope,
     );
   });
 
@@ -288,96 +241,6 @@ describe("settings mutation authorization", () => {
   );
 });
 
-it.effect("requires task permission before attaching a prepared worktree to a thread", () =>
-  Effect.gen(function* () {
-    const group = WsRpcGroup.omit(
-      ...[...WsRpcGroup.requests.keys()].filter(
-        (
-          tag,
-        ): tag is Exclude<
-          keyof typeof RPC_REQUIRED_SCOPES,
-          typeof WS_METHODS.gitPreparePullRequestThread
-        > => tag !== WS_METHODS.gitPreparePullRequestThread,
-      ),
-    );
-    let handled = false;
-    const client = yield* RpcTest.makeClient(group).pipe(
-      Effect.provide(
-        Layer.mergeAll(
-          group.toLayerHandler(WS_METHODS.gitPreparePullRequestThread, () =>
-            Effect.sync(() => {
-              handled = true;
-            }).pipe(Effect.andThen(Effect.never)),
-          ),
-          RpcAuthorization.layer([AuthSourceControlWriteScope]),
-        ),
-      ),
-    );
-    expect(
-      yield* client[WS_METHODS.gitPreparePullRequestThread]({
-        cwd: "/repo",
-        reference: "42",
-        mode: "worktree",
-        threadId: ThreadId.make("thread"),
-      }).pipe(Effect.flip),
-    ).toMatchObject({ requiredPermission: AuthOrchestrationOperateScope });
-    expect(handled).toBe(false);
-  }).pipe(Effect.scoped),
-);
-
-describe("thread context authorization", () => {
-  const group = WsRpcGroup.omit(
-    ...[...WsRpcGroup.requests.keys()].filter(
-      (
-        tag,
-      ): tag is Exclude<keyof typeof RPC_REQUIRED_SCOPES, typeof WS_METHODS.gitRunStackedAction> =>
-        tag !== WS_METHODS.gitRunStackedAction,
-    ),
-  );
-
-  it.effect.each(["commit", "push", "commit_push", "create_pr", "commit_push_pr"] as const)(
-    "%s needs thread read permission only when generating a PR from a thread",
-    (action) =>
-      Effect.gen(function* () {
-        const handled: string[] = [];
-        const handler = group.toLayerHandler(WS_METHODS.gitRunStackedAction, ({ actionId }) =>
-          Stream.fromEffect(Effect.sync(() => handled.push(actionId))).pipe(Stream.drain),
-        );
-        const client = yield* RpcTest.makeClient(group).pipe(
-          Effect.provide(
-            Layer.merge(handler, RpcAuthorization.layer([AuthSourceControlWriteScope])),
-          ),
-        );
-        const input = { actionId: "without-thread", cwd: "/repo", action };
-        const withThread = { ...input, actionId: "with-thread", threadId: ThreadId.make("thread") };
-        yield* Stream.runDrain(client[WS_METHODS.gitRunStackedAction](input));
-        if (action === "create_pr" || action === "commit_push_pr") {
-          expect(
-            yield* Stream.runDrain(client[WS_METHODS.gitRunStackedAction](withThread)).pipe(
-              Effect.flip,
-            ),
-          ).toMatchObject({ requiredPermission: AuthOrchestrationReadScope });
-          expect(handled).toEqual(["without-thread"]);
-        } else {
-          yield* Stream.runDrain(client[WS_METHODS.gitRunStackedAction](withThread));
-          expect(handled).toEqual(["without-thread", "with-thread"]);
-        }
-        const reader = yield* RpcTest.makeClient(group).pipe(
-          Effect.provide(
-            Layer.merge(
-              handler,
-              RpcAuthorization.layer([AuthSourceControlWriteScope, AuthOrchestrationReadScope]),
-            ),
-          ),
-        );
-        yield* Stream.runDrain(
-          reader[WS_METHODS.gitRunStackedAction]({ ...withThread, actionId: "allowed" }),
-        );
-        expect(handled.at(-1)).toBe("allowed");
-      }).pipe(Effect.scoped),
-  );
-});
-
 it.effect("separates host file URLs from readable attachment URLs", () =>
   Effect.gen(function* () {
     const group = WsRpcGroup.omit(
@@ -418,46 +281,5 @@ it.effect("separates host file URLs from readable attachment URLs", () =>
       });
     }
     expect(handled).toBe(1);
-  }).pipe(Effect.scoped),
-);
-
-it.effect("denies manual cleanup before the handler without settings permission", () =>
-  Effect.gen(function* () {
-    const group = WsRpcGroup.omit(
-      ...[...WsRpcGroup.requests.keys()].filter(
-        (
-          tag,
-        ): tag is Exclude<
-          keyof typeof RPC_REQUIRED_SCOPES,
-          typeof WS_METHODS.serverRunStorageCleanup
-        > => tag !== WS_METHODS.serverRunStorageCleanup,
-      ),
-    );
-    let handled = false;
-    const client = yield* RpcTest.makeClient(group).pipe(
-      Effect.provide(
-        Layer.mergeAll(
-          group.toLayerHandler(WS_METHODS.serverRunStorageCleanup, () =>
-            Effect.sync(() => {
-              handled = true;
-              return {
-                trigger: "manual" as const,
-                startedAt: "2026-10-09T12:00:00.000Z",
-                finishedAt: "2026-10-09T12:00:00.000Z",
-                entries: [],
-                counts: { removed: 0, kept: 0, failed: 0 },
-                omittedCount: 0,
-                bytesFreed: 0,
-              };
-            }),
-          ),
-          RpcAuthorization.layer([AuthOrchestrationReadScope]),
-        ),
-      ),
-    );
-    expect(yield* client[WS_METHODS.serverRunStorageCleanup]({}).pipe(Effect.flip)).toMatchObject({
-      requiredPermission: AuthSettingsWriteScope,
-    });
-    expect(handled).toBe(false);
   }).pipe(Effect.scoped),
 );

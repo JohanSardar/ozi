@@ -17,7 +17,6 @@ import {
   PreviewAutomationOpenInput,
   PreviewAutomationResizeInput,
   PreviewAutomationResizeResult,
-  PreviewAutomationStatus,
 } from "./previewAutomation.ts";
 
 const decodePreviewEvent = Schema.decodeUnknownSync(PreviewEvent);
@@ -31,7 +30,6 @@ const decodeOpenInput = Schema.decodeUnknownSync(PreviewAutomationOpenInput);
 const decodeResizeResult = Schema.decodeUnknownSync(PreviewAutomationResizeResult);
 const decodeAutomationHost = Schema.decodeUnknownSync(PreviewAutomationHost);
 const decodeAutomationError = Schema.decodeUnknownSync(PreviewAutomationError);
-const decodeAutomationStatus = Schema.decodeUnknownSync(PreviewAutomationStatus);
 
 describe("PreviewAutomationOpenInput", () => {
   it("accepts the inline preview visibility flag", () => {

@@ -764,10 +764,6 @@ describe("RpcSessionFactory", () => {
             removeThread: () => Effect.void,
             loadServerConfig: () => Effect.succeedNone,
             saveServerConfig: () => Effect.void,
-            loadVcsRefs: () => Effect.succeedNone,
-            saveVcsRefs: () => Effect.void,
-            removeVcsRefs: () => Effect.void,
-            clearVcsRefs: () => Effect.void,
             clear: () => Effect.void,
           });
           const configState = yield* makeEnvironmentServerConfigState({
@@ -939,14 +935,14 @@ describe("RpcSessionFactory", () => {
         payload: {
           settings: {
             ...DEFAULT_SERVER_SETTINGS,
-            newWorktreesStartFromOrigin: !DEFAULT_SERVER_SETTINGS.newWorktreesStartFromOrigin,
+            enableAgentBrowserAccess: !DEFAULT_SERVER_SETTINGS.enableAgentBrowserAccess,
           },
         },
       },
       expectedConfig: {
         settings: {
           ...DEFAULT_SERVER_SETTINGS,
-          newWorktreesStartFromOrigin: !DEFAULT_SERVER_SETTINGS.newWorktreesStartFromOrigin,
+          enableAgentBrowserAccess: !DEFAULT_SERVER_SETTINGS.enableAgentBrowserAccess,
         },
       },
     },

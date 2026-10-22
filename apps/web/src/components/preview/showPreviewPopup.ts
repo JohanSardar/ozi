@@ -1,8 +1,8 @@
+import { setActivePreviewTab } from "~/previewStateStore";
 import type { ScopedThreadRef } from "@t3tools/contracts";
 
 import { browserMiniPlayerSource, usePreviewMiniPlayerStore } from "~/previewMiniPlayerStore";
 import { whenPreviewTabKnown } from "~/previewStateStore";
-import { useRightPanelStore } from "~/rightPanelStore";
 
 export function showPreviewPopup(
   threadRef: ScopedThreadRef,
@@ -13,7 +13,7 @@ export function showPreviewPopup(
     if (from === "floating") {
       usePreviewMiniPlayerStore.getState().open(threadRef, browserMiniPlayerSource(popupTabId));
     } else {
-      useRightPanelStore.getState().openBrowser(threadRef, popupTabId);
+      setActivePreviewTab(threadRef, popupTabId);
     }
   });
 }

@@ -2,19 +2,14 @@ import { describe, expect, it } from "@effect/vitest";
 import * as Schema from "effect/Schema";
 
 import {
-  OrchestratorMcpCreateThreadsInput,
   OrchestratorMcpDelegateTaskInput,
-  OrchestratorMcpDelegateTaskResult,
   OrchestratorMcpThreadInterruptInput,
   OrchestratorMcpThreadListInput,
   OrchestratorMcpThreadReadInput,
   OrchestratorMcpThreadSendInput,
   OrchestratorMcpThreadWaitInput,
 } from "./orchestratorMcp.ts";
-
-const decodeCreateThreadsInput = Schema.decodeUnknownSync(OrchestratorMcpCreateThreadsInput);
 const decodeDelegateTaskInput = Schema.decodeUnknownSync(OrchestratorMcpDelegateTaskInput);
-const decodeDelegateTaskResult = Schema.decodeUnknownSync(OrchestratorMcpDelegateTaskResult);
 const decodeThreadInterruptInput = Schema.decodeUnknownSync(OrchestratorMcpThreadInterruptInput);
 const decodeThreadListInput = Schema.decodeUnknownSync(OrchestratorMcpThreadListInput);
 const decodeThreadReadInput = Schema.decodeUnknownSync(OrchestratorMcpThreadReadInput);
@@ -76,24 +71,6 @@ describe("orchestrator MCP contracts", () => {
         },
       }),
     ).toThrow();
-  });
-
-  it("decodes mixed prompted and empty thread batches", () => {
-    const request = decodeCreateThreadsInput({
-      clientRequestId: "threads-1",
-      threads: [
-        { title: "Inherited empty thread" },
-        {
-          prompt: "Review the API.",
-          target: { driverKind: "claudeAgent" },
-          runtimeMode: "approval-required",
-        },
-      ],
-    });
-
-    expect(request.threads).toHaveLength(2);
-    expect(request.threads[0]?.prompt).toBeUndefined();
-    expect(request.threads[1]?.target?.driverKind).toBe("claudeAgent");
   });
 
   it("decodes project-scoped thread orchestration requests", () => {

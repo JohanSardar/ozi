@@ -40,16 +40,6 @@ const knownRecords: Record<(typeof COMPOSER_CONTEXT_KINDS)[number], Record<strin
     mimeType: "text/plain",
     sizeBytes: 12,
   },
-  terminal: {
-    ...base,
-    kind: "terminal",
-    label: "Terminal 1 lines 509-514",
-    terminalId: "term-1",
-    terminalLabel: "Terminal 1",
-    lineStart: 509,
-    lineEnd: 514,
-    text: "error: boom\n  at main.ts:1",
-  },
   element: {
     ...base,
     kind: "element",
@@ -86,29 +76,6 @@ const knownRecords: Record<(typeof COMPOSER_CONTEXT_KINDS)[number], Record<strin
       },
     ],
     screenshotContextId: "ctx_2",
-  },
-  "review-comment": {
-    ...base,
-    kind: "review-comment",
-    label: "ChatComposer.tsx L4118",
-    sectionId: "diff-1",
-    sectionTitle: "Changes",
-    filePath: "apps/web/src/ChatComposer.tsx",
-    startIndex: 4118,
-    endIndex: 4118,
-    rangeLabel: "L4118",
-    text: "Why is this here?",
-    diff: "+ const x = 1;",
-    fenceLanguage: "diff",
-    pullRequest: {
-      number: 42,
-      title: "Improve context chips",
-      url: "https://github.com/pingdotgg/t3code/pull/42",
-      headBranch: "feat/context-chips",
-      baseBranch: "main",
-      state: "open",
-      isDraft: false,
-    },
   },
   mention: { ...base, kind: "mention", label: "@src/index.ts", path: "src/index.ts" },
   skill: { ...base, kind: "skill", label: "$pinchtab", name: "pinchtab" },
@@ -199,36 +166,6 @@ describe("OrchestrationMessageContext", () => {
     ).toThrow();
   });
 
-  it("sends a message without a record it cannot encode", () => {
-    const wire = Schema.encodeUnknownSync(Schema.toCodecJson(OrchestrationMessageContext))({
-      version: 1,
-      records: [
-        decodeContext({ version: 1, records: [knownRecords.terminal] }).records[0],
-        { ...knownRecords.terminal, contextId: "ctx_2", terminalLabel: "   " },
-      ],
-    });
-    expect(decodeContext(wire).records.map((record) => record.contextId)).toEqual(["ctx_1"]);
-  });
-
-  it("sends a message without the records the wire cannot carry", () => {
-    const wire = Schema.encodeUnknownSync(Schema.toCodecJson(OrchestrationMessageContext))({
-      version: 1,
-      records: [
-        decodeContext({ version: 1, records: [knownRecords.terminal] }).records[0],
-        {
-          ...base,
-          contextId: "ctx_2",
-          kind: "future-kind",
-          label: "x",
-          payload: { count: Number.NaN },
-        },
-        { ...knownRecords["review-comment"], contextId: "ctx_3", fenceLanguage: undefined },
-        { ...base, contextId: "ctx_4", kind: "future-kind", label: "y", payload: { n: 1n } },
-      ],
-    });
-    expect(decodeContext(wire).records.map((record) => record.contextId)).toEqual(["ctx_1"]);
-  });
-
   it("reports a hole as a schema issue, even when collecting every issue", () => {
     const result = Schema.decodeUnknownExit(Schema.toType(OrchestrationMessageContext))(
       { version: 1, records: [undefined] },
@@ -248,27 +185,6 @@ describe("OrchestrationMessageContext", () => {
   it("rejects oversized arrays before dropping malformed records", () => {
     expect(() =>
       decodeContext({ version: 1, records: Array.from({ length: 201 }, () => ({})) }),
-    ).toThrow();
-  });
-
-  it("drops undecodable records and keeps valid siblings", () => {
-    const context = decodeContext({
-      version: 1,
-      records: [
-        knownRecords.skill,
-        { version: 1, kind: "image" },
-        { ...knownRecords.terminal, contextId: "ctx_2" },
-      ],
-    });
-    expect(context.records.map((record) => record.kind)).toEqual(["skill", "terminal"]);
-  });
-
-  it("rejects duplicate normalized context identities", () => {
-    expect(() =>
-      decodeContext({
-        version: 1,
-        records: [knownRecords.skill, { ...knownRecords.terminal, contextId: " ctx_1 " }],
-      }),
     ).toThrow();
   });
 
