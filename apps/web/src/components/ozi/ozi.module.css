@@ -241,7 +241,6 @@
   border: 1px solid color-mix(in srgb, #61b570 30%, var(--border));
   border-radius: 9px;
   padding: 7px 9px;
-  white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
 .ozi-app .ozi-primary {
