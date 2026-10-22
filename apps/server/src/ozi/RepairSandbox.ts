@@ -211,6 +211,11 @@ const make = Effect.gen(function* () {
       });
       if (yield* fs.exists(failure))
         return yield* new RepairError({ reason: yield* fs.readFileString(failure) });
+      if (result.timedOut)
+        return yield* new RepairError({
+          reason: "sandbox-timeout",
+          cause: "bwrap timed out after 60000ms",
+        });
       if (result.code !== 0)
         return yield* new RepairError({ reason: "sandbox-run-failed", cause: result });
       const evidence = yield* decodeEvidence(result.stdout.trim());
