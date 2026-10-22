@@ -4,7 +4,7 @@ Milestone: 3 (Completion) in progress. M1 and M2 fake-agent E2E pass; their real
 
 ## Done
 
-- Fork pinned at T3 v0.1.1 (`fe27e8e`); `origin` = github.com/JohanSardar/ozi (public, not pushed yet).
+- Fork pinned at T3 v0.1.1 (`fe27e8e`); `origin` = github.com/JohanSardar/ozi (public; pushed, PRs from #1).
 - Data root `~/ozi` (git): `prompt.md` verbatim, `protected/`, `skills/`. Pi upgraded to 1.4.0.
 - SPEC.md, features.yaml, `scripts/features.ts` (check + HTML).
 - M1: other providers, mobile and marketing cut (2,079 files, −442K lines). Main = Pi `claude-opus-5-5`, thinking high, fast off, no built-in tools/extensions/skills/context files, verbatim data-root prompt, 24 orchestration MCP tools + `read_skill`; default worker Codex gpt-6.1-sol xhigh Fast; effective loadout on each thread. `ozi` CLI (serve, service, pair, status, say, steer, stop, thread, wait; `--json`). Fake-agent harness: fake pi/codex/claude speak native protocols from scripts and call real MCP.
@@ -13,6 +13,7 @@ Milestone: 3 (Completion) in progress. M1 and M2 fake-agent E2E pass; their real
 - **M2 fake-agent E2E: 26/26 with M1**; `features.ts check 2` ok.
 - M4 information-in merged: schedules (interval, time of day, webhook) bound to main; scheduled/webhook jobs quiet; webhooks on a self-hosted base URL (`--public-url`); test clock; external to-dos from one MCP source (`ozi todos`, panel section, stale/unavailable states). Suite 31/31; `m4.interval`, `m4.time-of-day`, `m4.webhook`, `m4.base-url`, `m4.todos` pass. `m4.useful-card` needs M3's `useful` flag.
 - M5 Repair merged: `log_mistake` (one `ozi_mistakes` row, deduped), repair only on correction or repeat, frozen case replay (baseline must reproduce, candidate must pass, observer must agree), real bwrap with no network (inference via a trusted proxy socket), `protected/` read-only, publisher rejects protected changes/path escapes, user-only override. All 9 M5 scenarios pass; suite 40/40. Gap: proxy forwards API keys only; OAuth logins fail closed (fix in progress).
+- Pre-flight with the real Pi 1.4.0 binary against a fake inference endpoint caught that main sent the model zero tools (`--no-tools` also disables extension tools). Fixed (`--no-builtin-tools --no-mcp`) and guarded by `m1.main-loadout` with the real Pi binary.
 - macOS desktop build pipeline proven on the build Mac (arm64 DMG, unsigned).
 - `chore/ci` branch: one Ozi CI workflow (typecheck, lint, fake-agent E2E, feature graph) replacing T3's 13 workflows.
 
