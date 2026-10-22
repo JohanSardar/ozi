@@ -72,5 +72,5 @@ export const resolveWorktreeT3Home = Effect.fn("devHome.resolveWorktreeT3Home")(
     return undefined;
   }
   const path = yield* Path.Path;
-  return path.join(worktreePath, ".t3");
+  return path.join(worktreePath, ".ozi");
 });

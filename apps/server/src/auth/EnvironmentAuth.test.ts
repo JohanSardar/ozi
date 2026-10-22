@@ -461,7 +461,7 @@ it.layer(NodeServices.layer)("EnvironmentAuth.layer", (it) => {
       const paired = yield* serverAuth.exchangeBootstrapCredentialForAccessToken(
         pairing.credential,
         undefined,
-        { ...requestMetadata, label: "T3 Code Desktop" },
+        { ...requestMetadata, label: "Ozi Desktop" },
       );
       const first = yield* serverAuth.exchangeBootstrapCredentialForAccessToken(
         "desktop-bootstrap-token",
@@ -638,7 +638,7 @@ it.layer(NodeServices.layer)("EnvironmentAuth.layer", (it) => {
         origin: "https://box.tail1234.ts.net",
         "x-forwarded-host": "box.tail1234.ts.net",
       });
-      yield* upgrade({ origin: "t3code://app" });
+      yield* upgrade({ origin: "ozi://app" });
       yield* upgrade({ origin: "http://localhost:5733" });
       yield* upgrade({});
 

@@ -83,7 +83,7 @@ export type ConnectionFailureCause = typeof ConnectionFailureCause.Type;
 /**
  * Where and why a failure happened, when the code that saw it knows. See
  * `presentConnectionDiagnosis`. `via` names the route when the hop alone does
- * not: T3 Code on the host can fail behind the tunnel or on a direct route.
+ * not: Ozi on the host can fail behind the tunnel or on a direct route.
  */
 const ConnectionFailureFields = {
   hop: Schema.optionalKey(ConnectionHop),

@@ -64,7 +64,7 @@ function tool(
   return { displayName, labels, icon, summaryAction };
 }
 
-const T3_MCP_SERVER_ALIASES = new Set(["t3-code", "t3_code", "t3code"]);
+const T3_MCP_SERVER_ALIASES = new Set(["t3-code", "t3_code", "ozi"]);
 
 const T3_MCP_TOOLS: Readonly<Record<string, T3McpToolDefinition>> = {
   orchestrator_capabilities: tool(

@@ -255,7 +255,7 @@ describe("environmentBootstrap", () => {
 
   it("has no primary target when the desktop local environment is disabled", () => {
     vi.stubGlobal("window", {
-      location: new URL("t3code://app/"),
+      location: new URL("ozi://app/"),
       desktopBridge: {
         getLocalEnvironmentEnabled: () => false,
         getLocalEnvironmentBootstraps: () => [],

@@ -17,8 +17,8 @@ describe("hostFreezeNotice", () => {
     });
   });
 
-  it("blames T3 Code when the CPU had room, or the host reports no load", () => {
-    const busy = "T3 Code on leftbook was too busy to answer.";
+  it("blames Ozi when the CPU had room, or the host reports no load", () => {
+    const busy = "Ozi on leftbook was too busy to answer.";
     expect(hostFreezeNotice("leftbook", { ...stall, loadAverage: 4 })?.description).toBe(busy);
     const { loadAverage: _load, ...windows } = stall;
     expect(hostFreezeNotice("leftbook", windows)?.description).toBe(busy);

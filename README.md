@@ -7,6 +7,6 @@ Providers: Pi, Claude and Codex.
 - [Product specification](SPEC.md)
 - [Requirements and milestones](features.yaml)
 - [Repository rules](AGENTS.md)
-- [Development guide](docs/operations/development.md)
+- [Development rules](AGENTS.md)
 
 Forked from T3 Code v0.1.1. [MIT](LICENSE).

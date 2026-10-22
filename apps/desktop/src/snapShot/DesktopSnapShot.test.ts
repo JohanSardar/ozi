@@ -498,9 +498,9 @@ const layerTest = (
           DesktopEnvironment.DesktopEnvironment,
           DesktopEnvironment.DesktopEnvironment.of({
             platform,
-            displayName: "T3 Code (Dev)",
+            displayName: "Ozi (Dev)",
             stateDir: "/state",
-            linuxDesktopEntryName: "com.t3tools.T3Code.desktop",
+            linuxDesktopEntryName: "app.ozi.Ozi.desktop",
             appRoot: "/repo",
             linuxApplicationsDir: "/test-data/applications",
           } as DesktopEnvironment.DesktopEnvironment["Service"]),
@@ -1000,9 +1000,9 @@ it.effect.each(["win32", "darwin", "linux"] as const)(
     const bounds = { x: 10, y: 20, width: 800, height: 600 };
     const t3 = {
       id: 42,
-      title: "T3 Code",
-      appIdentifier: "com.t3tools.T3Code.desktop",
-      owner: { name: "T3 Code", processId: 123 },
+      title: "Ozi",
+      appIdentifier: "app.ozi.Ozi.desktop",
+      owner: { name: "Ozi", processId: 123 },
       bounds,
       png: Buffer.from([1, 2, 3]),
     };
@@ -1676,7 +1676,7 @@ it.effect(
     focusedWindowMock.mockReturnValue(undefined);
     const destination = {
       getBounds: () => ({ x: 0, y: 0, width: 1000, height: 800 }),
-      getTitle: () => "T3 Code",
+      getTitle: () => "Ozi",
       isDestroyed: () => false,
       isVisible: () => true,
       isMinimized: () => false,
@@ -1692,7 +1692,7 @@ it.effect(
         const warning = logs.find(
           (message) =>
             Array.isArray(message) &&
-            message[0] === "The compositor could not activate T3 Code after the snapshot",
+            message[0] === "The compositor could not activate Ozi after the snapshot",
         );
         assert.strictEqual(Array.isArray(warning) ? warning[1] : undefined, activationFailure);
         const pending = yield* decodePendingMetadata(saved);
@@ -3289,10 +3289,7 @@ it.effect("flags revoked macOS permissions on read and re-registers once they re
 
       mediaAccessStatusMock.mockReturnValue("denied");
       const revoked = yield* service.state;
-      assert.equal(
-        revoked.message,
-        "Allow Screen Recording in System Settings, then restart T3 Code.",
-      );
+      assert.equal(revoked.message, "Allow Screen Recording in System Settings, then restart Ozi.");
       assert.deepEqual(revoked.macPermissions, { screenRecording: false, accessibility: true });
 
       accessibilityTrustedMock.mockReturnValue(false);
@@ -3302,10 +3299,7 @@ it.effect("flags revoked macOS permissions on read and re-registers once they re
         snapShotIncludeAccessibility: false,
       });
       const blocked = yield* service.state;
-      assert.equal(
-        blocked.message,
-        "Allow Screen Recording in System Settings, then restart T3 Code.",
-      );
+      assert.equal(blocked.message, "Allow Screen Recording in System Settings, then restart Ozi.");
       assert.isFalse(blocked.shortcutRegistered);
 
       mediaAccessStatusMock.mockReturnValue("granted");
@@ -4010,7 +4004,7 @@ it.effect.each([false, true])(
       platform: "macos",
       id: 42,
       title: "Setup",
-      owner: { name: "T3 Code", processId: 123, path: "/Applications/T3 Code.app" },
+      owner: { name: "Ozi", processId: 123, path: "/Applications/Ozi.app" },
       bounds: { x: 0, y: 0, width: 800, height: 600 },
     };
     activeWindowMock.mockReset().mockResolvedValue(active);
@@ -4027,7 +4021,7 @@ it.effect.each([false, true])(
           assert.equal(error.reason, "setup-failed");
           assert.equal(
             error.message,
-            'Could not capture a test snapshot. Capturing the window failed. macOS grants Screen Recording and Accessibility to each app separately. In System Settings, open Privacy & Security and check that "T3 Code (Dev)" is allowed for both.',
+            'Could not capture a test snapshot. Capturing the window failed. macOS grants Screen Recording and Accessibility to each app separately. In System Settings, open Privacy & Security and check that "Ozi (Dev)" is allowed for both.',
           );
         } else yield* service.setup("test-mac-capture");
         assert.equal(macCaptureMock.mock.calls.length, 1);
@@ -4061,7 +4055,7 @@ const macTestCaptureWindow = {
   platform: "macos",
   id: 42,
   title: "Setup",
-  owner: { name: "T3 Code", processId: 123, path: "/Applications/T3 Code.app" },
+  owner: { name: "Ozi", processId: 123, path: "/Applications/Ozi.app" },
   bounds: { x: 0, y: 0, width: 800, height: 600 },
 };
 
@@ -4083,7 +4077,7 @@ it.effect("names the failed macOS window lookup without repeating what it printe
       const error = yield* service.setup("test-mac-capture").pipe(Effect.flip);
       assert.equal(
         error.message,
-        'Could not capture a test snapshot. Finding the front window failed: osascript exited with code 1. macOS grants Screen Recording and Accessibility to each app separately. In System Settings, open Privacy & Security and check that "T3 Code (Dev)" is allowed for both.',
+        'Could not capture a test snapshot. Finding the front window failed: osascript exited with code 1. macOS grants Screen Recording and Accessibility to each app separately. In System Settings, open Privacy & Security and check that "Ozi (Dev)" is allowed for both.',
       );
       assert.include(String(error.cause), stderr);
       assert.equal(macCaptureMock.mock.calls.length, 0);
@@ -4122,7 +4116,7 @@ it.effect("says when the macOS test capture command timed out", () => {
       const error = yield* service.setup("test-mac-capture").pipe(Effect.flip);
       assert.equal(
         error.message,
-        'Could not capture a test snapshot. Capturing the window timed out. macOS grants Screen Recording and Accessibility to each app separately. In System Settings, open Privacy & Security and check that "T3 Code (Dev)" is allowed for both.',
+        'Could not capture a test snapshot. Capturing the window timed out. macOS grants Screen Recording and Accessibility to each app separately. In System Settings, open Privacy & Security and check that "Ozi (Dev)" is allowed for both.',
       );
     }),
   ).pipe(Effect.provide(macTestCaptureLayer));

@@ -43,7 +43,7 @@ const layerClientPresentation = Layer.succeed(
   ClientCapabilities.ClientPresentation,
   ClientCapabilities.ClientPresentation.of({
     metadata: {
-      label: "T3 Code Test",
+      label: "Ozi Test",
       deviceType: "desktop",
       os: "Test OS",
     },

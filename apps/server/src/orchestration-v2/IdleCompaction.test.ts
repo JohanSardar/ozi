@@ -215,7 +215,7 @@ const seed = Effect.fn("seedIdleThread")(function* (value: IdleCompactionRecords
   });
 });
 
-it.effect("sends /compact as T3 Code once the cache is about to expire", () =>
+it.effect("sends /compact as Ozi once the cache is about to expire", () =>
   Effect.gen(function* () {
     yield* TestClock.setTime(NOW_MS);
     const value = records({ cacheExpiresInMs: 5 * MINUTE_MS });

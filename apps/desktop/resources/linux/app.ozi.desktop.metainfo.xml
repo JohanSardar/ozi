@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<component type="desktop-application">
+  <id>app.ozi.desktop</id>
+  <metadata_license>CC0-1.0</metadata_license>
+  <project_license>MIT</project_license>
+  <name>Ozi</name>
+  <summary>Agent runtime with jobs</summary>
+  <description><p>Talk to one main agent, delegate work, and handle every job on a card.</p></description>
+  <launchable type="desktop-id">app.ozi.Ozi.desktop</launchable>
+  <icon type="stock">ozi</icon>
+  <provides><binary>ozi</binary></provides>
+  <categories><category>Utility</category></categories>
+</component>

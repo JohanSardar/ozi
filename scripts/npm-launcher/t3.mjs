@@ -19,7 +19,7 @@ const SUPPORTED = ["darwin-arm64", "linux-arm64", "linux-x64", "win32-arm64", "w
 
 function t3Home() {
   const raw = (process.env.T3CODE_HOME || "").trim();
-  if (raw === "") return path.join(os.homedir(), ".t3");
+  if (raw === "") return path.join(os.homedir(), ".ozi");
   if (raw === "~") return os.homedir();
   if (raw.startsWith("~/") || raw.startsWith("~\\")) return path.join(os.homedir(), raw.slice(2));
   return path.resolve(raw);
@@ -56,7 +56,7 @@ async function download(url, file) {
         shown = step;
         const percent = total ? ` ${step}%` : "";
         process.stderr.write(
-          `\r\x1b[2Kt3: downloading T3 Code ${version}${percent} (${(received / 1048576).toFixed(1)} MB)`,
+          `\r\x1b[2Kt3: downloading Ozi ${version}${percent} (${(received / 1048576).toFixed(1)} MB)`,
         );
       }
     }
@@ -134,7 +134,7 @@ async function main() {
   const key = `${process.platform}-${process.arch}`;
   if (!SUPPORTED.includes(key)) {
     throw new Error(
-      `no T3 Code CLI build is available for ${key} (supported: ${SUPPORTED.join(", ")}).\n` +
+      `no Ozi CLI build is available for ${key} (supported: ${SUPPORTED.join(", ")}).\n` +
         "The desktop app is at https://github.com/pingdotgg/t3code/releases",
     );
   }
