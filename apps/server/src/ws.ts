@@ -98,6 +98,9 @@ import * as Keybindings from "./keybindings.ts";
 import * as ExternalLauncher from "./process/externalLauncher.ts";
 import * as ThreadManagementService from "./orchestration-v2/ThreadManagementService.ts";
 import * as Jobs from "./ozi/Jobs.ts";
+import { OziClock } from "./ozi/Clock.ts";
+import { Scheduler } from "./scheduling/Scheduler.ts";
+import { Todos } from "./ozi/Todos.ts";
 import * as CommandOutputHub from "./orchestration-v2/CommandOutputHub.ts";
 import * as McpAppRequests from "./mcpApps/McpAppRequests.ts";
 import * as ProviderSessionManager from "./orchestration-v2/ProviderSessionManager.ts";
@@ -1179,6 +1182,9 @@ export const layerWsRpc = (
       const completionEvents = yield* EventSink.EventSinkV2;
       const threadManagement = yield* ThreadManagementService.ThreadManagementService;
       const jobs = yield* Jobs.Jobs;
+      const clock = yield* OziClock;
+      const scheduler = yield* Scheduler;
+      const todos = yield* Todos;
       const intakeContext = yield* Effect.context<
         | ThreadManagementService.ThreadManagementService
         | Jobs.Jobs
@@ -1695,6 +1701,12 @@ export const layerWsRpc = (
           Stream.unwrap(subscribeOrchestrationV2ArchivedShell()),
         [ORCHESTRATION_V2_WS_METHODS.subscribeShell]: (input) =>
           Stream.unwrap(subscribeOrchestrationV2Shell(input)),
+        [OZI_WS_METHODS.clockAdvance]: Effect.fn("ozi.clock.advance")(function* ({ milliseconds }) {
+          const now = yield* clock.advance(milliseconds);
+          yield* scheduler.tick;
+          return { now };
+        }),
+        [OZI_WS_METHODS.todosGet]: () => todos.fetch,
         [OZI_WS_METHODS.jobsGet]: () => jobs.cards(),
         [OZI_WS_METHODS.jobsSubscribe]: () => jobs.subscribe(),
         [OZI_WS_METHODS.jobsHandle]: (input) => jobs.handle(input),

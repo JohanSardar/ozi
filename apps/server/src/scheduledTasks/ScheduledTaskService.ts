@@ -1,5 +1,7 @@
 import {
   CommandId,
+  OZI_MAIN_THREAD_ID,
+  OZI_MAIN_SELECTION,
   MessageId,
   PROVIDER_SEND_TURN_MAX_INPUT_CHARS,
   ScheduledTask,
@@ -42,8 +44,7 @@ import * as Semaphore from "effect/Semaphore";
 import * as Stream from "effect/Stream";
 import * as SqlClient from "effect/sql/SqlClient";
 
-import * as ThreadLaunchService from "../orchestration-v2/ThreadLaunchService.ts";
-import * as ManagedProjectFolders from "../project/ManagedProjectFolders.ts";
+import { OziClock } from "../ozi/Clock.ts";
 import * as Metrics from "../observability/Metrics.ts";
 import * as ThreadManagementService from "../orchestration-v2/ThreadManagementService.ts";
 import * as SecretRequests from "../secrets/SecretRequests.ts";
@@ -278,8 +279,6 @@ function iso(value: DateTime.DateTime): string {
   return DateTime.formatIso(DateTime.toUtc(value));
 }
 
-const localNow = DateTime.withCurrentZoneLocal(DateTime.nowInCurrentZone);
-
 function nextRunAt(
   task: Pick<ScheduledTask, "enabled" | "schedule">,
   from: DateTime.DateTime,
@@ -401,9 +400,8 @@ export const layer = Layer.effect(
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
     const crypto = yield* Crypto.Crypto;
-    const threadLaunch = yield* ThreadLaunchService.ThreadLaunchService;
+    const { now: localNow } = yield* OziClock;
     const threadManagement = yield* ThreadManagementService.ThreadManagementService;
-    const managedFolders = yield* ManagedProjectFolders.ManagedProjectFolders;
     const secretRequests = yield* SecretRequests.SecretRequests;
     const scheduler = yield* Scheduler.Scheduler;
     const readWebhookOrigin = yield* ScheduledTaskWebhookOrigin;
@@ -822,50 +820,22 @@ export const layer = Layer.effect(
         // A webhook prompt was rendered from the row when the request arrived.
         const prompt = webhook?.prompt ?? active.prompt;
 
-        // Effect.exit (not Effect.result) so defects and interruptions in the
-        // dispatch are also captured and recorded as a failed run instead of
-        // aborting before markCompleted.
-        const result =
-          active.threadId === null
-            ? yield* Effect.exit(
-                threadLaunch
-                  .launch({
-                    commandId,
-                    projectId: active.projectId,
-                    title: active.title,
-                    modelSelection: active.modelSelection,
-                    runtimeMode: active.runtimeMode,
-                    interactionMode: active.interactionMode,
-                    workspaceStrategy: active.workspaceStrategy,
-                    initialMessage: {
-                      messageId,
-                      scheduledTaskId: active.id,
-                      text: prompt,
-                      attachments: [],
-                    },
-                    createdBy: active.createdBy,
-                    creationSource: active.creationSource,
-                  })
-                  .pipe(Effect.map((launched) => launched.threadId)),
-              )
-            : yield* Effect.exit(
-                // The stored selection only seeds fresh threads. A bound run
-                // follows the thread's current provider, so it passes none.
-                threadManagement
-                  .sendToThread({
-                    projectId: active.projectId,
-                    commandId,
-                    threadId: ThreadId.make(active.threadId),
-                    messageId,
-                    scheduledTaskId: active.id,
-                    text: prompt,
-                    attachments: [],
-                    mode: "queue",
-                    createdBy: active.createdBy,
-                    creationSource: active.creationSource,
-                  })
-                  .pipe(Effect.as(ThreadId.make(active.threadId))),
-              );
+        const result = yield* Effect.exit(
+          threadManagement
+            .sendToThread({
+              projectId: active.projectId,
+              commandId,
+              threadId: OZI_MAIN_THREAD_ID,
+              messageId,
+              scheduledTaskId: active.id,
+              text: prompt,
+              attachments: [],
+              mode: "queue",
+              createdBy: "system",
+              creationSource: "server",
+            })
+            .pipe(Effect.as(OZI_MAIN_THREAD_ID)),
+        );
 
         const runSucceeded = result._tag === "Success";
         if (webhook !== undefined && runSucceeded) yield* Ref.set(webhook.dispatched, true);
@@ -1057,6 +1027,10 @@ export const layer = Layer.effect(
     const upsert: ScheduledTaskService["Service"]["upsert"] = Effect.fn(
       "ScheduledTaskService.upsert",
     )(function* (input) {
+      const main = (yield* threadManagement
+        .getThreadProjection(OZI_MAIN_THREAD_ID)
+        .pipe(Effect.mapError((cause) => taskError("Could not load main thread.", { cause }))))
+        .thread;
       const now = yield* localNow;
       const uuid =
         input.commandId === undefined
@@ -1123,7 +1097,7 @@ export const layer = Layer.effect(
                 signature?.secretRef === undefined
                   ? undefined
                   : yield* secretRequests
-                      .consume({ ref: signature.secretRef, projectId: input.projectId })
+                      .consume({ ref: signature.secretRef, projectId: main.projectId })
                       .pipe(
                         Effect.catch((error) =>
                           replay
@@ -1145,11 +1119,6 @@ export const layer = Layer.effect(
               return { token, secret, secretChanged };
             })
           : { token: null, secret: null, secretChanged: true };
-      const workspaceStrategy: ScheduledTask["workspaceStrategy"] =
-        input.workspaceStrategy.type === "worktree" &&
-        (yield* managedFolders.isScratchProject(input.projectId))
-          ? { type: "root" }
-          : input.workspaceStrategy;
       const scheduleUnchanged =
         existingTask !== null &&
         existingTask.enabled === input.enabled &&
@@ -1160,12 +1129,12 @@ export const layer = Layer.effect(
         prompt: input.prompt,
         enabled: input.enabled,
         schedule,
-        projectId: input.projectId,
-        threadId: input.threadId ?? null,
-        workspaceStrategy,
-        modelSelection: input.modelSelection,
-        runtimeMode: input.runtimeMode,
-        interactionMode: input.interactionMode,
+        projectId: main.projectId,
+        threadId: OZI_MAIN_THREAD_ID,
+        workspaceStrategy: { type: "root" },
+        modelSelection: OZI_MAIN_SELECTION,
+        runtimeMode: main.runtimeMode,
+        interactionMode: main.interactionMode,
         createdBy: existingTask?.createdBy ?? input.createdBy ?? "user",
         creationSource: input.creationSource ?? "web",
         createdAt: existingTask?.createdAt ?? iso(now),

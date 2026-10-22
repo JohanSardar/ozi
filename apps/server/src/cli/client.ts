@@ -9,6 +9,15 @@ import {
   OZI_MAIN_THREAD_ID,
   OZI_WS_METHODS as J,
   OziJobCard,
+  OziTodoSettings,
+  OziTodos,
+  OZI_MAIN_SELECTION,
+  ScheduledTask,
+  ScheduledTaskId,
+  ScheduledTaskDeleteResult,
+  ScheduledTaskUpsertSchedule,
+  ScheduledTaskWebhookFilter,
+  SecretRef,
   RuntimeRequestId,
   TurnItemId,
   MessageId,
@@ -49,6 +58,11 @@ type Client = Effect.Success<typeof makeClient>;
 
 const encodeJson = Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown));
 const encodePairing = Schema.encodeEffect(AuthPairingCredentialResult);
+const decodeTodoSettings = Schema.decodeUnknownEffect(Schema.fromJsonString(OziTodoSettings));
+const decodeSchedule = Schema.decodeUnknownEffect(ScheduledTaskUpsertSchedule);
+const decodeWebhookFilter = Schema.decodeUnknownEffect(
+  Schema.fromJsonString(ScheduledTaskWebhookFilter),
+);
 const encodeProjection = Schema.encodeSync(OrchestrationV2ThreadProjection);
 
 class ClientError extends Schema.TaggedError<ClientError>()("OziClientError", {
@@ -546,8 +560,194 @@ const checksCommand = Command.make("checks", {
   ),
 );
 
+const todosCommand = Command.make("todos", {
+  ...locationFlags,
+  configure: Flag.String("configure").pipe(Flag.optional),
+  clear: Flag.Boolean("clear").pipe(Flag.withDefault(false)),
+}).pipe(
+  Command.withHandler((flags) =>
+    Effect.gen(function* () {
+      if (flags.clear && Option.isSome(flags.configure))
+        return yield* new ClientError({ operation: "requires either --configure or --clear" });
+      const { client } = yield* connect(flags.baseDir);
+      if (flags.clear || Option.isSome(flags.configure)) {
+        const externalTodos = Option.isSome(flags.configure)
+          ? yield* decodeTodoSettings(flags.configure.value)
+          : null;
+        yield* client[W.serverUpdateSettings]({ patch: { externalTodos } });
+      }
+      yield* emit(OziTodos, yield* client[J.todosGet]({}));
+    }),
+  ),
+);
+
+const duration = (value: string) => {
+  const match = /^(\d+(?:\.\d+)?)(ms|s|m|h|d|w)$/.exec(value);
+  const units: Record<string, number> = {
+    ms: 1,
+    s: 1000,
+    m: 60_000,
+    h: 3_600_000,
+    d: 86_400_000,
+    w: 604_800_000,
+  };
+  const result = match ? Number(match[1]) * units[match[2]!]! : NaN;
+  return Number.isSafeInteger(result) && result > 0
+    ? Effect.succeed(result)
+    : Effect.fail(new ClientError({ operation: "requires a duration such as 5m or 1h" }));
+};
+const scheduleJson = (task: ScheduledTask) => ({
+  ...task,
+  ...(task.webhook?.url == null ? {} : { webhookUrl: task.webhook.url }),
+});
+const schedulesCommand = Command.make("schedules", locationFlags).pipe(
+  Command.withHandler((flags) =>
+    Effect.gen(function* () {
+      const { client } = yield* connect(flags.baseDir);
+      const { tasks } = yield* client[W.scheduledTasksList]({});
+      yield* print(tasks.map(scheduleJson));
+    }),
+  ),
+);
+const scheduleAddCommand = Command.make("add", {
+  ...locationFlags,
+  every: Flag.String("every").pipe(Flag.optional),
+  at: Flag.String("at").pipe(Flag.optional),
+  days: Flag.String("days").pipe(Flag.optional),
+  webhook: Flag.Boolean("webhook").pipe(Flag.withDefault(false)),
+  secretRef: Flag.String("secret-ref").pipe(Flag.withSchema(SecretRef), Flag.optional),
+  filters: Flag.String("filter").pipe(Flag.atLeast(0)),
+  replayKey: Flag.String("replay-key").pipe(Flag.optional),
+  coalesceKey: Flag.String("coalesce-key").pipe(Flag.optional),
+  coalesceWindow: Flag.String("coalesce-window").pipe(Flag.optional),
+  prompt: Flag.String("prompt"),
+}).pipe(
+  Command.withHandler((flags) =>
+    Effect.gen(function* () {
+      if (
+        Number(Option.isSome(flags.every)) +
+          Number(Option.isSome(flags.at)) +
+          Number(flags.webhook) !==
+        1
+      )
+        return yield* new ClientError({
+          operation: "requires exactly one of --every, --at or --webhook",
+        });
+      if (Option.isSome(flags.days) && Option.isNone(flags.at))
+        return yield* new ClientError({ operation: "--days requires --at" });
+      if (
+        !flags.webhook &&
+        (Option.isSome(flags.secretRef) ||
+          flags.filters.length ||
+          Option.isSome(flags.replayKey) ||
+          Option.isSome(flags.coalesceKey) ||
+          Option.isSome(flags.coalesceWindow))
+      )
+        return yield* new ClientError({ operation: "webhook options require --webhook" });
+      const schedule = yield* decodeSchedule(
+        Option.isSome(flags.every)
+          ? { type: "interval", everyMs: yield* duration(flags.every.value) }
+          : Option.isSome(flags.at)
+            ? {
+                type: "fixed_time",
+                timeOfDay: flags.at.value,
+                ...(Option.isSome(flags.days)
+                  ? { weekdays: flags.days.value.split(",").map(Number) }
+                  : {}),
+              }
+            : {
+                type: "webhook",
+                ...(Option.isSome(flags.secretRef)
+                  ? {
+                      signature: {
+                        header: "x-hub-signature-256",
+                        encoding: "hex",
+                        prefix: "sha256=",
+                        secretRef: flags.secretRef.value,
+                      },
+                    }
+                  : {}),
+                filters: yield* Effect.forEach(flags.filters, (filter) =>
+                  decodeWebhookFilter(filter),
+                ),
+                dedupe: {
+                  ...(Option.isSome(flags.replayKey) ? { replayKey: flags.replayKey.value } : {}),
+                  ...(Option.isSome(flags.coalesceKey)
+                    ? { coalesceKey: flags.coalesceKey.value }
+                    : {}),
+                  ...(Option.isSome(flags.coalesceWindow)
+                    ? {
+                        coalesceWindowSeconds: (yield* duration(flags.coalesceWindow.value)) / 1000,
+                      }
+                    : {}),
+                },
+              },
+      );
+      const { client } = yield* connect(flags.baseDir);
+      const main = yield* client[O.getThreadProjection]({ threadId: OZI_MAIN_THREAD_ID });
+      const { task } = yield* client[W.scheduledTasksUpsert]({
+        title: flags.prompt.split("\n")[0]!.slice(0, 80),
+        prompt: flags.prompt,
+        enabled: true,
+        schedule,
+        projectId: main.thread.projectId,
+        threadId: OZI_MAIN_THREAD_ID,
+        workspaceStrategy: { type: "root" },
+        modelSelection: OZI_MAIN_SELECTION,
+        runtimeMode: main.thread.runtimeMode,
+        interactionMode: main.thread.interactionMode,
+        createdBy: "user",
+        creationSource: "cli",
+      });
+      yield* print(scheduleJson(task));
+    }),
+  ),
+);
+const scheduleIdFlags = {
+  ...locationFlags,
+  id: Argument.String("id").pipe(Argument.withSchema(ScheduledTaskId)),
+};
+const scheduleRmCommand = Command.make("rm", scheduleIdFlags).pipe(
+  Command.withHandler((flags) =>
+    Effect.gen(function* () {
+      const { client } = yield* connect(flags.baseDir);
+      yield* emit(
+        ScheduledTaskDeleteResult,
+        yield* client[W.scheduledTasksDelete]({ id: flags.id }),
+      );
+    }),
+  ),
+);
+const scheduleRunCommand = Command.make("run", scheduleIdFlags).pipe(
+  Command.withHandler((flags) =>
+    Effect.gen(function* () {
+      const { client } = yield* connect(flags.baseDir);
+      const result = yield* client[W.scheduledTasksRunNow]({ id: flags.id });
+      yield* print(result);
+    }),
+  ),
+);
+const scheduleCommand = Command.make("schedule").pipe(
+  Command.withSubcommands([scheduleAddCommand, scheduleRmCommand, scheduleRunCommand]),
+);
+const testClockCommand = Command.make("test-clock", {
+  ...locationFlags,
+  advance: Flag.String("advance"),
+}).pipe(
+  Command.withHandler((flags) =>
+    Effect.gen(function* () {
+      const { client } = yield* connect(flags.baseDir);
+      yield* print(yield* client[J.clockAdvance]({ milliseconds: yield* duration(flags.advance) }));
+    }),
+  ),
+);
+
 export const clientCommands = [
   checksCommand,
+  todosCommand,
+  schedulesCommand,
+  scheduleCommand,
+  ...(process.env.OZI_TEST_CLOCK ? [testClockCommand] : []),
   statusCommand,
   sayCommand,
   steerCommand,

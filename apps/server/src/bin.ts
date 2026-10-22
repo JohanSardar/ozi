@@ -24,6 +24,10 @@ if (
       "answer",
       "close",
       "checks",
+      "schedules",
+      "schedule",
+      "todos",
+      "test-clock",
     ].includes(command ?? "")
   ) {
     const { runClientCli } = await import("./binClientCli.ts");

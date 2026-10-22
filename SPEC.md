@@ -55,6 +55,15 @@ New code lives in `apps/server/src/ozi/` and `apps/web/src/components/ozi/`. Eve
 - Authoring and both replays run in bwrap: candidate data root writable, `protected/` read-only, no credentials or effect endpoints. Publisher checks the real diff; protected changes only on the user's own message.
 - Pass → one data-root commit, activated. Repeat after a fix → revert; conflict with a user edit → keep the pre-fix build and post a blocker.
 
+### Information in
+
+- Every schedule targets `ozi-main`, including schedules created by workers or settings. Runs queue a message with `scheduledTaskId`; main delegates quiet jobs. Dispatch success records delivery only; workers still need checked reports. Quiet jobs persist and recover normally; cards appear for requests or checked reports with `useful: true`.
+- Webhooks retain URL tokens, optional HMAC-SHA256 over raw bytes, filters, seven-day replay keys and fixed coalescing windows. External watchers POST to them; Ozi runs no watcher. `serve --public-url` overrides `OZI_PUBLIC_URL`; the HTTP(S) base URL produces `/api/hooks/<id>/<token>`. Without a base URL, `webhookUrl` is omitted.
+- `schedule add` takes exactly one of `--every <dur>`, `--at HH:MM [--days 0-6,…]`, or `--webhook`, and `--prompt <text>`. Durations use `ms`, `s`, `m`, `h`, `d` or `w`; intervals are at least one minute. Webhook options: `--secret-ref` (header `x-hub-signature-256`, hex, `sha256=`), repeated `--filter` JSON filter objects, `--replay-key`, `--coalesce-key` and `--coalesce-window <dur>`. `schedules` lists runs; `schedule rm <id>` removes one; `schedule run <id>` queues a manual run.
+- Optional server setting `externalTodos`: `{source, server, tool, arguments, itemsPath, fields: {id, title, link, status, due?}}`. `server` is `{type: "stdio", command, args?, env?}` or `{type: "http", url, headers?}`. Paths are dotted field names; empty `itemsPath` selects a root array. Tool output is structured content or JSON text. IDs and titles are nonempty strings, status is a string, link is HTTP(S) or null, due is optional display text. Connection details are excluded from all client settings; only the server calls MCP.
+- `todos --configure <json>` replaces that connection; `todos --clear` removes it. `todos` and authenticated `ozi.todos.get` fetch on demand, as does panel open/refresh. No background polling or local task table. Wire result: null without configuration, otherwise `{source, state: "available" | "stale" | "unavailable", items, fetchedAt, attemptedAt}`. Failure preserves the last successful items and timestamp; without success, items and fetchedAt are null. Malformed rows fail the entire fetch. Empty success is distinct from unavailable.
+- Only explicit `OZI_TEST_CLOCK=<ISO instant>` enables the scheduler test clock and hidden `test-clock --advance <dur>` CLI command. Advancing triggers scheduler work; production uses the real local clock. Tests observe delivery through `ozi wait`.
+
 ### JobPanel (`components/ozi/JobPanel.tsx`)
 
 - The app opens at `/` into `ozi-main`. No thread list, projects, drafts, workspace selectors or branch controls. Settings retain connections, providers, appearance, keybindings, scheduled tasks and licenses. New schedules target main.
@@ -83,7 +92,7 @@ One binary, `ozi`. Every command takes `--json`. Client commands find the server
 
 | Command                                                                         | Does                                                                                                   |
 | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
-| `ozi serve [--home] [--data-root] [--port] [--host]`                            | Run the server.                                                                                        |
+| `ozi serve [--home] [--data-root] [--port] [--host] [--public-url]`             | Run the server.                                                                                        |
 | `ozi service install\|status\|restart\|uninstall`                               | systemd user service.                                                                                  |
 | `ozi pair`                                                                      | Pairing URL for a new client.                                                                          |
 | `ozi status`                                                                    | Server, main thread, effective loadouts (model, options, tools, prompt hash), providers.               |

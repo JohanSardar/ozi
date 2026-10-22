@@ -16,6 +16,7 @@ import { OZI_WS_METHODS } from "./ozi.ts";
 export const CLIENT_GUARDED_RPC_SCOPES = {
   [OZI_WS_METHODS.checksList]: AuthOrchestrationReadScope,
   [OZI_WS_METHODS.checksSubscribe]: AuthOrchestrationReadScope,
+  [OZI_WS_METHODS.clockAdvance]: AuthOrchestrationOperateScope,
   [OZI_WS_METHODS.jobsGet]: AuthOrchestrationReadScope,
   [OZI_WS_METHODS.jobsSubscribe]: AuthOrchestrationReadScope,
   [OZI_WS_METHODS.jobsHandle]: AuthOrchestrationOperateScope,

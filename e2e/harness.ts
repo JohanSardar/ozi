@@ -77,7 +77,9 @@ async function fileReady(path: string, pid: number, signal: AbortSignal) {
   }
 }
 
-export async function startHarness(options: { fresh?: boolean } = {}) {
+export async function startHarness(
+  options: { fresh?: boolean; testClock?: string; publicUrl?: string; publicUrlEnv?: string } = {},
+) {
   const root = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "ozi-e2e-"));
   const home = NodePath.join(root, "home");
   const dataRoot = NodePath.join(root, "data-root");
@@ -119,6 +121,9 @@ export async function startHarness(options: { fresh?: boolean } = {}) {
     OZI_DATA_ROOT: dataRoot,
     OZI_FAKE_SCRIPT: script,
     OZI_FAKE_LOG: log,
+    ...(options.testClock === undefined ? {} : { OZI_TEST_CLOCK: options.testClock }),
+    ...(options.publicUrlEnv === undefined ? {} : { OZI_PUBLIC_URL: options.publicUrlEnv }),
+    TZ: "UTC",
     CODEX_HOME: NodePath.join(root, "codex"),
     CLAUDE_CONFIG_DIR: NodePath.join(root, "claude"),
     PI_CODING_AGENT_DIR: NodePath.join(root, "pi"),
@@ -162,6 +167,7 @@ export async function startHarness(options: { fresh?: boolean } = {}) {
         "0.0.0.0",
         "--port",
         String(port),
+        ...(options.publicUrl === undefined ? [] : ["--public-url", options.publicUrl]),
         "--json",
       ],
       { cwd: dataRoot, env, stdio: ["ignore", "pipe", "pipe", "pipe"] },

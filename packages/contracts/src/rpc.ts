@@ -25,7 +25,14 @@ import {
   ChatGptHandoffState,
 } from "./providerSetup.ts";
 import * as Schema from "effect/Schema";
-import { OZI_WS_METHODS, OziJobCard, OziJobError, OziJobHandleInput } from "./ozi.ts";
+import {
+  OZI_WS_METHODS,
+  OziClockError,
+  OziTodos,
+  OziJobCard,
+  OziJobError,
+  OziJobHandleInput,
+} from "./ozi.ts";
 import * as Rpc from "effect/rpc/Rpc";
 import * as RpcGroup from "effect/rpc/RpcGroup";
 import * as RpcMiddleware from "effect/rpc/RpcMiddleware";
@@ -1756,6 +1763,16 @@ export class RpcScopeAuthorization extends RpcMiddleware.Service<RpcScopeAuthori
 ) {}
 
 export const WsRpcGroup = RpcGroup.make(
+  Rpc.make(OZI_WS_METHODS.todosGet, {
+    payload: Schema.Struct({}),
+    success: OziTodos,
+    error: EnvironmentAuthorizationError,
+  }),
+  Rpc.make(OZI_WS_METHODS.clockAdvance, {
+    payload: Schema.Struct({ milliseconds: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)) }),
+    success: Schema.Struct({ now: Schema.String }),
+    error: Schema.Union([OziClockError, EnvironmentAuthorizationError]),
+  }),
   Rpc.make(OZI_WS_METHODS.jobsGet, {
     payload: Schema.Struct({}),
     success: Schema.Array(OziJobCard),
