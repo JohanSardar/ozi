@@ -17,6 +17,7 @@ if (launch("pi")) {
   let sessionId = id();
   let file = sessionFile("pi", sessionId);
   let entries = [];
+  let partialHistory = false;
   let active = false;
   let model = {
     id: "claude-opus-5-5",
@@ -44,7 +45,9 @@ if (launch("pi")) {
   const save = () =>
     NodeFS.writeFileSync(
       file,
-      `${[JSON.stringify({ type: "session", version: 3, id: sessionId, timestamp: new Date().toISOString(), cwd: process.cwd() }), ...entries.map((entry) => JSON.stringify(entry))].join("\n")}\n`,
+      partialHistory
+        ? "{"
+        : `${[JSON.stringify({ type: "session", version: 3, id: sessionId, timestamp: new Date().toISOString(), cwd: process.cwd() }), ...entries.map((entry) => JSON.stringify(entry))].join("\n")}\n`,
     );
   const append = (message) => {
     entries.push({
@@ -74,6 +77,8 @@ if (launch("pi")) {
     },
   });
   const finish = () => {
+    partialHistory = false;
+    save();
     active = false;
     settled("pi", file, file);
     write({ type: "turn_end", message: entries.at(-1)?.message, toolResults: [] });
@@ -84,6 +89,10 @@ if (launch("pi")) {
     write({ type: "agent_settled" });
   };
   const engine = interpreter("pi", {
+    history() {
+      partialHistory = true;
+      save();
+    },
     tool(tool, result) {
       const toolCallId = id();
       append({
