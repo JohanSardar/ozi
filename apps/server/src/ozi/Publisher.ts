@@ -89,12 +89,9 @@ const make = Effect.gen(function* () {
       .run({ command: "git", cwd: root, args: ["rev-parse", "--verify", "HEAD"] })
       .pipe(Effect.map((result) => (result.code === 0 ? result.stdout.trim() : null)));
   const checkpoint = Effect.fn("Publisher.checkpoint")(function* (fix: Fix, point: string) {
-    yield* sql`UPDATE ozi_fixes SET checkpoint = ${point} WHERE id = ${fix.id}`;
-    if (
-      environment.OZI_TEST_REPAIR_PAUSE ===
-      `${fix.state === "publishing" ? "publish" : "undo"}:${point}`
-    )
-      return yield* Effect.never;
+    const value = `${fix.state === "publishing" ? "publish" : "undo"}:${point}`;
+    yield* sql`UPDATE ozi_fixes SET checkpoint = ${value} WHERE id = ${fix.id}`;
+    if (environment.OZI_TEST_REPAIR_PAUSE === value) return yield* Effect.never;
   });
   const safe = Effect.fn("Publisher.safePath")(function* (base: string, name: string) {
     if (!permitted(name)) return yield* new RepairError({ reason: "publisher-path-denied" });

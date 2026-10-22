@@ -6907,14 +6907,22 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       const parentRun = parentProjection.runs.find(
         (candidate) => candidate.id === command.parentRunId,
       );
-      if (parentRun === undefined || (!isBlockingRun(parentRun) && !repair)) {
+      const systemBlocker =
+        command.createdBy === "system" &&
+        command.creationSource === "server" &&
+        command.launchFailure !== undefined &&
+        isOziMain(parentProjection.thread);
+      if (parentRun === undefined || (!isBlockingRun(parentRun) && !repair && !systemBlocker)) {
         return yield* new OrchestratorDispatchError({
           commandId: command.commandId,
           commandType: command.type,
           cause: `Parent run ${command.parentRunId} is not active.`,
         });
       }
-      if (yield* stopReachedRun(command, command.parentThreadId, parentRun.id)) {
+      if (
+        !systemBlocker &&
+        (yield* stopReachedRun(command, command.parentThreadId, parentRun.id))
+      ) {
         return yield* new OrchestratorDispatchError({
           commandId: command.commandId,
           commandType: command.type,

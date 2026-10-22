@@ -97,7 +97,8 @@ const active = async (prompt: string, skill: string) => {
   ]);
   await h.ozi("say", "inspect active");
   await h.wait("ozi-main", "completed");
-  expect((await h.thread("ozi-main")).messages.at(-1)?.text).toContain(skill.trim());
+  const result = JSON.parse((await h.thread("ozi-main")).messages.at(-1)!.text);
+  expect(result.content[0].text).toContain(skill.trim());
   expect((await h.status()).main?.thread.effectiveLoadout?.systemPromptSha256).toBe(
     NodeCrypto.createHash("sha256").update(prompt).digest("hex"),
   );
@@ -178,10 +179,13 @@ it("m6.edit-conflict restores the predecessor, preserves the user version and po
   const fixes = await h.ozi<Fix[]>("fixes");
   expect(fixes[0]).toMatchObject({ state: "undone", conflict: 1 });
   const cards =
-    await h.ozi<{ column: string; status: string; requests: { prompt: string }[] }[]>("jobs");
+    await h.ozi<
+      { jobId: string; column: string; status: string; requests: { prompt: string }[] }[]
+    >("jobs");
   expect(cards).toHaveLength(1);
   expect(cards[0]?.column).toBe("needs_you");
   expect(cards[0]?.requests[0]?.prompt).toContain(fix.id);
+  expect((await h.thread(cards[0]!.jobId)).runs).toEqual([]);
   await h.restart();
   await h.ozi("undo", fix.id);
   expect(await h.ozi("jobs")).toHaveLength(1);
@@ -219,7 +223,14 @@ it("m6.crash-publish real server crashes at publication and undo boundaries reco
         }
         void h.ozi("undo", id).catch(() => {});
       }
-      await h.ozi("wait", point === "prepared" ? "replay" : "fix", id, `at:${point}`);
+      await h.ozi(
+        "wait",
+        point === "prepared" ? "replay" : "fix",
+        id,
+        point === "prepared"
+          ? "at:prepared"
+          : `at:${operation === "conflict" ? "undo" : operation}:${point}`,
+      );
       await h.crash();
       if (point === "prepared") {
         await h.ozi("wait", "mistake", id, "failed");
