@@ -445,7 +445,7 @@ const answerCommand = Command.make("answer", {
 
 const waitCommand = Command.make("wait", {
   ...locationFlags,
-  entity: Argument.Literals("entity", ["thread", "job", "check"]),
+  entity: Argument.Literals("entity", ["thread", "job", "check", "mistake", "replay"]),
   id: Argument.String("id"),
   state: Argument.String("state"),
   timeout: Flag.Finite("timeout").pipe(
@@ -455,6 +455,19 @@ const waitCommand = Command.make("wait", {
 }).pipe(
   Command.withHandler((flags) =>
     Effect.gen(function* () {
+      if (flags.entity === "mistake" || flags.entity === "replay") {
+        const { state, token } = yield* connect(flags.baseDir);
+        yield* print(
+          yield* request(state.origin, token, "/api/ozi/repair", Schema.Unknown, {
+            kind: "wait",
+            entity: flags.entity,
+            id: flags.id,
+            state: flags.state,
+            timeout: flags.timeout,
+          }),
+        );
+        return;
+      }
       const { client } = yield* connect(flags.baseDir);
       if (flags.entity === "job") {
         const result = yield* client[J.jobsSubscribe]({}).pipe(
@@ -673,6 +686,51 @@ const scheduleRmCommand = Command.make("rm", scheduleIdFlags).pipe(
     }),
   ),
 );
+
+const repairCommands = ["mistakes", "replays"].map((kind) =>
+  Command.make(kind, locationFlags).pipe(
+    Command.withHandler((flags) =>
+      Effect.gen(function* () {
+        const { state, token } = yield* connect(flags.baseDir);
+        yield* print(
+          yield* request(state.origin, token, "/api/ozi/repair", Schema.Unknown, { kind }),
+        );
+      }),
+    ),
+  ),
+);
+const mistakeCommand = Command.make("mistake", {
+  ...locationFlags,
+  id: Argument.String("id"),
+}).pipe(
+  Command.withHandler((flags) =>
+    Effect.gen(function* () {
+      const { state, token } = yield* connect(flags.baseDir);
+      const rows = yield* request(
+        state.origin,
+        token,
+        "/api/ozi/repair",
+        Schema.Array(Schema.Unknown),
+        { kind: "mistakes", id: flags.id },
+      );
+      if (!rows[0]) return yield* new ClientError({ operation: "mistake not found" });
+      yield* print(rows[0]);
+    }),
+  ),
+);
+const eventsCommand = Command.make("events", { ...locationFlags, id: Argument.String("id") }).pipe(
+  Command.withHandler((flags) =>
+    Effect.gen(function* () {
+      const { state, token } = yield* connect(flags.baseDir);
+      yield* print(
+        yield* request(state.origin, token, "/api/ozi/repair", Schema.Unknown, {
+          kind: "events",
+          id: flags.id,
+        }),
+      );
+    }),
+  ),
+);
 const scheduleRunCommand = Command.make("run", scheduleIdFlags).pipe(
   Command.withHandler((flags) =>
     Effect.gen(function* () {
@@ -702,6 +760,9 @@ export const clientCommands = [
   schedulesCommand,
   scheduleCommand,
   ...(process.env.OZI_TEST_CLOCK ? [testClockCommand] : []),
+  ...repairCommands,
+  mistakeCommand,
+  eventsCommand,
   statusCommand,
   sayCommand,
   steerCommand,
