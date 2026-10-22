@@ -1,12 +1,18 @@
 import * as NodeFSP from "node:fs/promises";
 import * as NodeCrypto from "node:crypto";
 import * as NodePath from "node:path";
+import * as NodeChildProcess from "node:child_process";
+import * as NodeUtil from "node:util";
 import { afterEach, beforeEach, expect, it } from "vite-plus/test";
 import { startHarness, type Harness, type Projection, type Rule } from "./harness.ts";
 
 let h: Harness;
 beforeEach(async ({ task }) => {
-  h = await startHarness({ fresh: task.name.startsWith("m1.fresh-install") });
+  h = await startHarness({
+    fresh: task.name.startsWith("m1.fresh-install"),
+    emptyDataRoot: task.name.includes("empty data root"),
+    bundled: task.name.startsWith("m1.fresh-install"),
+  });
 });
 afterEach(async () => {
   await h?.close();
@@ -51,7 +57,7 @@ const delegate = (task: string, provider?: string): Rule["steps"][number] => ({
   },
 });
 
-it("m1.fresh-install starts isolated state and only the three supported providers", async () => {
+it.each(["missing", "empty"])("m1.fresh-install bootstraps a %s data root once", async () => {
   const status = await h.status();
   expect(status.main?.thread).toMatchObject({ role: "main", effectiveLoadout: { provider: "pi" } });
   expect(status.snapshot.threads.filter((thread) => thread.role === "main")).toHaveLength(1);
@@ -63,6 +69,49 @@ it("m1.fresh-install starts isolated state and only the three supported provider
   expect(
     (await NodeFSP.stat(NodePath.join(h.home, "userdata/statev2.sqlite"))).size,
   ).toBeGreaterThan(0);
+  const defaults = new URL("../apps/server/src/ozi/defaults/", import.meta.url);
+  const files = [
+    "prompt.md",
+    "protected/approvals.md",
+    "protected/contacts.md",
+    "protected/credentials.md",
+  ];
+  for (const file of files)
+    expect(await NodeFSP.readFile(NodePath.join(h.dataRoot, file), "utf8")).toBe(
+      await NodeFSP.readFile(new URL(file, defaults), "utf8"),
+    );
+  for (const directory of ["skills", "protected/cases"])
+    expect(await NodeFSP.readdir(NodePath.join(h.dataRoot, directory))).toEqual([]);
+  const prompt = (await NodeFSP.readFile(new URL("prompt.md", defaults), "utf8")).replaceAll(
+    "{{ADHD}}",
+    "",
+  );
+  expect(status.main?.thread.effectiveLoadout?.systemPromptSha256).toBe(
+    NodeCrypto.createHash("sha256").update(prompt).digest("hex"),
+  );
+  const git = async (...args: string[]) =>
+    (
+      await NodeUtil.promisify(NodeChildProcess.execFile)("git", ["-C", h.dataRoot, ...args])
+    ).stdout.trim();
+  expect(await git("rev-list", "--count", "HEAD")).toBe("1");
+  expect(await git("status", "--porcelain")).toBe("");
+  const snapshot = async () =>
+    Promise.all(
+      (await NodeFSP.readdir(h.dataRoot, { recursive: true })).sort().map(async (file) => {
+        const path = NodePath.join(h.dataRoot, file);
+        const stat = await NodeFSP.stat(path);
+        return [file, stat.mtimeMs, stat.isFile() ? await NodeFSP.readFile(path, "hex") : null];
+      }),
+    );
+  const initial = await snapshot();
+  await h.restart();
+  expect(await snapshot()).toEqual(initial);
+  await NodeFSP.appendFile(NodePath.join(h.dataRoot, "prompt.md"), "\nUser instructions.\n");
+  await NodeFSP.rm(NodePath.join(h.dataRoot, "protected/approvals.md"));
+  const edited = await snapshot();
+  await h.restart();
+  expect(await snapshot()).toEqual(edited);
+  expect(await git("rev-list", "--count", "HEAD")).toBe("1");
 });
 
 it("m1.main-loadout preserves the Pi loadout, prompt and tools after resume and fork", async () => {
