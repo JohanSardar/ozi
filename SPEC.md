@@ -89,11 +89,21 @@ Cases freeze the original message, native prefix, attachment bytes, expectation 
 - Opening a card mounts `JobDrawer`, which loads the lead's brief and conversation on demand. Its composer addresses the lead. The main composer remains mounted and usable. HTML replies, MCP apps and the shared browser remain available. To-dos below jobs, labeled with their source, arrive in M4.
 - Client-runtime atoms subscribe to `ozi.jobs.subscribe` with `{}` and send `ozi.jobs.handle`. `useOziJobs` supplies authoritative cards and session freshness. The panel retains its last cards on disconnect, disables mutations until a current snapshot arrives, and surfaces `OziJobError`, including `StaleEvent`. Close preserves its command ID and exact card `eventId`; commands are never acknowledged optimistically. Answers and stop use the existing owner-specific commands.
 
+### Terminal (`cli/tui/`)
+
+- `ozi` without a subcommand opens the terminal app when stdin and stdout are TTYs; otherwise it prints help. It connects like client commands.
+- Built from Pi's `pi-tui` and the components and theme `pi-coding-agent` exports: user and assistant messages, editor, loader, borders, markdown and select-list themes. Main-screen mode keeps terminal scrollback. The status line follows Pi's footer style.
+- Main's conversation comes from `orchestration.subscribeThread` folded with the shared projection reducer; cards come from `ozi.jobs.subscribe`. Disconnects resubscribe; mutations wait for a current snapshot.
+- Layout: conversation, status line (main idle, working or checking; Needs you count; server and connection), editor.
+- Enter sends, queued after main's active turn. Alt+Enter steers it. Esc stops main. Ctrl+C clears the editor; twice exits. Slash commands autocomplete: `/jobs`, `/attach <path>`, `/stop`, `/quit`.
+- `/jobs` lists cards by column. A card shows title, agent, report and requests. Questions pick an option or take text, approvals allow or deny, secrets use masked input that is never rendered, Blocked takes a reply. Close sends the displayed `eventId`; errors such as `StaleEvent` show as one line. Stop and Open are separate. Open shows the lead's conversation and the editor addresses the lead until Esc.
+- A card entering Needs you adds one line to the conversation. HTML replies, MCP apps, images and the shared browser show a one-line pointer to the desktop app.
+
 ## Retained surface
 
 Device and simulator support is removed, including its RPC methods, MCP tools, settings, models and tool downloads. Shared browser streaming remains. Terminal sessions, their RPC streams, project setup terminals and sign-in terminal rendering are removed. Desktop and server self-update RPCs, update feeds, IPC and controls are removed. Resource monitoring, product analytics and power/activity reporting are removed. macOS packaging has no Rust prerequisite; Linux capture helpers retain their Rust builds. T3 deployment infrastructure and vendored Alchemy references are removed. The T3 welcome wizard and its stored completion marker are removed; provider setup remains in Settings. CLI Proxy quota hubs, their settings, polling, streams and removed quota UI are removed. Native provider usage reporting remains. All product labels and desktop identifiers use Ozi. Desktop and web share the neutral blue icon; package names remain internal.
 
-Only Pi, Claude and Codex providers and desktop and web clients ship. Provider registration, models, settings, usage and packaging follow this boundary. T3 Connect, cloud accounts, tunnels, relay discovery and signed cloud proofs are removed. Remote pairing over direct network connections, SSH and Tailscale remains. Webhooks use the configured public URL directly. Removal migrations follow M6’s fixes schema.
+Only Pi, Claude and Codex providers and desktop, web and terminal clients ship. Provider registration, models, settings, usage and packaging follow this boundary. T3 Connect, cloud accounts, tunnels, relay discovery and signed cloud proofs are removed. Remote pairing over direct network connections, SSH and Tailscale remains. Webhooks use the configured public URL directly. Removal migrations follow M6’s fixes schema.
 
 ### Desktop
 
@@ -126,9 +136,11 @@ One binary, `ozi`. Every command takes `--json`. Command failures exit nonzero w
 
 | Command                                                                         | Does                                                                                                   |
 | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------ |
+| `ozi`                                                                           | Terminal app.                                                                                          |
 | `ozi serve [--home] [--data-root] [--port] [--host] [--public-url]`             | Run the server.                                                                                        |
 | `ozi service install\|status\|restart\|uninstall`                               | systemd user service.                                                                                  |
 | `ozi pair`                                                                      | Pairing URL for a new client.                                                                          |
+| `ozi connect <pairing-url>` / `ozi disconnect`                                  | Save or remove a remote server for client commands.                                                    |
 | `ozi request <RPC-or-path>… [--method GET\|POST] [--payload JSON]`              | Send authenticated requests and report each RPC result or HTTP status.                                 |
 | `ozi status`                                                                    | Server, main thread, effective loadouts (model, options, tools, prompt hash), providers.               |
 | `ozi say <text> [--file <path>]…`                                               | Message main; queues when busy.                                                                        |
@@ -147,6 +159,8 @@ One binary, `ozi`. Every command takes `--json`. Command failures exit nonzero w
 | `ozi todos`                                                                     | External to-dos with source and freshness.                                                             |
 | `ozi wait <job\|thread\|check\|mistake\|replay\|fix> <id> <state> [--timeout]`  | Block until the state holds; non-zero on timeout.                                                      |
 | `ozi events <threadId>`                                                         | Stored source events for diagnostics and mistake logging.                                              |
+
+Client commands use the running server under `--home`, else the remote saved by `connect`: its pairing token is exchanged once for a bearer session stored owner-only in the home; an expired or revoked session fails asking to connect again. Without `--json`, `status`, `jobs`, `job`, `thread`, `checks`, `mistakes`, `replays`, `fixes`, `schedules` and `todos` print short text and other commands print one line. Text shows IDs by their shortest unique suffix of at least eight characters; ID arguments accept any unique substring, and ambiguous ones fail.
 
 M1 implements `serve`, `service`, `pair`, `status`, `say`, `steer`, `stop`, `thread`, and `wait`. M2 adds `jobs`, `job`, `answer`, `close`, and `wait job`. M3 adds `checks [threadId]` and `wait check`. Other commands arrive with their owning milestones. `--home`/`OZI_HOME` selects server state; `--data-root`/`OZI_DATA_ROOT` selects the data repository. Desktop launchers may use the `--base-dir` alias.
 
@@ -241,3 +255,15 @@ Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` 
 - `m6.public-ready`: T3 Code, Pi, Firstmate and pi-claude-bridge MIT notices, and Claude Code/Agent SDK terms are present in the repo and packaged notices. Public setup uses packaged defaults. Every tracked file is checked for personal home paths, emails, private network addresses, provider tokens and private keys; only vendored `.repos/` and license texts are exempt.
 
 Product descriptions and connection guidance use Ozi and self-hosted public URLs.
+
+### M7 Terminal
+
+The harness runs `ozi` in a real pseudo-terminal through util-linux `script`, types keys on stdin and reads the screen through `@xterm/headless`.
+
+- `m7.cli-text`: without `--json`, listing commands print short text with short IDs; a unique ID substring resolves and an ambiguous one fails in one line.
+- `m7.remote-cli`: a second home connects with a pairing URL; `say`, `jobs`, `answer` and `wait` reach the first server; a used or invalid token and a revoked session fail in one line; `disconnect` removes the saved remote.
+- `m7.tui-chat`: the app opens on main; a typed message reaches main and its markdown reply renders; a message sent while main works queues; Alt+Enter steers; Esc stops main; `/attach` sends a file; Ctrl+C twice exits.
+- `m7.tui-question`: a worker's question adds a Needs you line and count; picking an option in `/jobs` resumes the worker and the card reaches Ready.
+- `m7.tui-close`: closing a Ready card moves it to Done; closing a card whose event changed shows `StaleEvent` and changes nothing.
+- `m7.tui-secret`: a secret request takes masked input; the value never appears on screen or in card data.
+- `m7.tui-lead`: opening a card shows the lead's conversation; a message typed there reaches the lead; Esc returns to main.
