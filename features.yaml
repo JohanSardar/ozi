@@ -176,25 +176,25 @@ features:
     status: planned
   - id: mistake-log
     reqs: [mistake-log]
-    module: Repair
+    module: apps/server/src/ozi/Repair.ts
     cli: [mistakes, mistake]
     milestone: 5
     scenarios: [m5.log, m5.no-repair-once]
-    status: planned
+    status: passing
   - id: replay
     reqs: [repair-trigger, replay]
-    module: Repair
+    module: apps/server/src/ozi/Repair.ts + RepairSandbox.ts + RepairTasks.ts
     cli: [replays]
     milestone: 5
     scenarios: [m5.correction-repairs, m5.repeat-repairs, m5.false-case, m5.unknown-effect]
-    status: planned
+    status: passing
   - id: confinement
     reqs: [protected, user-override]
-    module: Repair
+    module: apps/server/src/ozi/RepairSandbox.ts + RepairProgram.ts
     cli: [replays]
     milestone: 5
     scenarios: [m5.protected-denied, m5.no-credentials, m5.user-override]
-    status: planned
+    status: passing
   - id: publish-undo
     reqs: [replay]
     module: Repair

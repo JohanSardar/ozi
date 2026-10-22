@@ -12,6 +12,8 @@ import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
+import * as Option from "effect/Option";
+import * as RepairTasks from "../ozi/RepairTasks.ts";
 
 import * as ProviderInstanceRegistry from "../provider/ProviderInstanceRegistry.ts";
 import {
@@ -80,7 +82,23 @@ export const layerFromProviderInstanceRegistry: Layer.Layer<
           Effect.flatMap((instance) => {
             if (instance === undefined)
               return new ProviderAdapterRegistryLookupError({ instanceId });
-            const adapter = instance.orchestrationAdapter;
+            const original = instance.orchestrationAdapter;
+            const adapter: ProviderAdapter.ProviderAdapterV2["Service"] = {
+              ...original,
+              openSession: Effect.fn("ProviderAdapterRegistry.openSession")(function* (input) {
+                const repair = yield* Effect.serviceOption(RepairTasks.RepairTasks);
+                if (Option.isSome(repair)) {
+                  const confined = yield* repair.value.open(input, original);
+                  if (confined) return confined;
+                }
+                if (RepairTasks.isRepairThread(input.threadId))
+                  return yield* new ProviderAdapter.ProviderAdapterProtocolError({
+                    driver: original.driver,
+                    detail: "Confined repair runtime is unavailable",
+                  });
+                return yield* original.openSession(input);
+              }),
+            };
             const auth = instance.auth;
             if (!auth) return Effect.succeed(adapter);
             return Effect.succeed({

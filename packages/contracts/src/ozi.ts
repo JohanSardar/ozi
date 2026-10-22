@@ -85,6 +85,7 @@ export const OZI_MAIN_TOOL_NAMES = [
   "read_skill",
   "handle_job",
   "job_cards",
+  "log_mistake",
 ] as const;
 
 export const OziCheckState = Schema.Literals([

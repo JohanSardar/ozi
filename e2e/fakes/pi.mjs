@@ -84,6 +84,24 @@ if (launch("pi")) {
     write({ type: "agent_settled" });
   };
   const engine = interpreter("pi", {
+    tool(tool, result) {
+      const toolCallId = id();
+      append({
+        ...assistant("", "toolUse"),
+        content: [
+          { type: "toolCall", id: toolCallId, name: tool.name, arguments: tool.arguments ?? {} },
+        ],
+      });
+      append({
+        role: "toolResult",
+        toolCallId,
+        toolName: tool.name,
+        content: result.content ?? [],
+        details: result.structuredContent,
+        isError: result.isError ?? false,
+        timestamp: Date.now(),
+      });
+    },
     say(text) {
       const message = assistant(text);
       write({ type: "message_start", message });

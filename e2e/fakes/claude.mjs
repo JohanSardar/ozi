@@ -28,6 +28,28 @@ if (launch("claude")) {
         : "";
     let text = "";
     let running = false;
+    if (argv.includes("--fork-session") && option("--resume")) {
+      const source = sessionFile("claude", option("--resume"));
+      const entries = NodeFS.readFileSync(source, "utf8")
+        .trim()
+        .split("\n")
+        .filter(Boolean)
+        .map(JSON.parse);
+      const boundary = option("--resume-session-at");
+      const index = boundary
+        ? entries.findIndex((entry) => entry.uuid === boundary)
+        : entries.length - 1;
+      if (boundary && index < 0) throw new Error("Missing Claude fork boundary");
+      NodeFS.writeFileSync(
+        file,
+        entries
+          .slice(0, index + 1)
+          .map((entry) =>
+            JSON.stringify({ ...entry, sessionId, session_id: sessionId, cwd: process.cwd() }),
+          )
+          .join("\n") + "\n",
+      );
+    }
     let parentUuid = NodeFS.existsSync(file)
       ? (JSON.parse(NodeFS.readFileSync(file, "utf8").trim().split("\n").at(-1) || "null")?.uuid ??
         null)

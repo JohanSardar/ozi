@@ -55,6 +55,12 @@ New code lives in `apps/server/src/ozi/` and `apps/web/src/components/ozi/`. Eve
 - Authoring and both replays run in bwrap: candidate data root writable, `protected/` read-only, no credentials or effect endpoints. Publisher checks the real diff; protected changes only on the user's own message.
 - Pass → one data-root commit, activated. Repeat after a fix → revert; conflict with a user edit → keep the pre-fix build and post a blocker.
 
+M5 stops at replay: a pass leaves the mistake `testing` and its replay `passed`; publication, activation and undo arrive in M6. Logging acknowledges only the SQLite write. Eligible cases run serially as internal delegated tasks; they never create cards or wake main with repair output. Interrupted cases fail on restart, and reserved repair threads cannot resume outside confinement.
+
+`t3_thread_read` supplies `sourceEventId` on timeline items; `ozi events <threadId>` exposes the stored events. Sources must belong to the caller or its descendants; internal checkers can report an ancestor's source. Runtime provider errors use the same logger. A stored user correction names the fingerprint or mistake, or supplies the correction's source event and the original user-message boundary through `log_mistake`. A missing replay boundary still logs.
+
+Cases freeze the original message, native prefix, attachment bytes, expectation and recorded effects. Each replay gets its own native fork and effect-stub counters. Unknown effects, missing history, changed builds, unloaded changes or observer disagreement fail. Shell tools in replays use the frozen stubs. Inference keys stay in a server-owned proxy; confined processes receive a local inference endpoint and fresh provider homes. The proxy permits only inference POSTs. Protected rules change outside repair through a delegated `change_protected_rule` call backed by the user's exact stored instruction: `Change protected/<filename> to:` followed by the requested content on the next line. Quoted messages and tool output carry no authority.
+
 ### Information in
 
 - Every schedule targets `ozi-main`, including schedules created by workers or settings. Runs queue a message with `scheduledTaskId`; main delegates quiet jobs. Dispatch success records delivery only; workers still need checked reports. Quiet jobs persist and recover normally; cards appear for requests or checked reports with `useful: true`.
@@ -110,7 +116,8 @@ One binary, `ozi`. Every command takes `--json`. Client commands find the server
 | `ozi fixes` / `ozi undo <fixId>`                                                | Shipped fixes; manual undo.                                                                            |
 | `ozi schedules` / `ozi schedule add\|rm\|run`                                   | Interval, time-of-day and webhook schedules bound to main.                                             |
 | `ozi todos`                                                                     | External to-dos with source and freshness.                                                             |
-| `ozi wait <job\|thread\|check> <id> <state> [--timeout]`                        | Block until the state holds; non-zero on timeout.                                                      |
+| `ozi wait <job\|thread\|check\|mistake\|replay> <id> <state> [--timeout]`       | Block until the state holds; non-zero on timeout.                                                      |
+| `ozi events <threadId>`                                                         | Stored source events for diagnostics and mistake logging.                                              |
 
 M1 implements `serve`, `service`, `pair`, `status`, `say`, `steer`, `stop`, `thread`, and `wait`. M2 adds `jobs`, `job`, `answer`, `close`, and `wait job`. M3 adds `checks [threadId]` and `wait check`. Other commands arrive with their owning milestones. `--home`/`OZI_HOME` selects server state; `--data-root`/`OZI_DATA_ROOT` selects the data repository. Desktop launchers may use the `--base-dir` alias.
 

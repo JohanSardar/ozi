@@ -77,6 +77,7 @@ import { HtmlPreviewTool, HtmlPreviewToolkit, HtmlRenderToolkit } from "./toolki
 import { mcpTools } from "../ozi/McpTools.ts";
 import * as Skills from "../ozi/Skills.ts";
 import * as JobsMcp from "../ozi/JobsMcp.ts";
+import * as RepairMcp from "../ozi/RepairMcp.ts";
 
 const MainMcpRequest = Schema.Struct({
   id: Schema.optional(Schema.Unknown),
@@ -1233,6 +1234,10 @@ export const layerMcpTransport = McpServer.layerHttp({
   protocols: [McpProtocol.v2025_06_18],
   allowSessionTermination: true,
 }).pipe(Layer.provide(layerMcpAuthMiddleware));
+
+export const layerRepairToolkit = toolkitRegistration(RepairMcp.toolkit, RepairMcp.layer).pipe(
+  Layer.provide(layerMcpTransport),
+);
 
 export const layer = Layer.mergeAll(
   toolkitRegistration(Skills.SkillToolkit, Skills.layer),

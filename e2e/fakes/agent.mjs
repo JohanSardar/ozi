@@ -1,6 +1,7 @@
 import * as NodeCrypto from "node:crypto";
 import * as NodeFS from "node:fs";
 import * as NodePath from "node:path";
+import * as NodeChildProcess from "node:child_process";
 
 export const argv = process.argv.slice(2);
 export const option = (name) => {
@@ -196,6 +197,8 @@ export function interpreter(provider, hooks) {
           (role !== "checker" || rule.role === "checker") &&
           (!rule.provider || rule.provider === provider) &&
           (!rule.role || rule.role === role) &&
+          (!rule.stage || rule.stage === process.env.OZI_REPAIR_STAGE) &&
+          Boolean(rule.stage) === Boolean(process.env.OZI_REPAIR_STAGE) &&
           new RegExp(rule.match ?? ".*", "s").test(prompt),
       );
       if (index < 0 && role === "checker") {
@@ -230,6 +233,14 @@ export function interpreter(provider, hooks) {
         } else if (step.fail) {
           log(provider, "failure", { message: step.fail });
           throw new Error(step.fail);
+        } else if (step.exec) {
+          const execution = NodeChildProcess.spawnSync("/bin/sh", ["-c", step.exec], {
+            encoding: "utf8",
+            timeout: 5000,
+          });
+          result = { stdout: execution.stdout, stderr: execution.stderr, code: execution.status };
+          log(provider, "exec", result);
+          await hooks.say(JSON.stringify(result));
         } else throw new Error(`Unknown fake step: ${JSON.stringify(step)}`);
       }
       if (!turnController.signal.aborted) await hooks.done();
