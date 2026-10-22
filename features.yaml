@@ -244,11 +244,11 @@ features:
     cli: []
     milestone: 7
     scenarios: [m7.tui-chat]
-    status: planned
+    status: passing
   - id: tui-jobs
     reqs: [terminal-client, card-columns, on-cards, drawer]
     module: apps/server/src/cli/tui + e2e/m7.tui.test.ts
     cli: []
     milestone: 7
     scenarios: [m7.tui-question, m7.tui-close, m7.tui-secret, m7.tui-lead]
-    status: planned
+    status: passing
