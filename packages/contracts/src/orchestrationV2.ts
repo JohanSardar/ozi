@@ -472,28 +472,6 @@ export const OrchestrationV2RunBackgroundWorkCancelled = Schema.Struct({
 export type OrchestrationV2RunBackgroundWorkCancelled =
   typeof OrchestrationV2RunBackgroundWorkCancelled.Type;
 
-export const OrchestrationV2ThreadLaunchWorkspaceStrategy = Schema.Union([
-  Schema.Struct({
-    type: Schema.Literal("root"),
-    branch: Schema.optional(TrimmedNonEmptyString),
-  }),
-  Schema.Struct({
-    type: Schema.Literal("existing_worktree"),
-    worktreePath: TrimmedNonEmptyString,
-    branch: Schema.optional(TrimmedNonEmptyString),
-  }),
-  Schema.Struct({
-    type: Schema.Literal("worktree"),
-    baseRef: TrimmedNonEmptyString,
-    branch: Schema.optional(TrimmedNonEmptyString),
-    startFromOrigin: Schema.optional(Schema.Boolean),
-  }),
-]);
-export type OrchestrationV2ThreadLaunchWorkspaceStrategy =
-  typeof OrchestrationV2ThreadLaunchWorkspaceStrategy.Type;
-
-export const ORCHESTRATION_V2_WORKSPACE_PREPARATION_FAILURE_CODE = "workspace_preparation_failed";
-
 export const OrchestrationV2Run = Schema.Struct({
   id: RunId,
   threadId: ThreadId,
@@ -525,7 +503,6 @@ export const OrchestrationV2Run = Schema.Struct({
   ),
   completionCheck: Schema.optional(OziCheck),
   delegatedCompletion: Schema.optional(OrchestrationV2DelegatedCompletionCohort),
-  workspacePreparation: Schema.optional(OrchestrationV2ThreadLaunchWorkspaceStrategy),
 });
 export type OrchestrationV2Run = typeof OrchestrationV2Run.Type;
 
@@ -2582,10 +2559,6 @@ export const OrchestrationV2Command = Schema.Union([
       }),
     ),
     dispatchMode: Schema.Union([
-      Schema.Struct({
-        type: Schema.Literal("defer_start"),
-        workspaceStrategy: Schema.optional(OrchestrationV2ThreadLaunchWorkspaceStrategy),
-      }),
       Schema.Struct({ type: Schema.Literal("steer_active"), targetRunId: RunId }),
       Schema.Struct({ type: Schema.Literal("restart_active"), targetRunId: RunId }),
       Schema.Struct({ type: Schema.Literal("queue_after_active") }),
@@ -2593,36 +2566,10 @@ export const OrchestrationV2Command = Schema.Union([
     ]),
   }),
   Schema.Struct({
-    type: Schema.Literal("prepared-run.release"),
-    commandId: CommandId,
-    threadId: ThreadId,
-    runId: RunId,
-  }),
-  Schema.Struct({
     type: Schema.Literal("notification.delivery.accept"),
     commandId: CommandId,
     threadId: ThreadId,
     messageId: MessageId,
-  }),
-  Schema.Struct({
-    type: Schema.Literal("prepared-run.progress"),
-    commandId: CommandId,
-    threadId: ThreadId,
-    runId: RunId,
-    phase: Schema.Literals(["worktree", "setup"]),
-  }),
-  Schema.Struct({
-    type: Schema.Literal("prepared-run.fail"),
-    commandId: CommandId,
-    threadId: ThreadId,
-    runId: RunId,
-    failure: OrchestrationV2ProviderFailure,
-  }),
-  Schema.Struct({
-    type: Schema.Literal("prepared-run.retry"),
-    commandId: CommandId,
-    threadId: ThreadId,
-    runId: RunId,
   }),
   Schema.Struct({
     type: Schema.Literal("subagent.stop"),
@@ -2723,7 +2670,6 @@ export const OrchestrationV2Command = Schema.Union([
     modelSelection: ModelSelection,
     runtimeMode: RuntimeMode,
     interactionMode: ProviderInteractionMode,
-    workspaceStrategy: Schema.optional(OrchestrationV2ThreadLaunchWorkspaceStrategy),
     // Omitted behaves as "settled_only" (no wake while the parent has a live
     // run); producers that want fire-and-forget wakes must set "always".
     completionWake: Schema.optional(Schema.Literals(["always", "settled_only"])),
@@ -2838,7 +2784,6 @@ export const ORCHESTRATION_V2_WS_METHODS = {
   getWorkflowScript: "orchestration.getWorkflowScript",
   stopWorkflow: "orchestration.stopWorkflow",
   getTurnItem: "orchestration.getTurnItem",
-  launchThread: "orchestration.launchThread",
   subscribeArchivedShell: "orchestration.subscribeArchivedShell",
   subscribeShell: "orchestration.subscribeShell",
   subscribeThread: "orchestration.subscribeThread",
@@ -2906,36 +2851,6 @@ export const OrchestrationV2ArchivedShellStreamItem = Schema.Union([
 ]);
 export type OrchestrationV2ArchivedShellStreamItem =
   typeof OrchestrationV2ArchivedShellStreamItem.Type;
-
-export const OrchestrationV2ThreadLaunchInput = Schema.Struct({
-  commandId: CommandId,
-  creationSource: Schema.optional(OrchestrationV2CreationSource),
-  threadId: Schema.optional(ThreadId),
-  reuseExistingThread: Schema.optional(Schema.Boolean),
-  projectId: ProjectId,
-  title: TrimmedNonEmptyString,
-  generateTitle: Schema.optional(Schema.Boolean),
-  modelSelection: ModelSelection,
-  runtimeMode: RuntimeMode,
-  interactionMode: ProviderInteractionMode,
-  workspaceStrategy: OrchestrationV2ThreadLaunchWorkspaceStrategy,
-  initialMessage: Schema.optional(
-    Schema.Struct({
-      messageId: Schema.optional(MessageId),
-      text: Schema.String,
-      context: Schema.optional(OrchestrationMessageContext),
-      attachments: Schema.Array(ChatAttachment),
-    }),
-  ),
-});
-export type OrchestrationV2ThreadLaunchInput = typeof OrchestrationV2ThreadLaunchInput.Type;
-
-export const OrchestrationV2ThreadLaunchResult = Schema.Struct({
-  threadId: ThreadId,
-  projection: OrchestrationV2ThreadProjection,
-  resumed: Schema.Boolean,
-});
-export type OrchestrationV2ThreadLaunchResult = typeof OrchestrationV2ThreadLaunchResult.Type;
 
 export const OrchestrationV2DispatchCommandResult = Schema.Struct({
   sequence: NonNegativeInt,
@@ -3111,16 +3026,6 @@ export class OrchestrationV2GetShellSnapshotError extends Schema.TaggedError<Orc
   },
 ) {}
 
-export class OrchestrationV2ThreadLaunchError extends Schema.TaggedError<OrchestrationV2ThreadLaunchError>()(
-  "OrchestrationV2ThreadLaunchError",
-  {
-    commandId: CommandId,
-    projectId: ProjectId,
-    message: Schema.String,
-    cause: Schema.optional(Schema.Defect()),
-  },
-) {}
-
 export const OrchestrationV2StopWorkflowInput = Schema.Struct({
   threadId: ThreadId,
   subagentId: NodeId,
@@ -3154,7 +3059,6 @@ export const OrchestrationV2RpcError = Schema.Union([
   OrchestrationV2DispatchCommandError,
   OrchestrationV2GetThreadProjectionError,
   OrchestrationV2GetShellSnapshotError,
-  OrchestrationV2ThreadLaunchError,
   OrchestrationV2StopWorkflowError,
 ]);
 export type OrchestrationV2RpcError = typeof OrchestrationV2RpcError.Type;
@@ -3332,10 +3236,6 @@ export const OrchestrationV2RpcSchemas = {
   getTurnItem: {
     input: OrchestrationV2GetTurnItemInput,
     output: OrchestrationV2GetTurnItemResult,
-  },
-  launchThread: {
-    input: OrchestrationV2ThreadLaunchInput,
-    output: OrchestrationV2ThreadLaunchResult,
   },
   subscribeArchivedShell: {
     input: Schema.Struct({}),

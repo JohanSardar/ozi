@@ -12,7 +12,6 @@ import {
   ThreadId,
   TurnItemId,
   type OrchestrationV2Command,
-  type OrchestrationV2ThreadLaunchInput,
   type OrchestrationV2ThreadProjection,
 } from "@t3tools/contracts";
 import { describe, expect, it } from "@effect/vitest";
@@ -65,7 +64,6 @@ const TARGET = new PrimaryConnectionTarget({
 
 const makeSupervisor = Effect.fn("TestEnvironmentCommands.makeSupervisor")(function* (input: {
   readonly commands: OrchestrationV2Command[];
-  readonly launches?: OrchestrationV2ThreadLaunchInput[];
   readonly projection?: OrchestrationV2ThreadProjection;
   readonly projectionRequests?: ThreadId[];
   readonly advertiseServerResolvedCommandContext?: boolean;
@@ -83,15 +81,6 @@ const makeSupervisor = Effect.fn("TestEnvironmentCommands.makeSupervisor")(funct
       Effect.sync(() => {
         input.projectionRequests?.push(requestInput.threadId);
         return input.projection ?? v2Projection;
-      }),
-    [ORCHESTRATION_V2_WS_METHODS.launchThread]: (launchInput: OrchestrationV2ThreadLaunchInput) =>
-      Effect.sync(() => {
-        input.launches?.push(launchInput);
-        return {
-          threadId: launchInput.threadId ?? v2ThreadId,
-          projection: input.projection ?? v2Projection,
-          resumed: false,
-        };
       }),
   } as unknown as WsRpcProtocolClient;
   const session: RpcSession.RpcSession = {
