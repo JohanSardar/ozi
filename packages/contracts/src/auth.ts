@@ -35,7 +35,6 @@ export const AuthEnvironmentMaintainScope = "environment:maintain" as const;
 export const AuthPreviewOperateScope = "preview:operate" as const;
 export const AuthDiagnosticsReadScope = "diagnostics:read" as const;
 export const AuthFilesystemReadScope = "filesystem:read" as const;
-export const AuthFilesystemWriteScope = "filesystem:write" as const;
 export const AuthAccessReadScope = "access:read" as const;
 export const AuthAccessWriteScope = "access:write" as const;
 export const AuthEnvironmentScope = Schema.Literals([
@@ -47,7 +46,6 @@ export const AuthEnvironmentScope = Schema.Literals([
   AuthPreviewOperateScope,
   AuthDiagnosticsReadScope,
   AuthFilesystemReadScope,
-  AuthFilesystemWriteScope,
   AuthAccessReadScope,
   AuthAccessWriteScope,
 ]);
@@ -85,7 +83,6 @@ const legacyParents: Partial<Record<AuthEnvironmentScope, AuthEnvironmentScope>>
   [AuthProvidersManageScope]: AuthOrchestrationOperateScope,
   [AuthEnvironmentMaintainScope]: AuthOrchestrationOperateScope,
   [AuthPreviewOperateScope]: AuthOrchestrationOperateScope,
-  [AuthFilesystemWriteScope]: AuthOrchestrationOperateScope,
 };
 
 /** Keep permission denials decodable by clients with the original scope enum. */
@@ -100,32 +97,14 @@ export interface SessionGrantInput {
   readonly authenticated: boolean;
   readonly scopes?: ReadonlyArray<AuthEnvironmentScope> | undefined;
   readonly permissions?: ReadonlyArray<AuthEnvironmentScope> | undefined;
-  readonly auth?: { readonly serverUpdateScope?: string | undefined } | undefined;
 }
 
 export function sessionGrantsScope(
   session: SessionGrantInput,
   scope: AuthEnvironmentScope,
 ): boolean {
-  if (!session.authenticated) return false;
-  if (session.permissions !== undefined) return session.permissions.includes(scope);
-  if (session.scopes?.includes(scope)) return true;
-  if (session.auth?.serverUpdateScope !== undefined) return false;
-  const parent = legacyParents[scope];
-  return parent !== undefined && session.scopes?.includes(parent) === true;
+  return session.authenticated && (session.permissions ?? session.scopes ?? []).includes(scope);
 }
-
-export function sessionHasLegacyPermissions(session: SessionGrantInput): boolean {
-  const permissions = session.permissions;
-  return (
-    session.authenticated &&
-    permissions !== undefined &&
-    permissions.every((scope) => legacyScopes.has(scope)) &&
-    Object.values(legacyParents).some((parent) => permissions.includes(parent))
-  );
-}
-// orchestration:operate already reach that authority through a shell or a
-// full-access agent. Narrowing a grant means choosing explicit scopes.
 export const AuthStandardClientScopes = [
   AuthOrchestrationReadScope,
   AuthOrchestrationOperateScope,
@@ -135,7 +114,6 @@ export const AuthStandardClientScopes = [
   AuthPreviewOperateScope,
   AuthDiagnosticsReadScope,
   AuthFilesystemReadScope,
-  AuthFilesystemWriteScope,
   AuthAccessReadScope,
   AuthAccessWriteScope,
 ] as const;
@@ -151,8 +129,6 @@ export const ServerAuthDescriptor = Schema.Struct({
   bootstrapMethods: Schema.Array(ServerAuthBootstrapMethod),
   sessionMethods: Schema.Array(ServerAuthSessionMethod),
   sessionCookieName: TrimmedNonEmptyString,
-  /** Older servers omit this and authorize self-updates with orchestration:operate. */
-  serverUpdateScope: Schema.optionalKey(Schema.Literal(AuthEnvironmentMaintainScope)),
 });
 export type ServerAuthDescriptor = typeof ServerAuthDescriptor.Type;
 

@@ -102,27 +102,6 @@ export interface SetThreadInteractionModeInput extends ThreadCommandInput {
   readonly interactionMode: ProviderInteractionMode;
 }
 
-interface StartThreadBootstrap {
-  readonly createThread?: {
-    readonly projectId: ProjectId;
-    readonly title: string;
-    readonly modelSelection: ModelSelection;
-    readonly runtimeMode: RuntimeMode;
-    readonly interactionMode: ProviderInteractionMode;
-    readonly branch: string | null;
-    readonly worktreePath: string | null;
-    readonly createdAt: string;
-  };
-  readonly prepareWorktree?: {
-    readonly requireWorktree?: boolean;
-    readonly projectCwd: string;
-    readonly baseBranch: string;
-    readonly branch?: string;
-    readonly startFromOrigin?: boolean;
-  };
-  readonly runSetupScript?: boolean;
-}
-
 export interface StartThreadTurnInput extends ThreadCommandInput {
   readonly manualContinuationOfRunId?: RunId;
   readonly message: {
@@ -136,7 +115,6 @@ export interface StartThreadTurnInput extends ThreadCommandInput {
   readonly titleSeed?: string;
   readonly runtimeMode: RuntimeMode;
   readonly interactionMode: ProviderInteractionMode;
-  readonly bootstrap?: StartThreadBootstrap;
   readonly sourceProposedPlan?: { readonly threadId: ThreadId; readonly planId: PlanId };
   readonly dispatchMode?: "auto" | "queue" | "steer" | "restart" | "start";
 }
@@ -488,8 +466,6 @@ export const startThreadTurn = Effect.fn("EnvironmentCommands.startThreadTurn")(
     input.message.attachments,
     attachments,
   );
-  const bootstrap = input.bootstrap?.createThread;
-  const prepareWorktree = input.bootstrap?.prepareWorktree;
 
   const requestedMode = input.dispatchMode ?? "auto";
   if (requestedMode === "start") {

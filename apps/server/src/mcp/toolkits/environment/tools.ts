@@ -13,7 +13,6 @@ import * as Settings from "../../../serverSettings.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 
 const PreferenceFields = {
-  defaultThreadEnvMode: ServerSettings.fields.defaultThreadEnvMode,
   enableProviderUpdateChecks: ServerSettings.fields.enableProviderUpdateChecks,
 };
 const shared = {
@@ -46,7 +45,6 @@ const EnvironmentPreferencesTool = Tool.make("t3_environment_preferences_update"
   description:
     "Update selected environment-wide preferences through normal settings persistence and notifications. Requires a live full-access/default calling thread. Omitted fields are preserved; empty customInstructions clears them.",
   parameters: Schema.Struct({
-    defaultThreadEnvMode: ServerSettingsPatch.fields.defaultThreadEnvMode,
     enableProviderUpdateChecks: ServerSettingsPatch.fields.enableProviderUpdateChecks,
   }),
   success: Schema.Struct(PreferenceFields),

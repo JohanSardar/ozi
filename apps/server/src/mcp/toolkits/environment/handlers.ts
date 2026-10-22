@@ -9,9 +9,8 @@ import { readCaller, unavailable } from "../../threadAccess.ts";
 import { EnvironmentToolkit } from "./tools.ts";
 
 export function preferences(settings: ServerSettings) {
-  const { defaultThreadEnvMode, enableProviderUpdateChecks } = settings;
+  const { enableProviderUpdateChecks } = settings;
   return {
-    defaultThreadEnvMode,
     enableProviderUpdateChecks,
   };
 }

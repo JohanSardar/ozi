@@ -42,16 +42,6 @@ export const ExecutionEnvironmentPlatform = Schema.Struct({
   arch: ExecutionEnvironmentPlatformArch,
   machine: ForwardCompatibleOptional(EnvironmentMachineKind),
 });
-
-/**
- * Lives here (not settings.ts) so orchestration contracts can reference it
- * without an import cycle.
- */
-export const ThreadEnvMode = Schema.Literals(["local", "worktree"]);
-export type ThreadEnvMode = typeof ThreadEnvMode.Type;
-
-export const WorktreeSubmodules = Schema.Literals(["recursive", "top-level", "none"]);
-export type WorktreeSubmodules = typeof WorktreeSubmodules.Type;
 export type ExecutionEnvironmentPlatform = typeof ExecutionEnvironmentPlatform.Type;
 
 export const ExecutionEnvironmentCapabilities = Schema.Struct({

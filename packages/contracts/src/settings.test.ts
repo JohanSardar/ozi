@@ -1,14 +1,13 @@
 import { describe, expect, it } from "vite-plus/test";
 import * as Schema from "effect/Schema";
 
-import { type CommandId, ProjectId } from "./baseSchemas.ts";
+import { ProjectId } from "./baseSchemas.ts";
 import { ProviderDriverKind, ProviderInstanceId } from "./providerInstance.ts";
 import {
   ClientSettingsSchema,
   ClientSettingsPatch,
   ClaudeSettings,
   DEFAULT_SERVER_SETTINGS,
-  requiredScopesForProjectMutation,
   resolveProjectProviderInstanceEnabled,
   resolveProviderInstanceEnabled,
   ServerSettings,
@@ -737,48 +736,6 @@ describe("ServerSettingsPatch.providerInstances", () => {
   });
 });
 
-describe("ServerSettingsPatch string normalization", () => {
-  it("trims string settings while decoding patches", () => {
-    const patch = decodeServerSettingsPatch({
-      addProjectBaseDirectory: "  ~/Development  ",
-      textGenerationModelSelection: { model: "  gpt-5.4-mini  " },
-      observability: {
-        otlpTracesUrl: "  http://localhost:4318/v1/traces  ",
-      },
-      providerInstances: {
-        codex_personal: {
-          driver: "  codex  ",
-          displayName: "  Codex Personal  ",
-          config: { homePath: "  ~/.codex-personal  " },
-        },
-      },
-    });
-
-    expect(patch.addProjectBaseDirectory).toBe("~/Development");
-    expect(patch.textGenerationModelSelection?.model).toBe("gpt-5.4-mini");
-    expect(patch.observability?.otlpTracesUrl).toBe("http://localhost:4318/v1/traces");
-    expect(patch.providerInstances?.[ProviderInstanceId.make("codex_personal")]?.driver).toBe(
-      "codex",
-    );
-    expect(patch.providerInstances?.[ProviderInstanceId.make("codex_personal")]?.displayName).toBe(
-      "Codex Personal",
-    );
-    expect(patch.providerInstances?.[ProviderInstanceId.make("codex_personal")]?.config).toEqual({
-      homePath: "  ~/.codex-personal  ",
-    });
-  });
-
-  it("trims encoded server settings values before validation", () => {
-    const defaultSettings = decodeServerSettings({});
-    const encoded = encodeServerSettings({
-      ...defaultSettings,
-      addProjectBaseDirectory: "  ~/Development  ",
-    });
-
-    expect(encoded.addProjectBaseDirectory).toBe("~/Development");
-  });
-});
-
 describe("ServerSettings environment icon", () => {
   it("defaults to null", () => {
     expect(decodeServerSettings({}).environmentIcon).toBeNull();
@@ -872,24 +829,6 @@ describe("resolveProjectProviderInstanceEnabled", () => {
       },
     };
     expect(resolveProjectProviderInstanceEnabled(overridden, projectId, instanceId)).toBe(true);
-  });
-});
-
-describe("requiredScopesForProjectMutation", () => {
-  it("adds the settings scope only when a mutation carries scripts", () => {
-    const projectId = "project-1" as ProjectId;
-    const commandId = "command-1" as CommandId;
-    expect(
-      requiredScopesForProjectMutation({ type: "project.update", commandId, projectId }),
-    ).toEqual(["orchestration:operate"]);
-    expect(
-      requiredScopesForProjectMutation({
-        type: "project.update",
-        commandId,
-        projectId,
-        scripts: [],
-      }),
-    ).toEqual(["orchestration:operate", "settings:write"]);
   });
 });
 

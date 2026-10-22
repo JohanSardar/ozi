@@ -55,7 +55,6 @@ const createProject = (projectId: ProjectId) =>
         title: projectId,
         workspaceRoot: `/work/${projectId}`,
         defaultModelSelection: null,
-        scripts: [],
         createdAt: DateTime.formatIso(at(0)),
         updatedAt: DateTime.formatIso(at(0)),
       },

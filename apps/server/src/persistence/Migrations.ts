@@ -72,8 +72,8 @@ import Migration0075 from "./Migrations/075_OziRepair.ts";
 import Migration0076 from "./Migrations/076_OziCompletion.ts";
 
 import Migration0077 from "./Migrations/077_RemoveSourceControl.ts";
-
 import Migration0078 from "./Migrations/078_RemoveRelay.ts";
+import Migration0079 from "./Migrations/079_RemoveWorkspaceFeatures.ts";
 
 export const migrationEntries = [
   [1, "OrchestrationEvents", Migration0001],
@@ -146,6 +146,7 @@ export const migrationEntries = [
   [76, "OziCompletion", Migration0076],
   [77, "RemoveSourceControl", Migration0077],
   [78, "RemoveRelay", Migration0078],
+  [79, "RemoveWorkspaceFeatures", Migration0079],
 ] as const;
 
 export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);

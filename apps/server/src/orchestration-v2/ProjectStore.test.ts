@@ -33,7 +33,6 @@ it.layer(ProjectStore.layer.pipe(Layer.provideMerge(SqlitePersistence.layerMemor
             title: "Null options project",
             workspaceRoot: "/tmp/project-null-options",
             defaultModelSelection: modelSelection,
-            scripts: [],
             createdAt: "2026-03-24T00:00:00.000Z",
             updatedAt: "2026-03-24T00:00:00.000Z",
           },

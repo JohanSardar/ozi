@@ -1,4 +1,4 @@
-import { AuthDiagnosticsReadScope, AuthOrchestrationReadScope } from "@t3tools/contracts";
+import { AuthDiagnosticsReadScope } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
 import { resolveUsageAccess } from "./usageAccess.ts";
@@ -34,33 +34,5 @@ describe("resolveUsageAccess", () => {
         hasSessionError: false,
       }),
     ).toEqual({ canReadDiagnostics: true, isPending: false, error: null });
-  });
-
-  it("distinguishes a failed check from a resolved grant without diagnostics access", () => {
-    const denied = resolveUsageAccess({
-      connectionPhase: "connected",
-      session: {
-        authenticated: true,
-        scopes: [AuthOrchestrationReadScope],
-        auth: { serverUpdateScope: "environment:maintain" },
-      },
-      hasSessionError: false,
-    });
-    const failed = resolveUsageAccess({
-      connectionPhase: "connected",
-      session: null,
-      hasSessionError: true,
-    });
-
-    expect(denied).toEqual({
-      canReadDiagnostics: false,
-      isPending: false,
-      error: "This connection does not have access to diagnostics and usage.",
-    });
-    expect(failed).toEqual({
-      canReadDiagnostics: false,
-      isPending: false,
-      error: "Could not check this connection's access to diagnostics and usage.",
-    });
   });
 });

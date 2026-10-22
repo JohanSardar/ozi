@@ -10,7 +10,6 @@ const runServerCommand = Effect.fn("server.runServerCommand")(function* (
   flags: CliServerFlags,
   options?: {
     readonly startupPresentation?: ServerConfig.StartupPresentation;
-    readonly forceAutoBootstrapProjectFromCwd?: boolean;
     readonly rejectRunningServer?: boolean;
   },
 ) {

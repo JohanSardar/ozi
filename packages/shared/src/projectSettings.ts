@@ -6,7 +6,6 @@ import {
   type ProjectSettingsOverrides,
   resolveProjectProviderInstanceEnabled,
   type ServerSettings,
-  type ThreadEnvMode,
 } from "@t3tools/contracts";
 import { fallbackTextGenerationModelSelection } from "./serverSettings.ts";
 
@@ -47,7 +46,6 @@ export function hasProjectSettingsOverrides(
  */
 export interface LegacyProjectSettingsFields {
   readonly defaultModelSelection?: ModelSelection | null | undefined;
-  readonly defaultThreadEnvMode?: ThreadEnvMode | null | undefined;
 }
 
 function resolveProjectOverrides(
@@ -62,9 +60,6 @@ function resolveProjectOverrides(
       : {
           ...(project.defaultModelSelection != null
             ? { defaultModelSelection: project.defaultModelSelection }
-            : {}),
-          ...(project.defaultThreadEnvMode != null
-            ? { defaultThreadEnvMode: project.defaultThreadEnvMode }
             : {}),
           ...stored,
         };
