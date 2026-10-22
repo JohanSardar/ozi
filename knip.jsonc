@@ -64,9 +64,6 @@
         "src/components/ui/*.tsx": ["exports", "nsExports", "duplicates"],
       },
     },
-    "infra/relay": {
-      "entry": ["alchemy.run.ts!", "src/persistence/schema.ts!"],
-    },
     "packages/*": {
       "includeEntryExports": true,
     },
