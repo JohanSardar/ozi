@@ -66,6 +66,7 @@ import {
 } from "./rpc.ts";
 import {
   buildPiRpcLaunch,
+  materializePiMainBridge,
   materializePiT3McpExtension,
   resolvePiLaunchArgs,
 } from "./mcpInjection.ts";
@@ -454,6 +455,11 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
       if (!resolvedLaunchArgs.ok) {
         return yield* protocolError(resolvedLaunchArgs.message);
       }
+      const mainBridge =
+        input.runtimePolicy.mainPromptPath === undefined &&
+        !input.modelSelection.model.startsWith("claude-bridge/")
+          ? undefined
+          : yield* provideCacheFs(materializePiMainBridge(host.paths.providerStatusCacheDir));
       const launch = buildPiRpcLaunch({
         launchArgs: input.runtimePolicy.evidenceOnly
           ? [
@@ -461,15 +467,17 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
               "--system-prompt",
               input.runtimePolicy.systemPrompt ?? "",
               "--no-extensions",
+              "--no-builtin-tools",
+              "--no-mcp",
               "--no-skills",
               "--no-context-files",
               "--no-prompt-templates",
             ]
           : resolvedLaunchArgs.args,
-        disableTools: input.runtimePolicy.evidenceOnly === true,
         environment: options.environment,
         mcpSession,
         extensionPath,
+        ...(mainBridge === undefined ? {} : { mainBridge }),
         runtimeMode: input.runtimePolicy.runtimeMode,
         ...(input.runtimePolicy.mainPromptPath === undefined
           ? {}
@@ -2425,7 +2433,7 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
               const selected = yield* request({ type: "get_state" });
               const model = recordField(selected, "model");
               if (
-                recordString(model, "provider") !== "anthropic" ||
+                recordString(model, "provider") !== "claude-bridge" ||
                 recordString(model, "id") !== "claude-opus-5-5" ||
                 recordString(selected, "thinkingLevel") !== "high"
               )
@@ -2889,6 +2897,7 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
                       fileSystem.readFileString(input.runtimePolicy.mainPromptPath),
                     ),
                   }),
+              ...(mainBridge === undefined ? {} : { mainBridge }),
             });
             const nativeId = yield* Effect.scoped(
               Effect.gen(function* () {

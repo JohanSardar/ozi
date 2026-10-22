@@ -27,6 +27,7 @@ import {
   OrchestrationV2ShellSnapshot,
   OrchestrationV2ThreadProjection,
   ServerConfig,
+  ServerProvider,
   ThreadId,
   WS_METHODS as W,
   WsRpcGroup,
@@ -46,12 +47,13 @@ import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http";
 import { Socket } from "effect/socket";
 import { RpcClient, RpcSerialization } from "effect/rpc";
 import { OwnerCredential } from "../ozi/OwnerCredential.ts";
+import { Fix, Mistake, Replay } from "../ozi/RepairModel.ts";
 import { resolveBaseDir } from "../os-jank.ts";
 import { isProcessAlive, readPersistedServerRuntimeState } from "../serverRuntimeState.ts";
 import { buildPairingUrl } from "../startupAccess.ts";
-import { baseDirFlag, homeConfig } from "./config.ts";
+import { baseDirFlag, homeConfig, jsonFlag } from "./config.ts";
 
-const locationFlags = { baseDir: baseDirFlag, json: Flag.Boolean("json") };
+const locationFlags = { baseDir: baseDirFlag, json: jsonFlag };
 const threadFlag = Flag.String("thread").pipe(Flag.withSchema(ThreadId), Flag.optional);
 const makeClient = RpcClient.make(WsRpcGroup);
 type Client = Effect.Success<typeof makeClient>;
@@ -74,11 +76,10 @@ class ClientError extends Schema.TaggedError<ClientError>()("OziClientError", {
   }
 }
 
-const request = Effect.fn("ozi.request")(function* <A>(
+const post = Effect.fn("ozi.post")(function* (
   origin: string,
   token: string,
   path: string,
-  schema: Schema.Codec<A, unknown>,
   body?: unknown,
 ) {
   const client = yield* HttpClient.HttpClient;
@@ -90,10 +91,23 @@ const request = Effect.fn("ozi.request")(function* <A>(
       HttpClientRequest.bodyText(yield* encodeJson(body), "application/json"),
     );
   const response = yield* client.execute(outgoing);
-  return yield* HttpClientResponse.schemaBodyJson(schema)(
-    yield* HttpClientResponse.filterStatusOk(response),
-  );
+  return yield* HttpClientResponse.filterStatusOk(response);
 });
+
+const request = Effect.fn("ozi.request")(
+  <A>(
+    origin: string,
+    token: string,
+    path: string,
+    schema: Schema.Codec<A, unknown>,
+    body?: unknown,
+  ) =>
+    post(origin, token, path, body).pipe(Effect.flatMap(HttpClientResponse.schemaBodyJson(schema))),
+);
+
+const decodeRepairRow = Schema.decodeEffect(
+  Schema.fromJsonString(Schema.NullOr(Schema.Union([Mistake, Replay, Fix]))),
+);
 
 const connect = Effect.fn("ozi.connect")(function* (baseDir: Option.Option<string>) {
   const fs = yield* FileSystem.FileSystem;
@@ -461,7 +475,15 @@ const answerCommand = Command.make("answer", {
 
 const waitCommand = Command.make("wait", {
   ...locationFlags,
-  entity: Argument.Literals("entity", ["thread", "job", "check", "mistake", "replay"]),
+  entity: Argument.Literals("entity", [
+    "thread",
+    "job",
+    "check",
+    "mistake",
+    "replay",
+    "fix",
+    "provider",
+  ]),
   id: Argument.String("id"),
   state: Argument.String("state"),
   timeout: Flag.Finite("timeout").pipe(
@@ -471,20 +493,61 @@ const waitCommand = Command.make("wait", {
 }).pipe(
   Command.withHandler((flags) =>
     Effect.gen(function* () {
-      if (flags.entity === "mistake" || flags.entity === "replay") {
+      if (flags.entity === "mistake" || flags.entity === "replay" || flags.entity === "fix") {
         const { state, token } = yield* connect(flags.baseDir);
-        yield* print(
-          yield* request(state.origin, token, "/api/ozi/repair", Schema.Unknown, {
-            kind: "wait",
-            entity: flags.entity,
-            id: flags.id,
-            state: flags.state,
-            timeout: flags.timeout,
-          }),
+        const result = yield* post(state.origin, token, "/api/ozi/repair", {
+          kind: "wait",
+          entity: flags.entity,
+          id: flags.id,
+        }).pipe(
+          Effect.flatMap((response) =>
+            response.stream.pipe(
+              Stream.decodeText(),
+              Stream.splitLines,
+              Stream.mapEffect((line) => decodeRepairRow(line)),
+              Stream.filter(
+                (row) =>
+                  row !== null &&
+                  row.id === flags.id &&
+                  (("status" in row ? row.status : row.state) === flags.state ||
+                    ("checkpoint" in row && `at:${row.checkpoint}` === flags.state) ||
+                    ("reason" in row && row.reason === flags.state) ||
+                    (flags.state === "finished" &&
+                      "state" in row &&
+                      (row.state === "passed" || row.state === "failed"))),
+              ),
+              Stream.runHead,
+            ),
+          ),
+          Effect.timeout(`${flags.timeout} seconds`),
         );
+        if (Option.isNone(result))
+          return yield* new ClientError({ operation: "repair subscription ended" });
+        yield* print(result.value);
         return;
       }
       const { client } = yield* connect(flags.baseDir);
+      if (flags.entity === "provider") {
+        const result = yield* client[W.subscribeServerConfig]({}).pipe(
+          Stream.map((event) =>
+            (event.type === "snapshot"
+              ? event.config.providers
+              : event.type === "providerStatuses"
+                ? event.payload.providers
+                : []
+            ).find(
+              (provider) => provider.instanceId === flags.id && provider.status === flags.state,
+            ),
+          ),
+          Stream.filter((provider): provider is ServerProvider => provider !== undefined),
+          Stream.runHead,
+          Effect.timeout(`${flags.timeout} seconds`),
+        );
+        if (Option.isNone(result))
+          return yield* new ClientError({ operation: "provider subscription ended" });
+        yield* emit(ServerProvider, result.value);
+        return;
+      }
       if (flags.entity === "job") {
         const result = yield* client[J.jobsSubscribe]({}).pipe(
           Stream.map((cards) =>
@@ -732,7 +795,7 @@ const scheduleRmCommand = Command.make("rm", scheduleIdFlags).pipe(
   ),
 );
 
-const repairCommands = ["mistakes", "replays"].map((kind) =>
+const repairCommands = ["mistakes", "replays", "fixes"].map((kind) =>
   Command.make(kind, locationFlags).pipe(
     Command.withHandler((flags) =>
       Effect.gen(function* () {
@@ -742,6 +805,19 @@ const repairCommands = ["mistakes", "replays"].map((kind) =>
         );
       }),
     ),
+  ),
+);
+const undoCommand = Command.make("undo", { ...locationFlags, id: Argument.String("id") }).pipe(
+  Command.withHandler((flags) =>
+    Effect.gen(function* () {
+      const { state, token } = yield* connect(flags.baseDir);
+      yield* print(
+        yield* request(state.origin, token, "/api/ozi/repair", Schema.Unknown, {
+          kind: "undo",
+          id: flags.id,
+        }),
+      );
+    }),
   ),
 );
 const mistakeCommand = Command.make("mistake", {
@@ -807,6 +883,7 @@ export const clientCommands = [
   scheduleCommand,
   ...(process.env.OZI_TEST_CLOCK ? [testClockCommand] : []),
   ...repairCommands,
+  undoCommand,
   mistakeCommand,
   eventsCommand,
   statusCommand,
