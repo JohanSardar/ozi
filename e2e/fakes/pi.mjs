@@ -22,7 +22,7 @@ if (launch("pi")) {
   let model = {
     id: "claude-opus-5-5",
     name: "Claude Opus 5.5",
-    provider: "anthropic",
+    provider: option("--provider") ?? "anthropic",
     api: "anthropic-messages",
     reasoning: true,
     input: ["text", "image"],
@@ -173,7 +173,12 @@ if (launch("pi")) {
         });
         break;
       case "get_available_models":
-        reply({ models: [model] });
+        reply({
+          models: [
+            { ...model, provider: "anthropic" },
+            { ...model, provider: "claude-bridge" },
+          ],
+        });
         break;
       case "get_commands":
         reply({ commands: [] });
