@@ -318,6 +318,15 @@ export async function startHarness(
     port,
     ozi,
     status: () => ozi<Status>("status"),
+    exec: (...args: string[]) =>
+      new Promise<number>((resolve) =>
+        NodeChildProcess.execFile(
+          process.execPath,
+          [cli, ...args, "--home", home],
+          { cwd: dataRoot, env, timeout: 45_000 },
+          (error) => resolve(error ? Number(error.code ?? 1) : 0),
+        ),
+      ),
     thread: (id: string) => ozi<Projection>("thread", id),
     wait: (id: string, state: string, timeout = 15) =>
       ozi<Projection>("wait", "thread", id, state, "--timeout", String(timeout)),

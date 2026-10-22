@@ -50,9 +50,9 @@ import { OwnerCredential } from "../ozi/OwnerCredential.ts";
 import { resolveBaseDir } from "../os-jank.ts";
 import { isProcessAlive, readPersistedServerRuntimeState } from "../serverRuntimeState.ts";
 import { buildPairingUrl } from "../startupAccess.ts";
-import { baseDirFlag, homeConfig } from "./config.ts";
+import { baseDirFlag, homeConfig, jsonFlag } from "./config.ts";
 
-const locationFlags = { baseDir: baseDirFlag, json: Flag.Boolean("json") };
+const locationFlags = { baseDir: baseDirFlag, json: jsonFlag };
 const threadFlag = Flag.String("thread").pipe(Flag.withSchema(ThreadId), Flag.optional);
 const makeClient = RpcClient.make(WsRpcGroup);
 type Client = Effect.Success<typeof makeClient>;
