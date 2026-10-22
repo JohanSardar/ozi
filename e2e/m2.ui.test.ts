@@ -159,6 +159,7 @@ it("m2.drawer opens the lead conversation while the main composer stays usable",
   await drawer.getByRole("combobox", { name: "When to send" }).selectOption("steer");
   await drawer.getByRole("button", { name: "Submit message", exact: true }).click();
   await h.wait(job.jobId, "text:The job received your message", 20);
+  await h.wait(job.jobId, "completed", 20);
   expect(
     (await h.thread("ozi-main")).messages.some(
       (message) => message.text === "drawer-direct-message",
@@ -168,4 +169,12 @@ it("m2.drawer opens the lead conversation while the main composer stays usable",
   await page.screenshot({ path: "/tmp/ozi-shots/drawer.png" });
   await drawer.getByRole("button", { name: "Close drawer" }).click();
   expect(await main.inputValue()).toBe("Keep this message too");
+  const card = page.locator(`[data-job-id="${job.jobId}"]`);
+  await card.getByText("Double-checking it's fully done…", { exact: true }).waitFor();
+  await card.getByRole("button", { name: "Close", exact: true }).click();
+  await h.ozi("wait", "job", job.jobId, "done", "--timeout", "20");
+  await page
+    .getByRole("region", { name: "Done", exact: true })
+    .getByText("Closed", { exact: true })
+    .waitFor();
 });

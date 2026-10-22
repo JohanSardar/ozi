@@ -112,7 +112,7 @@ features:
     cli: [jobs]
     milestone: 2
     scenarios: [m2.drawer, m2.no-thread-list]
-    status: building
+    status: passing
   - id: completion-check
     reqs: [end-of-turn-check]
     module: Completion

@@ -171,7 +171,12 @@ it("m2.question-card routes a helper question and answer to its owner", async ()
       {
         match: "^question-helper$",
         role: "worker",
-        steps: [{ ask: "Which color?" }, { say: "helper resumed: $result" }],
+        steps: [
+          { ask: "Which color?" },
+          { say: "helper resumed: $result" },
+          { ask: "Use this color?" },
+          { say: "helper confirmed: $result" },
+        ],
       },
     ],
   );
@@ -191,6 +196,12 @@ it("m2.question-card routes a helper question and answer to its owner", async ()
     "20",
   );
   expect(JSON.stringify(helper)).toContain("Ocean Blue");
+  await wait(card.jobId, "needs_you");
+  const page = await h.page();
+  const panel = page.getByRole("complementary", { name: "Jobs", exact: true });
+  await panel.getByText("Use this color?", { exact: true }).waitFor();
+  await panel.getByRole("button", { name: "Yes", exact: true }).click();
+  await h.wait(request.threadId, "text:helper confirmed", 20);
   expect((await wait(card.jobId, "running")).requests).toEqual([]);
 });
 
@@ -211,7 +222,11 @@ it("m2.approval-card delivers deny and allow to the worker", async () => {
   await h.ozi("wait", "thread", card.jobId, "text:first decision", "--timeout", "20");
   const second = (await wait(card.jobId, "needs_you")).requests[0]!;
   expect(second.id).not.toBe(first.id);
-  await h.ozi("answer", second.id, "allow");
+  const page = await h.page();
+  await page
+    .getByRole("complementary", { name: "Jobs", exact: true })
+    .getByRole("button", { name: "Allow", exact: true })
+    .click();
   const lead = await h.ozi("wait", "thread", card.jobId, "text:second decision", "--timeout", "20");
   expect(JSON.stringify(lead)).toContain("decline");
   expect(JSON.stringify(lead)).toContain("accept");
@@ -226,6 +241,13 @@ it("m2.secret-card keeps the entered secret out of card and transcript data", as
       },
     },
     { say: "secret saved" },
+    {
+      tool: {
+        name: "request_secret",
+        arguments: { label: "Second test credential", reason: "Connect another test service" },
+      },
+    },
+    { say: "private answer saved" },
   ]);
   const request = (await wait(card.jobId, "needs_you")).requests.find(
     (request) => request.kind === "secret",
@@ -233,7 +255,13 @@ it("m2.secret-card keeps the entered secret out of card and transcript data", as
   expect(request).toMatchObject({ threadId: card.jobId, options: [] });
   const secret = "synthetic-credential-for-m2";
   await h.ozi("answer", request.id, secret);
-  await h.ozi("wait", "thread", card.jobId, "text:secret saved", "--timeout", "20");
+  await h.wait(card.jobId, "text:secret saved", 20);
+  await wait(card.jobId, "needs_you");
+  const page = await h.page();
+  const panel = page.getByRole("complementary", { name: "Jobs", exact: true });
+  await panel.getByLabel("Private answer", { exact: true }).fill(secret);
+  await panel.getByRole("button", { name: "Send privately", exact: true }).click();
+  await h.wait(card.jobId, "text:private answer saved", 20);
   expect(JSON.stringify(await jobs())).not.toContain(secret);
   expect(JSON.stringify(await h.thread(card.jobId))).not.toContain(secret);
   expect((await wait(card.jobId, "running")).requests).toEqual([]);
