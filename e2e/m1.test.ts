@@ -160,7 +160,8 @@ it("m1.main-cannot-execute rejects execution tools on main", async () => {
   );
   expect(launch?.argv).toEqual(
     expect.arrayContaining([
-      "--no-tools",
+      "--no-builtin-tools",
+      "--no-mcp",
       "--no-extensions",
       "--no-skills",
       "--no-context-files",
@@ -168,6 +169,7 @@ it("m1.main-cannot-execute rejects execution tools on main", async () => {
       "--system-prompt",
     ]),
   );
+  expect(launch?.argv).not.toContain("--no-tools");
 });
 
 it("m1.delegate-async starts the default worker and returns its result to main", async () => {
