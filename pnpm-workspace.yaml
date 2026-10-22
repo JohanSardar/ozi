@@ -6,7 +6,7 @@ packages:
   - packages/*
   - scripts
 allowBuilds:
-  "@google/genai": set this to true or false
+  "@google/genai": false
   browser-tabs-lock: false
   bufferutil: false
   core-js: false
@@ -17,7 +17,7 @@ allowBuilds:
   msw: false
   node-pty: true
   objc-js: false
-  protobufjs: set this to true or false
+  protobufjs: false
   sharp: true
   tsc-rs: true
   utf-8-validate: false
