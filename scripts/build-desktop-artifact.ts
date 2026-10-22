@@ -2209,17 +2209,13 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
       }
     | undefined,
   wslRuntimeBundled = false,
-  arch?: typeof BuildArch.Type,
 ) {
   const buildConfig: Record<string, unknown> = {
     appId: DESKTOP_APP_ID,
     productName: resolveDesktopProductName(version),
     artifactName: "Ozi-${version}-${arch}.${ext}",
     electronLanguages: [...DESKTOP_ELECTRON_LANGUAGES],
-    files: [
-      ...DESKTOP_FILE_EXCLUSIONS,
-      ...(platform === "mac" ? [] : platform === "linux" ? [] : []),
-    ],
+    files: [...DESKTOP_FILE_EXCLUSIONS],
     directories: {
       buildResources: "apps/desktop/resources",
     },
@@ -3176,7 +3172,6 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
           }
         : undefined,
       bundlesWslRuntime({ platform: options.platform, runtimeArchivePath: options.wslRuntime }),
-      options.arch,
     ),
     dependencies: stageDependencies,
     devDependencies: {

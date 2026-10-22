@@ -308,7 +308,6 @@ export const layerExecutor: Layer.Layer<
                               {
                                 threadId: effect.threadId,
                                 messageId: message.id,
-                                projectId: disabledError.projectId,
                                 instanceId: disabledError.instanceId,
                               },
                             ),

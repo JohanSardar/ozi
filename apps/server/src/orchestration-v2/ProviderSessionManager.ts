@@ -1,6 +1,6 @@
 import { AgentScope } from "@t3tools/shared/AgentScope";
 import * as KeyedLock from "@t3tools/shared/KeyedLock";
-import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
+
 import {
   isOrchestrationV2WorkActive,
   ModelSelection,
@@ -335,23 +335,8 @@ const layerWithOptions = (
           if (Option.isNone(serverSettings)) return { browser: true };
           return yield* Effect.gen(function* () {
             const settings = yield* serverSettings.value.getSettings;
-            const thread = yield* projectionStore.getThread(threadId);
-            const entries = Object.values(settings.projectSettingsOverrides);
-            const browserOverridden = entries.some(
-              (entry) => entry.enableAgentBrowserAccess !== undefined,
-            );
-            if (browserOverridden) {
-              const project = Option.isSome(projectService)
-                ? yield* projectService.value.getById(thread.projectId)
-                : Option.none();
-              if (Option.isNone(project))
-                return {
-                  browser: browserOverridden ? false : settings.enableAgentBrowserAccess,
-                };
-            }
-            const effective = resolveProjectSettings(settings, thread.projectId).settings;
             return {
-              browser: effective.enableAgentBrowserAccess,
+              browser: settings.enableAgentBrowserAccess,
             };
           }).pipe(
             Effect.catch((cause) =>

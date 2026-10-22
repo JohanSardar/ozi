@@ -103,10 +103,6 @@
       "types": "./src/serverSettings.ts",
       "import": "./src/serverSettings.ts"
     },
-    "./projectSettings": {
-      "types": "./src/projectSettings.ts",
-      "import": "./src/projectSettings.ts"
-    },
     "./remote": {
       "types": "./src/remote.ts",
       "import": "./src/remote.ts"

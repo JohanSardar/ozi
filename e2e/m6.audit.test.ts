@@ -141,7 +141,7 @@ it("m6.audit tests and provider fakes live only in e2e", async () => {
     if (path.startsWith(".repos/") || path.startsWith("e2e/")) continue;
     if (!(await NodeFSP.lstat(NodePath.join(repo, path)).catch(() => null))) continue;
     if (
-      /\.(?:test|spec|testkit|testFixtures)\.[cm]?[jt]sx?$|(?:^|\/)(?:testUtils|testFixtures|testkit|testing)\//.test(
+      /\.(?:test|spec|testkit|testFixtures)\.[cm]?[jt]sx?$|(?:^|\/)(?:testUtils|testFixtures|testkit|testing)\/|(?:^|\/)(?:test\.c|transport_tests\.rs|tst_.*\.qml)$/.test(
         path,
       )
     )
@@ -153,6 +153,15 @@ it("m6.audit tests and provider fakes live only in e2e", async () => {
       violations.push(`${path}: native unit test`);
     if (!/\.(?:[cm]?[jt]sx?|json)$/.test(path)) continue;
     const source = await NodeFSP.readFile(NodePath.join(repo, path), "utf8");
+    if (path.endsWith("package.json")) {
+      const scripts = JSON.parse(source).scripts ?? {};
+      for (const [name, command] of Object.entries(scripts))
+        if (
+          /(?:^|[-:])test(?:$|[-:])/.test(name) &&
+          !(path === "package.json" && name === "test" && command === "vp test run --root e2e")
+        )
+          violations.push(`${path}: test script ${name}`);
+    }
     if (
       /(?:from\s+|import\s*\(|require\s*\()['"](?:@effect\/vitest|@vitest\/|vitest|@t3tools\/provider-testing)/.test(
         source,
@@ -186,13 +195,27 @@ const removedCapabilities = [
   "commandOutputStreaming",
 ];
 const removedSettings =
-  /^(?:diffFilesCollapsed|diffIgnoreWhitespace|diffLayout|confirmThread(?:Archive|Delete|Unpin)|legacySidebarEnabled|sidebar(?:WorkingShelfEnabled|ProjectGroupingMode|ProjectGroupingOverrides|ProjectSortOrder|ThreadSortOrder|ThreadPreviewCount)|snoozeLimitedThreads)$/;
+  /^(?:diffFilesCollapsed|diffIgnoreWhitespace|diffLayout|confirmThread(?:Archive|Delete|Unpin)|legacySidebarEnabled|sidebar(?:WorkingShelfEnabled|ProjectGroupingMode|ProjectGroupingOverrides|ProjectSortOrder|ThreadSortOrder|ThreadPreviewCount)|snoozeLimitedThreads|projectSettingsOverrides|projectAgentBrowserAccessOverrides|projectSettingsFolded)$/;
 
 it("m6.audit retired imports, settings, instructions and Ozi comments stay absent", async () => {
   const paths = (await exec("git", ["ls-files", "-z"])).split("\0").filter(Boolean);
+  const contracts = await import("@t3tools/contracts");
+  for (const name of [
+    "OrchestratorMcpTaskRole",
+    "ProjectSettingsOverrides",
+    "ProjectProviderInstanceOverride",
+    "PROJECT_SCOPED_SERVER_SETTING_KEYS",
+    "SourceControlHostSettings",
+    "DiffLayout",
+    "SidebarProjectSortOrder",
+    "SidebarThreadSortOrder",
+    "SidebarProjectGroupingMode",
+    "SidebarThreadPreviewCount",
+  ])
+    expect(contracts).not.toHaveProperty(name);
   const violations = new Set<string>();
   const retired =
-    /^(?:@effect\/vitest|@vitest\/|vitest(?:\/|$)|@t3tools\/(?:provider-testing|source-control)|@ff-labs\/|@pierre\/diffs|node-pty(?:\/|$))/;
+    /^(?:@effect\/vitest|@vitest\/|vitest(?:\/|$)|@t3tools\/(?:provider-testing|source-control|shared\/projectSettings)|@ff-labs\/|@pierre\/diffs|node-pty(?:\/|$))/;
   for (const path of paths) {
     if (path.startsWith(".repos/") || !/\.[cm]?[jt]sx?$/.test(path)) continue;
     const source = await NodeFSP.readFile(NodePath.join(repo, path), "utf8").catch((error) => {
@@ -352,6 +375,99 @@ it("m6.audit existing snooze events migrate without losing the thread", async ()
     expect(migrated.event.payload).not.toHaveProperty("snoozedUntil");
     expect(migrated.event.payload).not.toHaveProperty("snoozedAt");
     expect((await h.status()).main!.thread.id).toBe("ozi-main");
+  } finally {
+    await h.close();
+  }
+});
+
+it("m6.audit provider and browser preferences have one server scope", async () => {
+  const h = await startHarness();
+  try {
+    const status = await h.status();
+    const instances = status.server.settings.providerInstances!;
+    const update = (enabled: boolean) =>
+      h.ozi(
+        "request",
+        "server.updateSettings",
+        "--payload",
+        JSON.stringify({
+          patch: {
+            providerInstances: { ...instances, codex: { ...instances.codex, enabled } },
+            enableAgentBrowserAccess: false,
+            projectSettingsOverrides: {
+              [status.main!.thread.projectId]: {
+                enableAgentBrowserAccess: true,
+                providerInstances: { codex: { enabled: true } },
+              },
+            },
+            projectAgentBrowserAccessOverrides: { [status.main!.thread.projectId]: true },
+            projectSettingsFolded: false,
+          },
+        }),
+      );
+    expect(await update(false)).toMatchObject([{ ok: true }]);
+    await h.ozi("wait", "provider", "codex", "disabled", "--timeout", "30");
+    await h.script([
+      {
+        match: "settings-disabled-case",
+        role: "main",
+        steps: [
+          {
+            tool: {
+              name: "delegate_task",
+              arguments: { task: "disabled-settings-worker", clientRequestId: "settings-disabled" },
+            },
+          },
+          { say: "settings-disabled-checked" },
+        ],
+      },
+      {
+        match: "settings-enabled-case",
+        role: "main",
+        steps: [
+          {
+            tool: {
+              name: "delegate_task",
+              arguments: { task: "settings-worker", clientRequestId: "settings-enabled" },
+            },
+          },
+          { say: "settings-started" },
+        ],
+      },
+      {
+        match: "^settings-worker$",
+        role: "worker",
+        steps: [{ tool: { name: "preview_status" } }, { say: "settings-result" }],
+      },
+      { match: "settings-result", role: "main", steps: [{ say: "settings-reported" }] },
+    ]);
+    await h.ozi("say", "settings-disabled-case");
+    await h.ozi("wait", "thread", "ozi-main", "text:settings-disabled-checked", "--timeout", "30");
+    expect(await h.ozi("jobs")).toMatchObject([{ column: "needs_you" }]);
+    expect(
+      (await h.records()).filter(
+        (record) => record.provider === "codex" && record.event === "prompt",
+      ),
+    ).toEqual([]);
+    expect(await update(true)).toMatchObject([{ ok: true }]);
+    await h.ozi("wait", "provider", "codex", "ready", "--timeout", "30");
+    await h.ozi("say", "settings-enabled-case");
+    await h.ozi("wait", "thread", "ozi-main", "text:settings-reported", "--timeout", "30");
+    const records = await h.records();
+    const preview = records.find(
+      (record) =>
+        record.provider === "codex" && record.event === "tool" && record.name === "preview_status",
+    );
+    expect(preview?.result?.isError).toBe(true);
+    await h.restart();
+    const settings = (await h.status()).server.settings;
+    expect(settings.enableAgentBrowserAccess).toBe(false);
+    for (const key of [
+      "projectSettingsOverrides",
+      "projectAgentBrowserAccessOverrides",
+      "projectSettingsFolded",
+    ])
+      expect(settings).not.toHaveProperty(key);
   } finally {
     await h.close();
   }

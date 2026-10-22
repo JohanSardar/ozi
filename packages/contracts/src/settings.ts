@@ -10,7 +10,6 @@ import * as Schema from "effect/Schema";
 import * as SchemaTransformation from "effect/SchemaTransformation";
 import {
   ForwardCompatibleNullable,
-  ProjectId,
   ThreadId,
   TrimmedNonEmptyString,
   TrimmedString,
@@ -588,9 +587,6 @@ export const ClaudeSettings = makeProviderSettingsSchema(
 );
 export type ClaudeSettings = typeof ClaudeSettings.Type;
 
-export const SourceControlHostSettings = Schema.Record(Schema.String, Schema.Unknown);
-export type SourceControlHostSettings = typeof SourceControlHostSettings.Type;
-
 export const ObservabilitySettings = Schema.Struct({
   otlpTracesUrl: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
   otlpMetricsUrl: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
@@ -606,43 +602,6 @@ const StorageRetentionDays = Schema.NullOr(
   Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 3650 })),
 );
 
-export const PROJECT_SCOPED_SERVER_SETTING_KEYS = [
-  "defaultModelSelection",
-  "defaultRuntimeMode",
-  "enableAgentBrowserAccess",
-  "textGenerationModelSelection",
-  "continueThreadsAfterServerUpdate",
-  "responseStreamingMode",
-] as const;
-export type ProjectScopedServerSettingKey = (typeof PROJECT_SCOPED_SERVER_SETTING_KEYS)[number];
-
-export const ProjectProviderInstanceOverride = Schema.Struct({
-  enabled: Schema.optionalKey(Schema.Boolean),
-});
-export type ProjectProviderInstanceOverride = typeof ProjectProviderInstanceOverride.Type;
-
-/**
- * An absent key inherits the environment value; `null` is a real value where
- * the environment type is nullable (no default model, no dedicated writer
- * model).
- *
- * `providerInstances` sits outside `PROJECT_SCOPED_SERVER_SETTING_KEYS`: every
- * other key replaces its `ServerSettings` field whole, while this one keeps the
- * settings.json shape but overrides field by field, per `ProviderInstanceId`.
- */
-export const ProjectSettingsOverrides = Schema.Struct({
-  defaultModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
-  defaultRuntimeMode: Schema.optionalKey(RuntimeMode),
-  enableAgentBrowserAccess: Schema.optionalKey(Schema.Boolean),
-  textGenerationModelSelection: Schema.optionalKey(ModelSelection),
-  continueThreadsAfterServerUpdate: Schema.optionalKey(Schema.Boolean),
-  responseStreamingMode: Schema.optionalKey(ResponseStreamingMode),
-  providerInstances: Schema.optionalKey(
-    Schema.Record(ProviderInstanceId, ProjectProviderInstanceOverride),
-  ),
-} satisfies Record<ProjectScopedServerSettingKey | "providerInstances", unknown>);
-export type ProjectSettingsOverrides = typeof ProjectSettingsOverrides.Type;
-
 /** Live SQLite file accounting for the environment's state database. */
 export const DatabaseStorageStatus = Schema.Struct({
   databaseBytes: Schema.Number,
@@ -656,7 +615,7 @@ export const DatabaseStorageStatus = Schema.Struct({
 export type DatabaseStorageStatus = typeof DatabaseStorageStatus.Type;
 
 export const StorageCleanupReportEntry = Schema.Struct({
-  kind: Schema.Literals(["worktree", "browser-artifacts", "logs"]),
+  kind: Schema.Literals(["browser-artifacts", "logs"]),
   outcome: Schema.Literals(["removed", "kept", "failed"]),
   reason: Schema.String,
   path: Schema.NullOr(Schema.String),
@@ -708,24 +667,12 @@ export const ServerSettings = Schema.Struct({
   ),
 
   enableAgentBrowserAccess: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
-  projectAgentBrowserAccessOverrides: Schema.Record(ProjectId, Schema.Boolean).pipe(
-    Schema.withDecodingDefault(Effect.succeed({})),
-  ),
   defaultModelSelection: Schema.NullOr(ModelSelection).pipe(
     Schema.withDecodingDefault(Effect.succeed(null)),
   ),
   defaultRuntimeMode: RuntimeMode.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_RUNTIME_MODE)),
   ),
-
-  projectSettingsOverrides: Schema.Record(ProjectId, ProjectSettingsOverrides).pipe(
-    Schema.withDecodingDefault(Effect.succeed({})),
-  ),
-  /**
-   * The fold runs once so a later reset in the settings UI is not undone by the
-   * next server start.
-   */
-  projectSettingsFolded: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   compactIdleThreads: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   autoResumeLimitedThreads: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   providerHealthRefreshInterval: Schema.DurationFromMillis.pipe(
@@ -806,16 +753,10 @@ export const resolveProviderInstanceEnabled = (
   return instance.enabled ?? configEnabled ?? true;
 };
 
-export const resolveProjectProviderInstanceEnabled = (
-  settings: Pick<ServerSettings, "providerInstances" | "projectSettingsOverrides">,
-  projectId: ProjectId | null,
+export const resolveServerProviderInstanceEnabled = (
+  settings: Pick<ServerSettings, "providerInstances">,
   instanceId: ProviderInstanceId,
 ): boolean => {
-  const override =
-    projectId === null
-      ? undefined
-      : settings.projectSettingsOverrides[projectId]?.providerInstances?.[instanceId]?.enabled;
-  if (override !== undefined) return override;
   const instanceConfig = Object.hasOwn(settings.providerInstances, instanceId)
     ? settings.providerInstances[instanceId]
     : undefined;
@@ -830,7 +771,6 @@ export const ServerSettingsOperation = Schema.Literals([
   "create-provider-instance",
   "read-file",
   "read-provider-history",
-  "read-project-settings",
   "read-secret",
   "remove-secret",
   "remove-stale-secret",
@@ -903,29 +843,8 @@ export const ServerSettingsPatch = Schema.Struct({
   enableProviderUpdateChecks: Schema.optionalKey(Schema.Boolean),
   continueThreadsAfterServerUpdate: Schema.optionalKey(Schema.Boolean),
   enableAgentBrowserAccess: Schema.optionalKey(Schema.Boolean),
-  projectAgentBrowserAccessOverrides: Schema.optionalKey(
-    Schema.Record(ProjectId, Schema.NullOr(Schema.Boolean)),
-  ),
   defaultModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
   defaultRuntimeMode: Schema.optionalKey(RuntimeMode),
-  /**
-   * Per-project entry replacement: each entry replaces that project's whole
-   * override set and `null` removes it.
-   *
-   * `providerInstances` is the one exception: an entry that omits the key keeps
-   * the stored value instead of clearing it, so a client built before that
-   * field existed cannot wipe it by editing another key.
-   */
-  projectSettingsOverrides: Schema.optionalKey(
-    Schema.Record(
-      ProjectId,
-      Schema.NullOr(
-        Schema.Struct({
-          ...ProjectSettingsOverrides.fields,
-        }),
-      ),
-    ),
-  ),
   compactIdleThreads: Schema.optionalKey(Schema.Boolean),
   autoResumeLimitedThreads: Schema.optionalKey(Schema.Boolean),
   providerHealthRefreshInterval: Schema.optionalKey(Schema.DurationFromMillis),
