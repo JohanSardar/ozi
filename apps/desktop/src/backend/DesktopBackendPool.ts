@@ -4,6 +4,7 @@ import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
+import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
 import * as SynchronizedRef from "effect/SynchronizedRef";
@@ -21,7 +22,6 @@ import * as DesktopBrowserHost from "../preview/DesktopBrowserHost.ts";
 import * as DesktopWindow from "../window/DesktopWindow.ts";
 import * as DesktopWslEnvironment from "../wsl/DesktopWslEnvironment.ts";
 import * as ElectronDialog from "../electron/ElectronDialog.ts";
-import * as ElectronApp from "../electron/ElectronApp.ts";
 
 const { logWarning: logBackendPoolWarning } =
   DesktopObservability.makeComponentLogger("desktop-backend-pool");
@@ -104,7 +104,6 @@ export const layer = Layer.effect(
     const configuration = yield* DesktopBackendConfiguration.DesktopBackendConfiguration;
     const desktopWindow = yield* DesktopWindow.DesktopWindow;
     const electronDialog = yield* ElectronDialog.ElectronDialog;
-    const electronApp = yield* ElectronApp.ElectronApp;
     const appSettings = yield* DesktopAppSettings.DesktopAppSettings;
     // Without this, instance scopes are orphaned: they only close via explicit unregister() calls,
     // so on app shutdown the WSL backend child process gets hard-killed by the OS instead of
@@ -112,6 +111,23 @@ export const layer = Layer.effect(
     // run.
     const layerScope = yield* Scope.Scope;
     const factoryContext = yield* Effect.context<BackendInstanceFactoryRequirements>();
+    const failureShown = yield* Ref.make(false);
+    const handlePrimaryFailure = Effect.fn("desktop.backendPool.primaryFailed")(function* (
+      reason: string,
+    ) {
+      if (yield* Ref.getAndSet(failureShown, true)) return;
+      yield* desktopWindow.revealOrCreateMain.pipe(
+        Effect.catch((error) =>
+          logBackendPoolWarning("failed to open main window after backend failure", {
+            error: error.message,
+          }),
+        ),
+      );
+      yield* electronDialog.showErrorBox(
+        "Ozi local server is unavailable",
+        `${reason}\n\nYou can connect to a remote server in Settings → Connections.`,
+      );
+    });
 
     // Fatal configuration failures persist the Windows fallback. Bounded
     // transport failures use an in-memory fallback for this launch so the app
@@ -175,14 +191,10 @@ export const layer = Layer.effect(
           ),
         ),
       onShutdown: () => desktopWindow.handleBackendNotReady,
+      onFailure: handlePrimaryFailure,
       onPreflightFailed: handlePrimaryPreflightFailure,
       onStateDirOwned: () =>
-        electronDialog
-          .showErrorBox(
-            "This Ozi home is unavailable",
-            "Another Ozi server is using this home. Pair with it in Settings > Connections, stop it with `ozi service uninstall`, or choose a separate OZI_HOME.",
-          )
-          .pipe(Effect.andThen(electronApp.quit)),
+        handlePrimaryFailure("Another Ozi server is using this home directory."),
     });
 
     const instancesRef = yield* SynchronizedRef.make<

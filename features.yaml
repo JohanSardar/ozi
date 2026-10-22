@@ -34,6 +34,13 @@ requirements:
   for-everybody: No user-specific paths or accounts in code; public repo ozi.
 
 features:
+  - id: data-root-defaults
+    reqs: [for-everybody, prompt, protected]
+    module: apps/server/src/ozi/DataRoot.ts + apps/server/src/ozi/defaults + e2e/m1.test.ts
+    cli: [serve, status]
+    milestone: 1
+    scenarios: [m1.fresh-install]
+    status: passing
   - id: cli
     reqs: [info-tools, for-everybody]
     module: apps/server/src/cli/client.ts + apps/server/src/cli/run.ts + e2e
@@ -78,7 +85,7 @@ features:
     status: passing
   - id: remote-client
     reqs: [desktop-remote]
-    module: web
+    module: web + apps/desktop/src/app/DesktopApp.ts + apps/desktop/src/backend/DesktopBackendPool.ts
     cli: [pair]
     milestone: 1
     scenarios: [m1.remote-client]

@@ -17,7 +17,7 @@ Ozi is an agent runtime for anyone. You talk to one main agent; it delegates rea
 - **Replay**: rerun of the user's message before a mistake, on a branch, with stubbed effects, judged by an **observer**.
 - **Fix**: a change to the data root that passed replay; one local git commit. **Undo** reverts it.
 - **Protected**: `protected/` in the data root. Repair can't change it; the user can, by asking.
-- **Data root**: a git repo (`--data-root`, `OZI_DATA_ROOT`, default `~/ozi`) holding `prompt.md`, optional `adhd.md`, `skills/`, `protected/`. Never in the code repo.
+- **Data root**: a git repo (`--data-root`, `OZI_DATA_ROOT`, default `~/ozi`) holding `prompt.md`, optional `adhd.md`, `skills/`, `protected/`. Startup seeds a missing or empty root from packaged defaults with one initial git commit; existing roots and files stay untouched. Live data never belongs in the code repo.
 - **Home**: server state directory (default `~/.ozi`), holding SQLite.
 - **To-do**: a user task from an external MCP source, shown read-only.
 
@@ -84,6 +84,7 @@ Cases freeze the original message, native prefix, attachment bytes, expectation 
 ### JobPanel (`components/ozi/JobPanel.tsx`)
 
 - The app opens at `/` into `ozi-main`. No thread list, projects, drafts, workspace selectors or branch controls. Settings retain connections, providers, appearance, keybindings, scheduled tasks and licenses. New schedules target main.
+- The desktop window opens independently of its bundled backend. Local startup failure shows an error and leaves Settings → Connections available for a remote server.
 - `JobPanel` renders supplied `OziJobCard[]` with answer, handle, stop and open callbacks. Four sections with counts and empty states; Needs you count in the title bar. Questions, approvals, private entry and reports stay on cards. Close and Stop are separate. Status indicators are static.
 - Opening a card mounts `JobDrawer`, which loads the lead's brief and conversation on demand. Its composer addresses the lead. The main composer remains mounted and usable. HTML replies, MCP apps and the shared browser remain available. To-dos below jobs, labeled with their source, arrive in M4.
 - Client-runtime atoms subscribe to `ozi.jobs.subscribe` with `{}` and send `ozi.jobs.handle`. `useOziJobs` supplies authoritative cards and session freshness. The panel retains its last cards on disconnect, disables mutations until a current snapshot arrives, and surfaces `OziJobError`, including `StaleEvent`. Close preserves its command ID and exact card `eventId`; commands are never acknowledged optimistically. Answers and stop use the existing owner-specific commands.
@@ -156,7 +157,7 @@ Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` 
 
 ### M1 Connection
 
-- `m1.fresh-install`: fresh home and data root start; `ozi status` shows main and providers pi, claude, codex only.
+- `m1.fresh-install`: missing and empty data roots start from packaged defaults (`prompt.md`, protected approvals, contacts and credentials, empty `skills/` and `protected/cases/`) with one git commit, without user git configuration; main's prompt hash matches the default with its ADHD slot cleared. Restart changes no files or git history, including after user edits or removals. `ozi status` shows main and providers pi, claude, codex only.
 - `m1.main-loadout`: main is Pi, `claude-bridge/claude-opus-5-5`, high, fast off; prompt equals data-root prompt with empty ADHD slot; tools are orchestration + `read_skill`; same after resume and fork. Real Pi, bridge and Claude Code send that prompt and exactly those tools to a fake Anthropic endpoint, with ambient Claude configuration excluded.
 - `m1.main-cannot-execute`: main has no shell/file/browser or Claude Code built-in tool; a call is rejected.
 - `m1.delegate-async`: request → main starts a Codex worker (gpt-6.1-sol, xhigh, Fast), confirms it started, its turn ends; worker result returns to main, which reports.
@@ -228,6 +229,6 @@ Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` 
 - `m6.publish`: an explicitly referenced natural user correction leads to one passed fix commit, active in the next turn and after restart.
 - `m6.recurrence-undo`: the mistake recurring after a fix reverts it → `undone`.
 - `m6.edit-conflict`: a revert conflicting with a user edit keeps the pre-fix build and posts a blocker.
-- `m6.crash-publish`: real server crashes before journaling and at journal, file, git-head and confirmed-state boundaries of publish and undo recover a complete build with matching status; conflict recovery posts its blocker and retries create no duplicate activation.
+- `m6.crash-publish`: real server crashes before journaling and at journal, file, git-head and confirmed-state boundaries of publish and undo recover a complete build with matching status; conflict recovery posts its blocker and retries create no duplicate activation. Each crash boundary is an independent E2E case with its own deadline.
 - `m6.audit`: no excluded T3 product paths, exports or dependencies remain. The desktop audit scans tracked desktop runtime and packaging source, shared desktop identity boundaries, and all source environment variables; notices, vendored references, tests and documentation are allowed. It builds the desktop bundle, checks local and WSL launch argv, starts the bundled server with isolated state beside a T3 sentinel, and pairs another server through Settings → Connections.
 - `m6.public-ready`: MIT notices for T3, Pi and Firstmate present; no personal data in the tree.
