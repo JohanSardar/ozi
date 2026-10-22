@@ -1,4 +1,3 @@
-import * as NodeOS from "node:os";
 import {
   isOziMain,
   OZI_MAIN_TOOL_NAMES,
@@ -13,7 +12,7 @@ import * as Path from "effect/Path";
 import type { ServerConfig } from "../config.ts";
 
 export const dataRoot = (config: ServerConfig["Service"]) =>
-  config.dataRoot ?? `${NodeOS.homedir()}/ozi`;
+  config.dataRoot;
 
 export const readMainPrompt = Effect.fn("Ozi.readMainPrompt")(function* (
   config: ServerConfig["Service"],

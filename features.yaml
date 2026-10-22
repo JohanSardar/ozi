@@ -36,11 +36,11 @@ requirements:
 features:
   - id: cli
     reqs: [info-tools, for-everybody]
-    module: cli
-    cli: [status, wait]
+    module: apps/server/src/cli/client.ts + e2e
+    cli: [serve, service, pair, status, say, steer, stop, thread, wait]
     milestone: 1
     scenarios: [m1.cli-json]
-    status: planned
+    status: passing
   - id: providers-trimmed
     reqs: [t3-cut, t3-keep, memory-plugin, provider-scope, client-scope]
     module: server
@@ -68,7 +68,7 @@ features:
     cli: [say, steer, stop]
     milestone: 1
     scenarios: [m1.attachments, m1.steer-queue-stop]
-    status: planned
+    status: building
   - id: skills
     reqs: [prompt, info-tools]
     module: ozi/Skills.ts
@@ -82,7 +82,7 @@ features:
     cli: [pair]
     milestone: 1
     scenarios: [m1.remote-client]
-    status: planned
+    status: passing
   - id: job-cards
     reqs: [one-job-per-outcome, card-columns]
     module: Jobs

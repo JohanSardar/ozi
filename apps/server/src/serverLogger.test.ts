@@ -73,6 +73,7 @@ const layerConfig = (overrides: Partial<ServerConfig.ServerConfig["Service"]>) =
         otlpLogsExport: DEFAULT_SIGNAL_EXPORT,
         otelEnvironment: OtelEnvironment.none,
         cwd: baseDir,
+        dataRoot: baseDir,
         baseDir,
         ...derivedPaths,
         mode: "web",

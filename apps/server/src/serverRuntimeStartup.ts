@@ -345,6 +345,8 @@ const resolveStartupBrowserTarget = Effect.gen(function* () {
  * read it. The URL carries a one-time admin token, so it skips the logger: log
  * records also land in the trace file and any configured OTLP collector.
  */
+const encodeStartupAccess = Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown));
+
 export const announceStartupPairingUrl = (pairingUrl: string) =>
   Effect.logInfo("Authentication required. Open T3 Code using the pairing URL.").pipe(
     // Indented to match the annotation line the pretty logger printed before.
@@ -601,7 +603,11 @@ const make = Effect.fn("serverRuntimeStartup.make")(function* (options?: Startup
           const accessInfo = yield* issueHeadlessServeAccessInfo();
           yield* runStartupPhase(
             "headless.output",
-            Console.log(formatHeadlessServeOutput(accessInfo)),
+            Console.log(
+              serverConfig.jsonOutput
+                ? yield* encodeStartupAccess(accessInfo)
+                : formatHeadlessServeOutput(accessInfo),
+            ),
           );
         } else {
           yield* Effect.logDebug("startup phase: browser open check");

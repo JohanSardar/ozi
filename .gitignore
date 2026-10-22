@@ -45,3 +45,5 @@ node_modules/
 .pnpm-store/
 e2e/results.json
 features.html
+
+e2e/results.json

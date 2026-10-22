@@ -76,6 +76,7 @@ it.effect("parks automatic pull until activation without delaying command readin
             Effect.provide(Path.layer),
           )),
           baseDir: cwd,
+          dataRoot: cwd,
           logLevel: "Error",
           traceMinLevel: "Info",
           traceTimingEnabled: false,

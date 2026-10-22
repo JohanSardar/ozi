@@ -9,8 +9,14 @@ if (
 ) {
   const { ignoreMacosTypeOfServiceEinval } = await import("./outboundHttp.ts");
   ignoreMacosTypeOfServiceEinval();
-  const { attachConsoleStdin } = await import("./cli/consoleStdin.ts");
-  attachConsoleStdin();
-  const { runCli } = await import("./binCli.ts");
-  runCli();
+  const command = process.argv[2];
+  if (["status", "say", "steer", "stop", "thread", "wait", "pair"].includes(command ?? "")) {
+    const { runClientCli } = await import("./binClientCli.ts");
+    runClientCli();
+  } else {
+    const { attachConsoleStdin } = await import("./cli/consoleStdin.ts");
+    attachConsoleStdin();
+    const { runCli } = await import("./binCli.ts");
+    runCli();
+  }
 }

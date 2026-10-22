@@ -77,7 +77,7 @@ One binary, `ozi`. Every command takes `--json`. Client commands find the server
 | `ozi say <text> [--file <path>]…`                        | Message main; queues when busy.                                                          |
 | `ozi steer <text> [--thread <id>]`                       | Steer the active turn.                                                                   |
 | `ozi stop [--thread <id>]`                               | Stop a thread's work.                                                                    |
-| `ozi thread <id>`                                        | Transcript, loadout, state.                                                              |
+| `ozi thread <id> [--provider <id> --model <model>]`      | Transcript, loadout, state; optional provider/model selection.                           |
 | `ozi jobs`                                               | Cards by column.                                                                         |
 | `ozi job <id>`                                           | Card plus lead transcript.                                                               |
 | `ozi answer <requestId> <value…>`                        | Answer a question, approval (`allow`/`deny`) or secret.                                  |
@@ -90,11 +90,19 @@ One binary, `ozi`. Every command takes `--json`. Client commands find the server
 | `ozi todos`                                              | External to-dos with source and freshness.                                               |
 | `ozi wait <job\|thread\|check> <id> <state> [--timeout]` | Block until the state holds; non-zero on timeout.                                        |
 
+M1 implements `serve`, `service`, `pair`, `status`, `say`, `steer`, `stop`, `thread`, and `wait`. Other commands arrive with their owning milestones. `--home`/`OZI_HOME` selects server state; `--data-root`/`OZI_DATA_ROOT` selects the data repository. Desktop launchers may use the `--base-dir` alias.
+
+Until main bootstrap lands, the CLI resolves main in one function using the most recent thread. A first `say` creates a Codex conversation when no thread exists. `status` returns server configuration, the shell snapshot and the complete main projection; `thread` returns the complete thread projection. `wait thread <id> text:<substring>` waits for transcript text. JSON errors retain a non-zero exit code.
+
 ## E2E
 
 `e2e/` runs the real server (`ozi serve` on a temp home and temp data root), real SQLite, files, git and bwrap, the real web client in Chromium, and the `ozi` CLI. Fakes only: provider transports (`e2e/fakes/{pi,codex,claude}` executables on `PATH`, speaking each native protocol and calling real MCP tools from a scenario script), the clock, and external MCP. Tests await observable state via `ozi wait`, never sleeps.
 
 A milestone passes when its scenarios pass here and its real-agent run passes: real Pi/Opus 5.5 main, Codex and Claude workers, the desktop app on a second machine.
+
+Scenario scripts are JSON arrays at `OZI_FAKE_SCRIPT`. Rules match prompt regular expressions, optionally `provider` (`pi`, `codex`, `claude`) and `role` (`main`, `worker`). Matching rules run once in order unless `repeat` is true. Steps are `{"say":"text"}`, `{"tool":{"name":"read_skill","arguments":{"name":"demo"}}}`, `{"ask":"question"}`, `{"approval":"command"}`, `{"wait":true}` or `{"fail":"reason"}`. Tools use the real authenticated MCP endpoint. `$prompt`, `$result` and `$result.field` interpolate the prompt or last tool result. `OZI_FAKE_LOG` records launches, received protocol frames, prompts, tools and results with credentials redacted.
+
+Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` before the first E2E run. The setup builds the web client when its bundle is missing. The harness uses isolated provider homes and kills only its own server process. `OZI_E2E_KEEP=1` preserves temporary artifacts after teardown.
 
 ### M1 Connection
 
