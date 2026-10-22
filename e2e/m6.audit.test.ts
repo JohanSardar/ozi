@@ -36,6 +36,17 @@ it("m6.audit desktop never uses T3 Code's identity or legacy state", async () =>
     /^(?:native\/(?:kde|hyprland)-snap-shot\/|apps\/desktop\/|scripts\/build-desktop-artifact\.ts$|packages\/shared\/src\/(?:desktopAppControl|devHome|promptLinks|providerAuthReturnUrl|codexAuthHandoff)\.ts$|packages\/contracts\/src\/desktopBootstrap\.ts$|apps\/server\/src\/(?:httpCors|cli\/config)\.ts$|packages\/ssh\/src\/(?:tunnel|auth)\.ts$)/;
   const forbidden =
     /\.t3\b|t3code|T3 Code|T3CODE_|T3_SSH_AUTH_SECRET|com\.t3tools|T3SnapShot|snap-shot@t3\.codes|t3-(?:kde|hyprland|browser-secret|snap-shot)/i;
+  const metadata = JSON.parse(
+    await NodeFSP.readFile(
+      NodePath.join(repo, "apps/desktop/gnome-extension/metadata.json"),
+      "utf8",
+    ),
+  );
+  const extension = JSON.parse(
+    await NodeFSP.readFile(NodePath.join(repo, "apps/desktop/gnome-extension/bundle.json"), "utf8"),
+  );
+  expect(metadata.uuid).toBe("snap-shot@com-ozi-app");
+  expect(extension.uuid).toBe(metadata.uuid);
   const violations: string[] = [];
   for (const path of paths) {
     if (allow.test(path) || !/\.(?:[cm]?[jt]sx?|rs|qml|toml|json|xml|sh|ps1|ya?ml)$/.test(path))
@@ -59,12 +70,6 @@ it("m6.audit desktop never uses T3 Code's identity or legacy state", async () =>
 });
 
 it("m6.audit bundled desktop starts ozi serve and pairs through Connections", async () => {
-  await exec(NodePath.join(repo, "node_modules/.bin/vp"), [
-    "run",
-    "--filter",
-    "@t3tools/desktop",
-    "build",
-  ]);
   const bundle = await NodeFSP.readFile(
     NodePath.join(repo, "apps/desktop/dist-electron/main.cjs"),
     "utf8",
