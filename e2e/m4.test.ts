@@ -626,6 +626,14 @@ it("m4.removed rejects retired APIs and commands and removes their repository sl
   for (const [id, name] of migrationEntries)
     if (/^Remove(?:SourceControl|Relay|Workspace)/.test(name)) expect(id).toBeGreaterThan(fixes);
   const root = NodeURL.fileURLToPath(new URL("..", import.meta.url));
+  const tracked = await new Promise<string>((resolve, reject) =>
+    NodeChildProcess.execFile(
+      "git",
+      ["ls-files", "-z"],
+      { cwd: root, maxBuffer: 16 * 1024 * 1024 },
+      (error, stdout) => (error ? reject(error) : resolve(stdout)),
+    ),
+  ).then((output) => output.split("\0"));
   for (const path of [
     "infra",
     "native/resource-monitor",
@@ -660,7 +668,10 @@ it("m4.removed rejects retired APIs and commands and removes their repository sl
     "packages/source-control-gitlab",
     "packages/source-control-testing",
   ])
-    await expect(NodeFSP.stat(root + "/" + path), path).rejects.toMatchObject({ code: "ENOENT" });
+    expect(
+      tracked.some((file) => file === path || file.startsWith(path + "/")),
+      path,
+    ).toBe(false);
   const workspace = await NodeFSP.readFile(root + "/pnpm-workspace.yaml", "utf8");
   const lock = await NodeFSP.readFile(root + "/pnpm-lock.yaml", "utf8");
   expect(workspace + lock).not.toMatch(
