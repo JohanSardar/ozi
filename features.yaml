@@ -226,11 +226,11 @@ features:
     status: passing
   - id: cli-remote
     reqs: [terminal-client, desktop-remote]
-    module: apps/server/src/cli/OziClient.ts + apps/server/src/cli/client.ts + e2e/m7.test.ts
+    module: apps/server/src/cli/client.ts + e2e/m7.test.ts
     cli: [connect, disconnect, say, jobs, answer, wait]
     milestone: 7
     scenarios: [m7.remote-cli]
-    status: planned
+    status: passing
   - id: cli-text
     reqs: [terminal-client, minimal]
     module: apps/server/src/cli/text.ts + apps/server/src/cli/client.ts + e2e/m7.test.ts

@@ -234,7 +234,7 @@ export async function startHarness(
     new Promise<T>((resolve, reject) => {
       NodeChildProcess.execFile(
         process.execPath,
-        [entry, ...args, "--home", home, "--json"],
+        [entry, ...args, ...(args.includes("--home") ? [] : ["--home", home]), "--json"],
         {
           cwd: dataRoot,
           env,
@@ -246,7 +246,7 @@ export async function startHarness(
         },
         (error, stdout, stderr) => {
           if (error) {
-            const message = `ozi ${args.join(" ")}: ${[stdout, stderr].filter(Boolean).join("\n") || error.message}`;
+            const message = `ozi ${args.join(" ")}: ${[stdout, stderr].filter(Boolean).join("\n") || `${error.message} (code=${error.code}, signal=${error.signal}, killed=${error.killed})`}`;
             if (args[0] === "wait")
               void ozi<import("@t3tools/contracts").OziCheck[]>("checks").then(
                 async (checks) => {
@@ -319,7 +319,7 @@ export async function startHarness(
     new Promise<{ code: number; stdout: string; stderr: string }>((resolve) =>
       NodeChildProcess.execFile(
         process.execPath,
-        [cli, ...args, "--home", home],
+        [cli, ...args, ...(args.includes("--home") ? [] : ["--home", home])],
         { cwd: dataRoot, env, timeout: 45_000 },
         (error, stdout, stderr) =>
           resolve({ code: error ? Number(error.code ?? 1) : 0, stdout, stderr }),
