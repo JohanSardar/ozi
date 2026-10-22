@@ -189,6 +189,7 @@ patchedDependencies:
   dbus-next@0.10.2: patches/dbus-next@0.10.2.patch
   node-pty@1.2.0-beta.15: patches/node-pty@1.2.0-beta.15.patch
   app-builder-lib@26.16.1: patches/app-builder-lib@26.16.1.patch
+  pi-claude-bridge@0.9.3: patches/pi-claude-bridge@0.9.3.patch
 peerDependencyRules:
   allowAny:
     - vite

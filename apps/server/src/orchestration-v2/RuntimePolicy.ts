@@ -97,7 +97,7 @@ const mainSelectionError = (
     return new RuntimePolicyResolveError({
       projectId: input.thread.projectId,
       providerInstanceId: input.modelSelection.instanceId,
-      cause: "Main requires available Pi anthropic/claude-opus-5-5, high thinking, fast off.",
+      cause: "Main requires available Pi claude-bridge/claude-opus-5-5, high thinking, fast off.",
     });
 };
 

@@ -1,76 +1,115 @@
+import * as NodeChildProcess from "node:child_process";
 import * as NodeFSP from "node:fs/promises";
-import * as NodeHttp from "node:http";
-import type * as NodeNet from "node:net";
 import * as NodePath from "node:path";
+import * as NodeURL from "node:url";
 import { OZI_MAIN_TOOL_NAMES } from "@t3tools/contracts";
 import { expect, it } from "vite-plus/test";
 import { startHarness } from "./harness.ts";
+import { startAnthropic } from "./fakes/anthropic.ts";
 
-interface Request {
-  readonly system: string;
-  readonly tools: ReadonlyArray<string>;
-}
-
-const event = (type: string, data: object) =>
-  `event: ${type}\ndata: ${JSON.stringify({ type, ...data })}\n\n`;
-
-const reply = (text: string) =>
-  [
-    event("message_start", {
-      message: {
-        id: "msg_e2e",
-        type: "message",
-        role: "assistant",
-        model: "claude-opus-5-5",
-        content: [],
-        stop_reason: null,
-        usage: { input_tokens: 1, output_tokens: 1 },
+it("m1.main-loadout sends only Ozi tools and the data-root prompt through real Pi and Claude Code", async () => {
+  const binary = (name: string) =>
+    NodeChildProcess.execFileSync("which", [name], { encoding: "utf8" }).trim();
+  const pi = NodeURL.fileURLToPath(new URL("./node_modules/.bin/pi", import.meta.url));
+  const claude = binary("claude");
+  const fake = await startAnthropic();
+  const h = await startHarness({
+    bundled: true,
+    pi: {
+      binaryPath: pi,
+      env: {
+        PATH: [
+          NodePath.dirname(claude),
+          NodeURL.fileURLToPath(new URL("./fakes", import.meta.url)),
+          NodePath.dirname(process.execPath),
+          "/usr/bin",
+          "/bin",
+        ].join(":"),
+        ANTHROPIC_BASE_URL: fake.url,
+        ANTHROPIC_API_KEY: "ozi-test-only",
+        CLAUDE_CODE_DISABLE_NONESSENTIAL_TRAFFIC: "1",
+        CLAUDE_CODE_DISABLE_FAST_MODE: "0",
+        ENABLE_TOOL_SEARCH: "true",
       },
-    }),
-    event("content_block_start", { index: 0, content_block: { type: "text", text: "" } }),
-    event("content_block_delta", { index: 0, delta: { type: "text_delta", text } }),
-    event("content_block_stop", { index: 0 }),
-    event("message_delta", { delta: { stop_reason: "end_turn" }, usage: { output_tokens: 1 } }),
-    event("message_stop", {}),
-  ].join("");
-
-it("m1.main-loadout real Pi sends the model only Ozi tools and the data-root prompt", async () => {
-  const requests: Request[] = [];
-  const inference = NodeHttp.createServer((request, response) => {
-    let body = "";
-    request.on("data", (chunk: Buffer) => (body += chunk.toString()));
-    request.on("end", () => {
-      const parsed = JSON.parse(body) as {
-        system: string | ReadonlyArray<{ text: string }>;
-        tools?: ReadonlyArray<{ name: string }>;
-      };
-      requests.push({
-        system:
-          typeof parsed.system === "string"
-            ? parsed.system
-            : parsed.system.map((part) => part.text).join(""),
-        tools: (parsed.tools ?? []).map((tool) => tool.name),
-      });
-      response.writeHead(200, { "content-type": "text/event-stream" });
-      response.end(reply("real-pi-ok"));
-    });
+    },
+  }).catch(async (error: unknown) => {
+    await fake.close();
+    throw error;
   });
-  await new Promise<void>((resolve) => inference.listen(0, "127.0.0.1", resolve));
-  const { port } = inference.address() as NodeNet.AddressInfo;
-  const h = await startHarness({ realPi: `http://127.0.0.1:${port}` });
   try {
-    await h.ozi("say", "Reply with ok");
-    const main = (await h.status()).main!.thread.id;
-    await h.wait(main, "text:real-pi-ok", 60);
+    await h.ozi("wait", "provider", "pi", "ready", "--timeout", "30");
+    const provider = (await h.status()).server.providers.find((entry) => entry.driver === "pi");
+    expect(provider, JSON.stringify(provider)).toMatchObject({ installed: true });
+    expect(
+      provider?.models.map((model) => model.slug),
+      JSON.stringify(provider),
+    ).toContain("claude-bridge/claude-opus-5-5");
+    const workspace = NodePath.join(h.home, "workspace");
+    const claudeHome = NodePath.join(h.root, "claude");
+    const hook = NodePath.join(h.root, "ambient-hook");
+    await NodeFSP.mkdir(NodePath.join(workspace, ".pi"), { recursive: true });
+    await NodeFSP.writeFile(
+      NodePath.join(workspace, ".pi/claude-bridge.json"),
+      JSON.stringify({ askClaude: { enabled: true }, provider: { strictMcpConfig: false } }),
+    );
+    const settings = {
+      fastMode: true,
+      hooks: { UserPromptSubmit: [{ hooks: [{ type: "command", command: `touch ${hook}` }] }] },
+    };
+    for (const directory of [claudeHome, NodePath.join(workspace, ".claude")]) {
+      await NodeFSP.mkdir(NodePath.join(directory, "skills/ambient"), { recursive: true });
+      await NodeFSP.writeFile(NodePath.join(directory, "settings.json"), JSON.stringify(settings));
+      await NodeFSP.writeFile(
+        NodePath.join(directory, "CLAUDE.md"),
+        "ambient-context-must-not-load",
+      );
+      await NodeFSP.writeFile(
+        NodePath.join(directory, "skills/ambient/SKILL.md"),
+        "---\nname: ambient\ndescription: ambient-skill-must-not-load\n---\nambient-skill-must-not-load",
+      );
+    }
+    await NodeFSP.writeFile(NodePath.join(workspace, "CLAUDE.md"), "ambient-context-must-not-load");
+    await NodeFSP.writeFile(
+      NodePath.join(workspace, ".mcp.json"),
+      JSON.stringify({
+        mcpServers: { ambient: { type: "stdio", command: "touch", args: [hook] } },
+      }),
+    );
+    await NodeFSP.writeFile(NodePath.join(h.dataRoot, "adhd.md"), "data-root-adhd-marker");
     const prompt = (
       await NodeFSP.readFile(NodePath.join(h.dataRoot, "prompt.md"), "utf8")
-    ).replaceAll("{{ADHD}}", "");
-    expect(requests[0]!.system).toContain(prompt.trim());
-    expect(requests[0]!.tools.filter((name) => !name.startsWith("__pi_")).toSorted()).toEqual(
-      OZI_MAIN_TOOL_NAMES.map((name) => `mcp__t3-code__${name}`).toSorted(),
+    ).replaceAll("{{ADHD}}", "data-root-adhd-marker");
+    await h.ozi("say", "real-bridge-loadout");
+    const result = await h.wait("ozi-main", "text:bridge-ok", 60);
+    expect(result.thread.effectiveLoadout).toMatchObject({
+      provider: "pi",
+      model: "claude-bridge/claude-opus-5-5",
+      options: [
+        { id: "thinking", value: "high" },
+        { id: "fastMode", value: false },
+      ],
+      toolNames: OZI_MAIN_TOOL_NAMES,
+    });
+    const requests = fake.requests.filter((request) =>
+      request.system?.some((block) => block.text.includes("data-root-adhd-marker")),
     );
+    expect(requests.length).toBeGreaterThanOrEqual(2);
+    for (const request of requests) {
+      expect(request.model).toBe("claude-opus-5-5");
+      expect(request.output_config?.effort).toBe("high");
+      expect(request.speed).not.toBe("fast");
+      expect(request.system.map((block) => block.text).join("\n")).toContain(prompt);
+      expect(JSON.stringify(request)).not.toMatch(
+        /ambient-context-must-not-load|ambient-skill-must-not-load/,
+      );
+      expect(request.tools.map((tool) => tool.name).sort()).toEqual(
+        OZI_MAIN_TOOL_NAMES.map((name) => `mcp__custom-tools__mcp__t3-code__${name}`).sort(),
+      );
+    }
+    expect(JSON.stringify(requests.at(-1)?.messages)).toContain("ozi-demo-skill-loaded");
+    await expect(NodeFSP.stat(hook)).rejects.toThrow();
   } finally {
     await h.close();
-    inference.close();
+    await fake.close();
   }
 });
