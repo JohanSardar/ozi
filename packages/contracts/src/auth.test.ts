@@ -10,7 +10,6 @@ import {
   authScopeResponse,
   AuthSessionState,
   sessionGrantsScope,
-  sessionHasLegacyPermissions,
 } from "./auth.ts";
 
 describe("authorization grants", () => {
@@ -100,7 +99,7 @@ describe("authorization grants", () => {
       session: {
         authenticated: true,
         scopes: ["orchestration:operate"],
-        auth: { serverUpdateScope: "environment:maintain" },
+        auth: {},
       },
       scope: "settings:write",
       expected: false,
@@ -128,28 +127,4 @@ describe("authorization grants", () => {
   });
 });
 
-describe("legacy permission notice", () => {
-  it.each(["orchestration:read", "orchestration:operate"] as const)(
-    "recognizes an old %s grant on an upgraded server",
-    (scope) =>
-      expect(sessionHasLegacyPermissions({ authenticated: true, permissions: [scope] })).toBe(true),
-  );
-  it("waits for a new server and an authenticated session", () => {
-    expect(
-      sessionHasLegacyPermissions({ authenticated: true, scopes: ["orchestration:operate"] }),
-    ).toBe(false);
-    expect(
-      sessionHasLegacyPermissions({ authenticated: false, permissions: ["orchestration:operate"] }),
-    ).toBe(false);
-  });
-  it("skips new grants and old grants that lost no implied permissions", () => {
-    for (const permissions of [
-      AuthStandardClientScopes,
-      ["orchestration:read", "filesystem:read"] as const,
-      ["access:read"] as const,
-      [],
-    ]) {
-      expect(sessionHasLegacyPermissions({ authenticated: true, permissions })).toBe(false);
-    }
-  });
-});
+describe("legacy permission notice", () => {});

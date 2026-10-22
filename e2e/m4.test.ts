@@ -10,7 +10,7 @@ import type {
   ScheduledTask,
 } from "@t3tools/contracts";
 import { afterEach, beforeEach, expect, it } from "vite-plus/test";
-import { startHarness, type Harness, type Rule } from "./harness.ts";
+import { startHarness, type Harness, type Rule, type Status } from "./harness.ts";
 
 type Card = typeof OziJobCard.Encoded;
 type Task = typeof ScheduledTask.Encoded & { webhookUrl?: string };
@@ -618,6 +618,38 @@ it("m4.removed rejects retired APIs and commands and removes their repository sl
     "__service-preflight",
   ])
     await expect(h.ozi(command)).rejects.toThrow(/Unknown subcommand/);
+  const contracts = await import("@t3tools/contracts");
+  for (const name of [
+    "ProjectScript",
+    "ProjectIconOverride",
+    "ProjectMutation",
+    "ProjectChange",
+    "ProjectEntryKind",
+    "ProjectSearchEntriesInput",
+    "ProjectReadFileInput",
+    "ProjectWriteFileInput",
+    "ThreadEnvMode",
+    "WorktreeSubmodules",
+    "SourceControlWritingStyleSettings",
+    "BranchNamingMode",
+    "AuthFilesystemWriteScope",
+  ])
+    expect(contracts).not.toHaveProperty(name);
+  const status = await h.ozi<Status>("status");
+  expect(status.server.settings).not.toHaveProperty("defaultThreadEnvMode");
+  expect(status.server.auth).not.toHaveProperty("serverUpdateScope");
+  for (const project of status.snapshot.projects)
+    for (const field of [
+      "defaultThreadEnvMode",
+      "autoPull",
+      "scripts",
+      "projectIcon",
+      "faviconPath",
+    ])
+      expect(project).not.toHaveProperty(field);
+  await expect(h.ozi("serve", "--auto-bootstrap-project-from-cwd")).rejects.toThrow(
+    "Unrecognized flag: --auto-bootstrap-project-from-cwd",
+  );
   const { migrationEntries } = await import("../apps/server/src/persistence/Migrations.ts");
   const ids = migrationEntries.map(([id]) => id);
   expect(new Set(ids).size).toBe(ids.length);

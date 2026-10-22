@@ -1,11 +1,10 @@
 import { useAtomValue } from "@effect/atom-react";
-import { type ComposerPathSearchTarget } from "@t3tools/client-runtime/state/threads";
 import {
   createThreadSearchResultsAtomFamily,
   makeThreadSearchKey,
   type EnvironmentThreadSearchMatch,
 } from "@t3tools/client-runtime/state/thread-search";
-import type { EnvironmentId, ProjectEntryKind, ThreadId, TurnItemId } from "@t3tools/contracts";
+import type { EnvironmentId, ThreadId, TurnItemId } from "@t3tools/contracts";
 import { Atom } from "effect/reactivity";
 import { useEffect, useState } from "react";
 import { orchestrationEnvironment } from "./orchestration";
@@ -64,20 +63,6 @@ export function useThreadSearch(
     query: settledQuery ?? "",
     isPending: canSearch && (isDebouncing || result.isLoading),
   };
-}
-
-type ProjectPathSearchTarget = ComposerPathSearchTarget & {
-  readonly kind?: ProjectEntryKind | undefined;
-  readonly imageOnly?: boolean | undefined;
-};
-
-interface ProjectContentSearchTarget {
-  readonly environmentId: EnvironmentId | null;
-  readonly cwd: string | null;
-  readonly query: string;
-  readonly caseSensitive: boolean;
-  readonly wholeWord: boolean;
-  readonly useRegex: boolean;
 }
 
 export function useTurnItemDetail(

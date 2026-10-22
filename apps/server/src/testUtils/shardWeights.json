@@ -56,7 +56,6 @@
   "src/orchestration-v2/ContextHandoffService.test.ts": 0.3,
   "src/orchestration-v2/LiveStreamBudget.test.ts": 0.2,
   "src/orchestration-v2/Orchestrator.migration.test.ts": 1.5,
-  "src/orchestration-v2/ProjectCommands.test.ts": 0.3,
   "src/orchestration-v2/ProjectStore.test.ts": 0.4,
   "src/orchestration-v2/ProjectionControlReads.test.ts": 5.3,
   "src/orchestration-v2/ProviderAdapterRegistry.test.ts": 0.4,

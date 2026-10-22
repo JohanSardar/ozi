@@ -4,7 +4,6 @@ import {
   AuthDiagnosticsReadScope,
   AuthEnvironmentMaintainScope,
   AuthFilesystemReadScope,
-  AuthFilesystemWriteScope,
   type AuthGrantScope,
   AuthOrchestrationOperateScope,
   AuthOrchestrationReadScope,
@@ -41,7 +40,7 @@ export const AUTH_SCOPE_OPTIONS: ReadonlyArray<{
   {
     scope: AuthEnvironmentMaintainScope,
     title: "Maintain environment",
-    description: "Update the server and control environment processes.",
+    description: "Control network access and environment processes.",
   },
   {
     scope: AuthPreviewOperateScope,
@@ -56,12 +55,7 @@ export const AUTH_SCOPE_OPTIONS: ReadonlyArray<{
   {
     scope: AuthFilesystemReadScope,
     title: "Read files",
-    description: "Browse host files, search workspaces, and inspect local changes.",
-  },
-  {
-    scope: AuthFilesystemWriteScope,
-    title: "Write files",
-    description: "Edit workspace files and save plans to disk.",
+    description: "Read files attached to conversations.",
   },
   {
     scope: AuthAccessReadScope,

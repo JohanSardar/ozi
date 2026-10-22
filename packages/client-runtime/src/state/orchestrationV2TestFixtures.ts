@@ -19,7 +19,6 @@ export const v2Project: OrchestrationProjectShell = {
   title: "Project",
   workspaceRoot: "/workspace/project",
   defaultModelSelection: null,
-  scripts: [],
   createdAt: "2026-06-20T00:00:00.000Z",
   updatedAt: "2026-06-20T00:00:00.000Z",
 };

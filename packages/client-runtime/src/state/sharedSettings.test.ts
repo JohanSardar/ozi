@@ -178,8 +178,6 @@ describe("findSharedSettingsMismatches", () => {
           settings: {
             ...primarySettings,
             enableAgentBrowserAccess: false,
-            defaultThreadEnvMode:
-              primarySettings.defaultThreadEnvMode === "local" ? "worktree" : "local",
           },
         },
       ],

@@ -4,8 +4,6 @@ import {
   ProjectId,
   type Project,
   type ProjectCreatePayload,
-  type ProjectUpdatePayload,
-  type ProjectSnapshot,
 } from "@t3tools/contracts";
 import * as KeyedLock from "@t3tools/shared/KeyedLock";
 import * as Context from "effect/Context";
@@ -33,18 +31,7 @@ export interface ProjectCreateInput extends ProjectCreatePayload {
   readonly projectId: ProjectId;
 }
 
-export interface ProjectUpdateInput extends ProjectUpdatePayload {
-  readonly commandId: CommandId;
-  readonly projectId: ProjectId;
-}
-
 export interface ProjectBootstrapInput extends ProjectCreateInput {}
-
-export interface ProjectDeleteInput {
-  readonly commandId: CommandId;
-  readonly projectId: ProjectId;
-  readonly force?: boolean;
-}
 
 export class ProjectNotFoundError extends Schema.TaggedError<ProjectNotFoundError>()(
   "ProjectNotFoundError",
@@ -65,15 +52,6 @@ export class ProjectConflictError extends Schema.TaggedError<ProjectConflictErro
 ) {
   override get message(): string {
     return `Workspace ${this.workspaceRoot} already belongs to project ${this.conflictingProjectId}.`;
-  }
-}
-
-export class ProjectNotEmptyError extends Schema.TaggedError<ProjectNotEmptyError>()(
-  "ProjectNotEmptyError",
-  { projectId: ProjectId },
-) {
-  override get message(): string {
-    return `Project ${this.projectId} is not empty.`;
   }
 }
 
@@ -101,7 +79,6 @@ export class ProjectOperationError extends Schema.TaggedError<ProjectOperationEr
 export type ProjectServiceError =
   | ProjectNotFoundError
   | ProjectConflictError
-  | ProjectNotEmptyError
   | ProjectOperationError;
 
 export class ProjectService extends Context.Service<
@@ -122,7 +99,6 @@ export class ProjectService extends Context.Service<
       workspaceRoot: string,
       options?: { readonly includeDeleted?: boolean },
     ) => Effect.Effect<Option.Option<Project>, ProjectOperationError>;
-    readonly snapshot: Effect.Effect<ProjectSnapshot, ProjectOperationError>;
     readonly getShell: (
       projectId: ProjectId,
     ) => Effect.Effect<Option.Option<OrchestrationProjectShell>, ProjectOperationError>;
@@ -144,12 +120,7 @@ export const make = Effect.gen(function* () {
     id: row.projectId,
     title: row.title,
     workspaceRoot: row.workspaceRoot,
-    faviconPath: row.faviconPath,
     defaultModelSelection: row.defaultModelSelection,
-    defaultThreadEnvMode: row.defaultThreadEnvMode,
-    autoPull: row.autoPull,
-    projectIcon: row.projectIcon,
-    scripts: row.scripts,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
     deletedAt: row.deletedAt,
@@ -317,7 +288,6 @@ export const make = Effect.gen(function* () {
         projectId: input.projectId,
         title: input.title,
         workspaceRoot,
-        ...(input.scripts === undefined ? {} : { scripts: input.scripts }),
       });
       return yield* readCommitted(input.projectId);
     },
@@ -357,27 +327,11 @@ export const make = Effect.gen(function* () {
     return shells;
   });
 
-  const snapshot = Effect.gen(function* () {
-    const rows = yield* projects
-      .list()
-      .pipe(
-        Effect.mapError(
-          (cause) => new ProjectOperationError({ operation: "list-projects", cause }),
-        ),
-      );
-    const hydrated = yield* Effect.forEach(rows, hydrate, { concurrency: 8 });
-    return {
-      projects: hydrated,
-      updatedAt: DateTime.formatIso(yield* DateTime.now),
-    } satisfies ProjectSnapshot;
-  });
-
   return ProjectService.of({
     create,
     bootstrap,
     getById,
     getByWorkspaceRoot,
-    snapshot,
     getShell,
     listShells,
   });

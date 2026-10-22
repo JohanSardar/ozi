@@ -271,7 +271,6 @@ interface CreateDevRunnerEnvInput {
   readonly webOffset: number;
   readonly oziHome: string | undefined;
   readonly browser: boolean | undefined;
-  readonly autoBootstrapProjectFromCwd: boolean | undefined;
   readonly logWebSocketEvents: boolean | undefined;
   readonly host: string | undefined;
   readonly port: number | undefined;
@@ -285,7 +284,6 @@ export const createDevRunnerEnv = Effect.fn("dev-runner.createDevRunnerEnv")(fun
   webOffset,
   oziHome,
   browser,
-  autoBootstrapProjectFromCwd,
   logWebSocketEvents,
   host,
   port,
@@ -362,12 +360,6 @@ export const createDevRunnerEnv = Effect.fn("dev-runner.createDevRunnerEnv")(fun
 
   if (!isDesktopMode) {
     output.OZI_NO_BROWSER = browser === true ? "0" : "1";
-  }
-
-  if (autoBootstrapProjectFromCwd !== undefined) {
-    output.OZI_AUTO_BOOTSTRAP_PROJECT_FROM_CWD = autoBootstrapProjectFromCwd ? "1" : "0";
-  } else {
-    delete output.OZI_AUTO_BOOTSTRAP_PROJECT_FROM_CWD;
   }
 
   if (logWebSocketEvents !== undefined) {
@@ -570,7 +562,6 @@ interface DevRunnerCliInput {
   readonly mode: DevMode;
   readonly oziHome: string | undefined;
   readonly browser: boolean | undefined;
-  readonly autoBootstrapProjectFromCwd: boolean | undefined;
   readonly logWebSocketEvents: boolean | undefined;
   readonly host: string | undefined;
   readonly port: number | undefined;
@@ -636,7 +627,6 @@ export const runDevRunnerWithInput = Effect.fn("dev-runner.runDevRunnerWithInput
     webOffset,
     oziHome: resolvedT3Home,
     browser: input.browser,
-    autoBootstrapProjectFromCwd: input.autoBootstrapProjectFromCwd,
     logWebSocketEvents: input.logWebSocketEvents,
     host: input.host,
     port: input.port,
@@ -782,12 +772,6 @@ const devRunnerCli = Command.make("dev-runner", {
   browser: Flag.Boolean("browser").pipe(
     Flag.withDescription("Open a browser automatically (disabled by default for web dev)."),
     Flag.withDefault(false),
-  ),
-  autoBootstrapProjectFromCwd: Flag.Boolean("auto-bootstrap-project-from-cwd").pipe(
-    Flag.withDescription(
-      "Auto-bootstrap toggle (equivalent to OZI_AUTO_BOOTSTRAP_PROJECT_FROM_CWD).",
-    ),
-    Flag.withFallbackConfig(optionalBooleanConfig("OZI_AUTO_BOOTSTRAP_PROJECT_FROM_CWD")),
   ),
   logWebSocketEvents: Flag.Boolean("log-websocket-events").pipe(
     Flag.withDescription("WebSocket event logging toggle (equivalent to OZI_LOG_WS_EVENTS)."),

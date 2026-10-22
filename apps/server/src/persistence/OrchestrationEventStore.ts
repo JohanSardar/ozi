@@ -10,7 +10,6 @@ import {
   OrchestrationV2DomainEventJson,
   OrchestrationV2StoredEvent,
   ProjectId,
-  StoredProjectIcon,
   ThreadId,
   type OrchestrationV2DomainEvent,
 } from "@t3tools/contracts";
@@ -121,8 +120,6 @@ export class OrchestrationEventStore extends Context.Service<
     }) => Stream.Stream<A, OrchestrationEventStoreError>;
   }
 >()("t3/persistence/OrchestrationEventStore") {}
-
-const encodeProjectIcon = Schema.encodeSync(StoredProjectIcon);
 const decodeProjectEvent = Schema.decodeUnknownEffect(ApplicationProjectEvent);
 const UnknownFromJsonString = Schema.fromJsonString(Schema.Unknown);
 const EventMetadataFromJsonString = Schema.fromJsonString(ApplicationEventMetadata);
@@ -375,10 +372,7 @@ const makeEventStore = Effect.gen(function* () {
       actorKind: inferActorKind(event),
       occurredAt: event.occurredAt,
       commandId: event.commandId,
-      payloadJson:
-        event.type === "project.deleted" || !event.payload.projectIcon
-          ? event.payload
-          : { ...event.payload, projectIcon: encodeProjectIcon(event.payload.projectIcon) },
+      payloadJson: event.payload,
       metadataJson: event.metadata,
     }).pipe(
       Effect.flatMap((row) => decodeProjectEvent(row)),
