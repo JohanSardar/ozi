@@ -58,6 +58,7 @@ import { resolveBaseDir } from "../os-jank.ts";
 import { isProcessAlive, readPersistedServerRuntimeState } from "../serverRuntimeState.ts";
 import { buildPairingUrl } from "../startupAccess.ts";
 import { baseDirFlag, homeConfig, jsonFlag } from "./config.ts";
+import * as Text from "./text.ts";
 
 const locationFlags = { baseDir: baseDirFlag, json: jsonFlag };
 const threadFlag = Flag.String("thread").pipe(Flag.withSchema(ThreadId), Flag.optional);
@@ -209,19 +210,70 @@ const snapshot = Effect.fn("ozi.snapshot")(function* (client: Client) {
 const mainThread = (shell: OrchestrationV2ShellSnapshot) =>
   shell.threads.find((thread) => thread.id === OZI_MAIN_THREAD_ID);
 
+const resolveId = Effect.fn("ozi.resolveId")(function* <A extends string>(
+  id: A,
+  known: ReadonlyArray<A>,
+  kind: string,
+) {
+  if (known.includes(id)) return id;
+  const matches = [...new Set(known)].filter((candidate) => candidate.includes(id));
+  if (matches.length > 1)
+    return yield* new ClientError({ operation: `found ambiguous ${kind} ID` });
+  return matches[0] ?? id;
+});
+
+const repairId = Effect.fn("ozi.repairId")(function* (
+  origin: string,
+  token: string,
+  kind: "mistakes" | "replays" | "fixes",
+  id: string,
+) {
+  const rows = yield* request(
+    origin,
+    token,
+    "/api/ozi/repair",
+    Schema.Array(Schema.Struct({ id: Schema.String })),
+    { kind },
+  );
+  return yield* resolveId(
+    id,
+    rows.map((row) => row.id),
+    kind,
+  );
+});
+
+const scheduleId = Effect.fn("ozi.scheduleId")(function* (client: Client, id: ScheduledTaskId) {
+  const { tasks } = yield* client[W.scheduledTasksList]({});
+  return yield* resolveId(
+    id,
+    tasks.map((task) => task.id),
+    "schedule",
+  );
+});
+
 const targetThread = Effect.fn("ozi.targetThread")(function* (
   client: Client,
   id: Option.Option<ThreadId>,
 ) {
-  if (Option.isSome(id)) return id.value;
+  if (Option.isSome(id))
+    return yield* resolveId(
+      id.value,
+      (yield* snapshot(client)).threads.map((thread) => thread.id),
+      "thread",
+    );
   const main = mainThread(yield* snapshot(client));
   if (main) return main.id;
   return yield* new ClientError({ operation: "has no main thread" });
 });
 
-const print = (value: unknown) => encodeJson(value).pipe(Effect.flatMap(Console.log));
-const emit = <A, E>(schema: Schema.Codec<A, E>, value: A) =>
-  Schema.encodeEffect(schema)(value).pipe(Effect.flatMap(print));
+const print = (value: unknown, json: boolean, text: () => string) =>
+  (json ? encodeJson(value) : Effect.sync(text)).pipe(Effect.flatMap(Console.log));
+const emit = <A, E>(schema: Schema.Codec<A, E>, value: A, json: boolean, text: () => string) =>
+  json
+    ? Schema.encodeEffect(schema)(value).pipe(
+        Effect.flatMap((encoded) => print(encoded, json, text)),
+      )
+    : print(value, json, text);
 
 const connectCommand = Command.make("connect", {
   ...locationFlags,
@@ -275,9 +327,7 @@ const connectCommand = Command.make("connect", {
         { mode: 0o600 },
       );
       yield* fs.rename(temporary, path.join(home, "remote.json"));
-      yield* flags.json
-        ? print({ origin: url.origin })
-        : Console.log(`Connected to ${url.origin}.`);
+      yield* print({ origin: url.origin }, flags.json, () => `Connected to ${url.origin}.`);
     }),
   ),
 );
@@ -288,7 +338,7 @@ const disconnectCommand = Command.make("disconnect", locationFlags).pipe(
       const fs = yield* FileSystem.FileSystem;
       const path = yield* Path.Path;
       yield* fs.remove(path.join(yield* clientHome(flags.baseDir), "remote.json"), { force: true });
-      yield* flags.json ? print({ disconnected: true }) : Console.log("Disconnected.");
+      yield* print({ disconnected: true }, flags.json, () => "Disconnected.");
     }),
   ),
 );
@@ -301,12 +351,14 @@ const statusSchema = Schema.Struct({
 const statusCommand = Command.make("status", locationFlags).pipe(
   Command.withHandler((flags) =>
     Effect.gen(function* () {
-      const { client } = yield* connect(flags.baseDir);
+      const { client, state } = yield* connect(flags.baseDir);
       const server = yield* client[W.serverGetConfig]({});
       const shell = yield* snapshot(client);
       const main = mainThread(shell);
       const projection = main ? yield* client[O.getThreadProjection]({ threadId: main.id }) : null;
-      yield* emit(statusSchema, { server, snapshot: shell, main: projection });
+      yield* emit(statusSchema, { server, snapshot: shell, main: projection }, flags.json, () =>
+        Text.status(server, projection, state.origin),
+      );
     }),
   ),
 );
@@ -322,10 +374,11 @@ const pairCommand = Command.make("pair", locationFlags).pipe(
         AuthPairingCredentialResult,
         {},
       );
-      yield* print({
+      const result = {
         ...(yield* encodePairing(credential)),
         url: buildPairingUrl(state.devUrl ?? state.origin, credential.credential),
-      });
+      };
+      yield* print(result, flags.json, () => `Pair ${result.url}`);
     }),
   ),
 );
@@ -397,7 +450,9 @@ const sayCommand = Command.make("say", {
   Command.withHandler((flags) =>
     connect(flags.baseDir).pipe(
       Effect.flatMap((connection) => send(connection, flags)),
-      Effect.flatMap((result) => emit(OrchestrationV2DispatchCommandResult, result)),
+      Effect.flatMap((result) =>
+        emit(OrchestrationV2DispatchCommandResult, result, flags.json, () => "Message sent"),
+      ),
     ),
   ),
 );
@@ -409,7 +464,9 @@ const steerCommand = Command.make("steer", {
   Command.withHandler((flags) =>
     connect(flags.baseDir).pipe(
       Effect.flatMap((connection) => send(connection, flags, true)),
-      Effect.flatMap((result) => emit(OrchestrationV2DispatchCommandResult, result)),
+      Effect.flatMap((result) =>
+        emit(OrchestrationV2DispatchCommandResult, result, flags.json, () => "Steering sent"),
+      ),
     ),
   ),
 );
@@ -423,7 +480,9 @@ const stopCommand = Command.make("stop", { ...locationFlags, thread: threadFlag 
         commandId: CommandId.make(yield* (yield* Crypto.Crypto).randomUUIDv4()),
         threadId,
       });
-      yield* emit(OrchestrationV2DispatchCommandResult, result);
+      yield* emit(OrchestrationV2DispatchCommandResult, result, flags.json, () =>
+        Text.result("Stopped", threadId),
+      );
     }),
   ),
 );
@@ -439,13 +498,14 @@ const threadCommand = Command.make("thread", {
     Effect.gen(function* () {
       const connection = yield* connect(flags.baseDir);
       const { client } = connection;
-      let threadId = flags.id;
+      const sourceThreadId = yield* targetThread(client, Option.some(flags.id));
+      let threadId = sourceThreadId;
       if (flags.fork) {
         threadId = ThreadId.make(yield* (yield* Crypto.Crypto).randomUUIDv4());
         yield* client[O.dispatchCommand]({
           type: "thread.fork",
           commandId: CommandId.make(yield* (yield* Crypto.Crypto).randomUUIDv4()),
-          sourceThreadId: flags.id,
+          sourceThreadId,
           targetThreadId: threadId,
           sourcePoint: { type: "latest_stable" },
           createdBy: "user",
@@ -470,9 +530,9 @@ const threadCommand = Command.make("thread", {
       }
       if (Option.isSome(flags.message))
         yield* send(connection, { thread: Option.some(threadId), text: flags.message.value });
-      yield* emit(
-        OrchestrationV2ThreadProjection,
-        yield* client[O.getThreadProjection]({ threadId }),
+      const projection = yield* client[O.getThreadProjection]({ threadId });
+      yield* emit(OrchestrationV2ThreadProjection, projection, flags.json, () =>
+        Text.thread(projection),
       );
     }),
   ),
@@ -482,7 +542,8 @@ const jobsCommand = Command.make("jobs", locationFlags).pipe(
   Command.withHandler((flags) =>
     Effect.gen(function* () {
       const { client } = yield* connect(flags.baseDir);
-      yield* emit(Schema.Array(OziJobCard), yield* client[J.jobsGet]({}));
+      const cards = yield* client[J.jobsGet]({});
+      yield* emit(Schema.Array(OziJobCard), cards, flags.json, () => Text.jobs(cards));
     }),
   ),
 );
@@ -493,12 +554,24 @@ const jobCommand = Command.make("job", {
   Command.withHandler((flags) =>
     Effect.gen(function* () {
       const { client } = yield* connect(flags.baseDir);
-      const card = (yield* client[J.jobsGet]({})).find((card) => card.jobId === flags.id);
+      const cards = yield* client[J.jobsGet]({});
+      const jobId = yield* resolveId(
+        flags.id,
+        cards.map((card) => card.jobId),
+        "job",
+      );
+      const card = cards.find((card) => card.jobId === jobId);
       if (!card) return yield* new ClientError({ operation: "found no such job" });
-      yield* emit(Schema.Struct({ card: OziJobCard, lead: OrchestrationV2ThreadProjection }), {
-        card,
-        lead: yield* client[O.getThreadProjection]({ threadId: flags.id }),
-      });
+      const lead = yield* client[O.getThreadProjection]({ threadId: jobId });
+      yield* emit(
+        Schema.Struct({ card: OziJobCard, lead: OrchestrationV2ThreadProjection }),
+        {
+          card,
+          lead,
+        },
+        flags.json,
+        () => Text.job(card, lead),
+      );
     }),
   ),
 );
@@ -511,16 +584,26 @@ const closeCommand = Command.make("close", {
   Command.withHandler((flags) =>
     Effect.gen(function* () {
       const { client } = yield* connect(flags.baseDir);
+      const cards = yield* client[J.jobsGet]({});
+      const jobId = yield* resolveId(
+        flags.jobId,
+        cards.map((card) => card.jobId),
+        "job",
+      );
+      const card = cards.find((card) => card.jobId === jobId);
+      const eventId = yield* resolveId(flags.eventId, card ? [card.eventId] : [], "event");
       yield* emit(
         OrchestrationV2DispatchCommandResult,
         yield* client[J.jobsHandle]({
           commandId: Option.isSome(flags.commandId)
             ? flags.commandId.value
             : CommandId.make(yield* (yield* Crypto.Crypto).randomUUIDv4()),
-          jobId: flags.jobId,
-          eventId: flags.eventId,
+          jobId,
+          eventId,
           evidence: { type: "close" },
         }),
+        flags.json,
+        () => Text.result("Closed", jobId),
       );
     }),
   ),
@@ -578,13 +661,18 @@ const answerCommand = Command.make("answer", {
   Command.withHandler((flags) =>
     Effect.gen(function* () {
       const connection = yield* connect(flags.baseDir);
-      const request = (yield* connection.client[J.jobsGet]({}))
-        .flatMap((card) => card.requests)
-        .find((request) => request.id === flags.requestId);
+      const requests = (yield* connection.client[J.jobsGet]({})).flatMap((card) => card.requests);
+      const requestId = yield* resolveId(
+        flags.requestId,
+        requests.map((request) => request.id),
+        "request",
+      );
+      const request = requests.find((request) => request.id === requestId);
       if (!request) return yield* new ClientError({ operation: "found no such request" });
       const result = yield* answerRequest(connection, request, flags.values);
-      if (result === null) yield* print({ answered: true });
-      else yield* emit(OrchestrationV2DispatchCommandResult, result);
+      const text = () => Text.result("Answered", request.id);
+      if (result === null) yield* print({ answered: true }, flags.json, text);
+      else yield* emit(OrchestrationV2DispatchCommandResult, result, flags.json, text);
     }),
   ),
 );
@@ -611,10 +699,16 @@ const waitCommand = Command.make("wait", {
     Effect.gen(function* () {
       if (flags.entity === "mistake" || flags.entity === "replay" || flags.entity === "fix") {
         const { state, token } = yield* connect(flags.baseDir);
+        const id = yield* repairId(
+          state.origin,
+          token,
+          flags.entity === "mistake" ? "mistakes" : flags.entity === "replay" ? "replays" : "fixes",
+          flags.id,
+        );
         const result = yield* post(state.origin, token, "/api/ozi/repair", {
           kind: "wait",
           entity: flags.entity,
-          id: flags.id,
+          id,
         }).pipe(
           Effect.flatMap((response) =>
             response.stream.pipe(
@@ -624,7 +718,7 @@ const waitCommand = Command.make("wait", {
               Stream.filter(
                 (row) =>
                   row !== null &&
-                  row.id === flags.id &&
+                  row.id === id &&
                   (("status" in row ? row.status : row.state) === flags.state ||
                     ("checkpoint" in row && `at:${row.checkpoint}` === flags.state) ||
                     ("reason" in row && row.reason === flags.state) ||
@@ -639,7 +733,7 @@ const waitCommand = Command.make("wait", {
         );
         if (Option.isNone(result))
           return yield* new ClientError({ operation: "repair subscription ended" });
-        yield* print(result.value);
+        yield* print(result.value, flags.json, () => Text.result(flags.entity, id, flags.state));
         return;
       }
       const { client } = yield* connect(flags.baseDir);
@@ -661,13 +755,20 @@ const waitCommand = Command.make("wait", {
         );
         if (Option.isNone(result))
           return yield* new ClientError({ operation: "provider subscription ended" });
-        yield* emit(ServerProvider, result.value);
+        yield* emit(ServerProvider, result.value, flags.json, () =>
+          Text.result("Provider", result.value.instanceId, result.value.status),
+        );
         return;
       }
       if (flags.entity === "job") {
+        const id = yield* resolveId(
+          flags.id,
+          (yield* client[J.jobsGet]({})).map((card) => card.jobId),
+          "job",
+        );
         const result = yield* client[J.jobsSubscribe]({}).pipe(
           Stream.map((cards) =>
-            cards.find((card) => card.jobId === flags.id && card.column === flags.state),
+            cards.find((card) => card.jobId === id && card.column === flags.state),
           ),
           Stream.filter((card): card is OziJobCard => card !== undefined),
           Stream.runHead,
@@ -675,22 +776,31 @@ const waitCommand = Command.make("wait", {
         );
         if (Option.isNone(result))
           return yield* new ClientError({ operation: "jobs subscription ended" });
-        yield* emit(OziJobCard, result.value);
+        yield* emit(OziJobCard, result.value, flags.json, () =>
+          Text.result("Job", id, flags.state),
+        );
         return;
       }
       if (flags.entity === "check") {
+        const id = yield* resolveId(
+          flags.id,
+          (yield* client[J.checksList]({})).map((check) => check.id),
+          "check",
+        );
         const result = yield* client[OZI_WS_METHODS.checksSubscribe]({}).pipe(
           Stream.filter((checks) =>
-            checks.some((check) => check.id === flags.id && check.state === flags.state),
+            checks.some((check) => check.id === id && check.state === flags.state),
           ),
           Stream.runHead,
           Effect.timeout(`${flags.timeout} seconds`),
         );
         if (Option.isNone(result))
           return yield* new ClientError({ operation: "check subscription ended" });
-        return yield* emit(Schema.Array(OziCheck), result.value);
+        return yield* emit(Schema.Array(OziCheck), result.value, flags.json, () =>
+          Text.result("Check", id, flags.state),
+        );
       }
-      const threadId = ThreadId.make(flags.id);
+      const threadId = yield* targetThread(client, Option.some(ThreadId.make(flags.id)));
       const { client: reader } = yield* connect(flags.baseDir);
       const result = yield* client[O.subscribeThread]({ threadId }).pipe(
         Stream.mapEffect((item) =>
@@ -730,7 +840,9 @@ const waitCommand = Command.make("wait", {
       );
       if (Option.isNone(result))
         return yield* new ClientError({ operation: "wait subscription ended" });
-      yield* emit(OrchestrationV2ThreadProjection, result.value);
+      yield* emit(OrchestrationV2ThreadProjection, result.value, flags.json, () =>
+        Text.result("Thread", threadId, flags.state),
+      );
     }),
   ),
 );
@@ -742,12 +854,11 @@ const checksCommand = Command.make("checks", {
   Command.withHandler((flags) =>
     Effect.gen(function* () {
       const { client } = yield* connect(flags.baseDir);
-      yield* emit(
-        Schema.Array(OziCheck),
-        yield* client[OZI_WS_METHODS.checksList](
-          Option.isSome(flags.threadId) ? { threadId: flags.threadId.value } : {},
-        ),
-      );
+      const threadId = Option.isSome(flags.threadId)
+        ? yield* targetThread(client, flags.threadId)
+        : undefined;
+      const rows = yield* client[OZI_WS_METHODS.checksList](threadId ? { threadId } : {});
+      yield* emit(Schema.Array(OziCheck), rows, flags.json, () => Text.checks(rows));
     }),
   ),
 );
@@ -768,7 +879,8 @@ const todosCommand = Command.make("todos", {
           : null;
         yield* client[W.serverUpdateSettings]({ patch: { externalTodos } });
       }
-      yield* emit(OziTodos, yield* client[J.todosGet]({}));
+      const todos = yield* client[J.todosGet]({});
+      yield* emit(OziTodos, todos, flags.json, () => Text.todos(todos));
     }),
   ),
 );
@@ -797,7 +909,7 @@ const schedulesCommand = Command.make("schedules", locationFlags).pipe(
     Effect.gen(function* () {
       const { client } = yield* connect(flags.baseDir);
       const { tasks } = yield* client[W.scheduledTasksList]({});
-      yield* print(tasks.map(scheduleJson));
+      yield* print(tasks.map(scheduleJson), flags.json, () => Text.schedules(tasks));
     }),
   ),
 );
@@ -891,7 +1003,7 @@ const scheduleAddCommand = Command.make("add", {
         createdBy: "user",
         creationSource: "cli",
       });
-      yield* print(scheduleJson(task));
+      yield* print(scheduleJson(task), flags.json, () => Text.schedules([task]));
     }),
   ),
 );
@@ -903,22 +1015,26 @@ const scheduleRmCommand = Command.make("rm", scheduleIdFlags).pipe(
   Command.withHandler((flags) =>
     Effect.gen(function* () {
       const { client } = yield* connect(flags.baseDir);
+      const id = yield* scheduleId(client, flags.id);
       yield* emit(
         ScheduledTaskDeleteResult,
-        yield* client[W.scheduledTasksDelete]({ id: flags.id }),
+        yield* client[W.scheduledTasksDelete]({ id }),
+        flags.json,
+        () => Text.result("Removed schedule", id),
       );
     }),
   ),
 );
 
-const repairCommands = ["mistakes", "replays", "fixes"].map((kind) =>
+const repairCommands = (["mistakes", "replays", "fixes"] as const).map((kind) =>
   Command.make(kind, locationFlags).pipe(
     Command.withHandler((flags) =>
       Effect.gen(function* () {
         const { state, token } = yield* connect(flags.baseDir);
-        yield* print(
-          yield* request(state.origin, token, "/api/ozi/repair", Schema.Unknown, { kind }),
-        );
+        const rows = yield* request(state.origin, token, "/api/ozi/repair", Schema.Unknown, {
+          kind,
+        });
+        yield* print(rows, flags.json, () => Text.repair(kind, rows));
       }),
     ),
   ),
@@ -927,11 +1043,14 @@ const undoCommand = Command.make("undo", { ...locationFlags, id: Argument.String
   Command.withHandler((flags) =>
     Effect.gen(function* () {
       const { state, token } = yield* connect(flags.baseDir);
+      const id = yield* repairId(state.origin, token, "fixes", flags.id);
       yield* print(
         yield* request(state.origin, token, "/api/ozi/repair", Schema.Unknown, {
           kind: "undo",
-          id: flags.id,
+          id,
         }),
+        flags.json,
+        () => Text.result("Undone fix", id),
       );
     }),
   ),
@@ -943,27 +1062,31 @@ const mistakeCommand = Command.make("mistake", {
   Command.withHandler((flags) =>
     Effect.gen(function* () {
       const { state, token } = yield* connect(flags.baseDir);
+      const id = yield* repairId(state.origin, token, "mistakes", flags.id);
       const rows = yield* request(
         state.origin,
         token,
         "/api/ozi/repair",
         Schema.Array(Schema.Unknown),
-        { kind: "mistakes", id: flags.id },
+        { kind: "mistakes", id },
       );
       if (!rows[0]) return yield* new ClientError({ operation: "mistake not found" });
-      yield* print(rows[0]);
+      yield* print(rows[0], flags.json, () => Text.repair("mistakes", rows));
     }),
   ),
 );
 const eventsCommand = Command.make("events", { ...locationFlags, id: Argument.String("id") }).pipe(
   Command.withHandler((flags) =>
     Effect.gen(function* () {
-      const { state, token } = yield* connect(flags.baseDir);
+      const { client, state, token } = yield* connect(flags.baseDir);
+      const id = yield* targetThread(client, Option.some(ThreadId.make(flags.id)));
       yield* print(
         yield* request(state.origin, token, "/api/ozi/repair", Schema.Unknown, {
           kind: "events",
-          id: flags.id,
+          id,
         }),
+        flags.json,
+        () => Text.result("Events for thread", id),
       );
     }),
   ),
@@ -972,8 +1095,9 @@ const scheduleRunCommand = Command.make("run", scheduleIdFlags).pipe(
   Command.withHandler((flags) =>
     Effect.gen(function* () {
       const { client } = yield* connect(flags.baseDir);
-      const result = yield* client[W.scheduledTasksRunNow]({ id: flags.id });
-      yield* print(result);
+      const id = yield* scheduleId(client, flags.id);
+      const result = yield* client[W.scheduledTasksRunNow]({ id });
+      yield* print(result, flags.json, () => Text.result("Queued schedule", id));
     }),
   ),
 );
@@ -987,7 +1111,11 @@ const testClockCommand = Command.make("test-clock", {
   Command.withHandler((flags) =>
     Effect.gen(function* () {
       const { client } = yield* connect(flags.baseDir);
-      yield* print(yield* client[J.clockAdvance]({ milliseconds: yield* duration(flags.advance) }));
+      yield* print(
+        yield* client[J.clockAdvance]({ milliseconds: yield* duration(flags.advance) }),
+        flags.json,
+        () => `Clock advanced ${flags.advance}`,
+      );
     }),
   ),
 );
@@ -1042,7 +1170,7 @@ const requestCommand = Command.make("request", {
         const response = yield* http.execute(outgoing);
         rows.push({ target, status: response.status, body: yield* response.text });
       }
-      yield* print(rows);
+      yield* print(rows, flags.json, () => `${rows.length} request results`);
     }),
   ),
 );

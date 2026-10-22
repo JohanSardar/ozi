@@ -233,11 +233,11 @@ features:
     status: passing
   - id: cli-text
     reqs: [terminal-client, minimal]
-    module: apps/server/src/cli/text.ts + apps/server/src/cli/client.ts + e2e/m7.test.ts
+    module: apps/server/src/cli/text.ts + apps/server/src/cli/client.ts + apps/server/src/cli/service.ts + e2e/m7.cli.test.ts
     cli: [status, jobs, job, thread, checks, mistakes, replays, fixes, schedules, todos]
     milestone: 7
     scenarios: [m7.cli-text]
-    status: planned
+    status: passing
   - id: tui-chat
     reqs: [terminal-client, client-scope, t3-keep]
     module: apps/server/src/cli/tui + e2e/tty.ts + e2e/m7.tui.test.ts

@@ -7,6 +7,7 @@ import * as ServerConfig from "../config.ts";
 import * as ProcessRunner from "../processRunner.ts";
 import * as Service from "../ozi/Service.ts";
 import { baseDirFlag, jsonFlag, resolveCliAuthConfig } from "./config.ts";
+import * as Text from "./text.ts";
 
 const encodeJson = Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown));
 const commands = (["install", "status", "restart", "uninstall"] as const).map((action) =>
@@ -25,7 +26,7 @@ const commands = (["install", "status", "restart", "uninstall"] as const).map((a
             ),
           ),
         );
-        yield* Console.log(yield* encodeJson(result));
+        yield* Console.log(flags.json ? yield* encodeJson(result) : Text.service(action, result));
       }),
     ),
   ),
