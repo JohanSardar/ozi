@@ -33,7 +33,7 @@ import {
   setTitleForThreadUrl,
   useThreadRecentHistory,
 } from "~/browserHistoryStore";
-import { type ComposerImageAttachment, useComposerDraftStore } from "~/composerDraftStore";
+import type { ComposerImageAttachment } from "~/composerAttachments";
 import { capturePreviewAnnotationScreenshot } from "~/lib/previewAnnotation";
 import { ensureLocalApi } from "~/localApi";
 import { getClientSettings } from "~/hooks/useSettings";
@@ -168,8 +168,6 @@ export function PreviewView({
   const miniPlayerTabId = usePreviewMiniPlayerStore((state) =>
     selectThreadPreviewMiniPlayerTabId(state.byThreadKey, threadRef),
   );
-  const addPreviewAnnotation = useComposerDraftStore((store) => store.addPreviewAnnotation);
-  const addImage = useComposerDraftStore((store) => store.addImage);
   const environmentHttpBaseUrl = useEnvironmentHttpBaseUrl(threadRef.environmentId);
   const environmentHostname = environmentHttpBaseUrl
     ? new URL(environmentHttpBaseUrl).hostname
@@ -825,7 +823,6 @@ export function PreviewView({
       const capture = capturePreviewAnnotationScreenshot(picked);
       const cropDropped = screenshotFailed || capture.status === "failed";
       const annotation = capture.status === "failed" ? { ...picked, screenshot: null } : picked;
-      addPreviewAnnotation(threadRef, annotation);
       if (cropDropped) {
         toastManager.add(
           stackedThreadToast({
@@ -848,9 +845,6 @@ export function PreviewView({
               file: screenshotFile,
             } satisfies ComposerImageAttachment)
           : null;
-      if (image) {
-        addImage(threadRef, image);
-      }
       if (
         submission === "send" &&
         readEnvironmentScope(threadRef.environmentId, AuthOrchestrationOperateScope)
@@ -937,7 +931,11 @@ export function PreviewView({
         pictureInPictureDisabled={
           isUnreachable || (!isServerTab && !desktopOverlay?.hasWebContents)
         }
-        onPickElement={previewBridge && tabId && !isServerTab ? handlePickElement : undefined}
+        onPickElement={
+          canSendAnnotation && previewBridge && tabId && !isServerTab
+            ? handlePickElement
+            : undefined
+        }
         pickActive={pickActive}
         pickDisabled={!tabId || isUnreachable}
         pickDisabledReason={
@@ -1035,7 +1033,7 @@ export function PreviewView({
           ) : (
             <div className="flex h-full items-center justify-center p-8 text-center">
               <p className="max-w-sm text-sm text-muted-foreground">
-                This tab is open in the T3 Code desktop app.
+                This tab is open in the Ozi desktop app.
               </p>
             </div>
           )

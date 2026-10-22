@@ -9,9 +9,14 @@
   "devDependencies": {
     "@t3tools/contracts": "workspace:*",
     "@types/node": "catalog:",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "@vitejs/plugin-react": "^6.1.2",
     "effect": "catalog:",
     "effect-codex-app-server": "workspace:*",
     "playwright": "1.60.0",
+    "react": "catalog:",
+    "react-dom": "catalog:",
     "vite-plus": "catalog:"
   }
 }

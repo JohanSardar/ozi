@@ -1,5 +1,5 @@
 import { createFileRoute } from "@tanstack/react-router";
-import { validateScheduledTasksSearch } from "../components/settings/scheduledTasksSettings.logic";
+import { EnvironmentId, ScheduledTaskId } from "@t3tools/contracts";
 
 import { ScheduledTasksSettings } from "../components/settings/ScheduledTasksSettings";
 
@@ -9,6 +9,11 @@ function SettingsScheduledTasksRoute() {
 }
 
 export const Route = createFileRoute("/settings/scheduled-tasks")({
-  validateSearch: validateScheduledTasksSearch,
+  validateSearch: (raw: Record<string, unknown>) => ({
+    ...(typeof raw.environmentId === "string"
+      ? { environmentId: EnvironmentId.make(raw.environmentId) }
+      : {}),
+    ...(typeof raw.taskId === "string" ? { taskId: ScheduledTaskId.make(raw.taskId) } : {}),
+  }),
   component: SettingsScheduledTasksRoute,
 });

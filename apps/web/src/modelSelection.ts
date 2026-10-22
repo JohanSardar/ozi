@@ -11,14 +11,16 @@ import {
   type CustomModelDefinition,
   createModelSelection,
   readCustomModelEntries,
+  buildExplicitProviderOptionSelectionsFromDescriptors,
+  getProviderOptionDescriptors,
   resolveSelectableModel,
 } from "@t3tools/shared/model";
-import { getComposerProviderState } from "./components/chat/composerProviderState";
 import { UnifiedSettings } from "@t3tools/contracts/settings";
 import * as Arr from "effect/Array";
 import * as Result from "effect/Result";
 import {
   getDefaultServerModel,
+  getProviderModelCapabilities,
   getProviderModels,
   resolveSelectableProvider,
 } from "./providerModels";
@@ -314,13 +316,22 @@ export function resolveAppModelSelectionState(
       return createModelSelection(entry.instanceId, "", []);
     }
     const provider = entry.driverKind;
-    const { modelOptionsForDispatch } = getComposerProviderState({
-      provider,
+    const caps = getProviderModelCapabilities(
+      entry.models,
       model,
-      models: entry.models,
-      modelOptions: selectedEntry ? selection.options : undefined,
-      planModeEnabled: settings.planModeEnabled || selectsPlanAgent(selection.options),
-    });
+      provider,
+      settings.planModeEnabled || selectsPlanAgent(selection.options),
+    );
+    const selectedOptions = selectedEntry ? selection.options : undefined;
+    const selections =
+      caps.optionDescriptors?.some((descriptor) => descriptor.id === "fastMode") &&
+      !selectedOptions?.some((option) => option.id === "fastMode")
+        ? [...(selectedOptions ?? []), { id: "fastMode", value: false }]
+        : selectedOptions;
+    const modelOptionsForDispatch = buildExplicitProviderOptionSelectionsFromDescriptors(
+      getProviderOptionDescriptors({ caps, selections }),
+      selections,
+    );
 
     return createModelSelection(entry.instanceId, model, modelOptionsForDispatch);
   }

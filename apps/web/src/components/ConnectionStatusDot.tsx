@@ -17,33 +17,14 @@ export function connectionPhaseDotClassName(phase: EnvironmentConnectionPhase): 
   }
 }
 
-export function connectionPhasePingClassName(phase: EnvironmentConnectionPhase): string | null {
-  return phase === "connecting" || phase === "reconnecting" ? "bg-warning/60 duration-2000" : null;
-}
-
 type ConnectionStatusDotProps = {
   tooltipText?: string | null;
   dotClassName: string;
-  pingClassName?: string | null;
 };
 
-export function ConnectionStatusDot({
-  tooltipText,
-  dotClassName,
-  pingClassName,
-}: ConnectionStatusDotProps) {
+export function ConnectionStatusDot({ tooltipText, dotClassName }: ConnectionStatusDotProps) {
   const dotContent = (
-    <>
-      {pingClassName ? (
-        <span
-          className={cn(
-            "absolute inline-flex h-full w-full motion-safe:animate-status-ping rounded-full",
-            pingClassName,
-          )}
-        />
-      ) : null}
-      <span className={cn("relative inline-flex size-2 rounded-full", dotClassName)} />
-    </>
+    <span className={cn("relative inline-flex size-2 rounded-full", dotClassName)} />
   );
 
   if (!tooltipText) {
