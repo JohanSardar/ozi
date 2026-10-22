@@ -67,8 +67,6 @@ const FULL_SNAPSHOT_BODY = {
     messages: [],
     plans: [],
     turnItems: [],
-    checkpointScopes: [],
-    checkpoints: [],
     contextHandoffs: [],
     contextTransfers: [],
     visibleTurnItems: [],

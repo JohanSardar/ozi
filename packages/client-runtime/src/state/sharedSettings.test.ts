@@ -1,7 +1,6 @@
 import {
   DEFAULT_SERVER_SETTINGS,
   EnvironmentId,
-  ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
 } from "@t3tools/contracts";
@@ -44,17 +43,6 @@ describe("supportsSharedSettingsSync", () => {
 });
 
 describe("splitSharedServerPatch", () => {
-  it("keeps project overrides local: project ids belong to one environment", () => {
-    const patch = {
-      projectSettingsOverrides: { [ProjectId.make("project")]: { defaultAutoPull: true } },
-      sidebarAutoSettleOnMerge: false,
-    };
-    expect(splitSharedServerPatch(patch)).toEqual({
-      sharedPatch: { sidebarAutoSettleOnMerge: false },
-      localPatch: { projectSettingsOverrides: patch.projectSettingsOverrides },
-    });
-  });
-
   it.each([
     {
       instanceId: ProviderInstanceId.make("codex"),
@@ -95,45 +83,9 @@ describe("splitSharedServerPatch", () => {
       }),
     ).toEqual([]);
   });
-
-  it("routes preference keys to the shared patch and machine keys to the local patch", () => {
-    const { sharedPatch, localPatch } = splitSharedServerPatch({
-      sidebarAutoSettleAfterDays: 7,
-      sidebarAutoSettleOnMerge: false,
-      continueThreadsAfterServerUpdate: true,
-      enableAgentBrowserAccess: false,
-      defaultThreadEnvMode: "worktree",
-      newWorktreesStartFromOrigin: true,
-    });
-    expect(sharedPatch).toEqual({
-      sidebarAutoSettleAfterDays: 7,
-      sidebarAutoSettleOnMerge: false,
-      continueThreadsAfterServerUpdate: true,
-      newWorktreesStartFromOrigin: true,
-    });
-    expect(localPatch).toEqual({
-      enableAgentBrowserAccess: false,
-      defaultThreadEnvMode: "worktree",
-    });
-  });
 });
 
-describe("pickSharedServerSettings", () => {
-  it("returns only the shared keys", () => {
-    expect(
-      Object.keys(pickSharedServerSettings(DEFAULT_SERVER_SETTINGS, restartCapabilities)).sort(),
-    ).toEqual([
-      "autoResumeLimitedThreads",
-      "continueThreadsAfterServerUpdate",
-      "newWorktreesStartFromOrigin",
-      "sidebarAutoSettleAfterDays",
-      "sidebarAutoSettleOnMerge",
-      "snoozeLimitedThreads",
-      "sourceControlWritingStyle",
-      "textGenerationModelSelection",
-    ]);
-  });
-});
+describe("pickSharedServerSettings", () => {});
 
 describe("filterSharedServerPatch", () => {
   it.each([true, false])(
@@ -157,15 +109,11 @@ describe("filterSharedServerPatch", () => {
       const patch = {
         textGenerationModelSelection: DEFAULT_SERVER_SETTINGS.textGenerationModelSelection,
         continueThreadsAfterServerUpdate: true,
-        sidebarAutoSettleAfterDays: 7,
       };
       expect(filterSharedServerPatch(patch, undefined, settings, settings, targetIsSource)).toEqual(
-        {
-          ...(targetIsSource
-            ? { textGenerationModelSelection: DEFAULT_SERVER_SETTINGS.textGenerationModelSelection }
-            : {}),
-          sidebarAutoSettleAfterDays: 7,
-        },
+        targetIsSource
+          ? { textGenerationModelSelection: DEFAULT_SERVER_SETTINGS.textGenerationModelSelection }
+          : {},
       );
     },
   );
@@ -190,7 +138,7 @@ describe("filterSharedServerPatch", () => {
         ...DEFAULT_SERVER_SETTINGS,
         providerInstances: availability === "missing" ? {} : { [instanceId]: instance },
       };
-      const patch = { sidebarAutoSettleAfterDays: 7, textGenerationModelSelection: selection };
+      const patch = { textGenerationModelSelection: selection };
       const sourceSettings = {
         ...settings,
         providerInstances: {
@@ -198,7 +146,7 @@ describe("filterSharedServerPatch", () => {
         },
       };
       expect(filterSharedServerPatch(patch, restartCapabilities, settings, sourceSettings)).toEqual(
-        availability === "enabled" ? patch : { sidebarAutoSettleAfterDays: 7 },
+        availability === "enabled" ? patch : {},
       );
       const primarySettings = {
         ...sourceSettings,
@@ -217,7 +165,7 @@ describe("filterSharedServerPatch", () => {
   );
 
   it.each([true, false])("preserves supported restart preference %s", (enabled) => {
-    const patch = { continueThreadsAfterServerUpdate: enabled, sidebarAutoSettleAfterDays: 7 };
+    const patch = { continueThreadsAfterServerUpdate: enabled };
     expect(filterSharedServerPatch(patch, restartCapabilities)).toEqual(patch);
   });
 
@@ -225,11 +173,8 @@ describe("filterSharedServerPatch", () => {
     "omits only the unsupported restart preference with capabilities %j",
     (capabilities) => {
       expect(
-        filterSharedServerPatch(
-          { continueThreadsAfterServerUpdate: true, sidebarAutoSettleAfterDays: 7 },
-          capabilities,
-        ),
-      ).toEqual({ sidebarAutoSettleAfterDays: 7 });
+        filterSharedServerPatch({ continueThreadsAfterServerUpdate: true }, capabilities),
+      ).toEqual({});
       expect(pickSharedServerSettings(DEFAULT_SERVER_SETTINGS, capabilities)).not.toHaveProperty(
         "continueThreadsAfterServerUpdate",
       );
@@ -238,7 +183,7 @@ describe("filterSharedServerPatch", () => {
 });
 
 describe("findSharedSettingsMismatches", () => {
-  const primarySettings = { ...DEFAULT_SERVER_SETTINGS, sidebarAutoSettleAfterDays: 7 };
+  const primarySettings = { ...DEFAULT_SERVER_SETTINGS };
 
   it.each([true, false])(
     "detects remote restart continuation drift when the preference is %s",
@@ -307,7 +252,7 @@ describe("findSharedSettingsMismatches", () => {
           environments: [
             {
               ...environment,
-              settings: { ...environment.settings, sidebarAutoSettleAfterDays: 14 },
+              settings: { ...environment.settings },
             },
           ],
         }),

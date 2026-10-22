@@ -26,13 +26,15 @@ const spec = await Effect.runPromise(fs.readFileString(`${root}SPEC.md`));
 const specScenarios = new Set([...spec.matchAll(/^- `(m\d\.[a-z0-9-]+)`/gm)].map((m) => m[1]!));
 const resultsPath = `${root}e2e/results.json`;
 const passed = new Set<string>();
+const failed = new Set<string>();
 if (await Effect.runPromise(fs.exists(resultsPath))) {
   const results = JSON.parse(await Effect.runPromise(fs.readFileString(resultsPath))) as {
     testResults: { assertionResults: { title: string; status: string }[] }[];
   };
   for (const file of results.testResults)
     for (const test of file.assertionResults)
-      if (test.status === "passed") passed.add(test.title.split(" ")[0]!);
+      (test.status === "passed" ? passed : failed).add(test.title.split(" ")[0]!);
+  for (const s of failed) passed.delete(s);
 }
 
 const scenarioState = (s: string) => (passed.has(s) ? "pass" : "todo");

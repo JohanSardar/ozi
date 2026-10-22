@@ -124,7 +124,6 @@ describe("V2 assistant streaming", () => {
           providerTurnId: null,
           nativeItemRef: null,
           runtimeRequestId: null,
-          checkpointScopeId: null,
           startedAt: null,
           completedAt: null,
         },

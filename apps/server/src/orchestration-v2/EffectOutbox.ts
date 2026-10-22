@@ -1,6 +1,4 @@
 import {
-  CheckpointId,
-  CheckpointScopeId,
   CommandId,
   MessageId,
   NodeId,
@@ -29,6 +27,13 @@ import * as SqlClient from "effect/sql/SqlClient";
 import { forkParked } from "../serverActivation.ts";
 
 export const OrchestrationEffectRequestV2 = Schema.Union([
+  Schema.Struct({
+    type: Schema.Literal("completion.check"),
+    threadId: ThreadId,
+    runId: RunId,
+    phase: Schema.Literals(["prepare", "resolve", "continue"]),
+    round: Schema.Number,
+  }),
   Schema.Struct({
     type: Schema.Literal("provider-runtime.continue"),
     sourceRunId: RunId,
@@ -82,18 +87,6 @@ export const OrchestrationEffectRequestV2 = Schema.Union([
     answers: Schema.optional(ProviderUserInputAnswers),
   }),
   Schema.Struct({
-    type: Schema.Literal("provider-thread.rollback"),
-    restoreFiles: Schema.optional(Schema.Boolean),
-    providerThreadId: ProviderThreadId,
-    checkpointId: CheckpointId,
-    scopeId: CheckpointScopeId,
-  }),
-  Schema.Struct({
-    type: Schema.Literal("checkpoint.capture"),
-    runId: RunId,
-    scopeId: CheckpointScopeId,
-  }),
-  Schema.Struct({
     type: Schema.Literal("scheduled-tasks.cleanup"),
   }),
   Schema.Struct({
@@ -123,8 +116,7 @@ export type OrchestrationEffectRequestV2 = typeof OrchestrationEffectRequestV2.T
 export const REPLAY_SAFE_EFFECT_TYPES_AFTER_PROCESS_LOSS = [
   "provider-runtime.continue",
   "provider-session.detach",
-  "provider-thread.rollback",
-  "checkpoint.capture",
+  "completion.check",
   "scheduled-tasks.cleanup",
   "terminal.cleanup",
   "preview.cleanup",

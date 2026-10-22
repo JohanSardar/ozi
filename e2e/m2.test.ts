@@ -264,11 +264,15 @@ it("m2.secret-card keeps the entered secret out of card and transcript data", as
   await h.wait(card.jobId, "text:private answer saved", 20);
   expect(JSON.stringify(await jobs())).not.toContain(secret);
   expect(JSON.stringify(await h.thread(card.jobId))).not.toContain(secret);
-  expect((await wait(card.jobId, "running")).requests).toEqual([]);
+  expect((await wait(card.jobId, "ready")).requests).toEqual([]);
 });
 
 it("m2.awaits-check keeps a completed lead running and checking", async () => {
-  const card = await start("finished-worker", [{ say: "finished result" }]);
+  const card = await start(
+    "finished-worker",
+    [{ say: "finished result" }],
+    [{ match: "Claim: finished result$", role: "checker", steps: [{ wait: true }] }],
+  );
   await h.wait(card.jobId, "completed");
   expect(await wait(card.jobId, "running")).toMatchObject({
     checking: true,
@@ -323,7 +327,7 @@ it("m2.main-without-worker preserves unavailable and failed launches as blocked 
 
 it("m2.restart preserves cards and exact-event close receipts across restart", async () => {
   const card = await start("durable-worker", [{ say: "durable result" }]);
-  await h.wait(card.jobId, "completed");
+  await wait(card.jobId, "ready");
   const current = (await jobs())[0]!;
   await script([
     {
@@ -377,7 +381,7 @@ it("m2.restart preserves cards and exact-event close receipts across restart", a
   ]);
   await h.ozi("say", "reopen-request");
   await h.ozi("wait", "thread", card.jobId, "text:new result", "--timeout", "20");
-  await wait(card.jobId, "running");
+  await wait(card.jobId, "ready");
   await expect(h.ozi("close", card.jobId, current.eventId)).rejects.toThrow("StaleEvent");
   expect(await jobs()).toHaveLength(1);
 });

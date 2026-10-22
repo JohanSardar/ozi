@@ -31,7 +31,7 @@ export type Step =
 export type Rule = {
   match: string;
   provider?: "pi" | "codex" | "claude";
-  role?: "main" | "worker";
+  role?: "main" | "worker" | "checker";
   steps: Step[];
   repeat?: boolean;
   stage?: "author" | "baseline" | "candidate" | "observer";
@@ -39,6 +39,7 @@ export type Rule = {
 export type FakeRecord = {
   provider: string;
   event: string;
+  role?: string;
   pid: number;
   prompt?: string;
   instructions?: string;
@@ -46,6 +47,9 @@ export type FakeRecord = {
   name?: string;
   result?: { isError?: boolean; structuredContent?: Record<string, unknown> };
   tools?: { name: string }[];
+  nativeId?: string;
+  file?: string;
+  sha256?: string;
 };
 const repo = NodeURL.fileURLToPath(new URL("..", import.meta.url));
 const cli = NodePath.join(repo, "apps/server/src/bin.ts");
@@ -77,7 +81,13 @@ async function fileReady(path: string, pid: number, signal: AbortSignal) {
 }
 
 export async function startHarness(
-  options: { fresh?: boolean; testClock?: string; publicUrl?: string; publicUrlEnv?: string } = {},
+  options: {
+    fresh?: boolean;
+    testClock?: string;
+    publicUrl?: string;
+    publicUrlEnv?: string;
+    realPi?: string;
+  } = {},
 ) {
   const root = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "ozi-e2e-"));
   const home = NodePath.join(root, "home");
@@ -96,7 +106,16 @@ export async function startHarness(
       ["pi", "pi"],
     ].map(([name, driver]) => [
       driver!,
-      { driver, enabled: true, config: { binaryPath: NodePath.join(repo, "e2e/fakes", name!) } },
+      {
+        driver,
+        enabled: true,
+        config: {
+          binaryPath:
+            name === "pi" && options.realPi !== undefined
+              ? NodePath.join(repo, "e2e/node_modules/.bin/pi")
+              : NodePath.join(repo, "e2e/fakes", name!),
+        },
+      },
     ]),
   );
   if (!options.fresh)
@@ -126,6 +145,7 @@ export async function startHarness(
     CODEX_HOME: NodePath.join(root, "codex"),
     CLAUDE_CONFIG_DIR: NodePath.join(root, "claude"),
     PI_CODING_AGENT_DIR: NodePath.join(root, "pi"),
+    ...(options.realPi === undefined ? {} : { ANTHROPIC_API_KEY: "e2e" }),
     T3CODE_LOG_LEVEL: "Error",
     T3CODE_TRACE_TIMING_ENABLED: "false",
     T3CODE_NO_BROWSER: "true",
@@ -134,6 +154,13 @@ export async function startHarness(
     GIT_CONFIG_GLOBAL: NodePath.join(root, "gitconfig"),
   };
   await NodeFSP.mkdir(env.HOME!, { recursive: true });
+  if (options.realPi !== undefined) {
+    await NodeFSP.mkdir(env.PI_CODING_AGENT_DIR!, { recursive: true });
+    await NodeFSP.writeFile(
+      NodePath.join(env.PI_CODING_AGENT_DIR!, "models.json"),
+      JSON.stringify({ providers: { anthropic: { baseUrl: options.realPi } } }),
+    );
+  }
   await NodeFSP.writeFile(
     env.GIT_CONFIG_GLOBAL!,
     "[user]\nname = Ozi E2E\nemail = e2e@example.invalid\n[init]\ndefaultBranch = main\n",
@@ -147,6 +174,7 @@ export async function startHarness(
   let page: Page | undefined;
   let server: NodeChildProcess.ChildProcess;
   let output = "";
+  let closed = false;
   const spawnServer = () => {
     server = NodeChildProcess.spawn(
       process.execPath,
@@ -170,6 +198,9 @@ export async function startHarness(
       ],
       { cwd: dataRoot, env, stdio: ["ignore", "pipe", "pipe", "pipe"] },
     );
+    (server.stdio[3] as NodeStream.Writable).on("error", (error) => {
+      output += String(error);
+    });
     (server.stdio[3] as NodeStream.Writable).end(
       JSON.stringify({
         mode: "desktop",
@@ -190,7 +221,7 @@ export async function startHarness(
       output += chunk.toString();
     });
   };
-  const ozi = <T = unknown>(...args: string[]) =>
+  const ozi = <T = unknown>(...args: string[]): Promise<T> =>
     new Promise<T>((resolve, reject) => {
       NodeChildProcess.execFile(
         process.execPath,
@@ -206,7 +237,40 @@ export async function startHarness(
         },
         (error, stdout, stderr) => {
           if (error) {
-            reject(new Error(`ozi ${args.join(" ")}: ${stdout || stderr || error.message}`));
+            const message = `ozi ${args.join(" ")}: ${stdout || stderr || error.message}`;
+            if (args[0] === "wait")
+              void ozi<import("@t3tools/contracts").OziCheck[]>("checks").then(
+                async (checks) => {
+                  const pending = await Promise.all(
+                    checks
+                      .filter((check) => check.state === "checking")
+                      .map(async (check) => {
+                        const id = check.rounds.at(-1)?.checkerThreadId;
+                        if (!id) return null;
+                        const projection = await ozi<Projection>("thread", id);
+                        return {
+                          thread: projection.thread,
+                          runs: projection.runs,
+                          messages: projection.messages,
+                        };
+                      }),
+                  );
+                  const records = (await NodeFSP.readFile(log, "utf8"))
+                    .split("\n")
+                    .filter(Boolean)
+                    .map((line) => JSON.parse(line) as FakeRecord)
+                    .filter(
+                      (record) => record.result?.isError || record.name === "completion_evidence",
+                    );
+                  reject(
+                    new Error(
+                      `${message}\nChecks: ${JSON.stringify(checks)}\nCheckers: ${JSON.stringify(pending)}\nTools: ${JSON.stringify(records)}`,
+                    ),
+                  );
+                },
+                () => reject(new Error(message)),
+              );
+            else reject(new Error(message));
             return;
           }
           try {
@@ -268,10 +332,20 @@ export async function startHarness(
     port,
     ozi,
     status: () => ozi<Status>("status"),
+    exec: (...args: string[]) =>
+      new Promise<number>((resolve) =>
+        NodeChildProcess.execFile(
+          process.execPath,
+          [cli, ...args, "--home", home],
+          { cwd: dataRoot, env, timeout: 45_000 },
+          (error) => resolve(error ? Number(error.code ?? 1) : 0),
+        ),
+      ),
     thread: (id: string) => ozi<Projection>("thread", id),
     wait: (id: string, state: string, timeout = 15) =>
       ozi<Projection>("wait", "thread", id, state, "--timeout", String(timeout)),
-    script: (rules: Rule[]) => NodeFSP.writeFile(script, JSON.stringify(rules)),
+    script: (rules: Rule[], options?: { forkWait: string[] }) =>
+      NodeFSP.writeFile(script, JSON.stringify(options ? { rules, ...options } : rules)),
     records: async (): Promise<FakeRecord[]> =>
       (await NodeFSP.readFile(log, "utf8"))
         .split("\n")
@@ -291,12 +365,21 @@ export async function startHarness(
       await page.goto(url.toString());
       return page;
     },
+    async crash() {
+      const exited = new Promise<void>((resolve) => server.once("exit", () => resolve()));
+      server.kill("SIGKILL");
+      await exited;
+      spawnServer();
+      await ready();
+    },
     async restart() {
       await stopServer();
       spawnServer();
       await ready();
     },
     async close() {
+      if (closed) return;
+      closed = true;
       await browser?.close();
       await stopServer();
       await NodeFSP.writeFile(NodePath.join(root, "server.log"), output);

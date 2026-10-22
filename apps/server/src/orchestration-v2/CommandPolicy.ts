@@ -56,8 +56,6 @@ export const CommandPolicyCapability = Schema.Literals([
   "interrupt_restart_steering",
   "native_fork",
   "fork_from_turn",
-  "rollback",
-  "rollback_snapshot",
   "context_handoff",
   "strong_terminal_status",
 ]);
@@ -242,9 +240,6 @@ export interface CommandPolicyV2Shape {
       readonly fromSpecificTurn: boolean;
     },
   ) => Effect.Effect<ForkExecutionPolicyV2, CommandPolicyV2Error>;
-  readonly ensureRollback: (
-    input: CapabilityCheckInput,
-  ) => Effect.Effect<void, CommandPolicyV2Error>;
   readonly ensureContextHandoff: (
     input: CapabilityCheckInput & {
       readonly strategy: "fork_delta_context" | "delta_context" | "full_thread_summary";
@@ -332,27 +327,6 @@ const ensureNativeFork: CommandPolicyV2Shape["ensureNativeFork"] = (input) => {
         input,
         "native_fork",
         "providerInstanceId does not expose strong native thread ids",
-      ),
-    );
-  }
-  return Effect.void;
-};
-
-const ensureRollback: CommandPolicyV2Shape["ensureRollback"] = (input) => {
-  if (
-    !input.capabilities.threads.canRollbackThread ||
-    !input.capabilities.checkpointing.providerCanRollbackConversation
-  ) {
-    return Effect.fail(
-      unsupported(input, "rollback", "providerInstanceId conversation rollback is unavailable"),
-    );
-  }
-  if (!input.capabilities.checkpointing.providerRollbackReturnsSnapshot) {
-    return Effect.fail(
-      unsupported(
-        input,
-        "rollback_snapshot",
-        "rollback must return a providerInstanceId thread snapshot",
       ),
     );
   }
@@ -521,6 +495,5 @@ export const layer: Layer.Layer<CommandPolicyV2> = Layer.succeed(CommandPolicyV2
   ensureInterrupt,
   ensureNativeFork,
   decideForkExecution,
-  ensureRollback,
   ensureContextHandoff,
 });

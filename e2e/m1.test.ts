@@ -86,8 +86,12 @@ it("m1.main-loadout preserves the Pi loadout, prompt and tools after resume and 
   });
   const assertLoadout = async () => {
     const records = await h.records();
+    const source = records.findLast(
+      (record) => record.provider === "pi" && record.event === "prompt" && record.role === "main",
+    )!;
+    expect(source).toBeTruthy();
     const loadout = records.findLast(
-      (record) => record.provider === "pi" && record.event === "loadout",
+      (record) => record.event === "loadout" && record.pid === source.pid,
     )!;
     expect(loadout.instructions).toBe(prompt);
     expect(loadout.tools?.map((tool) => tool.name)).toContain("read_skill");
@@ -156,7 +160,8 @@ it("m1.main-cannot-execute rejects execution tools on main", async () => {
   );
   expect(launch?.argv).toEqual(
     expect.arrayContaining([
-      "--no-tools",
+      "--no-builtin-tools",
+      "--no-mcp",
       "--no-extensions",
       "--no-skills",
       "--no-context-files",
@@ -164,6 +169,7 @@ it("m1.main-cannot-execute rejects execution tools on main", async () => {
       "--system-prompt",
     ]),
   );
+  expect(launch?.argv).not.toContain("--no-tools");
 });
 
 it("m1.delegate-async starts the default worker and returns its result to main", async () => {
@@ -425,6 +431,7 @@ it("m1.cli-json returns JSON and exercises each provider, attachments, waits and
       .filter((record) => record.event === "prompt")
       .map((record) => record.provider),
   ).toEqual(expect.arrayContaining(["pi", "claude", "codex"]));
+  expect(await h.exec("status")).toBe(0);
 });
 
 it.each([

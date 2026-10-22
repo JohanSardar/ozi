@@ -59,6 +59,7 @@ export function JobDrawer({
             ? "Could not load the brief. Reopen this job to try again."
             : "Loading brief…")}
       </div>
+      {card.checking && <p role="status">Unchecked · completion check in progress</p>}
       <Conversation environmentId={environmentId} threadId={card.jobId} job />
     </aside>
   );

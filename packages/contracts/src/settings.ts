@@ -40,11 +40,7 @@ import {
   PreviewViewportSetting,
   PreviewZoomFactor,
 } from "./preview.ts";
-import {
-  ProviderInstanceConfig,
-  ProviderInstanceId,
-  ProviderDriverKind,
-} from "./providerInstance.ts";
+import { ProviderInstanceConfig, ProviderInstanceId } from "./providerInstance.ts";
 import { PullRequestMergeMethod } from "./pullRequest.ts";
 
 export const TimestampFormat = Schema.Literals(["locale", "12-hour", "24-hour"]);
@@ -82,14 +78,6 @@ export type SidebarThreadPreviewCount = typeof SidebarThreadPreviewCount.Type;
 const DEFAULT_SIDEBAR_THREAD_PREVIEW_COUNT: SidebarThreadPreviewCount = 6;
 export const MIN_SIDEBAR_AUTO_SETTLE_AFTER_DAYS = 1;
 export const MAX_SIDEBAR_AUTO_SETTLE_AFTER_DAYS = 90;
-export const SidebarAutoSettleAfterDays = Schema.Number.check(
-  Schema.isBetween({
-    minimum: MIN_SIDEBAR_AUTO_SETTLE_AFTER_DAYS,
-    maximum: MAX_SIDEBAR_AUTO_SETTLE_AFTER_DAYS,
-  }),
-);
-export type SidebarAutoSettleAfterDays = typeof SidebarAutoSettleAfterDays.Type;
-const DEFAULT_SIDEBAR_AUTO_SETTLE_AFTER_DAYS: SidebarAutoSettleAfterDays = 3;
 export const MIN_GLASS_OPACITY = 40;
 export const MAX_GLASS_OPACITY = 100;
 export const GlassOpacity = Schema.Int.check(
@@ -875,9 +863,6 @@ export const PROJECT_SCOPED_SERVER_SETTING_KEYS = [
   "branchNamePrefix",
   "branchNameInstructions",
   "pullRequestMergeMethod",
-  "sidebarAutoSettleOnMerge",
-  "sidebarAutoSettleAfterDays",
-  "sidebarAutoSettleKeepPullRequests",
   "continueThreadsAfterServerUpdate",
   "responseStreamingMode",
 ] as const;
@@ -891,7 +876,7 @@ export type ProjectProviderInstanceOverride = typeof ProjectProviderInstanceOver
 /**
  * An absent key inherits the environment value; `null` is a real value where
  * the environment type is nullable (no default model, no dedicated writer
- * model, never auto-settle).
+ * model).
  *
  * `providerInstances` sits outside `PROJECT_SCOPED_SERVER_SETTING_KEYS`: every
  * other key replaces its `ServerSettings` field whole, while this one keeps the
@@ -918,9 +903,6 @@ export const ProjectSettingsOverrides = Schema.Struct({
   branchNamePrefix: Schema.optionalKey(TrimmedString),
   branchNameInstructions: Schema.optionalKey(TrimmedString),
   pullRequestMergeMethod: Schema.optionalKey(Schema.NullOr(PullRequestMergeMethod)),
-  sidebarAutoSettleOnMerge: Schema.optionalKey(Schema.Boolean),
-  sidebarAutoSettleAfterDays: Schema.optionalKey(Schema.NullOr(SidebarAutoSettleAfterDays)),
-  sidebarAutoSettleKeepPullRequests: Schema.optionalKey(Schema.Boolean),
   continueThreadsAfterServerUpdate: Schema.optionalKey(Schema.Boolean),
   responseStreamingMode: Schema.optionalKey(ResponseStreamingMode),
   providerInstances: Schema.optionalKey(
@@ -947,7 +929,6 @@ const NULLABLE_PROJECT_SETTINGS_OVERRIDES: ReadonlySet<ProjectScopedServerSettin
   "sourceControlWriterModelSelection",
   "reviewGuideModelSelection",
   "pullRequestMergeMethod",
-  "sidebarAutoSettleAfterDays",
 ]);
 
 /** Reclaimable bytes from which the offline `t3 doctor` repair is worth suggesting. */
@@ -1084,16 +1065,9 @@ export const ServerSettings = Schema.Struct({
   deviceOnboardingCompleted: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   deviceHosts: SshDeviceHostConfigs.pipe(Schema.withDecodingDefault(Effect.succeed([]))),
   easDeviceHosts: EasDeviceHostConfigs.pipe(Schema.withDecodingDefault(Effect.succeed([]))),
-  sidebarAutoSettleAfterDays: Schema.NullOr(SidebarAutoSettleAfterDays).pipe(
-    Schema.withDecodingDefault(Effect.succeed(DEFAULT_SIDEBAR_AUTO_SETTLE_AFTER_DAYS)),
-  ),
   compactIdleThreads: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   snoozeLimitedThreads: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   autoResumeLimitedThreads: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
-  sidebarAutoSettleKeepPullRequests: Schema.Boolean.pipe(
-    Schema.withDecodingDefault(Effect.succeed(false)),
-  ),
-  sidebarAutoSettleOnMerge: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   backgroundActivity: BackgroundActivitySettings,
 
   automaticGitFetchInterval: Schema.DurationFromMillis.pipe(
@@ -1387,10 +1361,7 @@ export const ServerSettingsPatch = Schema.Struct({
   deviceOnboardingCompleted: Schema.optionalKey(Schema.Boolean),
   deviceHosts: Schema.optionalKey(SshDeviceHostConfigs),
   easDeviceHosts: Schema.optionalKey(EasDeviceHostConfigs),
-  sidebarAutoSettleAfterDays: Schema.optionalKey(Schema.NullOr(SidebarAutoSettleAfterDays)),
   compactIdleThreads: Schema.optionalKey(Schema.Boolean),
-  sidebarAutoSettleKeepPullRequests: Schema.optionalKey(Schema.Boolean),
-  sidebarAutoSettleOnMerge: Schema.optionalKey(Schema.Boolean),
   autoResumeLimitedThreads: Schema.optionalKey(Schema.Boolean),
   snoozeLimitedThreads: Schema.optionalKey(Schema.Boolean),
   backgroundActivity: Schema.optionalKey(

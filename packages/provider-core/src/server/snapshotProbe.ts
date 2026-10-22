@@ -89,7 +89,6 @@ export interface ServerProviderPresentation {
   readonly reportsContextWindow?: boolean;
   readonly supportedRuntimeModes?: ReadonlyArray<RuntimeMode>;
   readonly requiresNewThreadForModelChange?: boolean;
-  readonly supportsConversationRollback?: boolean;
 }
 
 export type ServerProviderDraft = Omit<ServerProvider, "instanceId" | "driver">;
@@ -243,9 +242,6 @@ export function buildServerProvider(input: {
     : undefined;
   return {
     displayName: input.presentation.displayName,
-    ...(typeof input.presentation.supportsConversationRollback === "boolean"
-      ? { supportsConversationRollback: input.presentation.supportsConversationRollback }
-      : {}),
     ...(input.presentation.badgeLabel ? { badgeLabel: input.presentation.badgeLabel } : {}),
     ...(typeof input.presentation.showInteractionModeToggle === "boolean"
       ? { showInteractionModeToggle: input.presentation.showInteractionModeToggle }
