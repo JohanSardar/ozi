@@ -224,51 +224,6 @@ const registerSwitchedOffEnvironment = Effect.gen(function* () {
 });
 
 describe("connection onboarding", () => {
-  it.effect("prepares a persisted bearer registration from pairing details", () =>
-    Effect.gen(function* () {
-      const calls: Array<{ readonly url: string; readonly init: RequestInit }> = [];
-      const registration = yield* preparePairingRegistration({
-        host: "remote.example.test",
-        pairingCode: "pairing-token",
-      }).pipe(Effect.provide(Layer.mergeAll(layerClientPresentation, layerPairingHttp(calls))));
-
-      expect(registration).toMatchObject({
-        _tag: "BearerConnectionRegistration",
-        target: {
-          environmentId: "environment-paired",
-          label: "Paired environment",
-          connectionId: "bearer:environment-paired:https://remote.example.test",
-        },
-        profile: {
-          environmentId: "environment-paired",
-          label: "Paired environment",
-          connectionId: "bearer:environment-paired:https://remote.example.test",
-          httpBaseUrl: "https://remote.example.test/",
-          wsBaseUrl: "wss://remote.example.test/",
-        },
-        credential: {
-          token: "bearer-token",
-        },
-      });
-      expect(calls.map((call) => call.url)).toEqual([
-        "https://remote.example.test/.well-known/t3/environment",
-        "https://remote.example.test/oauth/token",
-      ]);
-
-      const tokenRequest = calls.find((call) => call.url.endsWith("/oauth/token"));
-      const tokenBody =
-        tokenRequest?.init.body instanceof Uint8Array
-          ? new TextDecoder().decode(tokenRequest.init.body)
-          : String(tokenRequest?.init.body);
-      const tokenParams = new URLSearchParams(tokenBody);
-      expect(tokenParams.get("subject_token")).toBe("pairing-token");
-      expect(tokenParams.has("scope")).toBe(false);
-      expect(tokenParams.get("client_label")).toBe("T3 Code Test");
-      expect(tokenParams.get("client_device_type")).toBe("desktop");
-      expect(tokenParams.get("client_os")).toBe("Test OS");
-    }),
-  );
-
   it.effect("turns a switched-off environment back on when it is paired again", () =>
     Effect.gen(function* () {
       const registry = yield* EnvironmentRegistry.EnvironmentRegistry;

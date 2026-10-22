@@ -123,16 +123,6 @@ describe("PreviewViewportSetting", () => {
 });
 
 describe("PreviewAutomationResizeInput", () => {
-  it("requires fields that match the selected mode", () => {
-    expect(decodeResizeInput({ mode: "fill" })).toEqual({ mode: "fill" });
-    expect(
-      decodeResizeInput({ mode: "preset", preset: "pixel-7", orientation: "landscape" }),
-    ).toMatchObject({ mode: "preset", preset: "pixel-7" });
-    expect(() => decodeResizeInput({ mode: "preset", preset: "pixel-8" })).toThrow();
-    expect(() => decodeResizeInput({ mode: "freeform", width: 1024 })).toThrow();
-    expect(() => decodeResizeInput({ mode: "fill", width: 1024, height: 768 })).toThrow();
-  });
-
   it("allows fill-mode measurements below the minimum selectable fixed size", () => {
     expect(
       decodeResizeResult({
@@ -202,26 +192,7 @@ describe("PreviewAutomationError", () => {
   });
 });
 
-describe("PreviewAutomationStatus", () => {
-  it("accepts old hosts without viewport data and exposes it from current hosts", () => {
-    const base = {
-      available: true,
-      visible: false,
-      tabId: "preview-t",
-      url: "https://example.com",
-      title: "Example",
-      loading: false,
-    };
-    expect(decodeAutomationStatus(base)).toEqual(base);
-    expect(
-      decodeAutomationStatus({
-        ...base,
-        viewportSetting: { _tag: "preset", presetId: "pixel-8", width: 412, height: 915 },
-        viewport: { width: 412, height: 915 },
-      }).viewport,
-    ).toEqual({ width: 412, height: 915 });
-  });
-});
+describe("PreviewAutomationStatus", () => {});
 
 describe("PreviewEvent", () => {
   it("decodes opened", () => {

@@ -6,7 +6,6 @@ export const CODEX_ADDITIONAL_CONTEXT_VALUE_MAX_BYTES = 4_000;
 
 export interface T3CodeToolAvailability {
   readonly browser: boolean;
-  readonly device: boolean;
 }
 
 export interface CodexRuntimeInfo {

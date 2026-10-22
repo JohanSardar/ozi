@@ -69,26 +69,6 @@ describe("stripUnservedToolOutputImageBytes", () => {
     });
   });
 
-  it("keeps the screenshots a tool-output-image asset serves", () => {
-    const claudeImage = {
-      type: "image",
-      source: { type: "base64", media_type: "image/png", data: PNG_BASE64 },
-    };
-    const mcpImage = { type: "image", data: PADDED_BASE64, mimeType: "image/jpeg" };
-    const item = toolItem(
-      { content: [{ type: "text", text: "captured" }, claudeImage, mcpImage] },
-      "mcp__t3-code__device_screenshot",
-    );
-
-    const stripped = stripUnservedToolOutputImageBytes(item);
-
-    expect(stripped).toBe(item);
-    expect(toolOutputImages(outputOf(stripped))).toEqual([
-      { mimeType: "image/png", data: PNG_BASE64 },
-      { mimeType: "image/jpeg", data: PADDED_BASE64 },
-    ]);
-  });
-
   it("strips only the images past the last one an asset can serve", () => {
     const images = Array.from({ length: MAX_TOOL_OUTPUT_IMAGES + 2 }, () => ({
       type: "image",
