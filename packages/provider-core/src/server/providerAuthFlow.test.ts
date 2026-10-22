@@ -1,12 +1,6 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
-import {
-  ProviderInstanceId,
-  ProviderSetupError,
-  type ProviderAuthInteraction,
-  type ProviderAuthResponse,
-  type ProviderAuthState,
-} from "@t3tools/contracts";
+import { ProviderInstanceId, ProviderSetupError, type ProviderAuthState } from "@t3tools/contracts";
 import * as Fiber from "effect/Fiber";
 import * as Exit from "effect/Exit";
 import * as Scope from "effect/Scope";
@@ -189,71 +183,6 @@ it.effect("shared credential invalidation closes admitted processes before permi
     assert.isTrue(closed);
     assert.strictEqual(yield* controller.withAccess!(Effect.succeed("new process")), "new process");
   }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
-);
-
-it.effect.each([
-  {
-    interaction: { type: "terminal", id: "terminal", output: "Log in" },
-    response: { type: "terminal", data: "input", size: { cols: 80, rows: 24 } },
-  },
-  {
-    interaction: {
-      type: "credentials",
-      id: "credentials",
-      fields: [{ name: "token", label: "Token", secret: true }],
-    },
-    response: { type: "credentials", values: { token: "private-token" } },
-  },
-] satisfies ReadonlyArray<{
-  interaction: ProviderAuthInteraction;
-  response: ProviderAuthResponse;
-}>)(
-  "keeps $interaction.type responses private and waits for adapter verification",
-  ({ interaction, response }) =>
-    Effect.gen(function* () {
-      const received = yield* Deferred.make<ProviderAuthResponse>();
-      const controller = yield* ProviderAuthFlow.make({
-        instanceId,
-        credentialBinding: { owner: "t3", key: "binding" },
-        methods: Effect.succeed([method]),
-        authenticate: (_, context) =>
-          Effect.gen(function* () {
-            yield* context.setInteraction(interaction, (response) =>
-              Deferred.succeed(received, response).pipe(Effect.asVoid),
-            );
-            yield* Deferred.await(received);
-            yield* context.verifying;
-            return yield* Effect.never;
-          }),
-        logout: Effect.void,
-      });
-      const state = yield* controller.start("owner");
-      const pending = yield* controller.subscribe("owner").pipe(
-        Stream.filter((state) => state.phase === "waiting"),
-        Stream.runHead,
-        Effect.map(Option.getOrThrow),
-      );
-      assert.deepStrictEqual(pending.interaction, interaction);
-      const hidden = yield* controller
-        .subscribe("other")
-        .pipe(Stream.runHead, Effect.map(Option.getOrThrow));
-      assert.isNull(hidden.interaction);
-      yield* controller.respond!("owner", {
-        instanceId,
-        flowId: state.flowId!,
-        interactionId: interaction.id,
-        response,
-      });
-      assert.deepStrictEqual(yield* Deferred.await(received), response);
-      const verifying = yield* controller.subscribe("owner").pipe(
-        Stream.filter((state) => state.phase === "verifying"),
-        Stream.runHead,
-        Effect.map(Option.getOrThrow),
-      );
-      assert.isNull(verifying.interaction);
-      assert.notInclude(verifying.message ?? "", "private-token");
-      yield* controller.cancel("owner", state.flowId!);
-    }).pipe(Effect.scoped, Effect.provide(NodeServices.layer)),
 );
 
 it.effect("shows a device code only to its owner without treating it as authenticated", () =>

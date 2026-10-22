@@ -199,14 +199,6 @@ const stageRuntimeExternals = Effect.fn("stageRuntimeExternals")(function* (inpu
     }),
     "vp install --prod (cli archive runtime externals)",
   );
-
-  const platformKey = cliArchivePlatformKey(input.platform, input.arch);
-  const prebuildsDir = path.join(input.stageDir, "node_modules/node-pty/prebuilds");
-  const foreignPrebuilds = (yield* fs
-    .readDirectory(prebuildsDir)
-    .pipe(Effect.orElseSucceed((): ReadonlyArray<string> => []))).filter(
-    (entry) => entry !== platformKey,
-  );
   for (const entry of [
     "package.json",
     "pnpm-workspace.yaml",
@@ -216,7 +208,6 @@ const stageRuntimeExternals = Effect.fn("stageRuntimeExternals")(function* (inpu
     "node_modules/.modules.yaml",
     "node_modules/.pnpm-workspace-state-v1.json",
     "node_modules/.bin",
-    ...foreignPrebuilds.map((entry) => `node_modules/node-pty/prebuilds/${entry}`),
   ]) {
     yield* fs.remove(path.join(input.stageDir, entry), { recursive: true, force: true });
   }

@@ -11,9 +11,7 @@ import { hashTelemetryId } from "@t3tools/shared/telemetryId";
 import {
   appendClientConnectionParams,
   bootstrapRemoteBearerSession,
-  exchangeRemoteDpopAccessToken,
   fetchRemoteSessionState,
-  issueRemoteDpopWebSocketTicket,
   issueRemoteWebSocketTicket,
   RemoteEnvironmentAuthInvalidJsonError,
   RemoteEnvironmentAuthTimeoutError,

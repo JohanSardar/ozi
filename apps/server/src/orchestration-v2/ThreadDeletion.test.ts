@@ -9,7 +9,6 @@ import {
   ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
-  ProviderSessionId,
   ProviderThreadId,
   RunAttemptId,
   RunId,
@@ -18,8 +17,6 @@ import {
 } from "@t3tools/contracts";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
-
-import { CodexProviderCapabilitiesV2 } from "./Adapters/CodexAdapterV2.ts";
 import * as IdAllocator from "@t3tools/provider-core/server/IdAllocator";
 import { applyToProjection, emptyProjection } from "./ProjectionStore.ts";
 import { planThreadDeletion } from "./ThreadDeletion.ts";
@@ -220,79 +217,5 @@ it.effect("cancels active work without reviving a run while disposing delegated 
       (event) => event.type === "run.updated" && event.payload.id === queuedRun.id,
     );
     assert.lengthOf(queuedRunUpdates, 1);
-  }).pipe(Effect.provide(IdAllocator.layer)),
-);
-
-it.effect("queues provider and resource cleanup and preserves an earlier deletion timestamp", () =>
-  Effect.gen(function* () {
-    const base = makeProjection();
-    const projection: OrchestrationV2ThreadProjection = {
-      ...base,
-      thread: { ...base.thread, deletedAt: createdAt },
-      providerSessions: ["running", "stopped", "error"].map((status) => ({
-        id: ProviderSessionId.make(`session:delete-plan:${status}`),
-        driver,
-        providerInstanceId,
-        status: status === "running" ? "running" : status === "stopped" ? "stopped" : "error",
-        cwd: "/workspace/feature",
-        model: null,
-        capabilities: CodexProviderCapabilitiesV2,
-        createdAt,
-        updatedAt: createdAt,
-        lastError: null,
-      })),
-      messages: [0, 1].map((index) => ({
-        id: MessageId.make(`message:attachment:${index}`),
-        threadId,
-        createdBy: "user",
-        creationSource: "web",
-        runId: null,
-        nodeId: null,
-        role: "user",
-        text: "Inspect this file",
-        attachments: [
-          {
-            type: "file",
-            id: "shared_file",
-            name: "input.txt",
-            mimeType: "text/plain",
-            sizeBytes: 10,
-          },
-        ],
-        streaming: false,
-        createdAt,
-        updatedAt: createdAt,
-      })),
-    };
-    const plan = yield* planThreadDeletion({
-      command,
-      projection,
-      attachmentIds: projection.messages.flatMap((message) =>
-        message.attachments.map((attachment) => attachment.id),
-      ),
-      now: deletedAt,
-      idAllocator: yield* IdAllocator.IdAllocatorV2,
-    });
-    const deleted = plan.events.reduce(applyToProjection, projection);
-    assert.deepEqual(deleted.thread.deletedAt, createdAt);
-    assert.deepEqual(
-      deleted.providerSessions.map((session) => session.status),
-      ["stopped", "error"],
-    );
-    assert.deepEqual(
-      plan.effects.map((effect) => effect.request),
-      [
-        {
-          type: "provider-session.detach",
-          providerSessionId: ProviderSessionId.make("session:delete-plan:running"),
-          detail: "Thread deleted.",
-          revokeMcpCredential: true,
-        },
-        { type: "scheduled-tasks.cleanup" },
-        { type: "terminal.cleanup" },
-        { type: "preview.cleanup" },
-        { type: "attachment.cleanup", attachmentIds: ["shared_file"] },
-      ],
-    );
   }).pipe(Effect.provide(IdAllocator.layer)),
 );

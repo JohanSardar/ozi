@@ -6,7 +6,6 @@ import {
   type ProjectCreatePayload,
   type ProjectUpdatePayload,
   type ProjectSnapshot,
-  type ThreadId,
 } from "@t3tools/contracts";
 import * as KeyedLock from "@t3tools/shared/KeyedLock";
 import * as Context from "effect/Context";
@@ -19,8 +18,6 @@ import * as Schema from "effect/Schema";
 
 import * as EventSink from "../orchestration-v2/EventSink.ts";
 import * as IdAllocator from "@t3tools/provider-core/server/IdAllocator";
-import * as LegacyV1ThreadImporter from "../orchestration-v2/legacy/LegacyV1ThreadImporter.ts";
-import * as ProjectionStore from "../orchestration-v2/ProjectionStore.ts";
 import {
   decodeProjectCommandRejection,
   encodeProjectCommandRejection,
@@ -29,9 +26,6 @@ import {
 } from "../orchestration-v2/ProjectCommands.ts";
 import * as ProjectStore from "../orchestration-v2/ProjectStore.ts";
 import * as ThreadCommandExecutor from "../orchestration-v2/ThreadCommandExecutor.ts";
-import { planThreadDeletion } from "../orchestration-v2/ThreadDeletion.ts";
-import * as ServerSettings from "../serverSettings.ts";
-import * as ProjectEnrichmentService from "./ProjectEnrichmentService.ts";
 import * as WorkspacePaths from "../workspace/WorkspacePaths.ts";
 
 export interface ProjectCreateInput extends ProjectCreatePayload {
@@ -120,8 +114,6 @@ export class ProjectService extends Context.Service<
       { readonly project: Project; readonly created: boolean },
       ProjectServiceError
     >;
-    readonly update: (input: ProjectUpdateInput) => Effect.Effect<Project, ProjectServiceError>;
-    readonly delete: (input: ProjectDeleteInput) => Effect.Effect<Project, ProjectServiceError>;
     readonly getById: (
       projectId: ProjectId,
       options?: { readonly includeDeleted?: boolean },
@@ -142,26 +134,17 @@ export class ProjectService extends Context.Service<
 
 export const make = Effect.gen(function* () {
   const projects = yield* ProjectStore.ProjectStoreV2;
-  const projectEnrichment = yield* ProjectEnrichmentService.ProjectEnrichmentService;
   const workspacePaths = yield* WorkspacePaths.WorkspacePaths;
-  const threadProjections = yield* ProjectionStore.ProjectionStoreV2;
   const eventSink = yield* EventSink.EventSinkV2;
   const idAllocator = yield* IdAllocator.IdAllocatorV2;
-  const legacyImporter = yield* LegacyV1ThreadImporter.LegacyV1ThreadImporter;
-  const threadCommands = yield* ThreadCommandExecutor.ThreadCommandExecutor;
-  const serverSettings = yield* ServerSettings.ServerSettingsService;
   const projectLocks = yield* KeyedLock.make<ProjectId>();
   const workspaceLocks = yield* KeyedLock.make<string>();
 
-  const toProject = (
-    row: ProjectStore.ProjectRow,
-    enrichment: ProjectEnrichmentService.ProjectEnrichment | null,
-  ): Project => ({
+  const toProject = (row: ProjectStore.ProjectRow): Project => ({
     id: row.projectId,
     title: row.title,
     workspaceRoot: row.workspaceRoot,
-    repositoryIdentity: enrichment?.repositoryIdentity ?? null,
-    faviconPath: row.faviconPath ?? enrichment?.faviconPath ?? null,
+    faviconPath: row.faviconPath,
     defaultModelSelection: row.defaultModelSelection,
     defaultThreadEnvMode: row.defaultThreadEnvMode,
     autoPull: row.autoPull,
@@ -173,11 +156,7 @@ export const make = Effect.gen(function* () {
   });
 
   const hydrate = Effect.fn("ProjectService.hydrate")(function* (row: ProjectStore.ProjectRow) {
-    const enrichment =
-      row.deletedAt === null
-        ? yield* projectEnrichment.getAvailable(row.workspaceRoot)
-        : yield* projectEnrichment.peek(row.workspaceRoot);
-    return toProject(row, enrichment);
+    return toProject(row);
   });
 
   const readRow = (projectId: ProjectId, options?: { readonly includeDeleted?: boolean }) =>
@@ -340,45 +319,6 @@ export const make = Effect.gen(function* () {
         workspaceRoot,
         ...(input.scripts === undefined ? {} : { scripts: input.scripts }),
       });
-      yield* projectEnrichment.invalidate([workspaceRoot]);
-      return yield* readCommitted(input.projectId);
-    },
-  );
-
-  const update: ProjectService["Service"]["update"] = Effect.fn("ProjectService.update")(
-    function* (input) {
-      const existing = yield* readRow(input.projectId);
-      if (Option.isNone(existing)) {
-        return yield* new ProjectNotFoundError({ projectId: input.projectId });
-      }
-      const previousRoot = existing.value.workspaceRoot;
-      const workspaceRoot =
-        input.workspaceRoot === undefined
-          ? previousRoot
-          : yield* normalizeWorkspaceRoot({
-              projectId: input.projectId,
-              workspaceRoot: input.workspaceRoot,
-            });
-      yield* commit({
-        type: "project.meta.update",
-        commandId: input.commandId,
-        projectId: input.projectId,
-        ...(input.title === undefined ? {} : { title: input.title }),
-        ...(workspaceRoot === previousRoot ? {} : { workspaceRoot }),
-        ...(input.defaultModelSelection === undefined
-          ? {}
-          : { defaultModelSelection: input.defaultModelSelection }),
-        ...(input.autoPull === undefined ? {} : { autoPull: input.autoPull }),
-        ...(input.projectIcon === undefined ? {} : { projectIcon: input.projectIcon }),
-        ...(input.faviconPath === undefined ? {} : { faviconPath: input.faviconPath }),
-        ...(input.defaultThreadEnvMode === undefined
-          ? {}
-          : { defaultThreadEnvMode: input.defaultThreadEnvMode }),
-        ...(input.scripts === undefined ? {} : { scripts: input.scripts }),
-      });
-      if (workspaceRoot !== previousRoot) {
-        yield* projectEnrichment.invalidate([previousRoot, workspaceRoot]);
-      }
       return yield* readCommitted(input.projectId);
     },
   );
@@ -391,136 +331,6 @@ export const make = Effect.gen(function* () {
     },
   );
 
-  const deleteChildThread = Effect.fn("ProjectService.deleteChildThread")(function* (
-    input: ProjectDeleteInput,
-    threadId: ThreadId,
-  ) {
-    yield* legacyImporter.ensureTranscript(threadId);
-    const projection = yield* threadProjections.getThreadRecords(threadId, [
-      "runs",
-      "attempts",
-      "nodes",
-      "runtimeRequests",
-      "subagents",
-      "providerSessions",
-    ]);
-    if (projection.thread.deletedAt !== null || projection.thread.projectId !== input.projectId) {
-      return;
-    }
-    const command = {
-      type: "thread.delete" as const,
-      commandId: CommandId.make(`${input.commandId}:delete-thread:${threadId}`),
-      threadId,
-    };
-    const now = yield* DateTime.now;
-    const plan = yield* planThreadDeletion({
-      command,
-      projection,
-      attachmentIds: yield* threadProjections.getThreadAttachmentIds(threadId),
-      now,
-      idAllocator,
-    });
-    const committed = yield* eventSink.commitCommand({
-      commandId: command.commandId,
-      commandType: command.type,
-      threadId,
-      acceptedAt: now,
-      events: plan.events,
-      effects: plan.effects,
-    });
-    if (
-      committed.receipt.threadId !== command.threadId ||
-      committed.receipt.commandType !== command.type
-    ) {
-      return yield* Effect.fail("The thread deletion command ID belongs to a different command.");
-    }
-    if (committed.receipt.status === "rejected") {
-      return yield* Effect.fail(
-        committed.receipt.error ?? "Thread deletion was previously rejected.",
-      );
-    }
-  });
-
-  const deleteChildThreads = Effect.fn("ProjectService.deleteChildThreads")(function* (
-    input: ProjectDeleteInput,
-  ) {
-    const { projectId } = input;
-    const snapshot = yield* threadProjections
-      .getShellSnapshot()
-      .pipe(
-        Effect.mapError(
-          (cause) => new ProjectOperationError({ operation: "list-threads", projectId, cause }),
-        ),
-      );
-    const projectThreads = [...snapshot.threads, ...snapshot.archivedThreads].filter(
-      (thread) => thread.projectId === projectId,
-    );
-    if (projectThreads.length > 0 && input.force !== true) {
-      return yield* new ProjectNotEmptyError({ projectId });
-    }
-    // Delete children durably before the project so a failed cascade can be retried.
-    yield* Effect.forEach(
-      projectThreads,
-      (thread) =>
-        threadCommands
-          .withLock(thread.id, deleteChildThread(input, thread.id))
-          .pipe(
-            Effect.mapError(
-              (cause) =>
-                new ProjectOperationError({ operation: "delete-thread", projectId, cause }),
-            ),
-          ),
-      { concurrency: 1, discard: true },
-    );
-  });
-
-  // A machine-disabled provider instance that a deleted project's override
-  // once turned on must not stay probed and alive forever. Nothing else
-  // removes the entry, so deletion is where it goes; best-effort because a
-  // settings write failure should not block the deletion it is cleaning up
-  // after, and a server crash before a replay never revisits this project.
-  const clearProjectSettingsOverrides = (projectId: ProjectId) =>
-    serverSettings.updateSettings({ projectSettingsOverrides: { [projectId]: null } }).pipe(
-      Effect.asVoid,
-      Effect.catchCause((cause) =>
-        Effect.logWarning(
-          `Failed to clear settings overrides for deleted project ${projectId}.`,
-          cause,
-        ),
-      ),
-    );
-
-  const deleteProject: ProjectService["Service"]["delete"] = Effect.fn("ProjectService.delete")(
-    function* (input) {
-      const { projectId } = input;
-      // A deleted row still reaches commit, so a retried command id replays its
-      // receipt and any other command id is rejected as not found.
-      const existing = yield* readRow(projectId, { includeDeleted: true });
-      if (Option.isNone(existing)) {
-        return yield* new ProjectNotFoundError({ projectId });
-      }
-
-      const isFirstDelete = existing.value.deletedAt === null;
-      if (isFirstDelete) {
-        yield* deleteChildThreads(input);
-      }
-      yield* commit({ type: "project.delete", commandId: input.commandId, projectId });
-      if (isFirstDelete) {
-        yield* clearProjectSettingsOverrides(projectId);
-      }
-      yield* projectEnrichment.invalidate([existing.value.workspaceRoot]);
-      return yield* readCommitted(projectId);
-    },
-  );
-
-  const enrichShell = (shell: OrchestrationProjectShell) =>
-    projectEnrichment.getAvailable(shell.workspaceRoot).pipe(
-      Effect.map((enrichment) => ({
-        ...shell,
-        repositoryIdentity: enrichment.repositoryIdentity,
-      })),
-    );
-
   const getShell: ProjectService["Service"]["getShell"] = Effect.fn("ProjectService.getShell")(
     function* (projectId) {
       const shell = yield* projects
@@ -530,7 +340,7 @@ export const make = Effect.gen(function* () {
             (cause) => new ProjectOperationError({ operation: "read-project", projectId, cause }),
           ),
         );
-      return Option.isNone(shell) ? shell : Option.some(yield* enrichShell(shell.value));
+      return shell;
     },
   );
 
@@ -544,7 +354,7 @@ export const make = Effect.gen(function* () {
           (cause) => new ProjectOperationError({ operation: "list-projects", cause }),
         ),
       );
-    return yield* Effect.forEach(shells, enrichShell, { concurrency: 16 });
+    return shells;
   });
 
   const snapshot = Effect.gen(function* () {
@@ -565,8 +375,6 @@ export const make = Effect.gen(function* () {
   return ProjectService.of({
     create,
     bootstrap,
-    update,
-    delete: deleteProject,
     getById,
     getByWorkspaceRoot,
     snapshot,

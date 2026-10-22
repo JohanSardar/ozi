@@ -11,7 +11,6 @@ import * as Schema from "effect/Schema";
 import * as SchemaTransformation from "effect/SchemaTransformation";
 import {
   ForwardCompatibleNullable,
-  ForwardCompatibleOptional,
   OmittedWhenNull,
   ProjectId,
   ThreadId,
@@ -19,7 +18,7 @@ import {
   TrimmedString,
 } from "./baseSchemas.ts";
 import { UsageLimitSourceId } from "./usageLimitSourceId.ts";
-import { EnvironmentMachineKind, ThreadEnvMode, WorktreeSubmodules } from "./environment.ts";
+import { EnvironmentMachineKind, ThreadEnvMode } from "./environment.ts";
 import { KeybindingShortcut } from "./keybindings.ts";
 import {
   CustomModelSetting,
@@ -40,7 +39,6 @@ import {
   PreviewZoomFactor,
 } from "./preview.ts";
 import { ProviderInstanceConfig, ProviderInstanceId } from "./providerInstance.ts";
-import { PullRequestMergeMethod } from "./pullRequest.ts";
 
 export const TimestampFormat = Schema.Literals(["locale", "12-hour", "24-hour"]);
 export type TimestampFormat = typeof TimestampFormat.Type;
@@ -132,11 +130,6 @@ export const DEFAULT_CODE_FONT_SIZE: CodeFontSize = 13;
 
 export const MIN_TERMINAL_FONT_SIZE = 8;
 export const MAX_TERMINAL_FONT_SIZE = 20;
-export const TerminalFontSize = Schema.Int.check(
-  Schema.isBetween({ minimum: MIN_TERMINAL_FONT_SIZE, maximum: MAX_TERMINAL_FONT_SIZE }),
-);
-export type TerminalFontSize = typeof TerminalFontSize.Type;
-const DEFAULT_TERMINAL_FONT_SIZE: TerminalFontSize = 12;
 
 export const EnvironmentIdentificationMode = Schema.Literals(["artwork", "pill", "none"]);
 export type EnvironmentIdentificationMode = typeof EnvironmentIdentificationMode.Type;
@@ -303,9 +296,6 @@ export const ClientSettingsSchema = Schema.Struct({
     Schema.withDecodingDefault(Effect.succeed("off" as const)),
   ),
   inAppNotificationsEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
-  diffColorScheme: DiffColorScheme.pipe(
-    Schema.withDecodingDefault(Effect.succeed("red-green" as const)),
-  ),
   chatWidth: ChatWidth.pipe(Schema.withDecodingDefault(Effect.succeed("comfortable" as const))),
   loadBalancingEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   loadBalancingWeights: LoadBalancingWeights.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
@@ -388,13 +378,9 @@ export const ClientSettingsSchema = Schema.Struct({
   fontSizeCode: CodeFontSize.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_CODE_FONT_SIZE)),
   ),
-  fontSizeTerminal: TerminalFontSize.pipe(
-    Schema.withDecodingDefault(Effect.succeed(DEFAULT_TERMINAL_FONT_SIZE)),
-  ),
   fontFamilyCode: FontFamilyPreference.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
   fontFamilyComposer: FontFamilyPreference.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
   fontFamilySans: FontFamilyPreference.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
-  fontFamilyTerminal: FontFamilyPreference.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
 
   fontSmoothing: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   // `null` alone does not mean "show the wizard" — every install that predates
@@ -411,12 +397,6 @@ export const ClientSettingsSchema = Schema.Struct({
   providerModelPreferences: ProviderModelPreferences.pipe(
     Schema.withDecodingDefault(Effect.succeed({})),
   ),
-  pullRequestMergeMethodOverrides: Schema.Record(
-    TrimmedNonEmptyString,
-    PullRequestMergeMethod,
-  ).pipe(Schema.withDecodingDefault(Effect.succeed({}))),
-
-  pullRequestLinksOpenInApp: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
 
   planModeEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   contextWindowMeterEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
@@ -730,27 +710,6 @@ export const SourceControlWritingStyleSettings = Schema.Struct({
 });
 export type SourceControlWritingStyleSettings = typeof SourceControlWritingStyleSettings.Type;
 
-const LegacySourceControlWritingStyle = TrimmedString.pipe(
-  Schema.decodeTo(
-    Schema.toType(SourceControlWritingStyleSettings),
-    SchemaTransformation.transform({
-      decode: (value): SourceControlWritingStyleSettings => ({
-        mode: value.length > 0 ? "custom" : "repo_conventions",
-        customInstructions: value,
-        followChangeRequestTemplates: true,
-      }),
-      encode: (value) => value.customInstructions,
-    }),
-  ),
-);
-
-// The struct member comes first so encoding uses its defaulted fields: the server strips
-// default sub-fields before writing settings.json, and a toType target would reject them.
-const SourceControlWritingStyleSetting = Schema.Union([
-  SourceControlWritingStyleSettings,
-  LegacySourceControlWritingStyle,
-]);
-
 export const BranchNamingMode = Schema.Literals(["static", "semantic", "custom"]);
 export type BranchNamingMode = typeof BranchNamingMode.Type;
 
@@ -808,59 +767,13 @@ export type ResponseStreamingMode = typeof ResponseStreamingMode.Type;
 const StorageRetentionDays = Schema.NullOr(
   Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 3650 })),
 );
-const SettledWorktreeRetentionDays = Schema.NullOr(
-  Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 3650 })),
-);
-
-export const WorktreeKeepWhen = Schema.Literals([
-  "any-local-files",
-  "uncommitted-changes",
-  "tracked-changes",
-]);
-export type WorktreeKeepWhen = typeof WorktreeKeepWhen.Type;
-
-export const WorktreeCleanupRules = Schema.Struct({
-  worktreeKeepWhen: WorktreeKeepWhen.pipe(
-    Schema.withDecodingDefault(Effect.succeed("uncommitted-changes")),
-  ),
-  worktreeAfterDays: StorageRetentionDays,
-  worktreeSettledAfterDays: SettledWorktreeRetentionDays.pipe(
-    Schema.withDecodingDefault(Effect.succeed(null)),
-  ),
-  worktreeOnMerge: Schema.Boolean,
-  worktreeOnDelete: Schema.Boolean,
-  worktreeUnchanged: Schema.Boolean,
-});
-export type WorktreeCleanupRules = typeof WorktreeCleanupRules.Type;
-
-export const WorktreeCleanup = Schema.NullOr(
-  Schema.Union([
-    Schema.Struct({ mode: Schema.Literal("off") }),
-    Schema.Struct({ mode: Schema.Literal("custom"), rules: WorktreeCleanupRules }),
-  ]),
-);
-export type WorktreeCleanup = typeof WorktreeCleanup.Type;
 
 export const PROJECT_SCOPED_SERVER_SETTING_KEYS = [
-  "worktreeCleanup",
   "defaultModelSelection",
   "defaultRuntimeMode",
   "defaultThreadEnvMode",
-  "newWorktreesStartFromOrigin",
-  "worktreeSubmodules",
-  "defaultAutoPull",
-  "defaultProjectScripts",
   "enableAgentBrowserAccess",
   "textGenerationModelSelection",
-  "sourceControlWriterModelSelection",
-  "reviewGuideModelSelection",
-  "reviewGuideInstructions",
-  "sourceControlWritingStyle",
-  "removeAgentCreditsOnMerge",
-  "branchNamingMode",
-  "branchNamePrefix",
-  "branchNameInstructions",
-  "pullRequestMergeMethod",
   "continueThreadsAfterServerUpdate",
   "responseStreamingMode",
 ] as const;
@@ -881,25 +794,11 @@ export type ProjectProviderInstanceOverride = typeof ProjectProviderInstanceOver
  * settings.json shape but overrides field by field, per `ProviderInstanceId`.
  */
 export const ProjectSettingsOverrides = Schema.Struct({
-  worktreeCleanup: Schema.optionalKey(WorktreeCleanup),
   defaultModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
   defaultRuntimeMode: Schema.optionalKey(RuntimeMode),
   defaultThreadEnvMode: Schema.optionalKey(ThreadEnvMode),
-  newWorktreesStartFromOrigin: Schema.optionalKey(Schema.Boolean),
-  worktreeSubmodules: ForwardCompatibleOptional(WorktreeSubmodules),
-  defaultAutoPull: Schema.optionalKey(Schema.Boolean),
-  defaultProjectScripts: Schema.optionalKey(Schema.Array(ProjectScript)),
   enableAgentBrowserAccess: Schema.optionalKey(Schema.Boolean),
   textGenerationModelSelection: Schema.optionalKey(ModelSelection),
-  sourceControlWriterModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
-  reviewGuideModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
-  reviewGuideInstructions: Schema.optionalKey(TrimmedString),
-  sourceControlWritingStyle: Schema.optionalKey(SourceControlWritingStyleSetting),
-  removeAgentCreditsOnMerge: Schema.optionalKey(Schema.Boolean),
-  branchNamingMode: Schema.optionalKey(BranchNamingMode),
-  branchNamePrefix: Schema.optionalKey(TrimmedString),
-  branchNameInstructions: Schema.optionalKey(TrimmedString),
-  pullRequestMergeMethod: Schema.optionalKey(Schema.NullOr(PullRequestMergeMethod)),
   continueThreadsAfterServerUpdate: Schema.optionalKey(Schema.Boolean),
   responseStreamingMode: Schema.optionalKey(ResponseStreamingMode),
   providerInstances: Schema.optionalKey(
@@ -921,12 +820,7 @@ const NULLABLE_PROJECT_SETTINGS_OVERRIDES: ReadonlySet<ProjectScopedServerSettin
   {
     [K in ProjectScopedServerSettingKey]: null extends ProjectSettingsOverrides[K] ? K : never;
   }[ProjectScopedServerSettingKey]
->([
-  "defaultModelSelection",
-  "sourceControlWriterModelSelection",
-  "reviewGuideModelSelection",
-  "pullRequestMergeMethod",
-]);
+>(["defaultModelSelection"]);
 
 /** Reclaimable bytes from which the offline `t3 doctor` repair is worth suggesting. */
 export const DATABASE_COMPACTION_RECOMMENDED_BYTES = 1024 ** 3;
@@ -975,16 +869,6 @@ export const StorageCleanupReport = Schema.Struct({
 export type StorageCleanupReport = typeof StorageCleanupReport.Type;
 
 export const StorageCleanupSettings = Schema.Struct({
-  worktreeKeepWhen: WorktreeKeepWhen.pipe(
-    Schema.withDecodingDefault(Effect.succeed("uncommitted-changes")),
-  ),
-  worktreeAfterDays: StorageRetentionDays.pipe(Schema.withDecodingDefault(Effect.succeed(null))),
-  worktreeSettledAfterDays: SettledWorktreeRetentionDays.pipe(
-    Schema.withDecodingDefault(Effect.succeed(null)),
-  ),
-  worktreeOnMerge: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
-  worktreeOnDelete: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
-  worktreeUnchanged: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   browserArtifactsAfterDays: StorageRetentionDays.pipe(
     Schema.withDecodingDefault(Effect.succeed(null)),
   ),
@@ -1002,18 +886,8 @@ export const ServerSettings = Schema.Struct({
   providerModelPreferences: Schema.NullOr(ProviderModelPreferences).pipe(
     Schema.withDecodingDefault(Effect.succeed(null)),
   ),
-  worktreeCleanup: WorktreeCleanup.pipe(Schema.withDecodingDefault(Effect.succeed(null))),
   storageCleanup: StorageCleanupSettings.pipe(
     Schema.withDecodingDefault(Effect.succeed(Schema.decodeSync(StorageCleanupSettings)({}))),
-  ),
-
-  worktreesDirectory: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
-  /**
-   * Custom locations used before the current one. Server-maintained so
-   * worktrees left there stay eligible for cleanup and review diffs.
-   */
-  previousWorktreesDirectories: Schema.Array(TrimmedString).pipe(
-    Schema.withDecodingDefault(Effect.succeed([])),
   ),
   responseStreamingMode: ResponseStreamingMode.pipe(
     Schema.withDecodingDefault(Effect.succeed("paragraph" as const)),
@@ -1025,16 +899,6 @@ export const ServerSettings = Schema.Struct({
 
   enableAgentBrowserAccess: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   projectAgentBrowserAccessOverrides: Schema.Record(ProjectId, Schema.Boolean).pipe(
-    Schema.withDecodingDefault(Effect.succeed({})),
-  ),
-  defaultAutoPull: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
-  defaultProjectScripts: Schema.Array(ProjectScript).pipe(
-    Schema.withDecodingDefault(Effect.succeed([])),
-  ),
-  projectScriptOverrides: Schema.Record(ProjectId, Schema.NullOr(Schema.Array(ProjectScript))).pipe(
-    Schema.withDecodingDefault(Effect.succeed({})),
-  ),
-  projectAutoPullOverrides: Schema.Record(ProjectId, Schema.Boolean).pipe(
     Schema.withDecodingDefault(Effect.succeed({})),
   ),
   defaultModelSelection: Schema.NullOr(ModelSelection).pipe(
@@ -1087,17 +951,6 @@ export const ServerSettings = Schema.Struct({
    * so older clients, which require a literal here, keep decoding.
    */
   defaultThreadEnvMode: OmittedWhenNull(ThreadEnvMode),
-  newWorktreesStartFromOrigin: Schema.Boolean.pipe(
-    Schema.withDecodingDefault(Effect.succeed(true)),
-  ),
-  /**
-   * Null defers to the repository's t3.json, then to recursive. A value
-   * picked on a newer server decodes as null here rather than failing the
-   * whole settings snapshot for an older client.
-   */
-  worktreeSubmodules: ForwardCompatibleNullable(WorktreeSubmodules).pipe(
-    Schema.withDecodingDefault(Effect.succeed(null)),
-  ),
   addProjectBaseDirectory: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
   textGenerationModelSelection: ModelSelection.pipe(
     Schema.withDecodingDefault(
@@ -1113,27 +966,6 @@ export const ServerSettings = Schema.Struct({
       }),
     ),
   ),
-  branchNamingMode: BranchNamingMode.pipe(
-    Schema.withDecodingDefault(Effect.succeed("static" as const)),
-  ),
-  branchNamePrefix: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed("t3"))),
-  branchNameInstructions: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
-  removeAgentCreditsOnMerge: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
-  sourceControlWritingStyle: SourceControlWritingStyleSetting.pipe(
-    Schema.withDecodingDefault(Effect.succeed({})),
-  ),
-  sourceControlWriterModelSelection: Schema.NullOr(ModelSelection).pipe(
-    Schema.withDecodingDefault(Effect.succeed(null)),
-  ),
-  reviewGuidesEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
-  reviewGuideModelSelection: Schema.NullOr(ModelSelection).pipe(
-    Schema.withDecodingDefault(Effect.succeed(null)),
-  ),
-  reviewGuideInstructions: TrimmedString.pipe(Schema.withDecodingDefault(Effect.succeed(""))),
-
-  pullRequestMergeMethod: Schema.NullOr(PullRequestMergeMethod).pipe(
-    Schema.withDecodingDefault(Effect.succeed(null)),
-  ),
 
   // The driver-specific config blob is `Schema.Unknown` at this layer so
   // envelopes with unknown drivers (forks, downgrades, in-flight PR branches)
@@ -1143,9 +975,6 @@ export const ServerSettings = Schema.Struct({
     Schema.withDecodingDefault(Effect.succeed({})),
   ),
   observability: ObservabilitySettings.pipe(Schema.withDecodingDefault(Effect.succeed({}))),
-  sourceControlHosts: Schema.Record(Schema.String, SourceControlHostSettings).pipe(
-    Schema.withDecodingDefault(Effect.succeed({})),
-  ),
   // Keyed by a user-chosen id so a source keeps its rows across edits. Entries
   // this build cannot decode round-trip untouched, as provider instances do.
   usageLimitSources: Schema.Record(UsageLimitSourceId, UsageLimitSourceConfig).pipe(
@@ -1276,50 +1105,17 @@ export const ServerSettingsPatch = Schema.Struct({
       providerModelPreferences: Schema.optionalKey(ProviderModelPreferences),
     }),
   ),
-  worktreeCleanup: Schema.optionalKey(
-    Schema.NullOr(
-      Schema.Union([
-        Schema.Struct({ mode: Schema.Literal("off") }),
-        Schema.Struct({
-          mode: Schema.Literal("custom"),
-          rules: Schema.Struct({
-            worktreeKeepWhen: Schema.optionalKey(WorktreeKeepWhen),
-            worktreeAfterDays: Schema.optionalKey(StorageRetentionDays),
-            worktreeSettledAfterDays: Schema.optionalKey(SettledWorktreeRetentionDays),
-            worktreeOnMerge: Schema.optionalKey(Schema.Boolean),
-            worktreeOnDelete: Schema.optionalKey(Schema.Boolean),
-            worktreeUnchanged: Schema.optionalKey(Schema.Boolean),
-          }),
-        }),
-      ]),
-    ),
-  ),
   storageCleanup: Schema.optionalKey(
     Schema.Struct({
-      worktreeKeepWhen: Schema.optionalKey(WorktreeKeepWhen),
-      worktreeAfterDays: Schema.optionalKey(StorageRetentionDays),
-      worktreeSettledAfterDays: Schema.optionalKey(SettledWorktreeRetentionDays),
-      worktreeOnMerge: Schema.optionalKey(Schema.Boolean),
-      worktreeOnDelete: Schema.optionalKey(Schema.Boolean),
-      worktreeUnchanged: Schema.optionalKey(Schema.Boolean),
       browserArtifactsAfterDays: Schema.optionalKey(StorageRetentionDays),
       logsAfterDays: Schema.optionalKey(StorageRetentionDays),
     }),
   ),
-  worktreesDirectory: Schema.optionalKey(TrimmedString),
   responseStreamingMode: Schema.optionalKey(ResponseStreamingMode),
   enableProviderUpdateChecks: Schema.optionalKey(Schema.Boolean),
   continueThreadsAfterServerUpdate: Schema.optionalKey(Schema.Boolean),
   enableAgentBrowserAccess: Schema.optionalKey(Schema.Boolean),
   projectAgentBrowserAccessOverrides: Schema.optionalKey(
-    Schema.Record(ProjectId, Schema.NullOr(Schema.Boolean)),
-  ),
-  defaultAutoPull: Schema.optionalKey(Schema.Boolean),
-  defaultProjectScripts: Schema.optionalKey(Schema.Array(ProjectScript)),
-  projectScriptOverrides: Schema.optionalKey(
-    Schema.Record(ProjectId, Schema.NullOr(Schema.Array(ProjectScript))),
-  ),
-  projectAutoPullOverrides: Schema.optionalKey(
     Schema.Record(ProjectId, Schema.NullOr(Schema.Boolean)),
   ),
   defaultModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
@@ -1338,7 +1134,6 @@ export const ServerSettingsPatch = Schema.Struct({
       Schema.NullOr(
         Schema.Struct({
           ...ProjectSettingsOverrides.fields,
-          sourceControlWritingStyle: Schema.optionalKey(SourceControlWritingStyleSettings),
         }),
       ),
     ),
@@ -1359,26 +1154,8 @@ export const ServerSettingsPatch = Schema.Struct({
   backgroundActivityProfile: Schema.optionalKey(BackgroundActivityProfile),
   environmentIcon: Schema.optionalKey(Schema.NullOr(EnvironmentMachineKind)),
   defaultThreadEnvMode: Schema.optionalKey(Schema.NullOr(ThreadEnvMode)),
-  newWorktreesStartFromOrigin: Schema.optionalKey(Schema.Boolean),
-  worktreeSubmodules: Schema.optionalKey(Schema.NullOr(WorktreeSubmodules)),
   addProjectBaseDirectory: Schema.optionalKey(TrimmedString),
   textGenerationModelSelection: Schema.optionalKey(ModelSelectionPatch),
-  branchNamingMode: Schema.optionalKey(BranchNamingMode),
-  branchNamePrefix: Schema.optionalKey(TrimmedString),
-  branchNameInstructions: Schema.optionalKey(TrimmedString),
-  removeAgentCreditsOnMerge: Schema.optionalKey(Schema.Boolean),
-  sourceControlWritingStyle: Schema.optionalKey(
-    Schema.Struct({
-      mode: Schema.optionalKey(SourceControlWritingStyleMode),
-      customInstructions: Schema.optionalKey(TrimmedString),
-      followChangeRequestTemplates: Schema.optionalKey(Schema.Boolean),
-    }),
-  ),
-  sourceControlWriterModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
-  reviewGuidesEnabled: Schema.optionalKey(Schema.Boolean),
-  reviewGuideModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
-  reviewGuideInstructions: Schema.optionalKey(TrimmedString),
-  pullRequestMergeMethod: Schema.optionalKey(Schema.NullOr(PullRequestMergeMethod)),
   observability: Schema.optionalKey(
     Schema.Struct({
       otlpTracesUrl: Schema.optionalKey(TrimmedString),
@@ -1386,12 +1163,6 @@ export const ServerSettingsPatch = Schema.Struct({
       otlpLogsUrl: Schema.optionalKey(TrimmedString),
     }),
   ),
-  /**
-   * Merges per host: a patched field replaces the saved one, so a client sends a per-server-host
-   * map whole, with the redaction marker for each saved secret it keeps. An empty or omitted
-   * secret is removed from the secret store.
-   */
-  sourceControlHosts: Schema.optionalKey(Schema.Record(Schema.String, SourceControlHostSettings)),
   // Whole-map replacement for the new instance config. Patching individual
   // entries is intentionally out of scope: the map is small, and partial
   // patches risk leaving driver-specific config in a half-merged state.
@@ -1443,16 +1214,12 @@ export function requiredScopesForProjectMutation(
   if (mutation.type === "project.delete" || mutation.scripts === undefined) {
     return [AuthOrchestrationOperateScope];
   }
-  return [
-    AuthOrchestrationOperateScope,
-    ...requiredScopesForServerSettingsPatch({ defaultProjectScripts: mutation.scripts }),
-  ];
+  return [AuthOrchestrationOperateScope, ...requiredScopesForServerSettingsPatch({})];
 }
 
 export const ClientSettingsPatch = Schema.Struct({
   notificationMode: Schema.optionalKey(NotificationMode),
   inAppNotificationsEnabled: Schema.optionalKey(Schema.Boolean),
-  diffColorScheme: Schema.optionalKey(DiffColorScheme),
   chatWidth: Schema.optionalKey(ChatWidth),
   loadBalancingEnabled: Schema.optionalKey(Schema.Boolean),
   loadBalancingWeights: Schema.optionalKey(LoadBalancingWeights),
@@ -1483,19 +1250,13 @@ export const ClientSettingsPatch = Schema.Struct({
   fontSizeInterface: Schema.optionalKey(InterfaceFontSize),
   fontSizePrompt: Schema.optionalKey(PromptFontSize),
   fontSizeCode: Schema.optionalKey(CodeFontSize),
-  fontSizeTerminal: Schema.optionalKey(TerminalFontSize),
   fontFamilyCode: Schema.optionalKey(FontFamilyPreference),
   fontFamilyComposer: Schema.optionalKey(FontFamilyPreference),
   fontFamilySans: Schema.optionalKey(FontFamilyPreference),
-  fontFamilyTerminal: Schema.optionalKey(FontFamilyPreference),
   fontSmoothing: Schema.optionalKey(Schema.Boolean),
   persistComposerContextStrip: Schema.optionalKey(Schema.Boolean),
   favorites: Schema.optionalKey(ModelFavorites),
   providerModelPreferences: Schema.optionalKey(ProviderModelPreferences),
-  pullRequestMergeMethodOverrides: Schema.optionalKey(
-    Schema.Record(TrimmedNonEmptyString, PullRequestMergeMethod),
-  ),
-  pullRequestLinksOpenInApp: Schema.optionalKey(Schema.Boolean),
   planModeEnabled: Schema.optionalKey(Schema.Boolean),
   contextWindowMeterEnabled: Schema.optionalKey(Schema.Boolean),
   composerCollapseOnScroll: Schema.optionalKey(Schema.Boolean),

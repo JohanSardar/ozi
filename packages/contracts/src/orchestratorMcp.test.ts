@@ -2,19 +2,14 @@ import { describe, expect, it } from "@effect/vitest";
 import * as Schema from "effect/Schema";
 
 import {
-  OrchestratorMcpCreateThreadsInput,
   OrchestratorMcpDelegateTaskInput,
-  OrchestratorMcpDelegateTaskResult,
   OrchestratorMcpThreadInterruptInput,
   OrchestratorMcpThreadListInput,
   OrchestratorMcpThreadReadInput,
   OrchestratorMcpThreadSendInput,
   OrchestratorMcpThreadWaitInput,
 } from "./orchestratorMcp.ts";
-
-const decodeCreateThreadsInput = Schema.decodeUnknownSync(OrchestratorMcpCreateThreadsInput);
 const decodeDelegateTaskInput = Schema.decodeUnknownSync(OrchestratorMcpDelegateTaskInput);
-const decodeDelegateTaskResult = Schema.decodeUnknownSync(OrchestratorMcpDelegateTaskResult);
 const decodeThreadInterruptInput = Schema.decodeUnknownSync(OrchestratorMcpThreadInterruptInput);
 const decodeThreadListInput = Schema.decodeUnknownSync(OrchestratorMcpThreadListInput);
 const decodeThreadReadInput = Schema.decodeUnknownSync(OrchestratorMcpThreadReadInput);
@@ -28,62 +23,6 @@ describe("orchestrator MCP contracts", () => {
       decodeDelegateTaskInput({ task: "Review changes", isolation: "worktree" }).isolation,
     ).toBe("worktree");
     expect(() => decodeDelegateTaskInput({ task: "Review changes", isolation: "copy" })).toThrow();
-  });
-  it("decodes cross-provider delegated task requests and durable results", () => {
-    const request = decodeDelegateTaskInput({
-      task: "Inspect the workspace and report the result.",
-      target: {
-        providerInstanceId: "claudeAgent",
-        model: "claude-sonnet-4-6",
-      },
-      mode: "wait",
-      timeoutMs: 5_000,
-      clientRequestId: "delegate-1",
-      runtimeMode: "inherit",
-      interactionMode: "inherit",
-    });
-    const result = decodeDelegateTaskResult({
-      taskId: "node-task-1",
-      childThreadId: "thread-child-1",
-      childRunId: "run-child-1",
-      childNodeId: "node-task-1",
-      status: "completed",
-      workState: "result_available",
-      hasPendingChildRuns: false,
-      providerInstanceId: "claudeAgent",
-      model: "claude-sonnet-4-6",
-      summary: "Workspace inspected.",
-      resultContextTransferId: "context-transfer-result-1",
-      latestTerminalRunId: "run-child-1",
-      latestTerminalStatus: "completed",
-      latestTerminalSummary: "Workspace inspected.",
-      latestTerminalResultContextTransferId: "context-transfer-result-1",
-      hasPendingQuestion: false,
-      pendingApproval: null,
-      waitTimedOut: false,
-    });
-
-    expect(request.target?.providerInstanceId).toBe("claudeAgent");
-    expect(result.status).toBe("completed");
-    expect(result.summary).toBe("Workspace inspected.");
-    expect(result.pendingApproval).toBeNull();
-    const pendingApproval = {
-      requestId: "request-approval-1",
-      kind: "command",
-      runId: "run-child-1",
-    };
-    expect(
-      decodeDelegateTaskResult({
-        ...result,
-        pendingApproval: { ...pendingApproval, input: { command: "private command" } },
-      }).pendingApproval,
-    ).toEqual(pendingApproval);
-    expect(() =>
-      decodeDelegateTaskResult({
-        ...result,
-        pendingApproval: { ...pendingApproval, kind: "user_input" },
-      }),
-    ).toThrow();
   });
 
   it("decodes target model options in canonical and shorthand shapes", () => {
@@ -132,24 +71,6 @@ describe("orchestrator MCP contracts", () => {
         },
       }),
     ).toThrow();
-  });
-
-  it("decodes mixed prompted and empty thread batches", () => {
-    const request = decodeCreateThreadsInput({
-      clientRequestId: "threads-1",
-      threads: [
-        { title: "Inherited empty thread" },
-        {
-          prompt: "Review the API.",
-          target: { driverKind: "claudeAgent" },
-          runtimeMode: "approval-required",
-        },
-      ],
-    });
-
-    expect(request.threads).toHaveLength(2);
-    expect(request.threads[0]?.prompt).toBeUndefined();
-    expect(request.threads[1]?.target?.driverKind).toBe("claudeAgent");
   });
 
   it("decodes project-scoped thread orchestration requests", () => {

@@ -11,7 +11,7 @@ import type { AssetResource, EnvironmentId } from "@t3tools/contracts";
 import { AsyncResult } from "effect/reactivity";
 
 import { assetEnvironment } from "~/state/assets";
-import { useFilesystemReadAccess } from "~/state/filesystem";
+import { useFileReadAccess } from "~/state/fileAccess";
 import { usePreparedConnection } from "~/state/session";
 import { useAtomQueryRunner } from "~/state/use-atom-query-runner";
 
@@ -23,7 +23,7 @@ export function useAssetUrlState(
   environmentId: EnvironmentId | null,
   resource: AssetResource | null,
 ): AssetUrlState {
-  const blocked = blockedAssetUrlState(resource, useFilesystemReadAccess(environmentId));
+  const blocked = blockedAssetUrlState(resource, useFileReadAccess(environmentId));
   const preparedConnection = usePreparedConnection(environmentId);
   const result = useAtomValue(
     blocked !== null || environmentId === null || resource === null
@@ -63,7 +63,7 @@ export function useAssetUrls(
   resources: ReadonlyArray<AssetResource>,
 ): ReadonlyArray<string | null> {
   const preparedConnection = usePreparedConnection(environmentId);
-  const { canReadFiles } = useFilesystemReadAccess(environmentId);
+  const { canReadFiles } = useFileReadAccess(environmentId);
   const allowedResources = canReadFiles
     ? resources
     : resources.filter((resource) => !isFileResource(resource));

@@ -735,12 +735,6 @@ export function createVividThemeColors(
     sidebarRowActive: themeColor(surfaceAt(dark ? 0.12 : 0.09, Math.min(0.1, accent.C * 0.55))),
     sidebarRowSelected: themeColor(surfaceAt(dark ? 0.14 : 0.1, Math.min(0.11, accent.C * 0.6))),
     sidebarBorder: themeColor(surfaceAt(dark ? 0.17 : 0.12, Math.min(0.08, accent.C * 0.4))),
-    terminalBackground: themeRgbToThemeColor(canvasRgb),
-    terminalForeground: themeRgbToThemeColor(textRgb),
-    terminalCursor: themeRgbToThemeColor(accentRgb),
-    terminalSelection: themeColor(surfaceAt(dark ? 0.18 : 0.12, Math.min(0.12, accent.C * 0.55))),
-    terminalScrollbar: themeColor(surfaceAt(dark ? 0.22 : 0.16, tintC)),
-    terminalScrollbarHover: themeColor(surfaceAt(dark ? 0.3 : 0.22, tintC)),
   };
 }
 
@@ -828,7 +822,6 @@ export function updateThemeColorFamily(
   const selectedOnCanvas = selectedOn(canvas);
   const accent = parseThemeRgbColor(colors.accent, { r: 168, g: 67, b: 112 });
   const canvasIsDark = themeRelativeLuminance(canvas) < 0.179;
-  const terminalIsDark = themeRelativeLuminance(selectedOnCanvas) < 0.179;
   const colorOf = (color: ThemeRgbColor) => themeRgbToThemeColor(color);
   const foregroundOn = (background: ThemeRgbColor) => colorOf(readableThemeForeground(background));
   const selectedToneOn = (background: ThemeRgbColor) =>
@@ -906,7 +899,6 @@ export function updateThemeColorFamily(
         update: normalized,
         updateForeground: selectedToneOn(updateSurface),
         updateSurface: colorOf(updateSurface),
-        terminalCursor: normalized,
       };
     }
     case "messageAction": {
@@ -964,23 +956,6 @@ export function updateThemeColorFamily(
         sidebarRowHover: colorOf(mixThemeRgbColors(sidebar, selectedOnSidebar, 0.5)),
         sidebarRowActive: colorOf(mixThemeRgbColors(sidebar, selectedOnSidebar, 0.8)),
         sidebarRowSelected: normalized,
-      };
-    }
-    case "terminalBackground": {
-      const terminalForeground = readableThemeForeground(selectedOnCanvas);
-      return {
-        ...colors,
-        terminalBackground: normalized,
-        terminalForeground: colorOf(terminalForeground),
-        terminalSelection: colorOf(
-          mixThemeRgbColors(selectedOnCanvas, accent, terminalIsDark ? 0.35 : 0.18),
-        ),
-        terminalScrollbar: colorOf(
-          mixThemeRgbColors(selectedOnCanvas, terminalForeground, terminalIsDark ? 0.42 : 0.22),
-        ),
-        terminalScrollbarHover: colorOf(
-          mixThemeRgbColors(selectedOnCanvas, terminalForeground, terminalIsDark ? 0.55 : 0.32),
-        ),
       };
     }
     case "error": {
@@ -1416,12 +1391,6 @@ const APP_THEME_VARIABLES: Readonly<Record<ThemeColorRole, string>> = {
   sidebarRowActive: "--app-theme-sidebar-row-active",
   sidebarRowSelected: "--app-theme-sidebar-row-selected",
   sidebarBorder: "--app-theme-sidebar-border",
-  terminalBackground: "--app-theme-terminal-background",
-  terminalForeground: "--app-theme-terminal-foreground",
-  terminalCursor: "--app-theme-terminal-cursor",
-  terminalSelection: "--app-theme-terminal-selection-background",
-  terminalScrollbar: "--app-theme-terminal-scrollbar",
-  terminalScrollbarHover: "--app-theme-terminal-scrollbar-hover",
 };
 
 export function getThemeColorVariable(role: ThemeColorRole): string {

@@ -52,7 +52,6 @@ import Migration0046 from "./Migrations/046_RepairAutomaticSettlementTimestamps.
 import Migration0047 from "./Migrations/047_ProjectionProjectIcon.ts";
 import Migration0048 from "./Migrations/048_ProjectionThreadBranchPullRequest.ts";
 import Migration0049 from "./Migrations/049_ProjectionThreadsActiveOrderKey.ts";
-import Migration0050 from "./Migrations/050_ProjectionThreadPullRequests.ts";
 import Migration0051 from "./Migrations/051_ProjectionThreadMessageContext.ts";
 import Migration0052 from "./Migrations/052_ProjectionThreadTitleState.ts";
 import Migration0053 from "./Migrations/053_PullRequestFilesViewed.ts";
@@ -66,13 +65,14 @@ import Migration0060 from "./Migrations/060_ThreadSnapshotWindowIndexes.ts";
 import Migration0061 from "./Migrations/061_PullRequestReviewGuides.ts";
 import Migration0062 from "./Migrations/062_ThreadFailureLookupIndex.ts";
 import Migration0063 from "./Migrations/063_DropUnusedV1Projections.ts";
-import Migration0064 from "./Migrations/064_CanonicalizeThreadPullRequestLinks.ts";
 import Migration0065 from "./Migrations/065_CodexUsageNativeTurnIndex.ts";
 import Migration0066 from "./Migrations/066_RepairClientSettlementTimestamps.ts";
 import Migration0067 from "./Migrations/067_WebhookDedupe.ts";
 import Migration0075 from "./Migrations/075_OziRepair.ts";
 import Migration0076 from "./Migrations/076_OziCompletion.ts";
 import Migration0080 from "./Migrations/080_OziFixes.ts";
+
+import Migration0081 from "./Migrations/081_RemoveSourceControl.ts";
 
 export const migrationEntries = [
   [1, "OrchestrationEvents", Migration0001],
@@ -124,7 +124,6 @@ export const migrationEntries = [
   [47, "ProjectionProjectIcon", Migration0047],
   [48, "ProjectionThreadBranchPullRequest", Migration0048],
   [49, "ProjectionThreadsActiveOrderKey", Migration0049],
-  [50, "ProjectionThreadPullRequests", Migration0050],
   [51, "ProjectionThreadMessageContext", Migration0051],
   [52, "ProjectionThreadTitleState", Migration0052],
   [53, "PullRequestFilesViewed", Migration0053],
@@ -139,13 +138,13 @@ export const migrationEntries = [
   [61, "PullRequestReviewGuides", Migration0061],
   [62, "ThreadFailureLookupIndex", Migration0062],
   [63, "DropUnusedV1Projections", Migration0063],
-  [64, "CanonicalizeThreadPullRequestLinks", Migration0064],
   [65, "CodexUsageNativeTurnIndex", Migration0065],
   [66, "RepairClientSettlementTimestamps", Migration0066],
   [67, "WebhookDedupe", Migration0067],
   [75, "OziRepair", Migration0075],
   [76, "OziCompletion", Migration0076],
   [80, "OziFixes", Migration0080],
+  [81, "RemoveSourceControl", Migration0081],
 ] as const;
 
 export const migrationManifest = migrationEntries.map(([id, name]) => [id, name] as const);

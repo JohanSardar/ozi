@@ -77,11 +77,9 @@ type TypographySettings = Pick<
   | "fontFamilySans"
   | "fontFamilyComposer"
   | "fontFamilyCode"
-  | "fontFamilyTerminal"
   | "fontSizeInterface"
   | "fontSizePrompt"
   | "fontSizeCode"
-  | "fontSizeTerminal"
 >;
 
 export function getChangedTypographySettingLabels(settings: TypographySettings): string[] {
@@ -98,10 +96,6 @@ export function getChangedTypographySettingLabels(settings: TypographySettings):
     settings.fontSizeCode !== DEFAULT_UNIFIED_SETTINGS.fontSizeCode
       ? ["Code font"]
       : []),
-    ...(settings.fontFamilyTerminal !== DEFAULT_UNIFIED_SETTINGS.fontFamilyTerminal ||
-    settings.fontSizeTerminal !== DEFAULT_UNIFIED_SETTINGS.fontSizeTerminal
-      ? ["Terminal font"]
-      : []),
   ];
 }
 
@@ -117,7 +111,6 @@ export type BrowserDefaultSettings = Pick<
   | "browserSearchEngine"
   | "browserCustomSearchUrl"
   | "browserAutoShowFloatingPreview"
-  | "pullRequestLinksOpenInApp"
 >;
 
 function isSamePreviewViewport(
@@ -161,9 +154,6 @@ export function getChangedBrowserSettingLabels(settings: BrowserDefaultSettings)
     ...(settings.browserAutoShowFloatingPreview !==
     DEFAULT_UNIFIED_SETTINGS.browserAutoShowFloatingPreview
       ? ["Floating preview"]
-      : []),
-    ...(settings.pullRequestLinksOpenInApp !== DEFAULT_UNIFIED_SETTINGS.pullRequestLinksOpenInApp
-      ? ["Open pull requests in Ozi"]
       : []),
   ];
 }

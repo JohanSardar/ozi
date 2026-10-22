@@ -90,9 +90,6 @@ export const OrchestrationEffectRequestV2 = Schema.Union([
     type: Schema.Literal("scheduled-tasks.cleanup"),
   }),
   Schema.Struct({
-    type: Schema.Literal("terminal.cleanup"),
-  }),
-  Schema.Struct({
     type: Schema.Literal("preview.cleanup"),
   }),
   Schema.Struct({
@@ -118,7 +115,6 @@ export const REPLAY_SAFE_EFFECT_TYPES_AFTER_PROCESS_LOSS = [
   "provider-session.detach",
   "completion.check",
   "scheduled-tasks.cleanup",
-  "terminal.cleanup",
   "preview.cleanup",
   "attachment.cleanup",
   "thread-title.generate",

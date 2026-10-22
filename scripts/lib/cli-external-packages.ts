@@ -15,7 +15,6 @@ export const CLI_RUNTIME_EXTERNAL_PREFIXES = [
   // Playwright reads package.json and browsers.json beside its runtime modules.
   "playwright-core",
   "pi-claude-bridge",
-  "node-pty",
   "ffi-rs",
   "@yuuang/",
   "@ff-labs/",

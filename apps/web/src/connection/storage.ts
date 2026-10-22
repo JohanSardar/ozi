@@ -28,7 +28,7 @@ import {
   gitHubRoutingConnectionKey,
   gitHubRoutingPermissionFor,
 } from "@t3tools/client-runtime/connection";
-import { EnvironmentId, ServerConfig, ThreadId, VcsListRefsResult } from "@t3tools/contracts";
+import { EnvironmentId, ServerConfig, ThreadId } from "@t3tools/contracts";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
@@ -38,7 +38,6 @@ import * as Queue from "effect/Queue";
 import * as Schema from "effect/Schema";
 import * as Semaphore from "effect/Semaphore";
 import * as Stream from "effect/Stream";
-import { projectFaviconCache } from "../assets/projectFaviconCache";
 
 const DATABASE_NAME = "t3code:connection-runtime";
 const DATABASE_VERSION = 4;
@@ -46,7 +45,6 @@ const CATALOG_STORE_NAME = "catalog";
 const SHELL_STORE_NAME = "shell";
 const THREAD_STORE_NAME = "thread";
 const SERVER_CONFIG_STORE_NAME = "server-config";
-const VCS_REFS_STORE_NAME = "vcs-refs";
 const CATALOG_KEY = "document";
 const StoredShellSnapshot = StoredOrchestrationShellSnapshot;
 const StoredShellSnapshotJson = Schema.fromJsonString(StoredShellSnapshot);
@@ -58,13 +56,6 @@ const StoredServerConfig = Schema.Struct({
   config: ServerConfig,
 });
 const StoredServerConfigJson = Schema.fromJsonString(StoredServerConfig);
-const StoredVcsRefs = Schema.Struct({
-  schemaVersion: Schema.Literal(1),
-  environmentId: EnvironmentId,
-  cwd: Schema.String,
-  refs: VcsListRefsResult,
-});
-const StoredVcsRefsJson = Schema.fromJsonString(StoredVcsRefs);
 const ConnectionCatalogDocumentJson = Schema.fromJsonString(ConnectionCatalogDocument);
 const decodeConnectionCatalogDocument = Schema.decodeUnknownEffect(ConnectionCatalogDocumentJson);
 const encodeConnectionCatalogDocument = Schema.encodeEffect(ConnectionCatalogDocumentJson);
@@ -73,8 +64,6 @@ const decodeStoredThreadSnapshot = Schema.decodeUnknownEffect(StoredThreadSnapsh
 const encodeStoredThreadSnapshot = Schema.encodeEffect(StoredThreadSnapshotJson);
 const decodeStoredServerConfig = Schema.decodeUnknownEffect(StoredServerConfigJson);
 const encodeStoredServerConfig = Schema.encodeEffect(StoredServerConfigJson);
-const decodeStoredVcsRefs = Schema.decodeUnknownEffect(StoredVcsRefsJson);
-const encodeStoredVcsRefs = Schema.encodeEffect(StoredVcsRefsJson);
 
 function catalogError(operation: string, cause: unknown) {
   return new ConnectionTransientError({
@@ -98,10 +87,6 @@ function persistenceError(
     | "remove-thread"
     | "load-server-config"
     | "save-server-config"
-    | "load-vcs-refs"
-    | "save-vcs-refs"
-    | "remove-vcs-refs"
-    | "clear-vcs-refs"
     | "clear-environment",
   cause: unknown,
 ) {
@@ -133,9 +118,6 @@ const openDatabase = Effect.fn("web.connectionStorage.openDatabase")(function* (
         }
         if (!request.result.objectStoreNames.contains(SERVER_CONFIG_STORE_NAME)) {
           request.result.createObjectStore(SERVER_CONFIG_STORE_NAME);
-        }
-        if (!request.result.objectStoreNames.contains(VCS_REFS_STORE_NAME)) {
-          request.result.createObjectStore(VCS_REFS_STORE_NAME);
         }
       });
       request.addEventListener("error", () => {
@@ -364,10 +346,6 @@ function removeDatabaseValuesInRange(
 
 function threadCacheKey(environmentId: EnvironmentId, threadId: ThreadId) {
   return `${environmentId}:${threadId}`;
-}
-
-function vcsRefsCacheKey(environmentId: EnvironmentId, cwd: string) {
-  return `${environmentId}:${cwd}`;
 }
 
 const decodeCatalog = Effect.fn("web.connectionStorage.decodeCatalog")(function* (raw: string) {
@@ -731,7 +709,6 @@ export const layer = Layer.effectContext(
     const cacheStore = Persistence.EnvironmentCacheStore.of({
       loadShell: (environmentId) =>
         readDatabaseValue(database, SHELL_STORE_NAME, environmentId).pipe(
-          Effect.tap(() => Effect.promise(() => projectFaviconCache.hydrate())),
           Effect.flatMap((raw) => {
             if (typeof raw !== "string") {
               return Effect.succeedNone;
@@ -848,60 +825,6 @@ export const layer = Layer.effectContext(
             : persistenceError("save-thread", cause),
         ),
       ),
-      loadVcsRefs: (environmentId, cwd) =>
-        readDatabaseValue(database, VCS_REFS_STORE_NAME, vcsRefsCacheKey(environmentId, cwd)).pipe(
-          Effect.flatMap((raw) => {
-            if (typeof raw !== "string") {
-              return Effect.succeedNone;
-            }
-            return decodeStoredVcsRefs(raw).pipe(
-              Effect.mapError((cause) => persistenceError("load-vcs-refs", cause)),
-              Effect.map((stored) =>
-                stored.environmentId === environmentId && stored.cwd === cwd
-                  ? Option.some(stored.refs)
-                  : Option.none(),
-              ),
-            );
-          }),
-          Effect.mapError((cause) =>
-            cause._tag === "ConnectionPersistenceError"
-              ? cause
-              : persistenceError("load-vcs-refs", cause),
-          ),
-        ),
-      saveVcsRefs: Effect.fn("storage.saveVcsRefs")(
-        function* (environmentId, cwd, refs) {
-          const encoded = yield* encodeStoredVcsRefs({
-            schemaVersion: 1,
-            environmentId,
-            cwd,
-            refs,
-          }).pipe(Effect.mapError((cause) => persistenceError("save-vcs-refs", cause)));
-          yield* writeDatabaseValue(
-            database,
-            VCS_REFS_STORE_NAME,
-            vcsRefsCacheKey(environmentId, cwd),
-            encoded,
-          );
-        },
-        Effect.mapError((cause) =>
-          cause._tag === "ConnectionPersistenceError"
-            ? cause
-            : persistenceError("save-vcs-refs", cause),
-        ),
-      ),
-      removeVcsRefs: (environmentId, cwd) =>
-        removeDatabaseValue(
-          database,
-          VCS_REFS_STORE_NAME,
-          vcsRefsCacheKey(environmentId, cwd),
-        ).pipe(Effect.mapError((cause) => persistenceError("remove-vcs-refs", cause))),
-      clearVcsRefs: (environmentId) =>
-        removeDatabaseValuesInRange(
-          database,
-          VCS_REFS_STORE_NAME,
-          IDBKeyRange.bound(`${environmentId}:`, `${environmentId}:\uffff`),
-        ).pipe(Effect.mapError((cause) => persistenceError("clear-vcs-refs", cause))),
       removeThread: (environmentId, threadId) =>
         removeDatabaseValue(
           database,
@@ -911,7 +834,6 @@ export const layer = Layer.effectContext(
       clear: (environmentId) =>
         Effect.all(
           [
-            Effect.promise(() => projectFaviconCache.clearEnvironment(environmentId)),
             removeDatabaseValue(database, SHELL_STORE_NAME, environmentId),
             removeDatabaseValuesInRange(
               database,
@@ -919,11 +841,6 @@ export const layer = Layer.effectContext(
               IDBKeyRange.bound(`${environmentId}:`, `${environmentId}:\uffff`),
             ),
             removeDatabaseValue(database, SERVER_CONFIG_STORE_NAME, environmentId),
-            removeDatabaseValuesInRange(
-              database,
-              VCS_REFS_STORE_NAME,
-              IDBKeyRange.bound(`${environmentId}:`, `${environmentId}:\uffff`),
-            ),
           ],
           { concurrency: "unbounded", discard: true },
         ).pipe(Effect.mapError((cause) => persistenceError("clear-environment", cause))),

@@ -1,6 +1,7 @@
+import type { BundledLanguage } from "shiki";
 import { use, type CSSProperties } from "react";
 
-import { resolveDiffThemeName } from "../../lib/diffRendering";
+import { resolveSyntaxThemeName } from "../../lib/syntaxHighlighting";
 import type { EmbeddedScript } from "../../lib/embeddedScripts";
 import { getSyntaxHighlighterPromise } from "../../lib/syntaxHighlighting";
 
@@ -44,9 +45,14 @@ export function HighlightedTokens({
 }) {
   const highlighter = use(getSyntaxHighlighterPromise(language));
   for (const script of embedded) use(getSyntaxHighlighterPromise(script.language));
-  const themeName = resolveDiffThemeName(theme);
+  const themeName = resolveSyntaxThemeName(theme);
   const tokenize = (text: string, lang: string) =>
-    highlighter.codeToTokens(text, { lang, theme: themeName }).tokens;
+    highlighter.codeToTokens(text, {
+      lang: highlighter.getLoadedLanguages().includes(lang as BundledLanguage)
+        ? (lang as BundledLanguage)
+        : "text",
+      theme: themeName,
+    }).tokens;
   const lines = keyedLines(
     code,
     withEmbeddedScripts(code, tokenize(code, language), embedded, tokenize),

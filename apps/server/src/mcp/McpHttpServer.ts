@@ -43,8 +43,6 @@ import { PreviewControlsToolkit } from "./toolkits/previewControls/tools.ts";
 import * as PreviewControlsHandlers from "./toolkits/previewControls/handlers.ts";
 import { EnvironmentToolkit } from "./toolkits/environment/tools.ts";
 import * as EnvironmentHandlers from "./toolkits/environment/handlers.ts";
-import { ProjectToolkit } from "./toolkits/project/tools.ts";
-import * as ProjectHandlers from "./toolkits/project/handlers.ts";
 import { AttachmentToolkit } from "./toolkits/attachment/tools.ts";
 import * as AttachmentHandlers from "./toolkits/attachment/handlers.ts";
 import { ThreadToolkit } from "./toolkits/thread/tools.ts";
@@ -60,11 +58,6 @@ import {
   PreviewSnapshotToolkit,
   PreviewStandardToolkit,
 } from "./toolkits/preview/tools.ts";
-import * as WorktreeHandlers from "./toolkits/worktree/handlers.ts";
-import { WorktreeToolkit } from "./toolkits/worktree/tools.ts";
-import * as WorktreeMcpService from "./WorktreeMcpService.ts";
-import * as PullRequestsHandlers from "./toolkits/pullRequests/handlers.ts";
-import { PullRequestsToolkit } from "./toolkits/pullRequests/tools.ts";
 import * as HtmlHandlers from "./toolkits/html/handlers.ts";
 import { HtmlPreviewTool, HtmlPreviewToolkit, HtmlRenderToolkit } from "./toolkits/html/tools.ts";
 import { mcpTools } from "../ozi/McpTools.ts";
@@ -1158,11 +1151,6 @@ export const layerOrchestratorToolkit = toolkitRegistration(
 
 export const layerThreadToolkit = toolkitRegistration(ThreadToolkit, ThreadHandlers.layer);
 
-const layerWorktreeToolkitRegistration = toolkitRegistration(
-  WorktreeToolkit,
-  WorktreeHandlers.layer,
-).pipe(Layer.provide(WorktreeMcpService.layer));
-
 const layerPreviewControlsRegistration = toolkitRegistration(
   PreviewControlsToolkit,
   PreviewControlsHandlers.layer,
@@ -1173,16 +1161,9 @@ export const layerEnvironmentToolkit = toolkitRegistration(
   EnvironmentHandlers.layer,
 ).pipe(Layer.provide(ThreadCommandExecutor.layer));
 
-const layerProjectRegistration = toolkitRegistration(ProjectToolkit, ProjectHandlers.layer);
-
 export const layerAttachmentToolkit = toolkitRegistration(
   AttachmentToolkit,
   AttachmentHandlers.layer,
-);
-
-export const layerPullRequestsToolkit = toolkitRegistration(
-  PullRequestsToolkit,
-  PullRequestsHandlers.layer,
 );
 
 export const layerMcpTransport = McpServer.layerHttp({
@@ -1204,10 +1185,7 @@ export const layer = Layer.mergeAll(
   layerOrchestratorToolkit,
   layerThreadToolkit,
   layerAttachmentToolkit,
-  layerProjectRegistration,
   layerEnvironmentToolkit,
   layerPreviewControlsRegistration,
-  layerWorktreeToolkitRegistration,
-  layerPullRequestsToolkit,
   layerHtmlToolkit,
 ).pipe(Layer.provideMerge(layerMcpTransport));

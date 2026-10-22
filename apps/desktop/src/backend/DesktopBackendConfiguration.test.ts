@@ -403,7 +403,7 @@ describe("DesktopBackendConfiguration", () => {
                   observedDistros.push(distro);
                   return Option.some("/repo");
                 },
-                ensureNodePty: (distro) => {
+                resolveNode: (distro) => {
                   observedDistros.push(distro);
                   return { ok: true, nodePath: "/usr/bin/node", resolvedPath: "/usr/bin:/bin" };
                 },
@@ -462,7 +462,7 @@ describe("DesktopBackendConfiguration", () => {
             observedProbeRoots.push(root);
             return { ok: true, resolvedPath };
           },
-          ensureNodePty: () => {
+          resolveNode: () => {
             throw new Error("the staged runtime must not probe for node-pty");
           },
         }),
@@ -515,7 +515,7 @@ describe("DesktopBackendConfiguration", () => {
             observedRuntimeIds.push(archive.runtimeId);
             return { ok: true, linuxAppRoot: `/runtime/${archive.runtimeId}` };
           },
-          ensureNodePty: () => ({
+          resolveNode: () => ({
             ok: true,
             nodePath: "/usr/bin/node",
             resolvedPath: "/usr/bin:/bin",
@@ -552,7 +552,7 @@ describe("DesktopBackendConfiguration", () => {
         wsl: () => ({
           prepareRuntime: () => ({ ok: false, reason: "archive is corrupt" }),
           invalidateRuntime: () => Effect.die("failed staging must not invalidate a runtime"),
-          ensureNodePty: (_distro, root) => {
+          resolveNode: (_distro, root) => {
             observedNodePtyRoots.push(root);
             return { ok: true, nodePath: "/usr/bin/node", resolvedPath: "/usr/bin:/bin" };
           },
@@ -592,7 +592,7 @@ describe("DesktopBackendConfiguration", () => {
             observedProbeRoots.push(root);
             return { ok: false, reason: `${root}/t3 --version failed (exit 127)` };
           },
-          ensureNodePty: (_distro, root) => {
+          resolveNode: (_distro, root) => {
             observedNodePtyRoots.push(root);
             return { ok: true, nodePath: "/usr/bin/node", resolvedPath: "/usr/bin:/bin" };
           },
@@ -626,7 +626,7 @@ describe("DesktopBackendConfiguration", () => {
             reason:
               "t3: error while loading shared libraries: libatomic.so.1: cannot open shared object file",
           }),
-          ensureNodePty: () => ({
+          resolveNode: () => ({
             ok: false,
             reason: "the packaged Linux node-pty binary was not included",
             fatal: true,
@@ -661,7 +661,7 @@ describe("DesktopBackendConfiguration", () => {
             ok: false,
             reason: "unsupported CPU architecture or incompatible system libraries",
           }),
-          ensureNodePty: () => ({
+          resolveNode: () => ({
             ok: false,
             reason: "mounted tree is broken in some other way",
             fatal: true,
@@ -694,7 +694,7 @@ describe("DesktopBackendConfiguration", () => {
               invalidatedRuntimeIds.push(runtimeId);
             }),
           probeRuntime: () => ({ ok: false, reason: "t3 --version failed (exit 1)" }),
-          ensureNodePty: () => ({
+          resolveNode: () => ({
             ok: false,
             reason: "WSL backend preflight timed out while probing for Node.js.",
             fatal: false,
@@ -747,7 +747,7 @@ describe("DesktopBackendConfiguration", () => {
                   isAvailable: true,
                   distros: [{ name: "Ubuntu", isDefault: true, version: 2 }],
                   windowsToWslPath: () => Option.some(linuxAppRoot),
-                  ensureNodePty: () => ({ ok: true, nodePath, resolvedPath }),
+                  resolveNode: () => ({ ok: true, nodePath, resolvedPath }),
                   getDistroIp: () => Option.some("172.27.0.99"),
                 }),
               ),

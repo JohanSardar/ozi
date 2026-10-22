@@ -4,26 +4,19 @@ import {
   ProviderDriverKind,
   ProviderInstanceId,
   UsageLimitSourceId,
-  type ServerProvider,
 } from "@t3tools/contracts";
 import * as Duration from "effect/Duration";
 import { describe, expect, it } from "vite-plus/test";
 import { resolveServerBackgroundActivitySettings } from "./backgroundActivitySettings.ts";
 import { createModelSelection } from "./model.ts";
-import { resolveProjectScripts, projectScriptsInheritDefaults } from "./projectScripts.ts";
 import {
   applyServerSettingsPatch,
   fallbackTextGenerationModelSelection,
   modelPreferencesMigrationPatch,
   resolveModelPreferences,
-  isModelSelectionProviderEnabled,
   parsePersistedServerObservabilitySettings,
-  resolveSourceControlWriterModelSelection,
   resolveProjectAgentBrowserAccess,
-  resolveProjectAutoPull,
 } from "./serverSettings.ts";
-
-const FOLDED_SERVER_SETTINGS = { ...DEFAULT_SERVER_SETTINGS, projectSettingsFolded: true };
 
 describe("fallbackTextGenerationModelSelection", () => {
   it("ignores a configured non-default instance at machine scope, matching no fallback", () => {
@@ -53,143 +46,6 @@ describe("fallbackTextGenerationModelSelection", () => {
 });
 
 describe("serverSettings helpers", () => {
-  it("changes a cleanup rule without replacing the machine's other rules", () => {
-    const enabled = applyServerSettingsPatch(DEFAULT_SERVER_SETTINGS, {
-      storageCleanup: { worktreeAfterDays: 8, worktreeOnMerge: true, logsAfterDays: 30 },
-    });
-    expect(
-      applyServerSettingsPatch(enabled, {
-        storageCleanup: { worktreeAfterDays: null },
-      }).storageCleanup,
-    ).toEqual({
-      worktreeAfterDays: null,
-      worktreeSettledAfterDays: null,
-      worktreeOnMerge: true,
-      worktreeOnDelete: false,
-      worktreeUnchanged: false,
-      worktreeKeepWhen: "uncommitted-changes",
-      browserArtifactsAfterDays: null,
-      logsAfterDays: 30,
-    });
-  });
-  it("replaces a source control host's patched field so a cleared account pin does not survive", () => {
-    const pinned = applyServerSettingsPatch(DEFAULT_SERVER_SETTINGS, {
-      sourceControlHosts: {
-        github: { hosts: { "github.com": { account: "work", enabled: true } }, tokens: {} },
-      },
-    });
-    const unpinned = applyServerSettingsPatch(pinned, {
-      sourceControlHosts: { github: { hosts: { "github.com": { enabled: false } } } },
-    });
-    expect(unpinned.sourceControlHosts.github).toEqual({
-      hosts: { "github.com": { enabled: false } },
-      tokens: {},
-    });
-  });
-
-  it("inherits actions, preserves existing actions, and supports empty overrides and reset", () => {
-    const project = { id: ProjectId.make("project-actions"), scripts: [] };
-    const action = {
-      id: "check",
-      name: "Check",
-      command: "npm test",
-      icon: "play" as const,
-      runOnWorktreeCreate: false,
-    };
-    const existing = { ...project, scripts: [{ ...action, command: "npm run lint" }] };
-    const unfolded = applyServerSettingsPatch(DEFAULT_SERVER_SETTINGS, {
-      defaultProjectScripts: [action],
-    });
-    expect(resolveProjectScripts(unfolded, existing)).toEqual(existing.scripts);
-    expect(projectScriptsInheritDefaults(unfolded, existing)).toBe(false);
-    const defaults = applyServerSettingsPatch(FOLDED_SERVER_SETTINGS, {
-      defaultProjectScripts: [action],
-    });
-    expect(resolveProjectScripts(defaults, project)).toEqual([action]);
-    expect(projectScriptsInheritDefaults(defaults, project)).toBe(true);
-    expect(resolveProjectScripts(defaults, existing)).toEqual([action]);
-    const disabled = applyServerSettingsPatch(defaults, {
-      projectScriptOverrides: { [project.id]: [] },
-    });
-    expect(resolveProjectScripts(disabled, project)).toEqual([]);
-    expect(projectScriptsInheritDefaults(disabled, project)).toBe(false);
-    const changedDefault = applyServerSettingsPatch(disabled, {
-      defaultProjectScripts: [{ ...action, command: "npm run build" }],
-    });
-    expect(resolveProjectScripts(changedDefault, project)).toEqual([]);
-    const reset = applyServerSettingsPatch(changedDefault, {
-      projectScriptOverrides: { [project.id]: null },
-    });
-    expect(resolveProjectScripts(reset, existing)).toEqual(changedDefault.defaultProjectScripts);
-    expect(projectScriptsInheritDefaults(reset, existing)).toBe(true);
-    expect(
-      resolveProjectScripts(
-        applyServerSettingsPatch(reset, { defaultProjectScripts: [] }),
-        existing,
-      ),
-    ).toEqual([]);
-  });
-
-  it("preserves other projects' actions when overriding, clearing, or resetting one project", () => {
-    const firstProject = { id: ProjectId.make("first-project"), scripts: [] };
-    const secondProject = { id: ProjectId.make("second-project"), scripts: [] };
-    const defaultAction = {
-      id: "check",
-      name: "Check",
-      command: "npm test",
-      icon: "play" as const,
-      runOnWorktreeCreate: false,
-    };
-    const firstAction = { ...defaultAction, command: "npm run lint" };
-    const secondAction = { ...defaultAction, command: "npm run build" };
-    const firstUpdate = applyServerSettingsPatch(FOLDED_SERVER_SETTINGS, {
-      defaultProjectScripts: [defaultAction],
-      projectScriptOverrides: { [firstProject.id]: [firstAction] },
-    });
-    const secondUpdate = applyServerSettingsPatch(firstUpdate, {
-      projectScriptOverrides: { [secondProject.id]: [secondAction] },
-    });
-    expect(resolveProjectScripts(secondUpdate, firstProject)).toEqual([firstAction]);
-    expect(resolveProjectScripts(secondUpdate, secondProject)).toEqual([secondAction]);
-
-    const cleared = applyServerSettingsPatch(secondUpdate, {
-      projectScriptOverrides: { [firstProject.id]: [] },
-    });
-    expect(resolveProjectScripts(cleared, firstProject)).toEqual([]);
-    expect(resolveProjectScripts(cleared, secondProject)).toEqual([secondAction]);
-
-    const reset = applyServerSettingsPatch(cleared, {
-      projectScriptOverrides: { [firstProject.id]: null },
-    });
-    expect(resolveProjectScripts(reset, { ...firstProject, scripts: [firstAction] })).toEqual([
-      defaultAction,
-    ]);
-    expect(resolveProjectScripts(reset, secondProject)).toEqual([secondAction]);
-    expect(resolveProjectScripts(secondUpdate, firstProject)).toEqual([firstAction]);
-  });
-
-  it("inherits automatic pull while preserving legacy opt-ins and explicit overrides", () => {
-    const projectId = ProjectId.make("project-pull");
-    expect(resolveProjectAutoPull(DEFAULT_SERVER_SETTINGS, projectId, false)).toBe(false);
-    expect(resolveProjectAutoPull(DEFAULT_SERVER_SETTINGS, projectId, true)).toBe(true);
-    const enabled = applyServerSettingsPatch(DEFAULT_SERVER_SETTINGS, { defaultAutoPull: true });
-    expect(resolveProjectAutoPull(enabled, projectId, false)).toBe(true);
-    const overridden = applyServerSettingsPatch(enabled, {
-      projectAutoPullOverrides: { [projectId]: false },
-    });
-    expect(resolveProjectAutoPull(overridden, projectId, true)).toBe(false);
-    const reset = applyServerSettingsPatch(overridden, {
-      projectAutoPullOverrides: { [projectId]: null },
-    });
-    expect(resolveProjectAutoPull(reset, projectId, false)).toBe(true);
-    const disabled = applyServerSettingsPatch(reset, {
-      defaultAutoPull: false,
-      projectAutoPullOverrides: { [projectId]: true },
-    });
-    expect(resolveProjectAutoPull(disabled, projectId, false)).toBe(true);
-    expect(resolveProjectAutoPull(disabled, ProjectId.make("other-project"), false)).toBe(false);
-  });
-
   it("inherits browser access and restores inheritance when a project override is removed", () => {
     const projectId = ProjectId.make("project-browser");
     const otherProjectId = ProjectId.make("other-project");
@@ -208,37 +64,6 @@ describe("serverSettings helpers", () => {
     });
     expect(resolveProjectAgentBrowserAccess(enabled, projectId)).toBe(true);
     expect(resolveProjectAgentBrowserAccess(enabled, otherProjectId)).toBe(false);
-  });
-
-  it("preserves other projects' boolean overrides across separate updates and resets", () => {
-    const firstProjectId = ProjectId.make("first-project");
-    const secondProjectId = ProjectId.make("second-project");
-    const firstUpdate = applyServerSettingsPatch(DEFAULT_SERVER_SETTINGS, {
-      defaultAutoPull: true,
-      projectAutoPullOverrides: { [firstProjectId]: false },
-      projectAgentBrowserAccessOverrides: { [firstProjectId]: false },
-    });
-    const secondUpdate = applyServerSettingsPatch(firstUpdate, {
-      projectAutoPullOverrides: { [secondProjectId]: false },
-      projectAgentBrowserAccessOverrides: { [secondProjectId]: false },
-    });
-    for (const projectId of [firstProjectId, secondProjectId]) {
-      expect(resolveProjectAutoPull(secondUpdate, projectId, false)).toBe(false);
-      expect(resolveProjectAgentBrowserAccess(secondUpdate, projectId)).toBe(false);
-    }
-
-    const reset = applyServerSettingsPatch(secondUpdate, {
-      projectAutoPullOverrides: { [firstProjectId]: null },
-      projectAgentBrowserAccessOverrides: { [firstProjectId]: null },
-    });
-    expect(resolveProjectAutoPull(reset, firstProjectId, false)).toBe(true);
-    expect(resolveProjectAgentBrowserAccess(reset, firstProjectId)).toBe(true);
-    expect(resolveProjectAutoPull(reset, secondProjectId, false)).toBe(false);
-    expect(resolveProjectAgentBrowserAccess(reset, secondProjectId)).toBe(false);
-    expect(reset.projectAutoPullOverrides[firstProjectId]).toBeUndefined();
-    expect(reset.projectAgentBrowserAccessOverrides[firstProjectId]).toBeUndefined();
-    expect(resolveProjectAutoPull(secondUpdate, firstProjectId, false)).toBe(false);
-    expect(resolveProjectAgentBrowserAccess(secondUpdate, firstProjectId)).toBe(false);
   });
 
   it("replaces and clears conversation model defaults without retaining old options", () => {
@@ -403,213 +228,6 @@ describe("serverSettings helpers", () => {
     });
   });
 
-  it("replaces source control writer selection without retaining stale options", () => {
-    const current = {
-      ...DEFAULT_SERVER_SETTINGS,
-      sourceControlWriterModelSelection: createModelSelection(
-        ProviderInstanceId.make("codex"),
-        "gpt-5.4-mini",
-        [{ id: "reasoningEffort", value: "high" }],
-      ),
-    };
-
-    expect(
-      applyServerSettingsPatch(current, {
-        sourceControlWriterModelSelection: {
-          instanceId: ProviderInstanceId.make("pi"),
-          model: "openai/gpt-5",
-        },
-      }).sourceControlWriterModelSelection,
-    ).toEqual({
-      instanceId: "pi",
-      model: "openai/gpt-5",
-    });
-  });
-
-  it("clears source control writer selection with null", () => {
-    const current = {
-      ...DEFAULT_SERVER_SETTINGS,
-      sourceControlWriterModelSelection: createModelSelection(
-        ProviderInstanceId.make("codex"),
-        "gpt-5.4-mini",
-      ),
-    };
-
-    expect(
-      applyServerSettingsPatch(current, {
-        sourceControlWriterModelSelection: null,
-      }).sourceControlWriterModelSelection,
-    ).toBeNull();
-  });
-
-  it("falls back from a disabled source control writer provider without clearing its selection", () => {
-    const instanceId = ProviderInstanceId.make("codex_writer");
-    const sourceControlWriterModelSelection = createModelSelection(instanceId, "gpt-5.4-mini");
-    const settings = {
-      ...DEFAULT_SERVER_SETTINGS,
-      providerInstances: {
-        [instanceId]: {
-          driver: ProviderDriverKind.make("codex"),
-          enabled: false,
-          config: {},
-        },
-      },
-      sourceControlWriterModelSelection,
-    };
-
-    expect(isModelSelectionProviderEnabled(settings, sourceControlWriterModelSelection)).toBe(
-      false,
-    );
-    expect(resolveSourceControlWriterModelSelection(settings, undefined, null)).toBe(
-      settings.textGenerationModelSelection,
-    );
-    expect(settings.sourceControlWriterModelSelection).toBe(sourceControlWriterModelSelection);
-  });
-
-  it("falls back from an unavailable source control writer provider", () => {
-    const instanceId = ProviderInstanceId.make("missing_writer");
-    const sourceControlWriterModelSelection = createModelSelection(instanceId, "missing-model");
-    const settings = {
-      ...DEFAULT_SERVER_SETTINGS,
-      providerInstances: {
-        [instanceId]: {
-          driver: ProviderDriverKind.make("missing-driver"),
-          config: {},
-        },
-      },
-      sourceControlWriterModelSelection,
-    };
-    const unavailableProvider = {
-      instanceId,
-      driver: ProviderDriverKind.make("missing-driver"),
-      enabled: false,
-      installed: false,
-      version: null,
-      status: "disabled",
-      auth: { status: "unknown" },
-      checkedAt: "2026-07-27T00:00:00.000Z",
-      availability: "unavailable",
-      unavailableReason: "This provider driver is not available in this build.",
-      models: [],
-      slashCommands: [],
-      skills: [],
-    } satisfies ServerProvider;
-
-    expect(resolveSourceControlWriterModelSelection(settings, [unavailableProvider], null)).toBe(
-      settings.textGenerationModelSelection,
-    );
-    expect(settings.sourceControlWriterModelSelection).toBe(sourceControlWriterModelSelection);
-  });
-
-  it("falls back from a writer provider that cannot generate application text", () => {
-    const instanceId = ProviderInstanceId.make("acp_writer");
-    const sourceControlWriterModelSelection = createModelSelection(instanceId, "default");
-    const settings = {
-      ...DEFAULT_SERVER_SETTINGS,
-      providerInstances: {
-        [instanceId]: {
-          driver: ProviderDriverKind.make("pi"),
-          enabled: true,
-          config: {},
-        },
-      },
-      sourceControlWriterModelSelection,
-    };
-    const incapableProvider = {
-      instanceId,
-      driver: ProviderDriverKind.make("pi"),
-      supportsTextGeneration: false,
-      enabled: true,
-      installed: true,
-      version: null,
-      status: "ready",
-      auth: { status: "authenticated" },
-      checkedAt: "2026-07-27T00:00:00.000Z",
-      models: [],
-      slashCommands: [],
-      skills: [],
-    } satisfies ServerProvider;
-
-    expect(resolveSourceControlWriterModelSelection(settings, [incapableProvider], null)).toBe(
-      settings.textGenerationModelSelection,
-    );
-    expect(settings.sourceControlWriterModelSelection).toBe(sourceControlWriterModelSelection);
-  });
-
-  it("falls back from a writer provider a project turned off, keeping it for other projects", () => {
-    const instanceId = ProviderInstanceId.make("codex_writer");
-    const projectId = ProjectId.make("project-a");
-    const sourceControlWriterModelSelection = createModelSelection(instanceId, "gpt-5.4-mini");
-    const settings = {
-      ...DEFAULT_SERVER_SETTINGS,
-      providerInstances: {
-        [instanceId]: { driver: ProviderDriverKind.make("codex"), enabled: true, config: {} },
-      },
-      projectSettingsOverrides: {
-        [projectId]: { providerInstances: { [instanceId]: { enabled: false } } },
-      },
-      sourceControlWriterModelSelection,
-    };
-    const provider = {
-      instanceId,
-      driver: ProviderDriverKind.make("codex"),
-      enabled: true,
-      installed: true,
-      version: null,
-      status: "ready",
-      auth: { status: "authenticated" },
-      checkedAt: "2026-07-27T00:00:00.000Z",
-      availability: "available",
-      models: [],
-      slashCommands: [],
-      skills: [],
-    } satisfies ServerProvider;
-
-    expect(resolveSourceControlWriterModelSelection(settings, [provider], projectId)).toBe(
-      settings.textGenerationModelSelection,
-    );
-    expect(resolveSourceControlWriterModelSelection(settings, [provider], null)).toBe(
-      sourceControlWriterModelSelection,
-    );
-  });
-
-  it("keeps a writer on an instance the project turned on while the machine has it off", () => {
-    const instanceId = ProviderInstanceId.make("codex_writer");
-    const projectId = ProjectId.make("project-a");
-    const sourceControlWriterModelSelection = createModelSelection(instanceId, "gpt-5.4-mini");
-    const settings = {
-      ...DEFAULT_SERVER_SETTINGS,
-      providerInstances: {
-        [instanceId]: { driver: ProviderDriverKind.make("codex"), enabled: false, config: {} },
-      },
-      projectSettingsOverrides: {
-        [projectId]: { providerInstances: { [instanceId]: { enabled: true } } },
-      },
-      sourceControlWriterModelSelection,
-    };
-    const provider = {
-      instanceId,
-      driver: ProviderDriverKind.make("codex"),
-      enabled: true,
-      installed: true,
-      version: null,
-      status: "ready",
-      auth: { status: "authenticated" },
-      checkedAt: "2026-07-27T00:00:00.000Z",
-      availability: "available",
-      models: [],
-      slashCommands: [],
-      skills: [],
-    } satisfies ServerProvider;
-
-    expect(resolveSourceControlWriterModelSelection(settings, [provider], projectId)).toBe(
-      sourceControlWriterModelSelection,
-    );
-    expect(resolveSourceControlWriterModelSelection(settings, [provider], null)).toBe(
-      settings.textGenerationModelSelection,
-    );
-  });
-
   it("replaces providerInstances maps so omitted instance fields are cleared", () => {
     const codexId = ProviderInstanceId.make("codex");
     const current = {
@@ -641,56 +259,6 @@ describe("serverSettings helpers", () => {
       displayName: "Codex Work",
       enabled: true,
       config: { homePath: "~/.codex" },
-    });
-  });
-
-  it("keeps a project's providerInstances override when a patch entry omits the key", () => {
-    const instanceId = ProviderInstanceId.make("codex_work");
-    const projectId = ProjectId.make("project-a");
-    const current = {
-      ...DEFAULT_SERVER_SETTINGS,
-      projectSettingsOverrides: {
-        [projectId]: {
-          newWorktreesStartFromOrigin: true,
-          providerInstances: { [instanceId]: { enabled: false } },
-        },
-      },
-    };
-
-    const patched = applyServerSettingsPatch(current, {
-      projectSettingsOverrides: {
-        [projectId]: { newWorktreesStartFromOrigin: false },
-      },
-    });
-
-    expect(patched.projectSettingsOverrides[projectId]).toEqual({
-      newWorktreesStartFromOrigin: false,
-      providerInstances: { [instanceId]: { enabled: false } },
-    });
-  });
-
-  it("clears a project's providerInstances override when a patch entry sends an empty map", () => {
-    const instanceId = ProviderInstanceId.make("codex_work");
-    const projectId = ProjectId.make("project-a");
-    const current = {
-      ...DEFAULT_SERVER_SETTINGS,
-      projectSettingsOverrides: {
-        [projectId]: {
-          newWorktreesStartFromOrigin: true,
-          providerInstances: { [instanceId]: { enabled: false } },
-        },
-      },
-    };
-
-    const patched = applyServerSettingsPatch(current, {
-      projectSettingsOverrides: {
-        [projectId]: { newWorktreesStartFromOrigin: true, providerInstances: {} },
-      },
-    });
-
-    expect(patched.projectSettingsOverrides[projectId]).toEqual({
-      newWorktreesStartFromOrigin: true,
-      providerInstances: {},
     });
   });
 
@@ -777,35 +345,6 @@ describe("serverSettings helpers", () => {
     expect(
       Duration.toMillis(resolveServerBackgroundActivitySettings(next).automaticGitFetchInterval),
     ).toBe(15_000);
-  });
-
-  it("preserves legacy background activity settings when applying an unrelated patch", () => {
-    const current = {
-      ...DEFAULT_SERVER_SETTINGS,
-      backgroundActivityProfile: "performance" as const,
-      automaticGitFetchInterval: Duration.seconds(7),
-      providerHealthRefreshInterval: Duration.minutes(4),
-    };
-
-    const next = applyServerSettingsPatch(current, {
-      sourceControlWriterModelSelection: createModelSelection(
-        ProviderInstanceId.make("codex"),
-        "gpt-5.4-mini",
-      ),
-    });
-
-    expect(next.backgroundActivity).toEqual({
-      schemaVersion: 1,
-      profile: "custom",
-      baseProfile: "performance",
-      overrides: {
-        automaticGitFetchInterval: Duration.seconds(7),
-        providerHealthRefreshInterval: Duration.minutes(4),
-      },
-    });
-    expect(next.backgroundActivityProfile).toBe("performance");
-    expect(Duration.toMillis(next.automaticGitFetchInterval)).toBe(7_000);
-    expect(Duration.toMillis(next.providerHealthRefreshInterval)).toBe(240_000);
   });
 
   it("does not reactivate dormant overrides from a concrete profile", () => {
@@ -952,19 +491,6 @@ describe("serverSettings helpers", () => {
     });
 
     expect(resolved.pauseWhenOnBattery).toBe(false);
-  });
-});
-
-describe("worktreesDirectory", () => {
-  it("remembers previous custom locations so their worktrees stay managed", () => {
-    const first = applyServerSettingsPatch(DEFAULT_SERVER_SETTINGS, { worktreesDirectory: "/a" });
-    expect(first.previousWorktreesDirectories).toEqual([]);
-    const second = applyServerSettingsPatch(first, { worktreesDirectory: "/b" });
-    expect(second.previousWorktreesDirectories).toEqual(["/a"]);
-    const reset = applyServerSettingsPatch(second, { worktreesDirectory: "" });
-    expect(reset.previousWorktreesDirectories).toEqual(["/a", "/b"]);
-    const back = applyServerSettingsPatch(reset, { worktreesDirectory: "/a" });
-    expect(back.previousWorktreesDirectories).toEqual(["/b"]);
   });
 });
 

@@ -1003,28 +1003,7 @@ export const DESKTOP_FILE_EXCLUSIONS = [
   "!apps/desktop/gnome-extension",
   "!apps/desktop/gnome-extension/**/*",
 ] as const;
-// Windows terminal helpers cannot run on macOS and slow signing and notarization.
-export const MAC_FILE_EXCLUSIONS = [
-  "!**/node_modules/node-pty/prebuilds/win32-*/**/*",
-  "!**/node_modules/node-pty/third_party/conpty/**/*",
-] as const;
-// Linux builds node-pty from source, so every prebuild in the package is for
-// another platform (58 MB of it Windows debug symbols).
-export const LINUX_FILE_EXCLUSIONS = [
-  ...MAC_FILE_EXCLUSIONS,
-  "!**/node_modules/node-pty/prebuilds/darwin-*/**/*",
-] as const;
 
-// node-pty publishes both Darwin prebuilds in one package. Single-architecture
-// apps only need the native target; universal apps need both.
-export function resolveMacFileExclusions(arch?: typeof BuildArch.Type) {
-  if (arch === undefined || arch === "universal") {
-    return [...MAC_FILE_EXCLUSIONS];
-  }
-
-  const unusedArch = arch === "arm64" ? "x64" : "arm64";
-  return [...MAC_FILE_EXCLUSIONS, `!**/node_modules/node-pty/prebuilds/darwin-${unusedArch}/**/*`];
-}
 // Windows ships the server tree (bundle + node_modules) as a separate
 // resources/server.asar sidecar instead of loose files: the NSIS installer then
 // extracts a handful of large archives instead of thousands of small files,
@@ -1053,20 +1032,6 @@ export const WINDOWS_SERVER_ASAR_IGNORE_GLOBS = [
   "**/node_modules/.bin/**",
   "**/*.map",
 ] as const;
-
-export function resolveWindowsServerAsarIgnoreGlobs(arch: typeof BuildArch.Type) {
-  const unusedArch = arch === "arm64" ? "x64" : "arm64";
-  const unusedPrebuild = `**/node_modules/node-pty/prebuilds/win32-${unusedArch}`;
-  const unusedConpty = `**/node_modules/node-pty/third_party/conpty/*/win10-${unusedArch}`;
-
-  return [
-    ...WINDOWS_SERVER_ASAR_IGNORE_GLOBS,
-    unusedPrebuild,
-    `${unusedPrebuild}/**`,
-    unusedConpty,
-    `${unusedConpty}/**`,
-  ];
-}
 
 export const WINDOWS_PACKAGED_PAYLOAD_FILE_LIMIT = 80;
 export const WINDOWS_SERVER_RESOURCE_SOURCE_DIR = "apps/desktop/prod-resources/windows-server";
@@ -2808,11 +2773,7 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
     electronLanguages: [...DESKTOP_ELECTRON_LANGUAGES],
     files: [
       ...DESKTOP_FILE_EXCLUSIONS,
-      ...(platform === "mac"
-        ? resolveMacFileExclusions(arch)
-        : platform === "linux"
-          ? LINUX_FILE_EXCLUSIONS
-          : []),
+      ...(platform === "mac" ? [] : platform === "linux" ? [] : []),
     ],
     directories: {
       buildResources: "apps/desktop/resources",
@@ -3106,7 +3067,7 @@ export const packWindowsServerAsar = Effect.fn("packWindowsServerAsar")(function
         // not against the absolute paths it crawls, so anchor it at the source.
         globOptions: {
           cwd: input.sourceDir,
-          ignore: resolveWindowsServerAsarIgnoreGlobs(input.arch),
+          ignore: [...WINDOWS_SERVER_ASAR_IGNORE_GLOBS],
         },
       }),
     catch: (cause) => new WindowsServerSidecarPackError({ asarPath: input.asarPath, cause }),
@@ -3532,13 +3493,7 @@ export const validateWindowsPackagedPayload = Effect.fn(
     }
     const requiredMembers = [`${stem}/t3`, `${stem}/client`, `${stem}/node_modules`];
     const missingMembers = requiredMembers.filter((member) => !members.includes(member));
-    const ptyCandidates = [
-      `${stem}/node_modules/node-pty/build/Release/pty.node`,
-      `${stem}/node_modules/node-pty/prebuilds/linux-${input.targetArch}/pty.node`,
-    ];
-    if (!ptyCandidates.some((member) => members.includes(member))) {
-      missingMembers.push(...ptyCandidates);
-    }
+
     if (missingMembers.length > 0) {
       return yield* new WindowsPackagedPayloadValidationError({
         reason: "wsl-runtime-invalid",

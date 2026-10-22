@@ -297,46 +297,6 @@ describe("theme files", () => {
     });
   });
 
-  it("decodes literal CSS color formats into OKLCH without dropping alpha", () => {
-    const theme = parseThemeFile({
-      version: THEME_FILE_VERSION,
-      name: "Translucent",
-      appearance: "light",
-      colors: {
-        canvas: "oklch(62% 0.2 280deg / 50%)",
-        accent: "#abcd",
-        focus: "rgb(10 20 30 / 50%)",
-        error: "hsl(350 80% 50%)",
-        warning: "hwb(45 10% 20%)",
-        update: "lab(60% 40 30)",
-        messageAction: "lch(60% 50 120)",
-        sidebar: "oklab(0.6 0.1 -0.1)",
-        terminalCursor: "color(display-p3 0.8 0.2 0.3)",
-        terminalSelection: "rebeccapurple",
-        terminalScrollbar: "transparent",
-        terminalScrollbarHover: "rgb(10 20 30 / none)",
-      },
-    });
-
-    expect(theme.colors.canvas).toBe("oklch(0.62 0.2 280 / 0.5)");
-    expect(theme.colors.accent).toBe(canonical("#abcd"));
-    expect(themeColorToHex(theme.colors.accent)).toBe("#aabbccdd");
-    expect(themeColorToHex(theme.colors.focus)).toBe("#0a141e80");
-    expect(themeColorToHex(theme.colors.terminalSelection)).toBe("#663399");
-    expect(theme.colors.terminalScrollbar).toBe("oklch(0 0 0 / 0)");
-    expect(themeColorToHex(theme.colors.terminalScrollbarHover)).toBe("#0a141e00");
-    for (const role of [
-      "error",
-      "warning",
-      "update",
-      "messageAction",
-      "sidebar",
-      "terminalCursor",
-    ] as const) {
-      expect(theme.colors[role]).toMatch(/^oklch\(/);
-    }
-  });
-
   it("gamut maps extreme finite OKLCH chroma from theme files", () => {
     const theme = parseThemeFile({
       version: THEME_FILE_VERSION,

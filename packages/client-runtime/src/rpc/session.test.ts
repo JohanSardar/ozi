@@ -368,67 +368,6 @@ describe("RpcSessionFactory", () => {
     }),
   );
 
-  it.effect("replays current config and broadcasts updates to every subscriber", () =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        const { factory, sockets } = yield* makeFactory();
-        const session = yield* factory.connect(PREPARED);
-        const readyFiber = yield* Effect.forkChild(session.ready);
-        const socket = yield* awaitSocket(sockets);
-        socket.open();
-        yield* completeInitialConfig(socket);
-        yield* Fiber.join(readyFiber);
-
-        const collectTwo = session
-          .subscribeServerConfig({})
-          .pipe(Stream.take(2), Stream.runCollect);
-        const firstSubscriber = yield* Effect.forkChild(collectTwo);
-        const secondSubscriber = yield* Effect.forkChild(collectTwo);
-        yield* Effect.yieldNow;
-
-        const shortcut = {
-          key: "k",
-          metaKey: false,
-          ctrlKey: false,
-          shiftKey: false,
-          altKey: false,
-          modKey: true,
-        };
-        const request = yield* awaitRequest(socket);
-        socket.serverMessage(
-          encodeJson({
-            _tag: "Chunk",
-            requestId: request.id,
-            values: [
-              {
-                version: 1,
-                type: "keybindingsUpdated",
-                payload: {
-                  keybindings: [{ command: "terminal.toggle", shortcut }],
-                  issues: [],
-                },
-              },
-            ],
-          }),
-        );
-
-        const firstEvents = Array.from(yield* Fiber.join(firstSubscriber));
-        const secondEvents = Array.from(yield* Fiber.join(secondSubscriber));
-        expect(firstEvents.map((event) => event.type)).toEqual(["snapshot", "keybindingsUpdated"]);
-        expect(secondEvents).toEqual(firstEvents);
-
-        const replay = yield* session.subscribeServerConfig({}).pipe(Stream.runHead);
-        expect(replay).toMatchObject({
-          _tag: "Some",
-          value: {
-            type: "snapshot",
-            config: { keybindings: [{ command: "terminal.toggle", shortcut }] },
-          },
-        });
-      }),
-    ),
-  );
-
   it.effect.each([
     { environmentThemes: true },
     { usageLimitSources: true },
@@ -825,10 +764,6 @@ describe("RpcSessionFactory", () => {
             removeThread: () => Effect.void,
             loadServerConfig: () => Effect.succeedNone,
             saveServerConfig: () => Effect.void,
-            loadVcsRefs: () => Effect.succeedNone,
-            saveVcsRefs: () => Effect.void,
-            removeVcsRefs: () => Effect.void,
-            clearVcsRefs: () => Effect.void,
             clear: () => Effect.void,
           });
           const configState = yield* makeEnvironmentServerConfigState({
@@ -1000,14 +935,14 @@ describe("RpcSessionFactory", () => {
         payload: {
           settings: {
             ...DEFAULT_SERVER_SETTINGS,
-            newWorktreesStartFromOrigin: !DEFAULT_SERVER_SETTINGS.newWorktreesStartFromOrigin,
+            enableAgentBrowserAccess: !DEFAULT_SERVER_SETTINGS.enableAgentBrowserAccess,
           },
         },
       },
       expectedConfig: {
         settings: {
           ...DEFAULT_SERVER_SETTINGS,
-          newWorktreesStartFromOrigin: !DEFAULT_SERVER_SETTINGS.newWorktreesStartFromOrigin,
+          enableAgentBrowserAccess: !DEFAULT_SERVER_SETTINGS.enableAgentBrowserAccess,
         },
       },
     },
@@ -1168,40 +1103,6 @@ describe("RpcSessionFactory", () => {
       );
       yield* Fiber.join(probeFiber);
     }).pipe(Effect.scoped),
-  );
-
-  it.effect("reaches ready when a newer server sends unknown config members", () =>
-    Effect.gen(function* () {
-      const { factory, sockets } = yield* makeFactory();
-      const session = yield* factory.connect(PREPARED);
-      const readyFiber = yield* Effect.forkChild(session.ready);
-      const socket = yield* awaitSocket(sockets);
-      socket.open();
-
-      const shortcut = {
-        key: "p",
-        metaKey: false,
-        ctrlKey: false,
-        shiftKey: false,
-        altKey: false,
-        modKey: true,
-      };
-      yield* completeInitialConfig(socket, {
-        ...ENCODED_SERVER_CONFIG,
-        keybindings: [
-          { command: "someFuture.toggle", shortcut },
-          { command: "terminal.toggle", shortcut },
-        ],
-        issues: [{ kind: "keybindings.future-issue", message: "From a newer server" }],
-        availableEditors: ["some-future-editor", "zed"],
-      });
-      yield* Fiber.join(readyFiber);
-
-      const config = yield* session.initialConfig;
-      expect(config.keybindings).toEqual([{ command: "terminal.toggle", shortcut }]);
-      expect(config.issues).toEqual([]);
-      expect(config.availableEditors).toEqual(["zed"]);
-    }),
   );
 
   it.effect("uses the legacy config RPC for probes when the server lacks the capability", () =>

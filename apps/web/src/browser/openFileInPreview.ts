@@ -24,7 +24,6 @@ import {
   setActivePreviewTab,
   updatePreviewServerSnapshot,
 } from "~/previewStateStore";
-import { selectSelectedRightPanelSurface, useRightPanelStore } from "~/rightPanelStore";
 
 import {
   browserDefaultOpenProfileId,
@@ -71,9 +70,7 @@ export async function openUrlInPreview<E>(input: {
   const previousActiveTabId = readThreadPreviewState(input.threadRef).activeTabId;
   // The server's "opened" event switches the preview tab but not the panel's
   // selection, so a changed selection means the user picked a tab themselves.
-  const selectedSurface = () =>
-    selectSelectedRightPanelSurface(useRightPanelStore.getState().byThreadKey, input.threadRef)
-      ?.id ?? null;
+  const selectedSurface = () => readThreadPreviewState(input.threadRef).activeTabId;
   const surfaceBeforeOpen = selectedSurface();
   const result = await input.openPreview({
     environmentId: input.threadRef.environmentId,
@@ -101,7 +98,7 @@ export async function openUrlInPreview<E>(input: {
       return;
     }
     applyPreviewServerSnapshot(input.threadRef, snapshot);
-    useRightPanelStore.getState().openBrowser(input.threadRef, snapshot.tabId);
+    setActivePreviewTab(input.threadRef, snapshot.tabId);
   });
 }
 

@@ -220,13 +220,6 @@ function formatComposerContextProviderPayload(record: KnownComposerContextRecord
         `sizeBytes: ${record.sizeBytes}`,
         `attachmentId: ${record.attachmentId}`,
       ].join("\n");
-    case "terminal": {
-      const lines = record.text
-        .split("\n")
-        .slice(0, record.lineEnd - record.lineStart + 1)
-        .map((line, index) => `${record.lineStart + index} | ${line}`);
-      return [`terminal: ${record.terminalLabel}`, ...lines].join("\n");
-    }
     case "element":
       return formatElementDetails(record).join("\n");
     case "preview-annotation": {
@@ -245,18 +238,6 @@ function formatComposerContextProviderPayload(record: KnownComposerContextRecord
       if (record.screenshotContextId) lines.push(`screenshot: ref=${record.screenshotContextId}`);
       for (const [index, element] of (record.elements ?? []).entries()) {
         lines.push(`element ${index + 1}:`, indent(formatElementDetails(element).join("\n")));
-      }
-      return lines.join("\n");
-    }
-    case "review-comment": {
-      const lines = [
-        `file: ${record.filePath}`,
-        `range: ${record.rangeLabel} (${record.startIndex}-${record.endIndex})`,
-        `section: ${record.sectionTitle}`,
-      ];
-      if (record.text.trim()) lines.push("comment:", indent(record.text.trim()));
-      if (record.diff.trim()) {
-        lines.push(`${record.fenceLanguage ?? "diff"}:`, indent(record.diff.trimEnd()));
       }
       return lines.join("\n");
     }

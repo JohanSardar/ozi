@@ -1,5 +1,5 @@
 import { EnvironmentRegistry } from "@t3tools/client-runtime/connection";
-import { EnvironmentId, WS_METHODS } from "@t3tools/contracts";
+import { EnvironmentId } from "@t3tools/contracts";
 import { afterEach, beforeEach, describe, expect, it } from "@effect/vitest";
 import * as Cause from "effect/Cause";
 import * as Effect from "effect/Effect";
@@ -8,12 +8,7 @@ import * as SubscriptionRef from "effect/SubscriptionRef";
 import * as TestClock from "effect/testing/TestClock";
 import { vi } from "vite-plus/test";
 
-import {
-  layer,
-  observeBackgroundActivitySubscription,
-  retainedBackgroundScopes,
-  wasRecentlyInteracted,
-} from "./backgroundActivityReporter.ts";
+import { layer, wasRecentlyInteracted } from "./backgroundActivityReporter.ts";
 
 describe("wasRecentlyInteracted", () => {
   it("expires interaction independently of window focus", () => {
@@ -24,58 +19,6 @@ describe("wasRecentlyInteracted", () => {
   it("rejects future timestamps", () => {
     expect(wasRecentlyInteracted(10_001, 10_000)).toBe(false);
   });
-
-  it.effect("retains an observed subscription until its returned finalizer runs", () =>
-    Effect.gen(function* () {
-      const environmentId = EnvironmentId.make("environment-observation-test");
-      const scope = { type: "vcs-status" as const, cwd: "/repo" };
-      const releasePassive = yield* observeBackgroundActivitySubscription({
-        environmentId,
-        method: WS_METHODS.subscribeVcsStatus,
-        input: { cwd: scope.cwd, includeRemote: false },
-      });
-      expect(retainedBackgroundScopes(environmentId)).toEqual([]);
-      const release = yield* observeBackgroundActivitySubscription({
-        environmentId,
-        method: WS_METHODS.subscribeVcsStatus,
-        input: { cwd: scope.cwd },
-      });
-
-      expect(retainedBackgroundScopes(environmentId)).toEqual([scope]);
-
-      yield* releasePassive;
-      expect(retainedBackgroundScopes(environmentId)).toEqual([scope]);
-
-      yield* release;
-      expect(retainedBackgroundScopes(environmentId)).toEqual([]);
-    }),
-  );
-
-  it.effect("keeps delimiter-containing environment and scope values distinct", () =>
-    Effect.gen(function* () {
-      const firstEnvironmentId = EnvironmentId.make("a");
-      const secondEnvironmentId = EnvironmentId.make("a:vcs-status:b");
-      const releaseFirst = yield* observeBackgroundActivitySubscription({
-        environmentId: firstEnvironmentId,
-        method: WS_METHODS.subscribeVcsStatus,
-        input: { cwd: "b:vcs-status:c" },
-      });
-      const releaseSecond = yield* observeBackgroundActivitySubscription({
-        environmentId: secondEnvironmentId,
-        method: WS_METHODS.subscribeVcsStatus,
-        input: { cwd: "c" },
-      });
-
-      expect(retainedBackgroundScopes(firstEnvironmentId)).toEqual([
-        { type: "vcs-status", cwd: "b:vcs-status:c" },
-      ]);
-      expect(retainedBackgroundScopes(secondEnvironmentId)).toEqual([
-        { type: "vcs-status", cwd: "c" },
-      ]);
-
-      yield* Effect.all([releaseFirst, releaseSecond]);
-    }),
-  );
 });
 
 describe("layer", () => {

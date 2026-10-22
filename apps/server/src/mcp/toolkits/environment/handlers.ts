@@ -9,24 +9,11 @@ import { readCaller, unavailable } from "../../threadAccess.ts";
 import { EnvironmentToolkit } from "./tools.ts";
 
 export function preferences(settings: ServerSettings) {
-  const {
-    defaultThreadEnvMode,
-    newWorktreesStartFromOrigin,
-    enableProviderUpdateChecks,
-    backgroundActivity,
-    sourceControlWritingStyle,
-  } = settings;
-  const characters = Array.from(sourceControlWritingStyle.customInstructions);
+  const { defaultThreadEnvMode, enableProviderUpdateChecks, backgroundActivity } = settings;
   return {
     defaultThreadEnvMode,
-    newWorktreesStartFromOrigin,
     enableProviderUpdateChecks,
     backgroundActivity: { profile: backgroundActivity.profile },
-    sourceControlWritingStyle: {
-      ...sourceControlWritingStyle,
-      customInstructions: characters.slice(0, 4000).join(""),
-      truncated: characters.length > 4000,
-    },
   };
 }
 const access = Effect.gen(function* () {

@@ -1,4 +1,4 @@
-import { getFiletypeFromFileName } from "@pierre/diffs";
+import { bundledLanguagesInfo } from "shiki";
 import {
   parse,
   type Command,
@@ -416,8 +416,10 @@ function writtenFileLanguage(
     path = args.find((arg) => !arg.value.startsWith("-"))?.value;
   }
   if (!path) return undefined;
-  const language = getFiletypeFromFileName(path);
-  return language === "text" ? undefined : language;
+  const extension = path.split(".").at(-1)?.toLowerCase();
+  return bundledLanguagesInfo.find(
+    (language) => language.id === extension || language.aliases?.includes(extension ?? ""),
+  )?.id;
 }
 
 function delimiterLanguage(hereDoc: HereDoc): string | undefined {

@@ -4,7 +4,6 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "build:ghostty-wasm": "bash scripts/build-libghostty-wasm.sh",
     "dev": "vp dev",
     "build": "vp build",
     "preview": "vp preview",
@@ -21,7 +20,6 @@
     "@dnd-kit/sortable": "^10.0.0",
     "@dnd-kit/utilities": "^3.2.2",
     "@effect/atom-react": "catalog:",
-    "@pierre/diffs": "catalog:",
     "@t3tools/client-runtime": "workspace:*",
     "@t3tools/contracts": "workspace:*",
     "@t3tools/provider-core": "workspace:*",
@@ -41,6 +39,7 @@
     "react-dom": "catalog:",
     "react-markdown": "^10.1.0",
     "remark-gfm": "catalog:",
+    "shiki": "4.2.0",
     "tailwind-merge": "^3.4.0",
     "unbash": "^5.0.0",
     "use-sync-external-store": "^1.6.0",

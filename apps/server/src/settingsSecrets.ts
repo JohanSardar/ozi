@@ -6,12 +6,6 @@ import {
   secretSettingsFields,
 } from "@t3tools/contracts";
 import { piClient } from "@t3tools/provider-pi/client";
-import {
-  readSecretFieldValues,
-  SOURCE_CONTROL_HOST_SECRET_FIELDS,
-  sourceControlHostSecretName,
-  writeSecretFieldValues,
-} from "./sourceControl/sourceControlHostSecrets.ts";
 
 export const SECRET_REDACTED = "\u2022\u2022\u2022\u2022\u2022\u2022";
 
@@ -111,15 +105,6 @@ export function mapSettingsSecrets(
     }),
   );
 
-  const sourceControlHosts = Object.fromEntries(
-    Object.entries(settings.sourceControlHosts).map(([kind, fields]) => [
-      kind,
-      mapFields(fields, SOURCE_CONTROL_HOST_SECRET_FIELDS.get(kind) ?? [], (field, serverHost) =>
-        sourceControlHostSecretName({ kind, field, serverHost }),
-      ),
-    ]),
-  ) as ServerSettings["sourceControlHosts"];
-
   const usageLimitSources = Object.fromEntries(
     Object.entries(settings.usageLimitSources).map(([id, source]) => [
       id,
@@ -135,5 +120,23 @@ export function mapSettingsSecrets(
     ]),
   ) as ServerSettings["usageLimitSources"];
 
-  return { ...settings, providerInstances, sourceControlHosts, usageLimitSources };
+  return { ...settings, providerInstances, usageLimitSources };
+}
+
+function readSecretFieldValues(
+  value: unknown,
+): ReadonlyArray<readonly [serverHost: string | null, value: string]> {
+  if (typeof value === "string") return [[null, value]];
+  if (value === null || typeof value !== "object" || Array.isArray(value)) return [];
+  return Object.entries(value).flatMap(([serverHost, entry]) =>
+    typeof entry === "string" ? [[serverHost.trim().toLowerCase(), entry] as const] : [],
+  );
+}
+
+function writeSecretFieldValues(
+  original: unknown,
+  values: ReadonlyArray<readonly [serverHost: string | null, value: string]>,
+): unknown {
+  if (typeof original === "string") return values[0]?.[1] ?? "";
+  return Object.fromEntries(values.map(([serverHost, value]) => [serverHost ?? "", value]));
 }

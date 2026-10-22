@@ -2,9 +2,6 @@ import * as ProviderEventLoggers from "@t3tools/provider-core/server/ProviderEve
 import type { RelayManagedEndpointRuntimeConfig } from "@t3tools/contracts/relay";
 import * as Random from "effect/Random";
 import * as DatabaseStorage from "./persistence/DatabaseStorage.ts";
-import * as StorageCleanup from "./storageCleanup.ts";
-import * as PullRequestSyncReactor from "./orchestration-v2/PullRequestSyncReactor.ts";
-import * as PullRequestWatchReactor from "./orchestration-v2/PullRequestWatchReactor.ts";
 import * as DelegatedTaskQuestionReactor from "./orchestration-v2/DelegatedTaskQuestionReactor.ts";
 // Effect wraps this raw Node HTTP server after its startup and write-error guards attach.
 // @effect-diagnostics nodeBuiltinImport:off
@@ -12,7 +9,7 @@ import * as NodeHttp from "node:http";
 
 import * as NodeHttpServer from "@effect/platform-node/NodeHttpServer";
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import { EnvironmentHttpApi, type RepositoryIdentity } from "@t3tools/contracts";
+import { EnvironmentHttpApi } from "@t3tools/contracts";
 import * as Cause from "effect/Cause";
 import * as Duration from "effect/Duration";
 import * as Deferred from "effect/Deferred";
@@ -35,14 +32,7 @@ import { fixPath } from "./os-jank.ts";
 import * as Ws from "./ws.ts";
 import * as AgentScopeLive from "./process/agentScope.ts";
 import * as ExternalLauncher from "./process/externalLauncher.ts";
-import * as NodePtyAdapter from "./terminal/NodePtyAdapter.ts";
-import * as PullRequestHttp from "./pullRequest/http.ts";
-import * as PullRequestProviderRegistry from "./pullRequest/PullRequestProviderRegistry.ts";
-import * as PullRequestService from "./pullRequest/PullRequestService.ts";
 import * as SqlitePersistence from "./persistence/Sqlite.ts";
-import * as PullRequestFilesViewed from "./persistence/PullRequestFilesViewed.ts";
-import * as PullRequestReviewGuides from "./persistence/PullRequestReviewGuides.ts";
-import * as PullRequestReviewGuideService from "./pullRequest/PullRequestReviewGuideService.ts";
 import * as ServerLifecycleEvents from "./serverLifecycleEvents.ts";
 import * as AnalyticsService from "./telemetry/AnalyticsService.ts";
 import * as DelegatedTaskAnalytics from "./telemetry/DelegatedTaskAnalytics.ts";
@@ -53,11 +43,8 @@ import * as EventNdjsonLogger from "./provider/EventNdjsonLogger.ts";
 import * as ProviderLatestVersions from "@t3tools/provider-core/server/ProviderLatestVersions";
 import * as McpProviderSessions from "@t3tools/provider-core/server/McpProviderSessions";
 import * as ProviderHostLive from "./provider/ProviderHostLive.ts";
-import * as SourceControlBuiltInDrivers from "./sourceControl/builtInDrivers.ts";
-import * as TextGeneration from "./textGeneration/TextGeneration.ts";
 import * as ProviderInstanceRegistryHydration from "./provider/ProviderInstanceRegistryHydration.ts";
 import * as ProjectSettingsOverrideSweep from "./provider/ProjectSettingsOverrideSweep.ts";
-import * as TerminalManager from "./terminal/Manager.ts";
 import * as McpHttpServer from "./mcp/McpHttpServer.ts";
 import * as McpSessionRegistry from "./mcp/McpSessionRegistry.ts";
 import * as PreviewAutomationBroker from "./mcp/PreviewAutomationBroker.ts";
@@ -68,7 +55,6 @@ import * as DesktopBrowserChannel from "./preview/DesktopBrowserChannel.ts";
 import * as ServerBrowserStream from "./preview/ServerBrowserStream.ts";
 import * as PreviewBrowser from "./preview/PreviewBrowser.ts";
 import * as ProcessRunner from "./processRunner.ts";
-import * as GitManager from "./git/GitManager.ts";
 import * as EnvironmentTheme from "./environmentTheme.ts";
 import * as Keybindings from "./keybindings.ts";
 import * as ServerRuntimeStartup from "./serverRuntimeStartup.ts";
@@ -78,7 +64,6 @@ import * as ServerSettings from "./serverSettings.ts";
 import * as OziClock from "./ozi/Clock.ts";
 import * as DataRoot from "./ozi/DataRoot.ts";
 import * as Todos from "./ozi/Todos.ts";
-import * as ProjectEnrichmentService from "./project/ProjectEnrichmentService.ts";
 import * as NativeAppIconResolver from "./assets/NativeAppIconResolver.ts";
 import * as CodexInstallation from "./provider/CodexInstallation.ts";
 import * as ProviderInstanceRegistry from "./provider/ProviderInstanceRegistry.ts";
@@ -86,27 +71,7 @@ import * as ProviderAdapterRegistry from "./orchestration-v2/ProviderAdapterRegi
 import * as ProviderRegistry from "./provider/ProviderRegistry.ts";
 import * as ProviderUsageLimitsIngestion from "./provider/ProviderUsageLimitsIngestion.ts";
 import * as UsageLimitSources from "./usage/UsageLimitSources.ts";
-import * as ProjectFaviconResolver from "./project/ProjectFaviconResolver.ts";
-import * as T3ProjectFileLoader from "./project/T3ProjectFileLoader.ts";
-import * as RepositoryIdentityResolver from "./project/RepositoryIdentityResolver.ts";
-import * as WorkspaceEntries from "./workspace/WorkspaceEntries.ts";
-import * as KnownWorkspaces from "./workspace/KnownWorkspaces.ts";
-import * as WorkspaceFileSystem from "./workspace/WorkspaceFileSystem.ts";
 import * as WorkspacePaths from "./workspace/WorkspacePaths.ts";
-import * as GitVcsDriver from "./vcs/GitVcsDriver.ts";
-import * as VcsDriverRegistry from "./vcs/VcsDriverRegistry.ts";
-import * as VcsProjectConfig from "./vcs/VcsProjectConfig.ts";
-import * as VcsProcess from "./vcs/VcsProcess.ts";
-import * as VcsProvisioningService from "./vcs/VcsProvisioningService.ts";
-import * as VcsStatusBroadcaster from "./vcs/VcsStatusBroadcaster.ts";
-import * as ProjectCloneTracker from "./project/ProjectCloneTracker.ts";
-import * as GitWorkflowService from "./git/GitWorkflowService.ts";
-import * as ReviewService from "./review/ReviewService.ts";
-import * as SourceControlProviderRegistry from "./sourceControl/SourceControlProviderRegistry.ts";
-import * as PullRequestReadCache from "./pullRequest/PullRequestReadCache.ts";
-import * as SourceControlRateLimit from "@t3tools/source-control-core/server/SourceControlRateLimit";
-import * as SourceControlRepositoryService from "./sourceControl/SourceControlRepositoryService.ts";
-import * as WorktreeSetupTracker from "./project/WorktreeSetupTracker.ts";
 import * as Observability from "./observability/Observability.ts";
 import * as HeapSnapshot from "./observability/HeapSnapshot.ts";
 import * as EventLoopMonitor from "./observability/EventLoopMonitor.ts";
@@ -161,14 +126,12 @@ import * as RuntimeLayer from "./orchestration-v2/runtimeLayer.ts";
 import * as ProjectStore from "./orchestration-v2/ProjectStore.ts";
 import * as ThreadSearch from "./orchestration-v2/ThreadSearch.ts";
 import * as IdleCompactionService from "./orchestration-v2/IdleCompactionService.ts";
-import * as ThreadPullRequestService from "./orchestration-v2/ThreadPullRequestService.ts";
 import * as EventStoreV2 from "./orchestration-v2/EventStore.ts";
 import * as ProjectionMaintenance from "./orchestration-v2/ProjectionMaintenance.ts";
 import * as ProjectionStoreV2 from "./orchestration-v2/ProjectionStore.ts";
 import { makePersistedServerRuntimeState } from "./serverRuntimeState.ts";
 import { loopbackUrlHostForAddress } from "./startupAccess.ts";
 import * as OrchestrationHttp from "./orchestration-v2/http.ts";
-import * as ProjectHttp from "./project/http.ts";
 import * as NetService from "@t3tools/shared/Net";
 import * as RelayClient from "@t3tools/shared/relayClient";
 import { disableTailscaleServe, ensureTailscaleServe } from "@t3tools/tailscale";
@@ -212,8 +175,6 @@ const layerProviderEventLoggers = Layer.effect(
     return { native: store.logger("native"), canonical: store.logger("canonical") };
   }),
 );
-
-const layerPtyAdapter = NodePtyAdapter.layer;
 
 const layerServerSettings = ServerSettings.layer.pipe(
   Layer.provide(ServerSecretStore.layer),
@@ -294,134 +255,11 @@ const layerPlatformServices = NodeServices.layer;
 
 const layerPersistence = Layer.empty.pipe(Layer.provideMerge(SqlitePersistence.layerConfig));
 
-const layerVcsDriverRegistry = VcsDriverRegistry.layer.pipe(Layer.provide(VcsProjectConfig.layer));
-
-const layerSourceControlProviderRegistry = SourceControlProviderRegistry.layer.pipe(
-  Layer.provideMerge(SourceControlBuiltInDrivers.layer),
-  Layer.provideMerge(GitVcsDriver.layer),
-  Layer.provideMerge(layerVcsDriverRegistry),
-);
-
-const layerRepositoryIdentityResolver = Layer.effect(
-  RepositoryIdentityResolver.RepositoryIdentityResolver,
-  Effect.gen(function* () {
-    const registry = yield* SourceControlProviderRegistry.SourceControlProviderRegistry;
-    return yield* RepositoryIdentityResolver.make({
-      refine: Effect.fn(function* (identity: RepositoryIdentity) {
-        for (const kind of SourceControlBuiltInDrivers.BUILT_IN_SOURCE_CONTROL_DRIVERS.map(
-          (driver) => driver.kind,
-        )) {
-          const provider = yield* registry.get(kind);
-          if (provider.refineRepositoryIdentity === undefined) continue;
-          const refined = yield* provider.refineRepositoryIdentity({
-            identity,
-            resolveContext: (input) =>
-              registry.resolveHandle(input).pipe(Effect.map((handle) => handle.context)),
-          });
-          if (refined !== identity) return refined;
-        }
-        return identity;
-      }),
-    });
-  }),
-).pipe(Layer.provide(layerSourceControlProviderRegistry), Layer.provide(ProcessRunner.layer));
-
-const layerPullRequestService = PullRequestService.layer.pipe(
-  Layer.provide(PullRequestProviderRegistry.layer),
-  Layer.provide(PullRequestFilesViewed.layer),
-  Layer.provide(PullRequestReadCache.layer),
-  Layer.provide(layerSourceControlProviderRegistry),
-  Layer.provide(SourceControlRateLimit.layer),
-);
-
-const layerGitManager = GitManager.layer.pipe(
-  Layer.provide(Layer.merge(ProjectionStoreV2.layer, ProjectStore.layer)),
-  Layer.provideMerge(RuntimeLayer.layerProjectSetupScriptRunner),
-  Layer.provideMerge(WorktreeSetupTracker.layer),
-  Layer.provideMerge(GitVcsDriver.layer),
-  Layer.provideMerge(layerSourceControlProviderRegistry),
-  Layer.provideMerge(TextGeneration.layer.pipe(Layer.provide(layerSourceControlProviderRegistry))),
-);
-
-const layerGit = Layer.empty.pipe(
-  Layer.provideMerge(layerGitManager),
-  Layer.provideMerge(GitVcsDriver.layer),
-);
-
-const layerGitWorkflow = GitWorkflowService.layer.pipe(
-  Layer.provideMerge(layerVcsDriverRegistry),
-  Layer.provideMerge(layerGit),
-);
-
-const layerSourceControlRepositoryService = SourceControlRepositoryService.layer.pipe(
-  Layer.provideMerge(GitVcsDriver.layer),
-  Layer.provideMerge(layerSourceControlProviderRegistry),
-);
-
-const layerProjectCloneTracker = ProjectCloneTracker.layer.pipe(
-  Layer.provide(layerSourceControlRepositoryService),
-);
-
-const layerKnownWorkspaces = KnownWorkspaces.layer.pipe(
-  Layer.provide(ProjectStore.layer),
-  Layer.provide(GitVcsDriver.layer),
-);
-
-const layerReview = ReviewService.layer.pipe(
-  Layer.provideMerge(layerKnownWorkspaces),
-  Layer.provideMerge(GitVcsDriver.layer),
-  Layer.provideMerge(layerVcsDriverRegistry),
-);
-
-const layerVcs = Layer.empty.pipe(
-  Layer.provideMerge(VcsProjectConfig.layer),
-  Layer.provideMerge(layerVcsDriverRegistry),
-  Layer.provideMerge(VcsProvisioningService.layer.pipe(Layer.provide(layerVcsDriverRegistry))),
-  Layer.provideMerge(layerGitWorkflow),
-  Layer.provideMerge(layerReview),
-  Layer.provideMerge(layerSourceControlRepositoryService),
-  Layer.provideMerge(layerProjectCloneTracker),
-  Layer.provideMerge(
-    VcsStatusBroadcaster.layer.pipe(
-      Layer.provide(layerGitWorkflow),
-      Layer.provide(VcsStatusBroadcaster.layerAutomaticFetchInterval),
-      Layer.provide(
-        VcsStatusBroadcaster.layerAutoPullPolicy.pipe(Layer.provide(ProjectStore.layer)),
-      ),
-    ),
-  ),
-);
-
 const layerPortScanner = PortScanner.layer.pipe(Layer.provide(ProcessRunner.layer));
-
-const layerTerminal = TerminalManager.layer.pipe(
-  Layer.provide(layerPtyAdapter),
-  Layer.provide(layerPortScanner),
-  Layer.provide(layerNativeTelemetry),
-);
 
 const layerPreview = Layer.empty.pipe(
   Layer.provideMerge(PreviewManager.layer),
   Layer.provideMerge(layerPortScanner),
-);
-
-const layerWorkspaceEntries = WorkspaceEntries.layer.pipe(Layer.provide(WorkspacePaths.layer));
-
-const layerWorkspaceFileSystem = WorkspaceFileSystem.layer.pipe(
-  Layer.provide(WorkspacePaths.layer),
-  Layer.provide(layerWorkspaceEntries),
-  Layer.provide(layerKnownWorkspaces),
-);
-
-const layerWorkspace = Layer.mergeAll(
-  WorkspacePaths.layer,
-  layerWorkspaceEntries,
-  layerWorkspaceFileSystem,
-);
-
-const layerProjectFaviconResolver = ProjectFaviconResolver.layer.pipe(
-  Layer.provide(WorkspacePaths.layer),
-  Layer.provide(T3ProjectFileLoader.layer),
 );
 
 const layerServerEnvironment = ServerEnvironment.layer.pipe(Layer.provide(ServerSecretStore.layer));
@@ -463,7 +301,6 @@ const layerScheduledTaskWebhookOrigin = Layer.effect(
 const layerOrchestrationV2Runtime = RuntimeLayer.layerProduction.pipe(
   Layer.provide(layerScheduledTaskWebhookOrigin),
   Layer.provide(ProviderEventIngestor.layerAnalytics),
-  Layer.provide(layerGitWorkflow),
 );
 
 const layerOrchestrationApplication = layerOrchestrationV2Runtime;
@@ -471,10 +308,6 @@ const layerOrchestrationApplication = layerOrchestrationV2Runtime;
 const layerIdleCompactionWorker = Layer.effectDiscard(
   IdleCompactionService.make.pipe(Effect.flatMap((service) => service.start())),
 ).pipe(Layer.provide(ProjectionStoreV2.layer));
-
-const layerThreadPullRequestWorker = Layer.effectDiscard(
-  ThreadPullRequestService.make.pipe(Effect.flatMap((service) => service.start())),
-).pipe(Layer.provide(layerPullRequestService));
 
 const layerProviderInstallationRefresh = Layer.effectDiscard(
   Effect.gen(function* () {
@@ -503,35 +336,13 @@ const layerProviderInstallationRefresh = Layer.effectDiscard(
 const layerRuntimeCoreDependenciesBase = Layer.mergeAll(
   HeldHooksWaker.layer,
   layerIdleCompactionWorker,
-  StorageCleanup.layer.pipe(Layer.provide(ProjectionStoreV2.layer)),
   DatabaseStorage.layer.pipe(
     Layer.provide(ProjectionMaintenance.layer),
     Layer.provide(
       Layer.merge(EventStoreV2.layerFromOrchestrationEventStore, ProjectionStoreV2.layer),
     ),
   ),
-  layerThreadPullRequestWorker,
   DelegatedTaskAnalytics.layer,
-  Layer.effectDiscard(
-    Effect.gen(function* () {
-      const service = yield* PullRequestSyncReactor.PullRequestSyncReactor;
-      yield* service.start();
-    }),
-  ).pipe(
-    Layer.provideMerge(PullRequestSyncReactor.layer),
-    Layer.provide(layerPullRequestService),
-    Layer.provide(ProjectionStoreV2.layer),
-  ),
-  Layer.effectDiscard(
-    Effect.gen(function* () {
-      const service = yield* PullRequestWatchReactor.PullRequestWatchReactor;
-      yield* service.start();
-    }),
-  ).pipe(
-    Layer.provide(PullRequestWatchReactor.layer),
-    Layer.provide(layerPullRequestService),
-    Layer.provide(ProjectionStoreV2.layer),
-  ),
   Layer.effectDiscard(
     Effect.gen(function* () {
       const service = yield* DelegatedTaskQuestionReactor.DelegatedTaskQuestionReactor;
@@ -547,10 +358,7 @@ const layerRuntimeCoreDependenciesBase = Layer.mergeAll(
   Layer.provideMerge(RuntimeLayer.layerEventInfrastructure),
   Layer.provideMerge(Layer.merge(ProjectStore.layer, ThreadSearch.layer)),
   Layer.provideMerge(layerServerSettings),
-  Layer.provideMerge(layerSourceControlProviderRegistry),
-  Layer.provideMerge(layerGit),
-  Layer.provideMerge(layerVcs),
-  Layer.provideMerge(Layer.mergeAll(layerTerminal, layerPreview)),
+  Layer.provideMerge(Layer.mergeAll(layerPreview)),
   Layer.provideMerge(RepairTasks.layer),
   Layer.provideMerge(layerPersistence),
   Layer.provideMerge(
@@ -562,7 +370,7 @@ const layerRuntimeCoreDependenciesBase = Layer.mergeAll(
 );
 
 const layerRuntimeCoreDependencies = layerRuntimeCoreDependenciesBase.pipe(
-  Layer.provideMerge(layerPtyAdapter),
+  Layer.provideMerge(WorkspacePaths.layer),
   Layer.provideMerge(
     Layer.mergeAll(
       layerProviderEventLoggers,
@@ -572,10 +380,7 @@ const layerRuntimeCoreDependencies = layerRuntimeCoreDependenciesBase.pipe(
       McpProviderSessions.layer,
     ),
   ),
-  Layer.provideMerge(layerWorkspace),
-  Layer.provideMerge(ProjectEnrichmentService.layer),
-  Layer.provideMerge(Layer.mergeAll(NativeAppIconResolver.layer, layerProjectFaviconResolver)),
-  Layer.provideMerge(layerRepositoryIdentityResolver),
+  Layer.provideMerge(Layer.mergeAll(NativeAppIconResolver.layer)),
   Layer.provideMerge(layerServerEnvironment),
   Layer.provideMerge(layerAuth),
   Layer.provideMerge(ServerSecretStore.layer),
@@ -618,8 +423,6 @@ const layerMakeRoutes = Layer.mergeAll(
       Layer.provide(McpOAuthHttp.layer.pipe(Layer.provide(McpOAuth.layer))),
       Layer.provide(CloudHttp.layer),
       Layer.provide(OrchestrationHttp.layer),
-      Layer.provide(PullRequestHttp.layer),
-      Layer.provide(ProjectHttp.layer),
       Layer.provide(ServerHttp.layerServerEnvironmentHttpApi),
       Layer.provide(WebhookRoute.layer.pipe(Layer.provide(RelayDeliveryProof.layer))),
       Layer.provide(AuthHttp.layerAuthenticatedAuth),
@@ -638,12 +441,6 @@ const layerMakeRoutes = Layer.mergeAll(
   ),
   McpHttpServer.layerRepairToolkit,
 ).pipe(
-  Layer.provide(
-    PullRequestReviewGuideService.layer.pipe(Layer.provide(PullRequestReviewGuides.layer)),
-  ),
-  // Both transports consume the same service instance, so caches single-flight across clients
-  // and mutations observed on WebSocket invalidate patches subsequently read over HTTP.
-  Layer.provide(layerPullRequestService),
   Layer.provide(ServerBrowser.layer.pipe(Layer.provide(DesktopBrowserChannel.layer))),
   Layer.provide(PreviewBrowser.layer),
   Layer.provide(PreviewAutomationBroker.layer),
@@ -991,7 +788,6 @@ const layerMakeServer = Layer.unwrap(
       Layer.provideMerge(layerHttpServer),
       Layer.provide(layerApplicationObservability),
       Layer.provideMerge(FetchHttpClient.layer),
-      Layer.provide(VcsProcess.layer),
       Layer.provideMerge(AgentScopeLive.layer),
       Layer.provideMerge(layerPlatformServices),
     );
