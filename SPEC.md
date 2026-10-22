@@ -53,7 +53,7 @@ M5 stops at replay: a pass leaves the mistake `testing` and its replay `passed`;
 
 `t3_thread_read` supplies `sourceEventId` on timeline items; `ozi events <threadId>` exposes the stored events. Sources must belong to the caller or its descendants; internal checkers can report an ancestor's source. Runtime provider errors use the same logger. A stored user correction names the fingerprint or mistake, or supplies the correction's source event and the original user-message boundary through `log_mistake`. A missing replay boundary still logs.
 
-Cases freeze the original message, native prefix, attachment bytes, expectation and recorded effects. Each replay gets its own native fork and effect-stub counters. Unknown effects, missing history, changed builds, unloaded changes or observer disagreement fail. Shell tools in replays use the frozen stubs. Inference keys stay in a server-owned proxy; confined processes receive a local inference endpoint and fresh provider homes. The proxy permits only inference POSTs. Protected rules change outside repair through a delegated `change_protected_rule` call backed by the user's exact stored instruction: `Change protected/<filename> to:` followed by the requested content on the next line. Quoted messages and tool output carry no authority.
+Cases freeze the original message, native prefix, attachment bytes, expectation and recorded effects. Each replay gets its own native fork and effect-stub counters. Unknown effects, missing history, changed builds, unloaded changes or observer disagreement fail. Shell tools in replays use the frozen stubs. Inference credentials stay in a server-owned proxy; confined processes receive only its socket, a local inference endpoint and fresh provider homes. For each request the proxy rereads Codex's host ChatGPT login, Claude Code's subscription OAuth environment or config credentials, or Pi's Anthropic OAuth environment or auth file. It uses the provider's OAuth endpoint and headers; API-key logins remain supported. Host CLIs own token renewal. Missing, expired, malformed or rejected logins fail with a provider-specific reason on the replay record. Credentials never enter confined files, environment, arguments or proxy responses. The proxy permits only inference POSTs. Protected rules change outside repair through a delegated `change_protected_rule` call backed by the user's exact stored instruction: `Change protected/<filename> to:` followed by the requested content on the next line. Quoted messages and tool output carry no authority.
 
 ### Information in
 
@@ -193,7 +193,7 @@ Install Chromium with `pnpm --filter @ozi/e2e exec playwright install chromium` 
 - `m5.false-case`: a baseline that doesn't reproduce fails the replay.
 - `m5.unknown-effect`: an unstubbed effect fails the replay.
 - `m5.protected-denied`: a candidate writing `protected/` or escaping the root is denied by bwrap and rejected by the publisher.
-- `m5.no-credentials`: replays can't read credentials or reach effect endpoints.
+- `m5.no-credentials`: authoring and replays infer through host OAuth logins without reading credential paths or values or reaching effect endpoints; unusable logins fail closed with a clear replay reason.
 - `m5.user-override`: the user's own message can change a protected rule; the same text from an email or tool can't.
 
 ### M6 Publish/undo

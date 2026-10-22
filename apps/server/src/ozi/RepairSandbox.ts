@@ -85,20 +85,15 @@ const make = Effect.gen(function* () {
       yield* fs.writeFileString(path.join(launcher, "extension.mjs"), extensionProgram);
       const proxy = path.join(launcher, "inference.mjs");
       yield* fs.writeFileString(proxy, inferenceProgram);
-      const key = environment[input.driver === "codex" ? "OPENAI_API_KEY" : "ANTHROPIC_API_KEY"];
       const socket = path.join(input.directory, "inference.sock");
-      if (key) {
-        const process = yield* spawner.spawn(
-          ChildProcess.make(executable, [proxy, socket], {
-            env: {
-              OZI_INFERENCE_KEY: key,
-              OZI_INFERENCE_PROVIDER: input.driver === "codex" ? "openai" : "anthropic",
-            },
-            stdout: "pipe",
-          }),
-        );
-        yield* process.stdout.pipe(Stream.runHead);
-      }
+      const failure = path.join(input.directory, "inference.failure");
+      const process = yield* spawner.spawn(
+        ChildProcess.make(executable, [proxy, socket, failure, input.driver], {
+          env: environment,
+          stdout: "pipe",
+        }),
+      );
+      yield* process.stdout.pipe(Stream.runHead);
       const source = yield* fs.realPath(binary);
       const modulesIndex = source.indexOf("/node_modules/");
       const modules =
@@ -202,7 +197,7 @@ const make = Effect.gen(function* () {
         yield* fs.copyFile(environment.OZI_FAKE_SCRIPT, path.join(caseRoot, "script.json"));
         args.push("--setenv", "OZI_FAKE_SCRIPT", "/case/script.json");
       }
-      if (key) args.push("--ro-bind", socket, "/inference.sock");
+      args.push("--ro-bind", socket, "/inference.sock");
       if (modules) args.push("--ro-bind", modules, modules);
       args.push("--chdir", "/data", "--remount-ro", "/");
       const command = ["bwrap", ...args, "/runtime/node", "/launcher/run.mjs"];
@@ -211,8 +206,11 @@ const make = Effect.gen(function* () {
         args: command.slice(1),
         env: {},
         timeout: "60 seconds",
+        timeoutBehavior: "timedOutResult",
         maxOutputBytes: 1024 * 1024,
       });
+      if (yield* fs.exists(failure))
+        return yield* new RepairError({ reason: yield* fs.readFileString(failure) });
       if (result.code !== 0)
         return yield* new RepairError({ reason: "sandbox-run-failed", cause: result });
       const evidence = yield* decodeEvidence(result.stdout.trim());

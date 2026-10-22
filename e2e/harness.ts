@@ -26,6 +26,7 @@ export type Step =
   | { approval: string }
   | { wait: true }
   | { exec: string }
+  | { inference: true }
   | { fail: string };
 export type Rule = {
   match: string;
@@ -282,8 +283,9 @@ export async function startHarness(
       await page.goto(url.toString());
       return page;
     },
-    async restart() {
+    async restart(environment: Record<string, string> = {}) {
       await stopServer();
+      Object.assign(env, environment);
       spawnServer();
       await ready();
     },

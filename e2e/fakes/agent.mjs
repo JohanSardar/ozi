@@ -224,6 +224,48 @@ export function interpreter(provider, hooks) {
         } else if (step.fail) {
           log(provider, "failure", { message: step.fail });
           throw new Error(step.fail);
+        } else if (step.inference) {
+          const baseUrl =
+            provider === "pi"
+              ? JSON.parse(
+                  NodeFS.readFileSync(
+                    NodePath.join(process.env.PI_CODING_AGENT_DIR, "models.json"),
+                    "utf8",
+                  ),
+                ).providers.anthropic.baseUrl
+              : provider === "codex"
+                ? JSON.parse(
+                    argv
+                      .find((value) => value.startsWith("model_providers.ozi.base_url="))
+                      .split("=")
+                      .slice(1)
+                      .join("="),
+                  )
+                : process.env.ANTHROPIC_BASE_URL;
+          const response = await fetch(
+            provider === "codex" ? baseUrl + "/responses" : baseUrl + "/v1/messages?beta=true",
+            {
+              method: "POST",
+              headers: {
+                "content-type": "application/json",
+                "anthropic-beta": "interleaved-thinking-2025-05-14",
+              },
+              body: JSON.stringify({
+                model: provider === "codex" ? "gpt-6.1-sol" : "claude-opus-5-5",
+                ...(provider === "codex"
+                  ? { input: "repair", store: false }
+                  : { messages: [{ role: "user", content: "repair" }], max_tokens: 32 }),
+                stream: true,
+              }),
+            },
+          );
+          result = {
+            status: response.status,
+            body: await response.text(),
+            headers: Object.fromEntries(response.headers),
+          };
+          if (!response.ok) throw new Error("Fake inference failed");
+          if (process.env.OZI_REPAIR_STAGE !== "observer") await hooks.say(JSON.stringify(result));
         } else if (step.exec) {
           const execution = NodeChildProcess.spawnSync("/bin/sh", ["-c", step.exec], {
             encoding: "utf8",
