@@ -276,3 +276,10 @@ features:
         m9.tui-media,
       ]
     status: passing
+  - id: tui-pi-commands
+    reqs: [pi-parity, terminal-client, main-full-pi]
+    module: apps/server/src/cli/tui + e2e/m9.tui.real-pi.test.ts
+    cli: [main]
+    milestone: 9
+    scenarios: [m9.tui-pi-commands, m9.tui-extension-ui]
+    status: passing
