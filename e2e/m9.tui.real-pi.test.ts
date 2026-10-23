@@ -195,6 +195,14 @@ it("m9.tui-settings changes main's and the terminal's settings and scopes Ctrl+P
     terminal.keys("\r");
     await terminal.waitFor(`Saved to ${local}.`, from);
     expect((await read(local)).enabledModels).toEqual(["claude-bridge/claude-sonnet-5-5"]);
+    from = terminal.mark();
+    terminal.keys("\x01");
+    await terminal.waitFor(`Saved to ${local}.`, from);
+    expect((await read(local)).enabledModels).toBeUndefined();
+    from = terminal.mark();
+    terminal.keys("\x18");
+    await terminal.waitFor(`Saved to ${local}.`, from);
+    expect((await read(local)).enabledModels).toEqual([]);
   } finally {
     await close();
   }

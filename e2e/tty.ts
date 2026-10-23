@@ -5,12 +5,12 @@ import type { Harness } from "./harness.ts";
 
 const cli = NodeURL.fileURLToPath(new URL("../apps/server/src/bin.ts", import.meta.url));
 
-export function openTui(h: Harness, extra: Record<string, string> = {}) {
+export function openTui(h: Harness, extra: Record<string, string> = {}, args: string[] = []) {
   const child = NodeChildProcess.spawn(
     "script",
     [
       "-qfec",
-      `stty cols 120 rows 40; exec "${process.execPath}" "${cli}" --home "${h.home}"`,
+      `stty cols 120 rows 40; exec "${process.execPath}" "${cli}" --home "${h.home}" ${args.join(" ")}`,
       "/dev/null",
     ],
     {

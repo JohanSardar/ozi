@@ -17,7 +17,11 @@ if (
   } else if (
     process.stdin.isTTY &&
     process.stdout.isTTY &&
-    (args.length === 0 || (args.length === 2 && ["--home", "--base-dir"].includes(args[0]!)))
+    args.every(
+      (arg, index) =>
+        ["-r", "--resume", "-c", "--continue", "--home", "--base-dir", "--session"].includes(arg) ||
+        ["--home", "--base-dir", "--session"].includes(args[index - 1]!),
+    )
   ) {
     const { runTuiCli } = await import("./binTui.ts");
     runTuiCli();

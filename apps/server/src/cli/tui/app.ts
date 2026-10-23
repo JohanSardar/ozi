@@ -4,6 +4,8 @@ import {
   getNativeClipboard,
   Image,
   KeybindingsManager,
+  fuzzyFilter,
+  getKeybindings,
   setKeybindings,
   TUI_KEYBINDINGS,
   type KeyId,
@@ -35,7 +37,6 @@ import {
   type OrchestrationV2ThreadProjection,
   type OziJobCard,
   type OziJobRequest,
-  isOziMain,
   type OrchestrationV2ThreadForkSourcePoint,
   ThreadId,
 } from "@t3tools/contracts";
@@ -56,7 +57,7 @@ import * as ChildProcess from "effect/process/ChildProcess";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 import * as Base64 from "effect/encoding/Base64";
 import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http";
-import { answerRequest, connect, send, snapshot, type Connection } from "../client.ts";
+import { answerRequest, connect, send, type Connection } from "../client.ts";
 import {
   bg,
   builtinThemes,
@@ -126,6 +127,11 @@ const appKeys: Record<string, KeyId[]> = {
   "app.thinking.toggle": ["ctrl+t"],
   "app.tools.expand": ["ctrl+o"],
   "app.message.followUp": ["alt+enter"],
+  "app.message.copy": ["ctrl+x"],
+  "app.session.rename": ["ctrl+r"],
+  "app.session.delete": ["ctrl+d"],
+  "app.models.enableAll": ["ctrl+a"],
+  "app.models.clearAll": ["ctrl+x"],
 };
 const decodeJson = Schema.decodeUnknownEffect(Schema.fromJsonString(Schema.Unknown));
 const KeySetting = Schema.Union([Schema.String, Schema.Array(Schema.String)]);
@@ -136,6 +142,7 @@ const PiSettings = Schema.Struct({
   hideThinkingBlock: Schema.optional(Schema.Boolean),
   terminal: Schema.optional(Schema.Struct({ showImages: Schema.optional(Schema.Boolean) })),
   enabledModels: Schema.optional(Schema.Array(Schema.String)),
+  doubleEscapeAction: Schema.optional(Schema.Literals(["tree", "fork", "none"])),
 });
 const SettingsFile = Schema.Record(Schema.String, Schema.Unknown);
 const encodeSettings = Schema.encodeEffect(Schema.fromJsonString(SettingsFile, { space: 2 }));
@@ -197,7 +204,10 @@ type Env =
   | Path.Path;
 type Row = { container: Container; key: string };
 
-export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<string>) {
+export const runTui = Effect.fn("ozi.tui")(function* (
+  baseDir: Option.Option<string>,
+  launch: { resume: boolean; latest: boolean; session: Option.Option<string> },
+) {
   const context = yield* Effect.context<Env>();
   const run = Effect.runForkWith(context);
   const done = yield* Deferred.make<void>();
@@ -301,6 +311,8 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
   let showThinking = !appearance.settings.hideThinkingBlock;
   let showImages = appearance.settings.terminal?.showImages ?? true;
   let enabledModels = appearance.settings.enabledModels;
+  let doubleEscape = appearance.settings.doubleEscapeAction ?? "tree";
+  let lastEscape = 0;
   let themeName = appearance.name;
   let expandTools = false;
   let session: Fiber.Fiber<unknown, unknown> | null = null;
@@ -729,7 +741,7 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
       return show(box, text);
     }
     const input = new Input();
-    input.setValue(question.initialAnswer ?? "");
+    input.handleInput(question.initialAnswer ?? "");
     input.onSubmit = (value) => {
       restoreEditor();
       respond(request, [value]);
@@ -1093,18 +1105,53 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
     piRpc(current, { type: "get_available_thinking_levels" }).pipe(
       Effect.map((data) => (data as { levels?: string[] }).levels ?? []),
     );
-  const pick = (items: SelectItem[], onPick: (value: string) => void, selected = 0) => {
-    const list = new SelectList(items, 12, selectList, {
-      minPrimaryColumnWidth: 20,
-      maxPrimaryColumnWidth: 60,
-    });
-    list.setSelectedIndex(selected);
-    list.onSelect = (item) => {
-      restoreEditor();
-      onPick(item.value);
+  const pick = (
+    items: SelectItem[],
+    onPick: (value: string) => void,
+    selected = 0,
+    onKey?: (data: string, item: SelectItem | null) => boolean,
+  ) => {
+    const search = new Input();
+    const box = new Container();
+    let list = new SelectList([], 12, selectList);
+    const build = (query: string) => {
+      list = new SelectList(
+        query
+          ? fuzzyFilter(items, query, (item) => `${item.label} ${item.description ?? ""}`)
+          : items,
+        12,
+        selectList,
+        { minPrimaryColumnWidth: 20, maxPrimaryColumnWidth: 60 },
+      );
+      if (!query) list.setSelectedIndex(selected);
+      list.onSelect = (item) => {
+        restoreEditor();
+        onPick(item.value);
+      };
+      list.onCancel = restoreEditor;
+      box.clear();
+      box.addChild(new Text(fg("dim", query ? `Search: ${query}` : "Type to search"), 1, 0));
+      box.addChild(list);
     };
-    list.onCancel = restoreEditor;
-    show(list);
+    build("");
+    show({
+      render: (width) => box.render(width),
+      invalidate: () => box.invalidate(),
+      handleInput: (data) => {
+        if (onKey?.(data, list.getSelectedItem())) return;
+        if (
+          (
+            ["tui.select.up", "tui.select.down", "tui.select.confirm", "tui.select.cancel"] as const
+          ).some((id) => getKeybindings().matches(data, id))
+        )
+          list.handleInput(data);
+        else {
+          search.handleInput(data);
+          build(search.getValue());
+        }
+        tui.requestRender();
+      },
+    });
   };
   const chooseModel = () =>
     act("", (current) =>
@@ -1228,6 +1275,7 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
             showThinking = !next.settings.hideThinkingBlock;
             showImages = next.settings.terminal?.showImages ?? true;
             enabledModels = next.settings.enabledModels;
+            doubleEscape = next.settings.doubleEscapeAction ?? "tree";
             applyAppearance();
             if (themeName === "system") terminal.write("\x1b[?996n");
             repaint();
@@ -1265,38 +1313,36 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
   const name = (thread: { id: ThreadId; title: string }) =>
     thread.id === OZI_MAIN_THREAD_ID ? "main" : thread.title;
   const sessions = (current: Connection) =>
-    snapshot(current.client).pipe(Effect.map((shell) => shell.threads.filter(isOziMain)));
+    current.client[J.sessionList]({}).pipe(
+      Effect.map((list) =>
+        list.toSorted((a, b) => b.updatedAt.epochMilliseconds - a.updatedAt.epochMilliseconds),
+      ),
+    );
   const chooseSession = (tree: boolean) =>
     act("", (current) =>
       sessions(current).pipe(
         Effect.flatMap((threads) =>
           Effect.sync(() => {
             const depth = (thread: (typeof threads)[number]): number => {
-              const parent = threads.find((entry) => entry.id === thread.lineage.parentThreadId);
+              const parent = threads.find((entry) => entry.id === thread.forkedFrom);
               return parent ? depth(parent) + 1 : 0;
             };
             const order = (parent: ThreadId | null): typeof threads =>
               threads.flatMap((thread) =>
                 (
                   parent === null
-                    ? !threads.some((entry) => entry.id === thread.lineage.parentThreadId)
-                    : thread.lineage.parentThreadId === parent
+                    ? !threads.some((entry) => entry.id === thread.forkedFrom)
+                    : thread.forkedFrom === parent
                 )
                   ? [thread, ...order(thread.id)]
                   : [],
               );
-            const listed = tree
-              ? order(null)
-              : threads.toSorted(
-                  (a, b) =>
-                    (b.latestVisibleMessage?.updatedAt.epochMilliseconds ?? 0) -
-                    (a.latestVisibleMessage?.updatedAt.epochMilliseconds ?? 0),
-                );
+            const listed = tree ? order(null) : threads;
             pick(
               listed.map((thread) => ({
                 value: thread.id,
                 label: `${tree ? "  ".repeat(depth(thread)) : ""}${thread.id === home.threadId ? "• " : ""}${name(thread)}`,
-                description: thread.latestVisibleMessage?.text.split("\n")[0] ?? "",
+                description: `${thread.messageCount} messages`,
               })),
               (value) => {
                 const thread = threads.find((entry) => entry.id === value);
@@ -1306,11 +1352,66 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
                 0,
                 listed.findIndex((thread) => thread.id === home.threadId),
               ),
+              (data, item) => {
+                const thread = threads.find((entry) => entry.id === item?.value);
+                if (!thread) return false;
+                if (is("app.session.rename", data)) renameSession(thread);
+                else if (is("app.session.delete", data)) deleteSession(thread);
+                else return false;
+                return true;
+              },
             );
           }),
         ),
       ),
     );
+  const metadata = (threadId: ThreadId, title: string) =>
+    act(`Renamed to "${title}".`, (current) =>
+      Effect.gen(function* () {
+        yield* current.client[O.dispatchCommand]({
+          type: "thread.metadata.update",
+          commandId: CommandId.make(yield* (yield* Crypto.Crypto).randomUUIDv4()),
+          threadId,
+          title,
+        });
+        if (threadId === home.threadId && threadId !== OZI_MAIN_THREAD_ID)
+          home = { ...home, title };
+      }),
+    );
+  const renameSession = (thread: { id: ThreadId; title: string }) => {
+    const input = new Input();
+    input.handleInput(thread.title);
+    input.onSubmit = (title) => {
+      restoreEditor();
+      if (title.trim()) metadata(thread.id, title.trim());
+    };
+    input.onEscape = restoreEditor;
+    const box = new Container();
+    box.addChild(new Text(fg("accent", "Rename session", { bold: true }), 1, 0));
+    box.addChild(input);
+    show(box, input);
+  };
+  const deleteSession = (thread: { id: ThreadId; title: string }) => {
+    if (thread.id === OZI_MAIN_THREAD_ID) return notice("Main can't be deleted.", "red");
+    pick(
+      [
+        { value: "cancel", label: "Cancel" },
+        { value: "delete", label: `Delete "${thread.title}"` },
+      ],
+      (value) =>
+        value === "delete" &&
+        act(`Deleted "${thread.title}".`, (current) =>
+          Effect.gen(function* () {
+            yield* current.client[O.dispatchCommand]({
+              type: "thread.delete",
+              commandId: CommandId.make(yield* (yield* Crypto.Crypto).randomUUIDv4()),
+              threadId: thread.id,
+            });
+            if (thread.id === home.threadId) switchTo(OZI_MAIN_THREAD_ID, "main");
+          }),
+        ),
+    );
+  };
 
   const saveSetting = (update: (settings: Record<string, unknown>) => void) =>
     run(
@@ -1404,6 +1505,13 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
                   values: toggle,
                 },
                 {
+                  id: "double-escape",
+                  label: "Double Esc",
+                  description: "What Esc twice on an empty editor opens",
+                  currentValue: doubleEscape,
+                  values: ["tree", "fork", "none"],
+                },
+                {
                   id: "theme",
                   label: "Theme",
                   currentValue: themeName,
@@ -1428,6 +1536,12 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
                     },
                   );
                 if (id === "theme") return setTheme(value);
+                if (id === "double-escape") {
+                  doubleEscape = value as typeof doubleEscape;
+                  return saveSetting((settings) => {
+                    settings.doubleEscapeAction = value;
+                  });
+                }
                 if (id === "hide-thinking") {
                   showThinking = !on;
                   saveSetting((settings) => {
@@ -1457,7 +1571,13 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
         Effect.flatMap((list) =>
           Effect.sync(() => {
             const enabled = new Set(list.map((model) => model.slug).filter(scoped));
-            show(
+            const save = () => {
+              enabledModels = enabled.size === list.length ? undefined : [...enabled];
+              saveSetting((settings) => {
+                settings.enabledModels = enabledModels;
+              });
+            };
+            const settings = () =>
               new SettingsList(
                 list.map((model) => ({
                   id: model.slug,
@@ -1470,14 +1590,27 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
                 (slug, value) => {
                   if (value === "on") enabled.add(slug);
                   else enabled.delete(slug);
-                  enabledModels = enabled.size === list.length ? undefined : [...enabled];
-                  saveSetting((settings) => {
-                    settings.enabledModels = enabledModels;
-                  });
+                  save();
                 },
                 restoreEditor,
-              ),
-            );
+                { enableSearch: true },
+              );
+            let shown = settings();
+            show({
+              render: (width) => shown.render(width),
+              invalidate: () => shown.invalidate(),
+              handleInput: (data) => {
+                const all = is("app.models.enableAll", data);
+                if (all || is("app.models.clearAll", data)) {
+                  for (const model of list)
+                    if (all) enabled.add(model.slug);
+                    else enabled.delete(model.slug);
+                  save();
+                  shown = settings();
+                } else shown.handleInput(data);
+                tui.requestRender();
+              },
+            });
           }),
         ),
       ),
@@ -1650,6 +1783,20 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
       tui.requestRender();
       return { consume: true };
     }
+    if (area.children[0] === editor && is("app.message.copy", data)) {
+      copyLast();
+      return { consume: true };
+    }
+    for (const [id, action] of [
+      ["app.session.new", () => newSession()],
+      ["app.session.tree", () => chooseSession(true)],
+      ["app.session.fork", chooseFork],
+      ["app.session.resume", () => chooseSession(false)],
+    ] as const)
+      if (area.children[0] === editor && is(id, data)) {
+        action();
+        return { consume: true };
+      }
     if (area.children[0] === editor && is("app.model.select", data)) {
       chooseModel();
       return { consume: true };
@@ -1712,7 +1859,12 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
     ) {
       if (!atHome() && !editor.getText()) open(home.threadId, home.title);
       else if (atHome() && active()) stop(view.threadId);
-      else return undefined;
+      else if (editor.getText().trim() || doubleEscape === "none") return undefined;
+      else if (performance.now() - lastEscape < 500) {
+        lastEscape = 0;
+        if (doubleEscape === "tree") chooseSession(true);
+        else chooseFork();
+      } else lastEscape = performance.now();
       return { consume: true };
     }
     return undefined;
@@ -1727,6 +1879,23 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
   tui.start();
   start();
   renderStatus();
+  if (launch.resume) chooseSession(false);
+  else if (launch.latest || Option.isSome(launch.session))
+    act("", (current) =>
+      sessions(current).pipe(
+        Effect.flatMap((threads) =>
+          Effect.sync(() => {
+            const wanted = Option.getOrUndefined(launch.session);
+            const thread = wanted
+              ? (threads.find((entry) => entry.id === wanted) ??
+                threads.find((entry) => entry.id.includes(wanted)))
+              : threads[0];
+            if (!thread) return notice(`No session ${wanted}.`, "red");
+            if (thread.id !== home.threadId) switchTo(thread.id, name(thread));
+          }),
+        ),
+      ),
+    );
   yield* Deferred.await(done);
   stopLoader();
   if (session) yield* Fiber.interrupt(session);
