@@ -1,7 +1,6 @@
 import {
   CommandId,
   OZI_MAIN_THREAD_ID,
-  OZI_MAIN_SELECTION,
   MessageId,
   PROVIDER_SEND_TURN_MAX_INPUT_CHARS,
   ScheduledTask,
@@ -1110,7 +1109,7 @@ export const layer = Layer.effect(
         projectId: main.projectId,
         threadId: OZI_MAIN_THREAD_ID,
         workspaceStrategy: { type: "root" },
-        modelSelection: OZI_MAIN_SELECTION,
+        modelSelection: main.modelSelection,
         runtimeMode: main.runtimeMode,
         interactionMode: main.interactionMode,
         createdBy: existingTask?.createdBy ?? input.createdBy ?? "user",

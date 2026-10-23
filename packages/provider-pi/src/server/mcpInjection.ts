@@ -1,9 +1,12 @@
 import { tokenizeCliArgs } from "@t3tools/shared/cliArgs";
+import { OZI_MAIN_SELECTION, type ModelSelection } from "@t3tools/contracts";
+import { getModelSelectionStringOptionValue } from "@t3tools/shared/model";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as NodeModule from "node:module";
 
 import type { McpProviderSessionConfig } from "@t3tools/provider-core/server/mcpSession";
+import { parsePiModelSlug } from "./rpc.ts";
 import {
   PI_T3_MCP_EXTENSION_FILENAME,
   PI_T3_MCP_EXTENSION_SOURCE,
@@ -271,6 +274,7 @@ export function buildPiRpcLaunch(input: {
   readonly disableTools?: boolean;
   readonly mainPromptPath?: string;
   readonly mainSystemPrompt?: string;
+  readonly mainModelSelection?: ModelSelection;
   readonly mainBridge?: { readonly extensionPath: string; readonly agentDir: string };
   readonly runtimeMode?: "approval-required" | "auto-accept-edits" | "auto" | "full-access";
 }): {
@@ -280,6 +284,9 @@ export function buildPiRpcLaunch(input: {
 } {
   const hasT3Extension = input.disableExtensions !== true && input.extensionPath !== undefined;
   const hasT3Mcp = hasT3Extension && input.mcpSession !== undefined;
+  const mainSelection = input.mainModelSelection ?? OZI_MAIN_SELECTION;
+  const mainModel = parsePiModelSlug(mainSelection.model);
+  const thinking = getModelSelectionStringOptionValue(mainSelection, "thinking");
   const extensionSafeArgs =
     input.disableExtensions === true
       ? withoutExplicitExtensions(input.launchArgs)
@@ -297,12 +304,10 @@ export function buildPiRpcLaunch(input: {
     ...(input.mainPromptPath === undefined
       ? launchArgs
       : [
-          "--provider",
-          "claude-bridge",
-          "--model",
-          "claude-opus-5-5",
-          "--thinking",
-          "high",
+          ...(mainModel === null
+            ? []
+            : ["--provider", mainModel.provider, "--model", mainModel.modelId]),
+          ...(thinking === undefined ? [] : ["--thinking", thinking]),
           "--system-prompt",
           input.mainSystemPrompt ?? "",
         ]),

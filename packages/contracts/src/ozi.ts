@@ -50,13 +50,7 @@ export const isOziMain = (thread: {
 
 export const isOziMainSelection = (selection: ModelSelection) =>
   selection.instanceId === OZI_MAIN_SELECTION.instanceId &&
-  selection.model === OZI_MAIN_SELECTION.model &&
-  selection.options?.length === OZI_MAIN_SELECTION.options?.length &&
-  OZI_MAIN_SELECTION.options?.every((option) =>
-    selection.options?.some(
-      (candidate) => candidate.id === option.id && candidate.value === option.value,
-    ),
-  ) === true;
+  (selection.options ?? []).every((option) => option.id !== "fastMode" || option.value === false);
 
 export const PI_BUILTIN_TOOL_NAMES = ["read", "bash", "edit", "write"] as const;
 

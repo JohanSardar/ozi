@@ -3,7 +3,7 @@ import * as NodeCrypto from "node:crypto";
 import * as NodePath from "node:path";
 import * as NodeChildProcess from "node:child_process";
 import * as NodeUtil from "node:util";
-import { PI_BUILTIN_TOOL_NAMES } from "@t3tools/contracts";
+import { ORCHESTRATION_V2_WS_METHODS, PI_BUILTIN_TOOL_NAMES } from "@t3tools/contracts";
 import { afterEach, beforeEach, expect, it } from "vite-plus/test";
 import { startHarness, type Harness, type Projection, type Rule } from "./harness.ts";
 
@@ -115,7 +115,7 @@ it.each(["missing", "empty"])("m1.fresh-install bootstraps a %s data root once",
   expect(await git("rev-list", "--count", "HEAD")).toBe("1");
 });
 
-it("m1.main-loadout preserves the Pi loadout, prompt and tools after resume and fork", async () => {
+it("m1.main-loadout preserves the user's Pi model and thinking after resume and fork", async () => {
   const initial = await main();
   expect(initial.thread.modelSelection).toMatchObject({
     instanceId: "pi",
@@ -155,11 +155,96 @@ it("m1.main-loadout preserves the Pi loadout, prompt and tools after resume and 
     { match: "loadout-before", steps: [{ say: "loadout-before-ok" }] },
     { match: "loadout-resume", steps: [{ say: "loadout-resume-ok" }] },
     { match: "loadout-child", steps: [{ say: "loadout-child-ok" }] },
+    { match: "loadout-hold", steps: [{ wait: true }] },
+    { match: "loadout-release", steps: [{ say: "loadout-release-ok" }] },
+    { match: "loadout-queued", steps: [{ say: "loadout-queued-ok" }] },
+    {
+      match: "loadout-agent-switch",
+      steps: [
+        {
+          tool: {
+            name: "t3_thread_configure",
+            arguments: {
+              modelSelection: {
+                instanceId: "pi",
+                model: "claude-bridge/claude-opus-5-5",
+                options: [{ id: "thinking", value: "high" }],
+              },
+            },
+          },
+        },
+        { say: "loadout-agent-switch-rejected" },
+      ],
+    },
   ]);
   await say("loadout-before");
   await h.wait(initial.thread.id, "completed");
   await assertLoadout();
+  await say("loadout-hold");
+  await h.wait(initial.thread.id, "running");
+  await say("loadout-queued");
+  expect((await h.thread(initial.thread.id)).runs.some((run) => run.status === "queued")).toBe(
+    true,
+  );
+  const selected = await h.ozi<Projection>(
+    "thread",
+    initial.thread.id,
+    "--model",
+    "claude-bridge/claude-sonnet-5-5",
+    "--thinking",
+    "low",
+  );
+  expect(selected.thread.modelSelection).toEqual({
+    instanceId: "pi",
+    model: "claude-bridge/claude-sonnet-5-5",
+    options: [
+      { id: "fastMode", value: false },
+      { id: "thinking", value: "low" },
+    ],
+  });
+  expect(selected.thread.effectiveLoadout).toEqual({
+    ...initial.thread.effectiveLoadout,
+    model: selected.thread.modelSelection.model,
+    options: selected.thread.modelSelection.options,
+  });
+  const readable = await h.execOutput(
+    "thread",
+    initial.thread.id,
+    "--model",
+    "claude-bridge/claude-sonnet-5-5",
+  );
+  expect(readable.code).toBe(0);
+  expect(readable.stdout).toContain("claude-bridge/claude-sonnet-5-5 fastMode=false thinking=low");
+  expect((await h.execOutput("status")).stdout).toContain(
+    "claude-bridge/claude-sonnet-5-5 fastMode=false thinking=low",
+  );
+  await expect(h.ozi("thread", initial.thread.id, "--model", "missing/model")).rejects.toThrow();
+  await expect(h.ozi("thread", initial.thread.id, "--thinking", "invalid")).rejects.toThrow();
+  await h.ozi("steer", "loadout-release");
+  await h.wait(initial.thread.id, "text:loadout-queued-ok");
+  await h.wait(initial.thread.id, "completed");
+  expect((await main()).thread.modelSelection).toEqual(selected.thread.modelSelection);
+  await say("loadout-agent-switch");
+  await h.wait(initial.thread.id, "completed");
+  expect(
+    (await h.records()).findLast((record) => record.name === "t3_thread_configure")?.result
+      ?.isError,
+  ).toBe(true);
+  expect((await main()).thread.modelSelection).toEqual(selected.thread.modelSelection);
+  const records = await h.records();
+  expect(
+    records.some(
+      (record) =>
+        record.frame?.type === "set_model" && record.frame.modelId === "claude-sonnet-5-5",
+    ),
+  ).toBe(true);
+  expect(
+    records.some(
+      (record) => record.frame?.type === "set_thinking_level" && record.frame.level === "low",
+    ),
+  ).toBe(true);
   await h.restart();
+  expect((await main()).thread.modelSelection).toEqual(selected.thread.modelSelection);
   await say("loadout-resume");
   await h.wait(initial.thread.id, "completed");
   await assertLoadout();
@@ -172,8 +257,8 @@ it("m1.main-loadout preserves the Pi loadout, prompt and tools after resume and 
   );
   const forked = await h.wait(fork.thread.id, "completed");
   expect(forked.thread.role).toBe("main-fork");
-  expect(forked.thread.modelSelection).toEqual(initial.thread.modelSelection);
-  expect(forked.thread.effectiveLoadout).toEqual(initial.thread.effectiveLoadout);
+  expect(forked.thread.modelSelection).toEqual(selected.thread.modelSelection);
+  expect(forked.thread.effectiveLoadout).toEqual(selected.thread.effectiveLoadout);
   expect((await h.status()).main?.thread.id).toBe(initial.thread.id);
   await assertLoadout();
   expect((await h.records()).some((record) => record.argv?.includes("--fork"))).toBe(true);
@@ -183,6 +268,49 @@ it("m1.main-loadout preserves the Pi loadout, prompt and tools after resume and 
   await expect(
     h.ozi("thread", fork.thread.id, "--provider", "codex", "--model", "gpt-6.1-sol"),
   ).rejects.toThrow();
+  const changedFork = await h.ozi<Projection>("thread", fork.thread.id, "--thinking", "medium");
+  expect(changedFork.thread.modelSelection.model).toBe(selected.thread.modelSelection.model);
+  expect(changedFork.thread.modelSelection.options).toContainEqual({
+    id: "thinking",
+    value: "medium",
+  });
+  expect((await h.status()).main?.thread.modelSelection).toEqual(selected.thread.modelSelection);
+  const switchedFork = await h.ozi<Projection>(
+    "thread",
+    fork.thread.id,
+    "--model",
+    "claude-bridge/claude-opus-5-5",
+  );
+  expect(switchedFork.thread.modelSelection.options).toEqual(
+    changedFork.thread.modelSelection.options,
+  );
+  const configure = (options: { id: string; value: string | boolean }[]) =>
+    h.ozi<{ ok: boolean }[]>(
+      "request",
+      ORCHESTRATION_V2_WS_METHODS.dispatchCommand,
+      "--payload",
+      JSON.stringify({
+        type: "thread.model-selection.set",
+        commandId: NodeCrypto.randomUUID(),
+        threadId: fork.thread.id,
+        modelSelection: { instanceId: "pi", model: "claude-bridge/claude-sonnet-5-5", options },
+      }),
+    );
+  expect((await configure([{ id: "fastMode", value: true }]))[0]?.ok).toBe(false);
+  expect((await configure([{ id: "thinking", value: "minimal" }]))[0]?.ok).toBe(true);
+  const webSelected = await h.ozi<Projection>("thread", fork.thread.id);
+  expect(webSelected.thread.modelSelection.options).toEqual([
+    { id: "thinking", value: "minimal" },
+    { id: "fastMode", value: false },
+  ]);
+  const withoutThinking = await h.ozi<Projection>(
+    "thread",
+    fork.thread.id,
+    "--model",
+    "local/llama-3.1-8b",
+  );
+  expect(withoutThinking.thread.modelSelection.options).toEqual([{ id: "fastMode", value: false }]);
+  await expect(h.ozi("thread", fork.thread.id, "--thinking", "high")).rejects.toThrow();
 });
 
 it("m1.main-tools gives main Pi's built-in tools and every worker Ozi tool and rejects checker tools", async () => {
@@ -344,7 +472,11 @@ it("m1.worker-choice starts Claude and Pi workers on request", async () => {
     providers
       .find((provider) => provider.providerInstanceId === "pi")
       ?.models.map((model) => model.id),
-  ).toEqual(["claude-bridge/claude-opus-5-5", "claude-bridge/claude-sonnet-5-5"]);
+  ).toEqual([
+    "claude-bridge/claude-opus-5-5",
+    "claude-bridge/claude-sonnet-5-5",
+    "local/llama-3.1-8b",
+  ]);
   await say("worker-choice");
   await h.wait(initial.thread.id, "completed");
   const workers = (await h.status()).snapshot.threads.filter(

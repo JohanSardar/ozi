@@ -2490,6 +2490,8 @@ export const OrchestrationV2Command = Schema.Union([
   }),
   Schema.Struct({
     type: Schema.Literal("thread.model-selection.set"),
+    createdBy: Schema.optional(OrchestrationV2Actor),
+    creationSource: Schema.optional(OrchestrationV2CreationSource),
     commandId: CommandId,
     threadId: ThreadId,
     modelSelection: ModelSelection,

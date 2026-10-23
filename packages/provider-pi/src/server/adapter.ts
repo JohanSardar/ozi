@@ -483,6 +483,7 @@ const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (options: PiAdapt
           ? {}
           : {
               mainPromptPath: input.runtimePolicy.mainPromptPath,
+              mainModelSelection: input.modelSelection,
               mainSystemPrompt: yield* provideCacheFs(
                 fileSystem.readFileString(input.runtimePolicy.mainPromptPath),
               ),
@@ -2452,10 +2453,15 @@ const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (options: PiAdapt
             if (input.runtimePolicy.mainPromptPath !== undefined) {
               const selected = yield* request({ type: "get_state" });
               const model = recordField(selected, "model");
+              const expected = parsePiModelSlug(turnInput.modelSelection.model);
+              const thinking = getModelSelectionStringOptionValue(
+                turnInput.modelSelection,
+                "thinking",
+              );
               if (
-                recordString(model, "provider") !== "claude-bridge" ||
-                recordString(model, "id") !== "claude-opus-5-5" ||
-                recordString(selected, "thinkingLevel") !== "high"
+                recordString(model, "provider") !== expected?.provider ||
+                recordString(model, "id") !== expected?.modelId ||
+                (thinking !== undefined && recordString(selected, "thinkingLevel") !== thinking)
               )
                 return yield* protocolError("Pi rejected the main agent loadout");
             }
@@ -2919,6 +2925,7 @@ const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (options: PiAdapt
                 ? {}
                 : {
                     mainPromptPath: input.runtimePolicy.mainPromptPath,
+                    mainModelSelection: forkInput.modelSelection ?? input.modelSelection,
                     mainSystemPrompt: yield* provideCacheFs(
                       fileSystem.readFileString(input.runtimePolicy.mainPromptPath),
                     ),

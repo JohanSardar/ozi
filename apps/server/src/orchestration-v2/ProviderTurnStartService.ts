@@ -23,6 +23,7 @@ import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 import * as Predicate from "effect/Predicate";
 import * as Schema from "effect/Schema";
+import * as ThreadCommandExecutor from "./ThreadCommandExecutor.ts";
 
 import * as ServerConfig from "../config.ts";
 import { withWorkspaceLease } from "../workspace/workspaceLease.ts";
@@ -110,6 +111,7 @@ export const layer: Layer.Layer<
   | ProviderSessionManager.ProviderSessionManagerV2
   | RunExecutionService.RunExecutionServiceV2
   | RuntimePolicy.RuntimePolicyV2
+  | ThreadCommandExecutor.ThreadCommandExecutor
 > = Layer.effect(
   ProviderTurnStartServiceV2,
   Effect.gen(function* () {
@@ -124,6 +126,7 @@ export const layer: Layer.Layer<
     const providerSessions = yield* ProviderSessionManager.ProviderSessionManagerV2;
     const runExecution = yield* RunExecutionService.RunExecutionServiceV2;
     const runtimePolicy = yield* RuntimePolicy.RuntimePolicyV2;
+    const threadCommands = yield* ThreadCommandExecutor.ThreadCommandExecutor;
 
     // These callbacks outlive startup while a run drains background work. Build
     // them outside start's scope so they cannot retain its full thread history.
@@ -517,24 +520,37 @@ export const layer: Layer.Layer<
           : { configFingerprint: prepared.configFingerprint }),
       };
       const loadoutAt = yield* DateTime.now;
-      const currentThread = (yield* projectionStore.getThreadRecords(projection.thread.id, []))
-        .thread;
-      yield* eventSink.write({
-        events: [
-          {
-            id: yield* idAllocator.allocate.event({ threadId: projection.thread.id }),
-            type: "thread.metadata-updated",
-            threadId: projection.thread.id,
-            providerInstanceId: run.providerInstanceId,
-            occurredAt: loadoutAt,
-            payload: {
-              ...currentThread,
-              role: currentThread.role ?? (isOziMain(currentThread) ? "main" : "worker"),
-              effectiveLoadout: prepared.effectiveLoadout,
-            },
-          },
-        ],
-      });
+      yield* threadCommands.withLock(
+        projection.thread.id,
+        Effect.gen(function* () {
+          const currentThread = (yield* projectionStore.getThreadRecords(projection.thread.id, []))
+            .thread;
+          yield* eventSink.write({
+            events: [
+              {
+                id: yield* idAllocator.allocate.event({ threadId: projection.thread.id }),
+                type: "thread.metadata-updated",
+                threadId: projection.thread.id,
+                providerInstanceId: run.providerInstanceId,
+                occurredAt: loadoutAt,
+                payload: {
+                  ...currentThread,
+                  role: currentThread.role ?? (isOziMain(currentThread) ? "main" : "worker"),
+                  effectiveLoadout: {
+                    ...prepared.effectiveLoadout,
+                    ...(isOziMain(currentThread)
+                      ? {
+                          model: currentThread.modelSelection.model,
+                          options: currentThread.modelSelection.options ?? [],
+                        }
+                      : {}),
+                  },
+                },
+              },
+            ],
+          });
+        }),
+      );
       if (!(yield* isCurrentAttemptInStatus("starting"))) return;
       const existingSessionProjection = projection.providerSessions.find(
         (candidate) => candidate.id === providerSessionId,
