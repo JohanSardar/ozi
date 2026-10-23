@@ -26,6 +26,7 @@ const RPC_AGGREGATES = {
   [OZI_WS_METHODS.sessionExport]: "orchestrationV2",
   [OZI_WS_METHODS.mainSettings]: "orchestrationV2",
   [OZI_WS_METHODS.mainPi]: "orchestrationV2",
+  [OZI_WS_METHODS.piRun]: "orchestrationV2",
   [OZI_WS_METHODS.clockAdvance]: "jobs",
   [OZI_WS_METHODS.todosGet]: "jobs",
   [OZI_WS_METHODS.jobsGet]: "jobs",

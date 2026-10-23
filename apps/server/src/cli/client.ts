@@ -136,20 +136,28 @@ const clientHome = Effect.fn("ozi.clientHome")(function* (baseDir: Option.Option
   return yield* resolveBaseDir(Option.getOrUndefined(baseDir) ?? (yield* homeConfig));
 });
 
+export const localServer = Effect.fn("ozi.localServer")(function* (home: string) {
+  const path = yield* Path.Path;
+  for (const variant of ["userdata", "dev"]) {
+    const dir = path.join(home, variant);
+    const state = yield* readPersistedServerRuntimeState(path.join(dir, "server-runtime.json"));
+    if (Option.isNone(state) || !isProcessAlive(state.value.pid)) continue;
+    return { dir, state: state.value };
+  }
+});
+
 const resolveConnection = Effect.fn("ozi.resolveConnection")(function* (
   baseDir: Option.Option<string>,
 ) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const home = yield* clientHome(baseDir);
-  for (const variant of ["userdata", "dev"]) {
-    const dir = path.join(home, variant);
-    const state = yield* readPersistedServerRuntimeState(path.join(dir, "server-runtime.json"));
-    if (Option.isNone(state) || !isProcessAlive(state.value.pid)) continue;
+  const local = yield* localServer(home);
+  if (local) {
     const owner = yield* fs
-      .readFileString(path.join(dir, "owner.json"))
+      .readFileString(path.join(local.dir, "owner.json"))
       .pipe(Effect.flatMap(Schema.decodeUnknownEffect(Schema.fromJsonString(OwnerCredential))));
-    return { state: state.value, token: owner.token, remote: false };
+    return { state: local.state, token: owner.token, remote: false };
   }
   const file = path.join(home, "remote.json");
   if (yield* fs.exists(file)) {

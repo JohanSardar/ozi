@@ -27,6 +27,7 @@ import * as Schema from "effect/Schema";
 import {
   OZI_WS_METHODS,
   OziMainPiError,
+  OziPiRunResult,
   OziSession,
   OziSessionCreateInput,
   OziSessionImportInput,
@@ -783,6 +784,11 @@ export const WsRpcGroup = RpcGroup.make(
   Rpc.make(OZI_WS_METHODS.mainPi, {
     payload: Schema.Record(Schema.String, Schema.Unknown),
     success: Schema.Unknown,
+    error: Schema.Union([OziMainPiError, EnvironmentAuthorizationError]),
+  }),
+  Rpc.make(OZI_WS_METHODS.piRun, {
+    payload: Schema.Struct({ args: Schema.Array(Schema.String) }),
+    success: OziPiRunResult,
     error: Schema.Union([OziMainPiError, EnvironmentAuthorizationError]),
   }),
   Rpc.make(OZI_WS_METHODS.todosGet, {

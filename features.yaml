@@ -268,6 +268,13 @@ features:
     milestone: 9
     scenarios: [m9.print]
     status: passing
+  - id: remote-pi
+    reqs: [pi-parity, main-full-pi, terminal-client]
+    module: apps/server/src/binPi.ts + apps/server/src/cli/client.ts + apps/server/src/ozi/Sessions.ts + apps/server/src/ws.ts + packages/contracts/src/rpc.ts + e2e/m9.remote-pi.test.ts
+    cli: [pi]
+    milestone: 9
+    scenarios: [m9.remote-pi]
+    status: passing
   - id: tui-pi-keys
     reqs: [pi-parity, terminal-client]
     module: apps/server/src/cli/tui + e2e/m9.tui.test.ts
