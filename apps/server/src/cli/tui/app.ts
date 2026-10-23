@@ -1,6 +1,10 @@
 import {
   Box,
   CombinedAutocompleteProvider,
+  KeybindingsManager,
+  setKeybindings,
+  TUI_KEYBINDINGS,
+  type KeyId,
   Container,
   Editor,
   Input,
@@ -29,6 +33,7 @@ import {
 } from "@t3tools/contracts";
 import { htmlRenderFromToolItem, mcpAppFromToolItem } from "@t3tools/shared/toolOutput";
 import * as Cause from "effect/Cause";
+import * as Config from "effect/Config";
 import * as Crypto from "effect/Crypto";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
@@ -43,7 +48,16 @@ import * as ChildProcess from "effect/process/ChildProcess";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 import { HttpClient } from "effect/http";
 import { answerRequest, connect, send, type Connection } from "../client.ts";
-import { bg, editor as editorTheme, fg, markdown, selectList } from "./theme.ts";
+import {
+  bg,
+  builtinThemes,
+  editor as editorTheme,
+  fg,
+  markdown,
+  selectList,
+  useTheme,
+  type PiTheme,
+} from "./theme.ts";
 
 const columns = [
   ["needs_you", "Needs you"],
@@ -80,6 +94,81 @@ class Secret implements Component {
   invalidate() {}
 }
 
+const tokens = (count: number) =>
+  count >= 1_000_000
+    ? `${(count / 1_000_000).toFixed(1)}M`
+    : count >= 1000
+      ? `${(count / 1000).toFixed(1)}k`
+      : `${count}`;
+
+const appKeys: Record<string, KeyId[]> = {
+  "app.message.dequeue": ["alt+up"],
+  "app.interrupt": ["escape"],
+  "app.clear": ["ctrl+c"],
+  "app.exit": ["ctrl+d"],
+  "app.suspend": ["ctrl+z"],
+  "app.editor.external": ["ctrl+g"],
+  "app.thinking.toggle": ["ctrl+t"],
+  "app.tools.expand": ["ctrl+o"],
+  "app.message.followUp": ["alt+enter"],
+};
+const decodeJson = Schema.decodeUnknownEffect(Schema.fromJsonString(Schema.Unknown));
+const KeySetting = Schema.Union([Schema.String, Schema.Array(Schema.String)]);
+const Keybindings = Schema.Record(Schema.String, KeySetting);
+const PiSettings = Schema.Struct({
+  theme: Schema.optional(Schema.String),
+  themes: Schema.optional(Schema.Array(Schema.String)),
+});
+const Theme = Schema.Struct({
+  name: Schema.optional(Schema.String),
+  vars: Schema.optional(Schema.Record(Schema.String, Schema.Union([Schema.String, Schema.Number]))),
+  colors: Schema.Record(Schema.String, Schema.Union([Schema.String, Schema.Number])),
+});
+
+const piAppearance = Effect.fn("ozi.tui.piAppearance")(function* () {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const explicit = yield* Config.String("PI_CODING_AGENT_DIR").pipe(Config.option);
+  const home = yield* Config.String("HOME").pipe(Config.withDefault(""));
+  const directory = Option.getOrElse(explicit, () => path.join(home, ".pi/agent"));
+  const read = <A, I>(schema: Schema.Codec<A, I>, file: string) =>
+    fs
+      .readFileString(file)
+      .pipe(
+        Effect.flatMap(decodeJson),
+        Effect.flatMap(Schema.decodeUnknownEffect(schema)),
+        Effect.option,
+      );
+  const settings = Option.getOrElse(
+    yield* read(PiSettings, path.join(directory, "settings.json")),
+    () => ({}) as typeof PiSettings.Type,
+  );
+  const keybindings = Option.getOrElse(
+    yield* read(Keybindings, path.join(directory, "keybindings.json")),
+    () => ({}),
+  );
+  const name = settings.theme ?? "system";
+  let custom: PiTheme | undefined;
+  if (!(name in builtinThemes) && name !== "system")
+    for (const source of [path.join(directory, "themes"), ...(settings.themes ?? [])]) {
+      const files = yield* fs.readDirectory(source).pipe(
+        Effect.map((names) =>
+          names.filter((file) => file.endsWith(".json")).map((file) => path.join(source, file)),
+        ),
+        Effect.orElseSucceed(() => [source]),
+      );
+      for (const file of files) {
+        const theme = yield* read(Theme, file);
+        if (
+          Option.isSome(theme) &&
+          (theme.value.name === name || path.basename(file, ".json") === name)
+        )
+          custom ??= theme.value;
+      }
+    }
+  return { name, custom, keybindings };
+});
+
 type Env =
   | ChildProcessSpawner.ChildProcessSpawner
   | Crypto.Crypto
@@ -92,6 +181,22 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
   const context = yield* Effect.context<Env>();
   const run = Effect.runForkWith(context);
   const done = yield* Deferred.make<void>();
+  const appearance = yield* piAppearance();
+  const userKeys = Object.fromEntries(
+    Object.entries(appearance.keybindings).map(([id, keys]) => [
+      id,
+      (Array.isArray(keys) ? keys : [keys]) as KeyId[],
+    ]),
+  );
+  setKeybindings(
+    new KeybindingsManager(
+      TUI_KEYBINDINGS,
+      Object.fromEntries(Object.entries(userKeys).filter(([id]) => id.startsWith("tui."))),
+    ),
+  );
+  const is = (id: string, data: string) =>
+    (userKeys[id] ?? appKeys[id] ?? []).some((key) => matchesKey(data, key));
+  useTheme(appearance.custom ?? builtinThemes[appearance.name] ?? builtinThemes.dark!);
   const tui = new TuiMainScreen(new ProcessTerminal());
   const chat = new Container();
   const pending = new Text("", 1, 0);
@@ -170,11 +275,34 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
       )
       .join(" · ");
     const where = connection ? new URL(connection.state.origin).host : "connecting…";
+    const usage =
+      projection?.providerTurns.findLast((turn) => turn.tokenUsage)?.tokenUsage ??
+      projection?.providerThreads.findLast((thread) => thread.contextUsage)?.contextUsage ??
+      undefined;
+    const selection = projection?.thread.modelSelection;
+    const thinking = selection?.options?.find((option) => option.id === "thinking")?.value;
+    const stats = [
+      ...(usage
+        ? [
+            `↑${tokens(usage.inputTokens ?? 0)} ↓${tokens(usage.outputTokens ?? 0)}`,
+            ...(usage.maxTokens
+              ? [
+                  `${((usage.usedTokens / usage.maxTokens) * 100).toFixed(1)}%/${tokens(usage.maxTokens)}`,
+                ]
+              : []),
+          ]
+        : []),
+      ...(selection ? [selection.model.split("/").at(-1)!] : []),
+      ...(typeof thinking === "string" ? [thinking] : []),
+    ].join(" · ");
     const place =
       view.threadId === OZI_MAIN_THREAD_ID ? "main" : `job: ${view.title} · esc returns to main`;
     footer.setText(
       [
-        fg("dim", `${where}${files.length ? ` · ${files.length} attached` : ""}`),
+        fg(
+          "dim",
+          `${where}${files.length ? ` · ${files.length} attached` : ""}${stats ? ` · ${stats}` : ""}`,
+        ),
         fg("dim", `${place} · `) +
           fg(cards?.some((card) => card.column === "needs_you") ? "yellow" : "dim", counts),
       ].join("\n"),
@@ -582,7 +710,7 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
   const hotkeys = [
     "Enter send, or steer while main works · Alt+Enter queue a follow-up · Shift+Enter new line",
     "Esc stop main, or back to main · Ctrl+C clear, twice to exit · Ctrl+D exit when empty",
-    "Ctrl+T show or hide thinking · Ctrl+O expand tool output · Ctrl+G external editor · Ctrl+Z suspend",
+    "Ctrl+T show or hide thinking · Ctrl+O expand tool output · Ctrl+G external editor · Ctrl+Z suspend · Alt+Up restore queued messages",
     "/jobs job cards · /attach <path> attach a file · /stop stop · /hotkeys keys · /quit exit",
     "Other /commands go to main: Pi prompt templates, /skill:name and extension commands",
   ].join("\n");
@@ -622,6 +750,30 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
       ),
     );
 
+  const dequeue = () => {
+    const queued = projection?.runs.filter((run) => run.status === "queued") ?? [];
+    if (queued.length === 0) return;
+    const texts = queued.map(
+      (run) => projection?.messages.find((message) => message.id === run.userMessageId)?.text ?? "",
+    );
+    editor.setText([editor.getText(), ...texts].filter(Boolean).join("\n\n"));
+    act("", (current) =>
+      Effect.forEach(
+        queued,
+        (run) =>
+          Effect.gen(function* () {
+            yield* current.client[O.dispatchCommand]({
+              type: "queued-run.cancel",
+              commandId: CommandId.make(yield* (yield* Crypto.Crypto).randomUUIDv4()),
+              threadId: view.threadId,
+              runId: run.id,
+            });
+          }),
+        { discard: true },
+      ),
+    );
+  };
+
   const submit = (raw: string, steer: boolean) => {
     const text = raw.trim();
     if (!text) return;
@@ -652,13 +804,13 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
 
   editor.onSubmit = (text) => submit(text, true);
   tui.addInputListener((data) => {
-    if (matchesKey(data, "alt+enter") && area.children[0] === editor) {
+    if (is("app.message.followUp", data) && area.children[0] === editor) {
       const text = editor.getText();
       editor.setText("");
       submit(text, false);
       return { consume: true };
     }
-    if (matchesKey(data, "ctrl+c")) {
+    if (is("app.clear", data)) {
       if (area.children[0] !== editor) restoreEditor();
       else if (editor.getText()) editor.setText("");
       else if (performance.now() - lastCtrlC < 1000) run(Deferred.succeed(done, undefined));
@@ -669,25 +821,29 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
       tui.requestRender();
       return { consume: true };
     }
-    if (area.children[0] === editor && matchesKey(data, "ctrl+t")) {
+    if (area.children[0] === editor && is("app.message.dequeue", data)) {
+      dequeue();
+      return { consume: true };
+    }
+    if (area.children[0] === editor && is("app.thinking.toggle", data)) {
       showThinking = !showThinking;
       redraw();
       return { consume: true };
     }
-    if (area.children[0] === editor && matchesKey(data, "ctrl+o")) {
+    if (area.children[0] === editor && is("app.tools.expand", data)) {
       expandTools = !expandTools;
       redraw();
       return { consume: true };
     }
-    if (area.children[0] === editor && matchesKey(data, "ctrl+d") && !editor.getText()) {
+    if (area.children[0] === editor && is("app.exit", data) && !editor.getText()) {
       run(Deferred.succeed(done, undefined));
       return { consume: true };
     }
-    if (area.children[0] === editor && matchesKey(data, "ctrl+g")) {
+    if (area.children[0] === editor && is("app.editor.external", data)) {
       externalEditor();
       return { consume: true };
     }
-    if (matchesKey(data, "ctrl+z")) {
+    if (is("app.suspend", data)) {
       tui.stop();
       process.once("SIGCONT", () => {
         tui.start();
@@ -696,14 +852,29 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
       process.kill(process.pid, "SIGTSTP");
       return { consume: true };
     }
-    if (matchesKey(data, "escape") && area.children[0] === editor && !editor.getText()) {
-      if (view.threadId !== OZI_MAIN_THREAD_ID) open(OZI_MAIN_THREAD_ID, "");
-      else if (active()) stop(view.threadId);
+    if (
+      is("app.interrupt", data) &&
+      area.children[0] === editor &&
+      !editor.isShowingAutocomplete()
+    ) {
+      if (view.threadId !== OZI_MAIN_THREAD_ID && !editor.getText()) open(OZI_MAIN_THREAD_ID, "");
+      else if (view.threadId === OZI_MAIN_THREAD_ID && active()) stop(view.threadId);
+      else return undefined;
       return { consume: true };
     }
     return undefined;
   });
 
+  if (appearance.name === "system") {
+    tui.onTerminalColorSchemeChange((scheme) => {
+      useTheme(builtinThemes[scheme]!);
+      tui.invalidate();
+      redraw();
+      renderStatus();
+      tui.requestRender(true);
+    });
+    tui.setTerminalColorSchemeNotifications(true);
+  }
   tui.start();
   start();
   renderStatus();

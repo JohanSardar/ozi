@@ -78,3 +78,60 @@ it("m9.tui-editor edits the message in the external editor with Ctrl+G", async (
   terminal.keys("\r");
   await h.wait("ozi-main", "text:editor text received", 20);
 });
+
+it("m9.tui-appearance applies Pi's theme and keybindings from the local Pi agent directory", async () => {
+  const agent = h.env.PI_CODING_AGENT_DIR!;
+  await NodeFSP.mkdir(NodePath.join(agent, "themes"), { recursive: true });
+  await NodeFSP.writeFile(
+    NodePath.join(agent, "settings.json"),
+    JSON.stringify({ theme: "ozi-red" }),
+  );
+  await NodeFSP.writeFile(
+    NodePath.join(agent, "themes/ozi-red.json"),
+    JSON.stringify({ name: "ozi-red", colors: { text: "#ff0000" } }),
+  );
+  await NodeFSP.writeFile(
+    NodePath.join(agent, "keybindings.json"),
+    JSON.stringify({ "app.thinking.toggle": "ctrl+y" }),
+  );
+  await h.script([
+    {
+      match: "themed",
+      role: "main",
+      steps: [{ think: "themed-thinking" }, { say: "themed reply" }],
+    },
+  ]);
+  const terminal = await ready({ COLORTERM: "truecolor" });
+  terminal.keys("themed\r");
+  await terminal.waitFor("themed reply");
+  expect(terminal.raw).toContain("38;2;255;0;0");
+  const from = terminal.mark();
+  terminal.keys("\x19");
+  await terminal.waitFor("Thinking...", from);
+});
+
+it("m9.tui-footer-dequeue shows model, thinking and usage and restores queued messages with Alt+Up", async () => {
+  await h.script([
+    { match: "first-turn", role: "main", steps: [{ say: "first done" }] },
+    { match: "hold-main", role: "main", steps: [{ say: "holding main" }, { wait: true }] },
+    { match: "queued-follow-up", role: "main", steps: [{ fail: "queued message ran" }] },
+  ]);
+  const terminal = await ready();
+  await terminal.waitFor("claude-opus-5-5 · high");
+  terminal.keys("first-turn\r");
+  await terminal.waitFor("first done");
+  await h.wait("ozi-main", "completed");
+  await terminal.waitFor("↑");
+  terminal.keys("hold-main\r");
+  await h.wait("ozi-main", "running");
+  await terminal.waitFor("holding main");
+  terminal.keys("queued-follow-up\x1b\r");
+  await terminal.waitFor("Queued: queued-follow-up");
+  const from = terminal.mark();
+  terminal.keys("\x1b[1;3A");
+  await terminal.waitFor("queued-follow-up", from);
+  terminal.keys("\x1b");
+  await h.wait("ozi-main", "interrupted");
+  const runs = (await h.thread("ozi-main")).runs;
+  expect(runs.some((run) => run.status === "queued")).toBe(false);
+});

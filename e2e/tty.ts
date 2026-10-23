@@ -20,15 +20,20 @@ export function openTui(h: Harness, extra: Record<string, string> = {}) {
     },
   );
   let output = "";
+  let raw = "";
   const listeners = new Set<() => void>();
   const exited = new Promise<number | null>((resolve) => child.once("exit", resolve));
   child.stdout.on("data", (chunk: Buffer) => {
+    raw += chunk.toString();
     output += NodeUtil.stripVTControlCharacters(chunk.toString()).replaceAll("\r", "");
     for (const listener of listeners) listener();
   });
   return {
     get output() {
       return output;
+    },
+    get raw() {
+      return raw;
     },
     mark: () => output.length,
     keys: (data: string) => void child.stdin.write(data),
