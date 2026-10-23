@@ -1,6 +1,7 @@
 import {
   isOziMain,
   OZI_MAIN_TOOL_NAMES,
+  PI_BUILTIN_TOOL_NAMES,
   OZI_CHECK_TOOL_NAMES,
   type ModelSelection,
   type OziEffectiveLoadout,
@@ -81,7 +82,11 @@ export const prepareLoadout = Effect.fn("Ozi.prepareLoadout")(function* (
     effectiveLoadout: yield* effectiveLoadout({
       provider,
       selection,
-      toolNames: checker ? OZI_CHECK_TOOL_NAMES : main ? OZI_MAIN_TOOL_NAMES : workerTools,
+      toolNames: checker
+        ? OZI_CHECK_TOOL_NAMES
+        : main
+          ? [...PI_BUILTIN_TOOL_NAMES, ...OZI_MAIN_TOOL_NAMES]
+          : workerTools,
       systemPrompt,
     }),
   };

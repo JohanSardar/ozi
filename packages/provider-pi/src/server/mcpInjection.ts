@@ -303,7 +303,6 @@ export function buildPiRpcLaunch(input: {
           "claude-opus-5-5",
           "--thinking",
           "high",
-          "--no-builtin-tools",
           "--no-mcp",
           "--no-extensions",
           "--no-skills",

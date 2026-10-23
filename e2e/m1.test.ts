@@ -3,6 +3,7 @@ import * as NodeCrypto from "node:crypto";
 import * as NodePath from "node:path";
 import * as NodeChildProcess from "node:child_process";
 import * as NodeUtil from "node:util";
+import { OZI_MAIN_TOOL_NAMES, PI_BUILTIN_TOOL_NAMES } from "@t3tools/contracts";
 import { afterEach, beforeEach, expect, it } from "vite-plus/test";
 import { startHarness, type Harness, type Projection, type Rule } from "./harness.ts";
 
@@ -186,22 +187,25 @@ it("m1.main-loadout preserves the Pi loadout, prompt and tools after resume and 
   ).rejects.toThrow();
 });
 
-it("m1.main-cannot-execute rejects execution tools on main", async () => {
+it("m1.main-tools gives main Pi's built-in tools and rejects Ozi tools outside its allowlist", async () => {
   const initial = await main();
-  expect(initial.thread.modelSelection.model).toBe("claude-bridge/claude-opus-5-5");
+  expect(initial.thread.effectiveLoadout?.toolNames).toEqual([
+    ...PI_BUILTIN_TOOL_NAMES,
+    ...OZI_MAIN_TOOL_NAMES,
+  ]);
   await h.script([
     {
-      match: "forbidden-execution",
+      match: "outside-allowlist",
       steps: [
-        { tool: { name: "bash", arguments: { command: "echo forbidden" } } },
-        { say: "execution rejected" },
+        { tool: { name: "completion_evidence", arguments: { path: "proof.txt" } } },
+        { say: "outside tool rejected" },
       ],
     },
   ]);
-  await say("forbidden-execution");
+  await say("outside-allowlist");
   await h.wait(initial.thread.id, "completed");
   const call = (await h.records()).find(
-    (record) => record.event === "tool" && record.name === "bash",
+    (record) => record.event === "tool" && record.name === "completion_evidence",
   );
   expect(call?.result?.isError).toBe(true);
   const launch = (await h.records()).find(
@@ -212,7 +216,6 @@ it("m1.main-cannot-execute rejects execution tools on main", async () => {
   );
   expect(launch?.argv).toEqual(
     expect.arrayContaining([
-      "--no-builtin-tools",
       "--no-mcp",
       "--no-extensions",
       "--no-skills",
@@ -222,8 +225,9 @@ it("m1.main-cannot-execute rejects execution tools on main", async () => {
       "claude-bridge",
     ]),
   );
-  expect(launch?.argv?.filter((argument) => argument === "--extension")).toHaveLength(2);
+  expect(launch?.argv).not.toContain("--no-builtin-tools");
   expect(launch?.argv).not.toContain("--no-tools");
+  expect(launch?.argv?.filter((argument) => argument === "--extension")).toHaveLength(2);
 });
 
 it("m1.delegate-async starts the default worker and returns its result to main", async () => {
