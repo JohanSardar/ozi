@@ -178,6 +178,8 @@ it("m9.tui-sessions clones, forks from an earlier message, resumes and shows the
   terminal.keys("/clone\r");
   await terminal.waitFor("main clone · ", from);
   await terminal.waitFor("reply-two", from);
+  terminal.keys("/name main clone\r");
+  await terminal.waitFor('Named the session "main clone".', from);
   terminal.keys("in-clone\r");
   await terminal.waitFor("clone-reply", from);
   const threads = async () => (await h.status()).snapshot.threads;

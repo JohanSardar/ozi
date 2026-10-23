@@ -1,4 +1,4 @@
-import { OZI_WS_METHODS, OziCheck } from "@t3tools/contracts";
+import { OZI_WS_METHODS, OziCheck, OziMainSettings } from "@t3tools/contracts";
 import {
   AuthAccessTokenResult,
   AuthAccessTokenType,
@@ -1520,7 +1520,41 @@ const mainCommand = Command.make("main", {
   ),
 );
 
+const queueMode = (name: string) =>
+  Flag.Literals(name, ["one-at-a-time", "all"]).pipe(Flag.optional);
+const onOff = (name: string) => Flag.Literals(name, ["on", "off"]).pipe(Flag.optional);
+const settingsCommand = Command.make("settings", {
+  ...locationFlags,
+  autoCompaction: onOff("auto-compaction"),
+  autoRetry: onOff("auto-retry"),
+  steeringMode: queueMode("steering-mode"),
+  followUpMode: queueMode("follow-up-mode"),
+}).pipe(
+  Command.withHandler((flags) =>
+    Effect.gen(function* () {
+      const { client } = yield* connect(flags.baseDir);
+      const on = (flag: Option.Option<"on" | "off">) =>
+        Option.getOrUndefined(Option.map(flag, (value) => value === "on"));
+      const settings = yield* client[J.mainSettings]({
+        autoCompaction: on(flags.autoCompaction),
+        autoRetry: on(flags.autoRetry),
+        steeringMode: Option.getOrUndefined(flags.steeringMode),
+        followUpMode: Option.getOrUndefined(flags.followUpMode),
+      });
+      yield* emit(OziMainSettings, settings, flags.json, () =>
+        [
+          `auto-compaction ${settings.autoCompaction ? "on" : "off"}`,
+          `auto-retry ${settings.autoRetry ? "on" : "off"}`,
+          `steering-mode ${settings.steeringMode}`,
+          `follow-up-mode ${settings.followUpMode}`,
+        ].join("\n"),
+      );
+    }),
+  ),
+);
+
 export const clientCommands = [
+  settingsCommand,
   sessionCommand,
   mainCommand,
   connectCommand,
