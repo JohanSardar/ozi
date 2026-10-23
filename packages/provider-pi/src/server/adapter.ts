@@ -3218,7 +3218,10 @@ function piQuestion(
     id: questionId,
     header: title,
     question,
-    ...(method === "editor" ? { initialAnswer: recordString(event, "prefill") ?? "" } : {}),
+    ...(method === "editor"
+      ? { initialAnswer: recordString(event, "prefill") ?? "", multiline: true }
+      : {}),
+    ...(method === "select" ? {} : { required: false }),
     options,
   };
 }

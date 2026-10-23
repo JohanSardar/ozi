@@ -110,11 +110,28 @@ export default function (pi) {
       select.type === "user_input_request" &&
         select.questions[0]?.options.map((option) => option.value),
     ).toEqual(["Alpha", "Beta"]);
+    await h.wait("ozi-main", "request:Demo editor", 60);
+    const page = await h.page();
+    const textarea = page.locator('textarea[aria-label="Demo editor"]');
+    await textarea.waitFor();
+    expect(await textarea.inputValue()).toBe("Initial\ntext");
+    await textarea.fill("Edited\nmultiple lines");
+    expect(await textarea.inputValue()).toBe("Edited\nmultiple lines");
     const editor = await answer("Demo editor", "Edited\nmultiple lines");
     expect(editor.type === "user_input_request" && editor.questions[0]).toMatchObject({
       initialAnswer: "Initial\ntext",
+      multiline: true,
+      required: false,
       options: [],
     });
+    await h.wait("ozi-main", "request:Demo input", 60);
+    await page.getByRole("button", { name: "Submit empty value", exact: true }).click();
+    expect(await page.getByRole("textbox", { name: "Enter text", exact: true }).inputValue()).toBe(
+      "",
+    );
+    expect(await page.getByRole("button", { name: "Send answers", exact: true }).isEnabled()).toBe(
+      true,
+    );
     await answer("Demo input", "");
     await answer("Demo allow", "allow");
     await answer("Demo deny", "deny");

@@ -1100,6 +1100,7 @@ export const OrchestrationV2UserInputQuestion = Schema.Struct({
   multiSelect: Schema.optional(Schema.Boolean),
   allowCustomAnswer: Schema.optional(Schema.Boolean),
   initialAnswer: Schema.optional(Schema.String),
+  multiline: Schema.optional(Schema.Boolean),
   required: Schema.optional(Schema.Boolean),
 });
 export type OrchestrationV2UserInputQuestion = typeof OrchestrationV2UserInputQuestion.Type;
