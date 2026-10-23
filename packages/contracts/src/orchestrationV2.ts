@@ -494,6 +494,7 @@ export const OrchestrationV2Run = Schema.Struct({
     }),
   ),
   completionCheck: Schema.optional(OziCheck),
+  promptDisposition: Schema.optional(Schema.Literal("handled")),
   delegatedCompletion: Schema.optional(OrchestrationV2DelegatedCompletionCohort),
 });
 export type OrchestrationV2Run = typeof OrchestrationV2Run.Type;

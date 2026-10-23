@@ -38,6 +38,7 @@ import {
   WsRpcGroup,
 } from "@t3tools/contracts";
 import * as Crypto from "effect/Crypto";
+import * as Predicate from "effect/Predicate";
 import * as Cause from "effect/Cause";
 import * as Console from "effect/Console";
 import * as Effect from "effect/Effect";
@@ -66,6 +67,9 @@ const makeClient = RpcClient.make(WsRpcGroup);
 type Client = Effect.Success<typeof makeClient>;
 
 const decodeRequestPayload = Schema.decodeUnknownEffect(Schema.fromJsonString(Schema.Unknown));
+const decodeMainPiPayload = Schema.decodeEffect(
+  Schema.fromJsonString(Schema.Record(Schema.String, Schema.Unknown)),
+);
 const encodeJson = Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown));
 const encodePairing = Schema.encodeEffect(AuthPairingCredentialResult);
 const decodePairingUrl = Schema.decodeEffect(Schema.URLFromString);
@@ -1175,7 +1179,32 @@ const requestCommand = Command.make("request", {
   ),
 );
 
+const mainCommand = Command.make("main", {
+  ...locationFlags,
+  type: Argument.String("type"),
+  payload: Flag.String("payload").pipe(Flag.withDefault("{}")),
+}).pipe(
+  Command.withHandler((flags) =>
+    Effect.gen(function* () {
+      const payload = yield* decodeMainPiPayload(flags.payload);
+      const { client } = yield* connect(flags.baseDir);
+      const data = yield* client[J.mainPi]({ ...payload, type: flags.type });
+      yield* print(data, flags.json, () => {
+        if (typeof data === "string") return data;
+        if (Predicate.isObject(data)) {
+          for (const key of ["text", "output", "summary", "path"]) {
+            const text = data[key];
+            if (typeof text === "string") return text;
+          }
+        }
+        return JSON.stringify(data);
+      });
+    }),
+  ),
+);
+
 export const clientCommands = [
+  mainCommand,
   connectCommand,
   disconnectCommand,
   requestCommand,

@@ -698,6 +698,9 @@ export const layer: Layer.Layer<
           ...runWithoutDelegatedCompletion,
           status: persistedStatus,
           completedAt,
+          ...(input.terminal.status !== "failed" && input.terminal.promptDisposition === "handled"
+            ? { promptDisposition: "handled" as const }
+            : {}),
         };
         const finalizedRootNode: OrchestrationV2ExecutionNode = {
           ...input.rootNode,

@@ -6,6 +6,7 @@ import { readToolOutputImage } from "@t3tools/shared/toolOutput";
 import * as Predicate from "effect/Predicate";
 import {
   ProviderDriverKind,
+  OziMainPiError,
   type ChatAttachment,
   type ModelSelection,
   type OrchestrationV2ExecutionNode,
@@ -353,6 +354,7 @@ interface ActivePiTurn {
   sawAgentActivity: boolean;
   adoptedWake: boolean;
   readonly promptMayBeCommandOnly: boolean;
+  promptHandled: boolean;
   latestCompactionAfterTokens: number | null;
   lastLiveUsedTokens: number | null;
   settleProbeGeneration: number;
@@ -1581,6 +1583,9 @@ const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (options: PiAdapt
             providerTurnId: turn.providerTurn.id,
             runOrdinal: turn.turnInput.runOrdinal,
             status: interrupted ? "interrupted" : "completed",
+            ...(turn.promptHandled && !turn.sawAgentActivity
+              ? { promptDisposition: "handled" as const }
+              : {}),
             failure: null,
             threadDisposition: "reusable",
           });
@@ -1973,6 +1978,12 @@ const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (options: PiAdapt
             const responseTurn =
               pendingPrompt?.providerTurnId === turn?.providerTurn.id ? turn : null;
             if (event["success"] === true) {
+              if (
+                responseTurn !== null &&
+                pendingPrompt?.kind === "turn_start" &&
+                recordString(event["data"], "disposition") === "handled"
+              )
+                responseTurn.promptHandled = true;
               // Deferred success ack. Command-only prompts (pure extension
               // slash commands) never start an agent run and never emit
               // `agent_settled`, so probe for idleness. The probe result is
@@ -1981,7 +1992,8 @@ const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (options: PiAdapt
               if (
                 pendingPrompt?.kind === "turn_start" &&
                 responseTurn !== null &&
-                ((responseTurn.promptMayBeCommandOnly && !responseTurn.sawAgentActivity) ||
+                (((responseTurn.promptMayBeCommandOnly || responseTurn.promptHandled) &&
+                  !responseTurn.sawAgentActivity) ||
                   (responseTurn.adoptedWake &&
                     (responseTurn.settleWhenIdle || responseTurn.promptMayBeCommandOnly)))
               ) {
@@ -2322,7 +2334,7 @@ const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (options: PiAdapt
       ) {
         const images: Array<{ type: "image"; data: string; mimeType: string }> = [];
         const extraLines: Array<string> =
-          input.runtimePolicy.mainPromptPath === undefined
+          input.runtimePolicy.mainPromptPath === undefined || text.startsWith("/")
             ? []
             : [`[Ozi message ID: ${messageId}]`];
         for (const attachment of attachments) {
@@ -2349,6 +2361,12 @@ const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (options: PiAdapt
       });
 
       const runtime: ProviderAdapter.ProviderAdapterV2SessionRuntime = {
+        piRpc: (command) =>
+          request(command, 120_000).pipe(
+            Effect.mapError(
+              (cause) => new OziMainPiError({ message: cause.message.replace(/[\r\n]+/g, " ") }),
+            ),
+          ),
         instanceId: options.instanceId,
         driver: PI_PROVIDER,
         providerSessionId: input.providerSessionId,
@@ -2502,6 +2520,7 @@ const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (options: PiAdapt
               adoptedWake: false,
               promptMayBeCommandOnly:
                 compactCommand !== null || (payload?.message.trimStart().startsWith("/") ?? false),
+              promptHandled: false,
               latestCompactionAfterTokens: null,
               lastLiveUsedTokens: null,
               settleProbeGeneration: 0,

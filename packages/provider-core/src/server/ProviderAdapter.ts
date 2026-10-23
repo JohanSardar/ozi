@@ -17,6 +17,8 @@ import {
   OrchestrationV2RuntimeRequest,
   OrchestrationV2Subagent,
   OrchestrationV2TurnItem,
+  OziMainPiCommand,
+  OziMainPiError,
   ProviderApprovalDecision,
   ProviderInteractionMode,
   ProviderDriverKind,
@@ -153,6 +155,7 @@ export const ProviderAdapterV2Event = Schema.Union([
     providerTurnId: ProviderTurnId,
     runOrdinal: PositiveInt,
     status: Schema.Literals(["completed", "interrupted", "cancelled"]),
+    promptDisposition: Schema.optional(Schema.Literal("handled")),
     failure: Schema.Null,
     threadDisposition: Schema.Literals(["reusable", "broken"]),
   }),
@@ -517,6 +520,7 @@ export type ProviderAdapterV2SubagentOutcome = {
 };
 
 export interface ProviderAdapterV2SessionRuntime {
+  readonly piRpc?: (command: OziMainPiCommand) => Effect.Effect<unknown, OziMainPiError>;
   readonly instanceId: ProviderInstanceId;
   readonly driver: ProviderDriverKind;
   readonly providerSessionId: ProviderSessionId;

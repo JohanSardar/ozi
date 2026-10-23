@@ -19,6 +19,7 @@ type WsRpcMethod = RpcGroup.Rpcs<typeof WsRpcGroup>["_tag"];
  * even where they differ from the method prefix.
  */
 const RPC_AGGREGATES = {
+  [OZI_WS_METHODS.mainPi]: "orchestrationV2",
   [OZI_WS_METHODS.clockAdvance]: "jobs",
   [OZI_WS_METHODS.todosGet]: "jobs",
   [OZI_WS_METHODS.jobsGet]: "jobs",
