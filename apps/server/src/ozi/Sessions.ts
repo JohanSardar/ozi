@@ -3,8 +3,11 @@ import {
   OZI_MAIN_THREAD_ID,
   OziSessionError,
   OziMainPiError,
+  OZI_PI_INTERACTIVE_ERROR,
+  type OziPiRunResult,
   TrimmedNonEmptyString,
   ProviderDriverKind,
+  ProviderInstanceId,
   type OziSession,
   type OziSessionCreateInput,
   type OziSessionImportInput,
@@ -15,6 +18,7 @@ import {
   ThreadId,
 } from "@t3tools/contracts";
 import { piMainAgentDir } from "@t3tools/provider-pi/server";
+import { PiSettings } from "@t3tools/provider-pi/settings";
 import * as Context from "effect/Context";
 import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
@@ -23,6 +27,8 @@ import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 import * as ServerConfig from "../config.ts";
+import * as ServerSettings from "../serverSettings.ts";
+import * as ProcessRunner from "../processRunner.ts";
 import * as Orchestrator from "../orchestration-v2/Orchestrator.ts";
 import * as Projections from "../orchestration-v2/ProjectionStore.ts";
 import * as ProviderSessions from "../orchestration-v2/ProviderSessionManager.ts";
@@ -47,6 +53,7 @@ export class Sessions extends Context.Service<
     readonly mainPi: (
       input: Readonly<Record<string, unknown>>,
     ) => Effect.Effect<unknown, OziMainPiError>;
+    readonly runPi: (args: ReadonlyArray<string>) => Effect.Effect<OziPiRunResult, OziMainPiError>;
   }
 >()("ozi/ozi/Sessions") {}
 
@@ -73,6 +80,7 @@ const decodeSessionName = Schema.decodeUnknownEffect(
     threadId: Schema.optional(ThreadId),
   }),
 );
+const decodePiConfig = Schema.decodeUnknownEffect(PiSettings);
 
 export const layer = Layer.effect(
   Sessions,
@@ -84,6 +92,8 @@ export const layer = Layer.effect(
     const path = yield* Path.Path;
     const config = yield* ServerConfig.ServerConfig;
     const crypto = yield* Crypto.Crypto;
+    const settings = yield* ServerSettings.ServerSettingsService;
+    const runner = yield* ProcessRunner.ProcessRunner;
 
     const create = Effect.fn("Sessions.create")(
       function* (input: OziSessionCreateInput, nativeId?: string) {
@@ -121,6 +131,40 @@ export const layer = Layer.effect(
     );
 
     return Sessions.of({
+      runPi: Effect.fn("Sessions.runPi")(function* (args) {
+        if (args.length === 0)
+          return yield* new OziMainPiError({ message: OZI_PI_INTERACTIVE_ERROR });
+        return yield* Effect.gen(function* () {
+          const current = yield* settings.getSettings;
+          const piConfig = yield* decodePiConfig(
+            current.providerInstances[ProviderInstanceId.make("pi")]?.config ?? {},
+          );
+          const agentDir = piMainAgentDir(config.providerStatusCacheDir);
+          yield* fs.makeDirectory(agentDir, { recursive: true });
+          const result = yield* runner.run({
+            command: piConfig.binaryPath || "pi",
+            args,
+            cwd: path.join(config.baseDir, "workspace"),
+            env: { PI_CODING_AGENT_DIR: agentDir },
+            stdin: "",
+            timeout: "5 minutes",
+            maxOutputBytes: 1024 * 1024,
+          });
+          return { exitCode: result.code ?? 1, stdout: result.stdout, stderr: result.stderr };
+        }).pipe(
+          Effect.mapError(
+            (error) =>
+              new OziMainPiError({
+                message:
+                  error._tag === "ProcessTimeoutError"
+                    ? "Pi command timed out after 5 minutes."
+                    : error._tag === "ProcessOutputLimitError"
+                      ? "Pi command output exceeded 1 MiB per stream."
+                      : "Could not run Pi on the server.",
+              }),
+          ),
+        );
+      }),
       create: (input) => create(input),
       list: Effect.gen(function* () {
         const shell = yield* projections.getShellSnapshot();

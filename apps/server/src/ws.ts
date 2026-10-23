@@ -973,6 +973,7 @@ const layerWsRpc = (
         [OZI_WS_METHODS.sessionExport]: (input) => oziSessions.export(input),
         [OZI_WS_METHODS.mainSettings]: (input) => oziSessions.settings(input),
         [OZI_WS_METHODS.mainPi]: (input) => oziSessions.mainPi(input),
+        [OZI_WS_METHODS.piRun]: (input) => oziSessions.runPi(input.args),
         [ORCHESTRATION_V2_WS_METHODS.dispatchCommand]: (command) =>
           Effect.annotateCurrentSpan({
             "orchestration_v2.command_id": command.commandId,

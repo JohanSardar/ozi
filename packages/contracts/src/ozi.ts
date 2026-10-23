@@ -133,6 +133,7 @@ export const OZI_WS_METHODS = {
   sessionExport: "ozi.session.export",
   mainSettings: "ozi.main.settings",
   mainPi: "ozi.main.pi",
+  piRun: "ozi.pi.run",
   todosGet: "ozi.todos.get",
   clockAdvance: "ozi.test.clock.advance",
   jobsGet: "ozi.jobs.get",
@@ -141,6 +142,15 @@ export const OZI_WS_METHODS = {
   jobsSubscribe: "ozi.jobs.subscribe",
   jobsHandle: "ozi.jobs.handle",
 } as const;
+
+export const OZI_PI_INTERACTIVE_ERROR = "Run `ozi pi` without arguments on the server machine.";
+
+export const OziPiRunResult = Schema.Struct({
+  exitCode: Schema.Int,
+  stdout: Schema.String,
+  stderr: Schema.String,
+});
+export type OziPiRunResult = typeof OziPiRunResult.Type;
 
 export const OziSessionCreateInput = Schema.Struct({
   title: Schema.optional(TrimmedNonEmptyString),
