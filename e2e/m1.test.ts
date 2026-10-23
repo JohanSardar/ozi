@@ -234,7 +234,8 @@ it("m1.delegate-async starts the default worker and returns its result to main",
       provider: "pi",
       steps: [delegate("worker-default"), { say: "worker started" }],
     },
-    { match: "worker-default", provider: "codex", steps: [{ say: "worker-default-result" }] },
+    { match: "worker-default", provider: "codex", steps: [{ wait: true }] },
+    { match: "release-worker", provider: "codex", steps: [{ say: "worker-default-result" }] },
     {
       match: "worker-default-result",
       provider: "pi",
@@ -242,6 +243,13 @@ it("m1.delegate-async starts the default worker and returns its result to main",
     },
   ]);
   await say("delegate-default");
+  await h.wait(initial.thread.id, "text:worker started");
+  await h.wait(initial.thread.id, "completed");
+  const workers = (await h.status()).snapshot.threads.filter(
+    (thread) => thread.id !== initial.thread.id,
+  );
+  await h.wait(workers[0]!.id, "running");
+  await h.ozi("steer", "release-worker", "--thread", workers[0]!.id);
   await h.ozi(
     "wait",
     "thread",
@@ -249,9 +257,6 @@ it("m1.delegate-async starts the default worker and returns its result to main",
     "text:reported worker-default-result",
     "--timeout",
     "20",
-  );
-  const workers = (await h.status()).snapshot.threads.filter(
-    (thread) => thread.id !== initial.thread.id,
   );
   expect(workers).toHaveLength(1);
   expect(workers[0]!.role).toBe("worker");
