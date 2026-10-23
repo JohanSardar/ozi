@@ -14,6 +14,7 @@ Milestone 7 (terminal app) is built and its fake-agent E2E passes on `main`: 105
 - M5: mistake log, explicit server-verified correction references, replay in real bwrap (no network; trusted inference proxy using the host's OAuth logins), protected rules, user-only override.
 - M6: publish as one data-root commit activated on the next turn, recurrence undo and manual undo with crash-safe journal; gardener audit (E2E-only tests, Knip clean, no retired imports/settings/instructions/comments, no T3 identity); public-ready README, LICENSE and third-party notices (T3 Code, Pi, Firstmate, pi-claude-bridge, Claude Agent SDK) with a tracked-file privacy check.
 - M7: `ozi` without a subcommand opens a Pi-style terminal app on Pi's `pi-tui` with Pi's dark theme and keys (Enter sends or steers, Alt+Enter queues a follow-up, Esc stops, Ctrl+C twice exits). It shows main's live conversation and status, and `/jobs` answers questions, approvals and masked secrets, closes against the shown event, stops jobs and opens lead conversations. `ozi connect <pairing-url>` reaches a remote server; commands print short text without `--json` and accept unique ID substrings; the packaged desktop app installs `ozi` on PATH from Settings → Connections. First frame about 0.2 s, full conversation about 0.5 s with the bundled build.
+- M8: main is a full Pi with the most tools: Pi's `read`, `bash`, `edit` and `write`, every Ozi tool workers get, and everything Pi loads from its own agent directory (MCP servers, packages, extensions, skills, prompt templates, context files). `ozi pi <args…>` runs Pi's CLI on it (`ozi pi mcp add …`), and changes apply on main's next turn. Delegation follows main's prompt, not missing tools. The terminal app shows tool calls the way Pi does.
 - Desktop: own identity (`~/.ozi`, `ozi` shim, Electron profile `ozi`, app id `com.ozi.app`); picks the saved remote server; Linux desktop E2E under Xvfb.
 
 ## Real-agent runs (Ubuntu server under systemd, real Opus main on the subscription, real workers)
@@ -28,9 +29,12 @@ Milestone 7 (terminal app) is built and its fake-agent E2E passes on `main`: 105
 
 - R7 (M7): from the terminal app on Ubuntu and on the MacBook Air (`ozi` installed from the desktop's Settings, `ozi connect` to the Ubuntu server): main answered directly; a real Codex worker asked a multiple-choice question; the Needs-you line appeared, the answer was picked in `/jobs`, the worker wrote exactly `beta`, the check passed, main reported, and closing from the terminal moved the card to Done. Fixed from this run: main never received a worker's result when an earlier run's check had ended in needs_user or continue; `/jobs` truncated job titles.
 
+- R8 (M8): on the Ubuntu server, `ozi pi mcp add` added an MCP server to main without restarting Ozi; on the next message real Opus main listed the new tool and called it itself.
+
 ## Limits
 
 - The Pro's outbound Tailscale TCP fails (two Tailscale daemons run there), so its app reaches the server through an SSH tunnel over Tailscale via the Air.
 - Once during the Pro run, main's conversation stayed scrolled to the top after a job report; three further attempts (plain turn, server restart, delegated job) did not reproduce it.
 - The MacBook Pro went offline (asleep) before R7's Mac run, so that run used the MacBook Air with the same final build.
+- Repair replays still run a sealed Pi: a replayed main turn cannot use Pi's built-ins or main's own MCP servers, for the original and the candidate alike.
 - External to-dos are verified with fake MCP sources; the real Apple Reminders source on the Air returned an empty list.
