@@ -79,12 +79,16 @@ const piConfigFingerprint = Effect.fn("Ozi.piConfigFingerprint")(function* (dire
     const target = path.join(directory, entry);
     const stat = yield* fs.stat(target).pipe(Effect.option);
     if (Option.isNone(stat)) continue;
+    if (stat.value.type === "File") {
+      lines.push(`${entry}:${yield* sha256(yield* fs.readFileString(target))}`);
+      continue;
+    }
     const files =
       stat.value.type === "Directory"
         ? (yield* fs.readDirectory(target, { recursive: true })).map((name) =>
             path.join(entry, name),
           )
-        : [entry];
+        : [];
     for (const file of files.toSorted()) {
       const info = yield* fs.stat(path.join(directory, file)).pipe(Effect.option);
       if (Option.isNone(info) || info.value.type !== "File") continue;

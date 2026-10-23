@@ -39,7 +39,7 @@ it("m5.correction-repairs real Pi and Claude Code replay main through the confin
     if (system.includes("runtime completion checker"))
       return { text: '{"verdict":"done","useful":false}' };
     if (messages.includes("Please fix this")) {
-      if (messages.includes('"tool_result"')) return { text: "42 exactly" };
+      if (messages.includes('"tool_result"')) return { text: "Logged it." };
       correctionMessageId =
         messages
           .match(/\[Ozi message ID: ([^\]]+)\]/g)
@@ -100,7 +100,7 @@ it("m5.correction-repairs real Pi and Claude Code replay main through the confin
       "say",
       "For math questions I always want just the number followed by the word exactly, like: 42 exactly. Please fix this so it doesn't happen again.",
     );
-    await h.wait("ozi-main", "text:42 exactly", 60);
+    await h.wait("ozi-main", "text:Logged it.", 60);
     const row = (
       await h.ozi<Array<{ id: string; boundary: string; trigger_event_id: string }>>("mistakes")
     )[0]!;
