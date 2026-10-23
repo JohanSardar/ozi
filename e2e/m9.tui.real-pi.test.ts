@@ -6,7 +6,7 @@ import { startHarness } from "./harness.ts";
 import { startAnthropic } from "./fakes/anthropic.ts";
 import { openTui } from "./tty.ts";
 
-const realPi = async () => {
+const realPi = async (settings?: Record<string, unknown>) => {
   const pi = NodeURL.fileURLToPath(new URL("./node_modules/.bin/pi", import.meta.url));
   const claude = NodeURL.fileURLToPath(new URL("./node_modules/.bin", import.meta.url));
   const fake = await startAnthropic(() => ({ text: "real-pi-ok" }));
@@ -31,6 +31,11 @@ const realPi = async () => {
     await fake.close();
     throw error;
   });
+  if (settings)
+    await NodeFSP.writeFile(
+      NodePath.join(h.env.PI_CODING_AGENT_DIR!, "settings.json"),
+      JSON.stringify(settings),
+    );
   const terminal = openTui(h);
   return {
     h,
@@ -66,7 +71,7 @@ it("m9.tui-pi-commands runs Pi's commands, shell and model switching from the te
     await terminal.waitFor("m9-shell-output", from);
     from = terminal.mark();
     terminal.keys("/name m9 session\r");
-    await terminal.waitFor('Named main\'s session "m9 session".', from);
+    await terminal.waitFor('Named the session "m9 session".', from);
     const exported = NodePath.join(h.root, "main.html");
     from = terminal.mark();
     terminal.keys(`/export ${exported}\r`);
@@ -143,6 +148,91 @@ export default function (pi) {
     terminal.keys("\r");
     await terminal.waitFor("confirmed:true", from);
     expect(terminal.output).toContain("tui-draft");
+  } finally {
+    await close();
+  }
+});
+
+it("m9.tui-settings changes main's and the terminal's settings and scopes Ctrl+P models", async () => {
+  const { h, terminal, close } = await realPi({
+    enabledModels: ["claude-bridge/claude-sonnet-5-5", "claude-bridge/claude-opus-5-5"],
+  });
+  const local = NodePath.join(h.env.PI_CODING_AGENT_DIR!, "settings.json");
+  const read = async (file: string) => JSON.parse(await NodeFSP.readFile(file, "utf8"));
+  try {
+    await h.ozi("wait", "provider", "pi", "ready", "--timeout", "30");
+    await terminal.waitFor(`:${h.port}`);
+    terminal.keys("hello\r");
+    await terminal.waitFor("real-pi-ok");
+    await h.wait("ozi-main", "completed", 60);
+    let from = terminal.mark();
+    terminal.keys("/settings\r");
+    await terminal.waitFor("Auto-compact", from);
+    terminal.keys("\r");
+    await terminal.waitFor("Auto-compact off.", from);
+    expect(
+      (await read(NodePath.join(h.home, "caches/ozi-main-pi/settings.json"))).compaction,
+    ).toMatchObject({ enabled: false });
+    terminal.keys("\x1b[B\x1b[B\x1b[B\r");
+    await terminal.waitFor(`Saved to ${local}.`, from);
+    expect(await read(local)).toMatchObject({ hideThinkingBlock: true });
+    terminal.keys("\x03");
+    from = terminal.mark();
+    terminal.keys("\x10");
+    await terminal.waitFor("claude-sonnet-5-5", from);
+    expect((await h.thread("ozi-main")).thread.modelSelection.model).toBe(
+      "claude-bridge/claude-sonnet-5-5",
+    );
+    from = terminal.mark();
+    terminal.keys("\x10");
+    await terminal.waitFor("claude-opus-5-5", from);
+    expect((await h.thread("ozi-main")).thread.modelSelection.model).toBe(
+      "claude-bridge/claude-opus-5-5",
+    );
+    from = terminal.mark();
+    terminal.keys("/scoped-models\r");
+    await terminal.waitFor("Enter/Space to change", from);
+    terminal.keys("\r");
+    await terminal.waitFor(`Saved to ${local}.`, from);
+    expect((await read(local)).enabledModels).toEqual(["claude-bridge/claude-sonnet-5-5"]);
+    from = terminal.mark();
+    terminal.keys("\x01");
+    await terminal.waitFor(`Saved to ${local}.`, from);
+    expect((await read(local)).enabledModels).toBeUndefined();
+    from = terminal.mark();
+    terminal.keys("\x18");
+    await terminal.waitFor(`Saved to ${local}.`, from);
+    expect((await read(local)).enabledModels).toEqual([]);
+  } finally {
+    await close();
+  }
+});
+
+it("m9.tui-import imports a Pi session file and continues it in the terminal app", async () => {
+  const { h, terminal, close } = await realPi();
+  try {
+    await h.ozi("wait", "provider", "pi", "ready", "--timeout", "30");
+    await terminal.waitFor(`:${h.port}`);
+    terminal.keys("remember-this-chat\r");
+    await terminal.waitFor("real-pi-ok");
+    await h.wait("ozi-main", "completed", 60);
+    const sessions = NodePath.join(h.home, "caches/ozi-main-pi/sessions");
+    const files = await NodeFSP.readdir(sessions, { recursive: true });
+    const source = files.find((file) => file.endsWith(".jsonl"))!;
+    const copy = NodePath.join(h.root, "old-chat.jsonl");
+    await NodeFSP.copyFile(NodePath.join(sessions, source), copy);
+    const from = terminal.mark();
+    terminal.keys(`/import ${copy}\r`);
+    await terminal.waitFor("old-chat · ", from);
+    terminal.keys("continue-old-chat\r");
+    const imported = (await h.status()).snapshot.threads.find(
+      (thread) => thread.title === "old-chat",
+    )!;
+    expect(imported.role).toBe("main-fork");
+    await h.wait(imported.id, "text:real-pi-ok", 60);
+    expect(JSON.stringify((await h.thread("ozi-main")).messages)).not.toContain(
+      "continue-old-chat",
+    );
   } finally {
     await close();
   }

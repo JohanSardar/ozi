@@ -29,7 +29,7 @@ requirements:
   t3-keep: Keep chat (attachments, steer/queue, stop), approval/question cards, delegation, scheduler, webhooks, secret entry, shared browser, visual replies, desktop shell, Pi/Claude/Codex adapters.
   provider-scope: Only Pi, Claude and Codex providers ship.
   client-scope: Only desktop, web and terminal clients ship.
-  pi-parity: Ozi's main and terminal app do everything Pi's interactive mode and harness do, apart from switching between sessions.
+  pi-parity: Ozi's main and terminal app do everything Pi's interactive mode and harness do; Pi's sessions are main and its forks.
   main-full-pi: Main is a regular Pi with its own agent directory; MCP servers, packages, extensions, skills, prompt templates and context files are added with Pi's own commands through `ozi pi` and apply on the next turn.
   terminal-client: Running `ozi` opens a Pi-style terminal app for main and job cards, on the server or a remote machine.
   t3-cut: Cut other providers, thread list, projects, worktrees, PR tools, checkpoints, diffs, simulators, terminal, T3 coding instructions.
@@ -289,4 +289,18 @@ features:
     cli: [main]
     milestone: 9
     scenarios: [m9.tui-pi-commands, m9.tui-extension-ui]
+    status: passing
+  - id: main-sessions
+    reqs: [pi-parity, main-full-pi]
+    module: apps/server/src/ozi/Sessions.ts + e2e/m9.sessions.test.ts
+    cli: [session, main]
+    milestone: 9
+    scenarios: [m9.sessions, m9.session-import]
+    status: passing
+  - id: tui-sessions-settings
+    reqs: [pi-parity, terminal-client]
+    module: apps/server/src/cli/tui + e2e/m9.tui.test.ts
+    cli: []
+    milestone: 9
+    scenarios: [m9.tui-sessions, m9.tui-import, m9.tui-settings]
     status: passing

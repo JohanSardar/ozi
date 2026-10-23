@@ -4,6 +4,8 @@ import {
   getNativeClipboard,
   Image,
   KeybindingsManager,
+  fuzzyFilter,
+  getKeybindings,
   setKeybindings,
   TUI_KEYBINDINGS,
   type KeyId,
@@ -15,6 +17,7 @@ import {
   matchesKey,
   ProcessTerminal,
   SelectList,
+  SettingsList,
   Spacer,
   Text,
   TuiMainScreen,
@@ -34,7 +37,8 @@ import {
   type OrchestrationV2ThreadProjection,
   type OziJobCard,
   type OziJobRequest,
-  type ThreadId,
+  type OrchestrationV2ThreadForkSourcePoint,
+  ThreadId,
 } from "@t3tools/contracts";
 import { htmlRenderFromToolItem, mcpAppFromToolItem } from "@t3tools/shared/toolOutput";
 import * as Cause from "effect/Cause";
@@ -61,6 +65,7 @@ import {
   fg,
   markdown,
   selectList,
+  settingsList,
   useTheme,
   type PiTheme,
 } from "./theme.ts";
@@ -122,6 +127,11 @@ const appKeys: Record<string, KeyId[]> = {
   "app.thinking.toggle": ["ctrl+t"],
   "app.tools.expand": ["ctrl+o"],
   "app.message.followUp": ["alt+enter"],
+  "app.message.copy": ["ctrl+x"],
+  "app.session.rename": ["ctrl+r"],
+  "app.session.delete": ["ctrl+d"],
+  "app.models.enableAll": ["ctrl+a"],
+  "app.models.clearAll": ["ctrl+x"],
 };
 const decodeJson = Schema.decodeUnknownEffect(Schema.fromJsonString(Schema.Unknown));
 const KeySetting = Schema.Union([Schema.String, Schema.Array(Schema.String)]);
@@ -129,7 +139,13 @@ const Keybindings = Schema.Record(Schema.String, KeySetting);
 const PiSettings = Schema.Struct({
   theme: Schema.optional(Schema.String),
   themes: Schema.optional(Schema.Array(Schema.String)),
+  hideThinkingBlock: Schema.optional(Schema.Boolean),
+  terminal: Schema.optional(Schema.Struct({ showImages: Schema.optional(Schema.Boolean) })),
+  enabledModels: Schema.optional(Schema.Array(Schema.String)),
+  doubleEscapeAction: Schema.optional(Schema.Literals(["tree", "fork", "none"])),
 });
+const SettingsFile = Schema.Record(Schema.String, Schema.Unknown);
+const encodeSettings = Schema.encodeEffect(Schema.fromJsonString(SettingsFile, { space: 2 }));
 const Theme = Schema.Struct({
   name: Schema.optional(Schema.String),
   vars: Schema.optional(Schema.Record(Schema.String, Schema.Union([Schema.String, Schema.Number]))),
@@ -177,7 +193,7 @@ const piAppearance = Effect.fn("ozi.tui.piAppearance")(function* () {
           custom ??= theme.value;
       }
     }
-  return { name, custom, keybindings };
+  return { name, custom, keybindings, directory, settings };
 });
 
 type Env =
@@ -188,26 +204,33 @@ type Env =
   | Path.Path;
 type Row = { container: Container; key: string };
 
-export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<string>) {
+export const runTui = Effect.fn("ozi.tui")(function* (
+  baseDir: Option.Option<string>,
+  launch: { resume: boolean; latest: boolean; session: Option.Option<string> },
+) {
   const context = yield* Effect.context<Env>();
   const run = Effect.runForkWith(context);
   const done = yield* Deferred.make<void>();
-  const appearance = yield* piAppearance();
-  const userKeys = Object.fromEntries(
-    Object.entries(appearance.keybindings).map(([id, keys]) => [
-      id,
-      (Array.isArray(keys) ? keys : [keys]) as KeyId[],
-    ]),
-  );
-  setKeybindings(
-    new KeybindingsManager(
-      TUI_KEYBINDINGS,
-      Object.fromEntries(Object.entries(userKeys).filter(([id]) => id.startsWith("tui."))),
-    ),
-  );
+  let appearance = yield* piAppearance();
+  let userKeys: Record<string, KeyId[]> = {};
+  const applyAppearance = () => {
+    userKeys = Object.fromEntries(
+      Object.entries(appearance.keybindings).map(([id, keys]) => [
+        id,
+        (Array.isArray(keys) ? keys : [keys]) as KeyId[],
+      ]),
+    );
+    setKeybindings(
+      new KeybindingsManager(
+        TUI_KEYBINDINGS,
+        Object.fromEntries(Object.entries(userKeys).filter(([id]) => id.startsWith("tui."))),
+      ),
+    );
+    useTheme(appearance.custom ?? builtinThemes[appearance.name] ?? builtinThemes.dark!);
+  };
+  applyAppearance();
   const is = (id: string, data: string) =>
     (userKeys[id] ?? appKeys[id] ?? []).some((key) => matchesKey(data, key));
-  useTheme(appearance.custom ?? builtinThemes[appearance.name] ?? builtinThemes.dark!);
   const terminal = new ProcessTerminal();
   const tui = new TuiMainScreen(terminal);
   const chat = new Container();
@@ -218,6 +241,13 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
   const editor = new Editor(tui, editorTheme, { paddingX: 1 });
   const oziCommands = [
     { name: "jobs", description: "Job cards" },
+    { name: "resume", description: "Switch to another session" },
+    { name: "tree", description: "Main and its forks" },
+    { name: "fork", description: "Fork from an earlier message" },
+    { name: "clone", description: "Duplicate this session" },
+    { name: "new", description: "Start a new session" },
+    { name: "import", description: "Import and resume a Pi session file", argumentHint: "<path>" },
+    { name: "reload", description: "Reload Pi's extensions, skills, prompts, themes and keys" },
     { name: "attach", description: "Attach a file to the next message", argumentHint: "<path>" },
     { name: "stop", description: "Stop the current work" },
     { name: "model", description: "Select main's model", argumentHint: "[model]" },
@@ -227,6 +257,8 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
     { name: "name", description: "Name main's session", argumentHint: "<name>" },
     { name: "copy", description: "Copy main's last reply" },
     { name: "session", description: "Conversation stats" },
+    { name: "settings", description: "Main's and the terminal's settings" },
+    { name: "scoped-models", description: "Models for Ctrl+P cycling" },
     { name: "hotkeys", description: "Keyboard shortcuts" },
     { name: "quit", description: "Exit" },
   ];
@@ -241,12 +273,14 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
       ),
     );
   setCommands([]);
+  const piRpc = (current: Connection, command: OziMainPiCommand) =>
+    current.client[J.mainPi]({ ...command, threadId: home.threadId });
   let settledRun: string | undefined;
   const refreshCommands = () => {
     const current = connection;
     if (!current) return;
     run(
-      current.client[J.mainPi]({ type: "get_commands" }).pipe(
+      piRpc(current, { type: "get_commands" }).pipe(
         Effect.flatMap((data) =>
           Effect.sync(() =>
             setCommands(
@@ -268,11 +302,18 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
   let connection: Connection | null = null;
   let projection: OrchestrationV2ThreadProjection | null = null;
   let cards: ReadonlyArray<OziJobCard> | null = null;
-  let view: { threadId: ThreadId; title: string } = { threadId: OZI_MAIN_THREAD_ID, title: "" };
+  let home: { threadId: ThreadId; title: string } = { threadId: OZI_MAIN_THREAD_ID, title: "main" };
+  let view = home;
+  const atHome = () => view.threadId === home.threadId;
   let files: string[] = [];
   let loader: Loader | null = null;
   let lastCtrlC = 0;
-  let showThinking = true;
+  let showThinking = !appearance.settings.hideThinkingBlock;
+  let showImages = appearance.settings.terminal?.showImages ?? true;
+  let enabledModels = appearance.settings.enabledModels;
+  let doubleEscape = appearance.settings.doubleEscapeAction ?? "tree";
+  let lastEscape = 0;
+  let themeName = appearance.name;
   let expandTools = false;
   let session: Fiber.Fiber<unknown, unknown> | null = null;
   const rows = new Map<string, Row>();
@@ -280,7 +321,7 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
   const images = new Map<string, { data: string; mimeType: string } | null>();
   const imageParts = (attachments: ReadonlyArray<ChatAttachment>) =>
     attachments.flatMap((attachment): Component[] => {
-      if (attachment.type !== "image") return [];
+      if (attachment.type !== "image" || !showImages) return [];
       const cached = images.get(attachment.id);
       if (cached === undefined && connection) {
         images.set(attachment.id, null);
@@ -378,8 +419,7 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
       ...(selection ? [selection.model.split("/").at(-1)!] : []),
       ...(typeof thinking === "string" ? [thinking] : []),
     ].join(" · ");
-    const place =
-      view.threadId === OZI_MAIN_THREAD_ID ? "main" : `job: ${view.title} · esc returns to main`;
+    const place = atHome() ? home.title : `job: ${view.title} · esc returns to ${home.title}`;
     footer.setText(
       [
         fg(
@@ -413,6 +453,8 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
   ): { key: string; parts: Component[] } | null => {
     const state =
       item.status === "failed" ? "error" : item.status === "completed" ? "ok" : "pending";
+    if (item.type === "fork")
+      return { key: "fork", parts: [new Text(fg("dim", "─ forked ─"), 1, 0)] };
     if (item.type === "reasoning")
       return item.text.trim()
         ? {
@@ -536,7 +578,7 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
     const settled = projection.runs.findLast((run) =>
       ["completed", "failed", "interrupted", "cancelled"].includes(run.status),
     )?.id;
-    if (view.threadId === OZI_MAIN_THREAD_ID && settled !== settledRun) {
+    if (atHome() && settled !== settledRun) {
       settledRun = settled;
       refreshCommands();
     }
@@ -563,7 +605,7 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
         rows.delete(id);
       }
     renderExtensionUi();
-    if (view.threadId === OZI_MAIN_THREAD_ID) openMainDialog();
+    if (atHome()) openMainDialog();
     const queued = projection.runs.filter((run) => run.status === "queued");
     pending.setText(
       queued
@@ -635,7 +677,7 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
     dialogFor = item.requestId;
     const request: OziJobRequest = {
       id: item.requestId,
-      threadId: OZI_MAIN_THREAD_ID,
+      threadId: home.threadId,
       kind: item.type === "user_input_request" ? "question" : "approval",
       prompt: item.title ?? "Input required",
       options: [],
@@ -699,7 +741,7 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
       return show(box, text);
     }
     const input = new Input();
-    input.setValue(question.initialAnswer ?? "");
+    input.handleInput(question.initialAnswer ?? "");
     input.onSubmit = (value) => {
       restoreEditor();
       respond(request, [value]);
@@ -771,6 +813,8 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
 
   const start = () => {
     if (session) run(Fiber.interrupt(session));
+    noticesPrimed = false;
+    editorTextAt = undefined;
     projection = null;
     rows.clear();
     chat.clear();
@@ -950,6 +994,12 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
     for (const row of rows.values()) row.key = "";
     renderConversation();
   };
+  const repaint = () => {
+    tui.invalidate();
+    redraw();
+    renderStatus();
+    tui.requestRender(true);
+  };
 
   const externalEditor = () =>
     run(
@@ -983,7 +1033,7 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
 
   const mainPi = (label: string, command: OziMainPiCommand, describe?: (data: unknown) => string) =>
     act("", (current) =>
-      current.client[J.mainPi](command).pipe(
+      piRpc(current, command).pipe(
         Effect.flatMap((data) => Effect.sync(() => notice(describe?.(data) ?? label))),
       ),
     );
@@ -995,7 +1045,7 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
     chat.addChild(row);
     tui.requestRender();
     act("", (current) =>
-      current.client[J.mainPi]({ type: "bash", command, excludeFromContext: quiet }).pipe(
+      piRpc(current, { type: "bash", command, excludeFromContext: quiet }).pipe(
         Effect.flatMap((data) =>
           Effect.sync(() => {
             const result = data as { output?: string; exitCode?: number; cancelled?: boolean };
@@ -1022,7 +1072,7 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
         yield* current.client[O.dispatchCommand]({
           type: "thread.model-selection.set",
           commandId: CommandId.make(yield* (yield* Crypto.Crypto).randomUUIDv4()),
-          threadId: OZI_MAIN_THREAD_ID,
+          threadId: home.threadId,
           modelSelection,
           createdBy: "user",
           creationSource: "cli",
@@ -1052,20 +1102,56 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
       ),
     );
   const thinkingLevels = (current: Connection) =>
-    current.client[J.mainPi]({ type: "get_available_thinking_levels" }).pipe(
+    piRpc(current, { type: "get_available_thinking_levels" }).pipe(
       Effect.map((data) => (data as { levels?: string[] }).levels ?? []),
     );
-  const pick = (items: SelectItem[], onPick: (value: string) => void) => {
-    const list = new SelectList(items, 12, selectList, {
-      minPrimaryColumnWidth: 20,
-      maxPrimaryColumnWidth: 60,
-    });
-    list.onSelect = (item) => {
-      restoreEditor();
-      onPick(item.value);
+  const pick = (
+    items: SelectItem[],
+    onPick: (value: string) => void,
+    selected = 0,
+    onKey?: (data: string, item: SelectItem | null) => boolean,
+  ) => {
+    const search = new Input();
+    const box = new Container();
+    let list = new SelectList([], 12, selectList);
+    const build = (query: string) => {
+      list = new SelectList(
+        query
+          ? fuzzyFilter(items, query, (item) => `${item.label} ${item.description ?? ""}`)
+          : items,
+        12,
+        selectList,
+        { minPrimaryColumnWidth: 20, maxPrimaryColumnWidth: 60 },
+      );
+      if (!query) list.setSelectedIndex(selected);
+      list.onSelect = (item) => {
+        restoreEditor();
+        onPick(item.value);
+      };
+      list.onCancel = restoreEditor;
+      box.clear();
+      box.addChild(new Text(fg("dim", query ? `Search: ${query}` : "Type to search"), 1, 0));
+      box.addChild(list);
     };
-    list.onCancel = restoreEditor;
-    show(list);
+    build("");
+    show({
+      render: (width) => box.render(width),
+      invalidate: () => box.invalidate(),
+      handleInput: (data) => {
+        if (onKey?.(data, list.getSelectedItem())) return;
+        if (
+          (
+            ["tui.select.up", "tui.select.down", "tui.select.confirm", "tui.select.cancel"] as const
+          ).some((id) => getKeybindings().matches(data, id))
+        )
+          list.handleInput(data);
+        else {
+          search.handleInput(data);
+          build(search.getValue());
+        }
+        tui.requestRender();
+      },
+    });
   };
   const chooseModel = () =>
     act("", (current) =>
@@ -1105,7 +1191,7 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
         Effect.flatMap((list) =>
           Effect.sync(() => {
             const next = cycle(
-              list.map((model) => model.slug),
+              list.map((model) => model.slug).filter(scoped),
               mainSelection()?.model,
               step,
             );
@@ -1124,6 +1210,407 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
             )?.value;
             const next = cycle(levels, typeof value === "string" ? value : undefined, 1);
             if (next) setThinking(next);
+          }),
+        ),
+      ),
+    );
+
+  const switchTo = (threadId: ThreadId, title: string, draft = "") => {
+    home = { threadId, title };
+    settledRun = undefined;
+    open(threadId, title);
+    editor.setText(draft);
+  };
+  const forkSession = (
+    sourceThreadId: ThreadId,
+    sourcePoint: OrchestrationV2ThreadForkSourcePoint,
+    title: string,
+    draft = "",
+  ) =>
+    act("", (current) =>
+      Effect.gen(function* () {
+        const threadId = ThreadId.make(yield* (yield* Crypto.Crypto).randomUUIDv4());
+        yield* current.client[O.dispatchCommand]({
+          type: "thread.fork",
+          commandId: CommandId.make(yield* (yield* Crypto.Crypto).randomUUIDv4()),
+          sourceThreadId,
+          targetThreadId: threadId,
+          sourcePoint,
+          title,
+          createdBy: "user",
+          creationSource: "cli",
+        });
+        yield* Effect.sync(() => switchTo(threadId, title, draft));
+      }),
+    );
+  const newSession = (title = "New session", draft = "") =>
+    act("", (current) =>
+      current.client[J.sessionNew]({ title }).pipe(
+        Effect.flatMap(({ threadId }) => Effect.sync(() => switchTo(threadId, title, draft))),
+      ),
+    );
+  const importSession = (file: string) =>
+    act("", (current) =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const title = path.basename(file, ".jsonl");
+        const { threadId } = yield* current.client[J.sessionImport]({
+          content: yield* fs.readFileString(file),
+          title,
+        });
+        yield* Effect.sync(() => switchTo(threadId, title));
+      }),
+    );
+  const reload = () => {
+    act("Pi reloads on the session's next turn.", (current) =>
+      current.client[J.sessionReload]({ threadId: home.threadId }),
+    );
+    run(
+      piAppearance().pipe(
+        Effect.flatMap((next) =>
+          Effect.sync(() => {
+            appearance = next;
+            themeName = next.name;
+            showThinking = !next.settings.hideThinkingBlock;
+            showImages = next.settings.terminal?.showImages ?? true;
+            enabledModels = next.settings.enabledModels;
+            doubleEscape = next.settings.doubleEscapeAction ?? "tree";
+            applyAppearance();
+            if (themeName === "system") terminal.write("\x1b[?996n");
+            repaint();
+          }),
+        ),
+      ),
+    );
+  };
+  const chooseFork = () => {
+    const visible = projection?.visibleTurnItems ?? [];
+    const choices = visible.flatMap(({ item }, index) =>
+      item.type === "user_message"
+        ? [{ item, before: visible.slice(0, index).findLast((row) => row.item.runId)?.item }]
+        : [],
+    );
+    if (choices.length === 0) return notice("No messages to fork from yet.", "red");
+    pick(
+      choices.map(({ item }, index) => ({
+        value: String(index),
+        label: item.text.split("\n")[0]!,
+      })),
+      (value) => {
+        const { item, before } = choices[Number(value)]!;
+        if (!before?.runId) return newSession(`${home.title} fork`, item.text);
+        forkSession(
+          before.threadId,
+          { type: "run", runId: before.runId },
+          `${home.title} fork`,
+          item.text,
+        );
+      },
+      choices.length - 1,
+    );
+  };
+  const name = (thread: { id: ThreadId; title: string }) =>
+    thread.id === OZI_MAIN_THREAD_ID ? "main" : thread.title;
+  const sessions = (current: Connection) =>
+    current.client[J.sessionList]({}).pipe(
+      Effect.map((list) =>
+        list.toSorted((a, b) => b.updatedAt.epochMilliseconds - a.updatedAt.epochMilliseconds),
+      ),
+    );
+  const chooseSession = (tree: boolean) =>
+    act("", (current) =>
+      sessions(current).pipe(
+        Effect.flatMap((threads) =>
+          Effect.sync(() => {
+            const depth = (thread: (typeof threads)[number]): number => {
+              const parent = threads.find((entry) => entry.id === thread.forkedFrom);
+              return parent ? depth(parent) + 1 : 0;
+            };
+            const order = (parent: ThreadId | null): typeof threads =>
+              threads.flatMap((thread) =>
+                (
+                  parent === null
+                    ? !threads.some((entry) => entry.id === thread.forkedFrom)
+                    : thread.forkedFrom === parent
+                )
+                  ? [thread, ...order(thread.id)]
+                  : [],
+              );
+            const listed = tree ? order(null) : threads;
+            pick(
+              listed.map((thread) => ({
+                value: thread.id,
+                label: `${tree ? "  ".repeat(depth(thread)) : ""}${thread.id === home.threadId ? "• " : ""}${name(thread)}`,
+                description: `${thread.messageCount} messages`,
+              })),
+              (value) => {
+                const thread = threads.find((entry) => entry.id === value);
+                if (thread) switchTo(thread.id, name(thread));
+              },
+              Math.max(
+                0,
+                listed.findIndex((thread) => thread.id === home.threadId),
+              ),
+              (data, item) => {
+                const thread = threads.find((entry) => entry.id === item?.value);
+                if (!thread) return false;
+                if (is("app.session.rename", data)) renameSession(thread);
+                else if (is("app.session.delete", data)) deleteSession(thread);
+                else return false;
+                return true;
+              },
+            );
+          }),
+        ),
+      ),
+    );
+  const metadata = (threadId: ThreadId, title: string) =>
+    act(`Renamed to "${title}".`, (current) =>
+      Effect.gen(function* () {
+        yield* current.client[O.dispatchCommand]({
+          type: "thread.metadata.update",
+          commandId: CommandId.make(yield* (yield* Crypto.Crypto).randomUUIDv4()),
+          threadId,
+          title,
+        });
+        if (threadId === home.threadId && threadId !== OZI_MAIN_THREAD_ID)
+          home = { ...home, title };
+      }),
+    );
+  const renameSession = (thread: { id: ThreadId; title: string }) => {
+    const input = new Input();
+    input.handleInput(thread.title);
+    input.onSubmit = (title) => {
+      restoreEditor();
+      if (title.trim()) metadata(thread.id, title.trim());
+    };
+    input.onEscape = restoreEditor;
+    const box = new Container();
+    box.addChild(new Text(fg("accent", "Rename session", { bold: true }), 1, 0));
+    box.addChild(input);
+    show(box, input);
+  };
+  const deleteSession = (thread: { id: ThreadId; title: string }) => {
+    if (thread.id === OZI_MAIN_THREAD_ID) return notice("Main can't be deleted.", "red");
+    pick(
+      [
+        { value: "cancel", label: "Cancel" },
+        { value: "delete", label: `Delete "${thread.title}"` },
+      ],
+      (value) =>
+        value === "delete" &&
+        act(`Deleted "${thread.title}".`, (current) =>
+          Effect.gen(function* () {
+            yield* current.client[O.dispatchCommand]({
+              type: "thread.delete",
+              commandId: CommandId.make(yield* (yield* Crypto.Crypto).randomUUIDv4()),
+              threadId: thread.id,
+            });
+            if (thread.id === home.threadId) switchTo(OZI_MAIN_THREAD_ID, "main");
+          }),
+        ),
+    );
+  };
+
+  const saveSetting = (update: (settings: Record<string, unknown>) => void) =>
+    run(
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const file = path.join(appearance.directory, "settings.json");
+        const settings = {
+          ...(yield* fs.readFileString(file).pipe(
+            Effect.flatMap(decodeJson),
+            Effect.flatMap(Schema.decodeUnknownEffect(SettingsFile)),
+            Effect.orElseSucceed(() => ({})),
+          )),
+        };
+        update(settings);
+        yield* fs.makeDirectory(appearance.directory, { recursive: true });
+        yield* fs.writeFileString(file, `${yield* encodeSettings(settings)}\n`);
+        notice(`Saved to ${file}.`);
+      }).pipe(Effect.catchCause((cause) => Effect.sync(() => notice(errorLine(cause), "red")))),
+    );
+  const scoped = (slug: string) =>
+    !enabledModels?.length ||
+    enabledModels.some((pattern) => {
+      const base = pattern.split(":")[0]!;
+      return base.includes("*")
+        ? new RegExp(`^${base.split("*").map(RegExp.escape).join(".*")}$`).test(slug)
+        : slug.includes(base);
+    });
+  const setTheme = (name: string) => {
+    themeName = name;
+    if (name === "system") terminal.write("\x1b[?996n");
+    else {
+      useTheme(
+        name === appearance.name && appearance.custom
+          ? appearance.custom
+          : (builtinThemes[name] ?? builtinThemes.dark!),
+      );
+      repaint();
+    }
+    saveSetting((settings) => {
+      settings.theme = name;
+    });
+  };
+  const openSettings = () =>
+    act("", (current) =>
+      piRpc(current, { type: "get_state" }).pipe(
+        Effect.flatMap((data) =>
+          Effect.sync(() => {
+            const state = data as {
+              autoCompactionEnabled?: boolean;
+              steeringMode?: string;
+              followUpMode?: string;
+            };
+            const toggle = ["true", "false"];
+            const modes = ["one-at-a-time", "all"];
+            const list = new SettingsList(
+              [
+                {
+                  id: "autocompact",
+                  label: "Auto-compact",
+                  description: "Compact main's context when it fills up",
+                  currentValue: String(state.autoCompactionEnabled ?? true),
+                  values: toggle,
+                },
+                {
+                  id: "steering-mode",
+                  label: "Steering mode",
+                  description: "How main takes steering messages sent while it works",
+                  currentValue: state.steeringMode ?? "one-at-a-time",
+                  values: modes,
+                },
+                {
+                  id: "follow-up-mode",
+                  label: "Follow-up mode",
+                  description: "How main takes queued follow-up messages",
+                  currentValue: state.followUpMode ?? "one-at-a-time",
+                  values: modes,
+                },
+                {
+                  id: "hide-thinking",
+                  label: "Hide thinking",
+                  description: "Show main's thinking as a short label",
+                  currentValue: String(!showThinking),
+                  values: toggle,
+                },
+                {
+                  id: "show-images",
+                  label: "Show images",
+                  description: "Render images inline",
+                  currentValue: String(showImages),
+                  values: toggle,
+                },
+                {
+                  id: "double-escape",
+                  label: "Double Esc",
+                  description: "What Esc twice on an empty editor opens",
+                  currentValue: doubleEscape,
+                  values: ["tree", "fork", "none"],
+                },
+                {
+                  id: "theme",
+                  label: "Theme",
+                  currentValue: themeName,
+                  values: [...new Set(["dark", "light", "system", appearance.name])],
+                },
+              ],
+              10,
+              settingsList,
+              (id, value) => {
+                const on = value === "true";
+                if (id === "autocompact")
+                  return mainPi(`Auto-compact ${on ? "on" : "off"}.`, {
+                    type: "set_auto_compaction",
+                    enabled: on,
+                  });
+                if (id === "steering-mode" || id === "follow-up-mode")
+                  return mainPi(
+                    `${id === "steering-mode" ? "Steering" : "Follow-up"} mode ${value}.`,
+                    {
+                      type: id === "steering-mode" ? "set_steering_mode" : "set_follow_up_mode",
+                      mode: value as "all" | "one-at-a-time",
+                    },
+                  );
+                if (id === "theme") return setTheme(value);
+                if (id === "double-escape") {
+                  doubleEscape = value as typeof doubleEscape;
+                  return saveSetting((settings) => {
+                    settings.doubleEscapeAction = value;
+                  });
+                }
+                if (id === "hide-thinking") {
+                  showThinking = !on;
+                  saveSetting((settings) => {
+                    settings.hideThinkingBlock = on;
+                  });
+                } else {
+                  showImages = on;
+                  saveSetting((settings) => {
+                    settings.terminal = {
+                      ...(settings.terminal as Record<string, unknown> | undefined),
+                      showImages: on,
+                    };
+                  });
+                }
+                redraw();
+              },
+              restoreEditor,
+            );
+            show(list);
+          }),
+        ),
+      ),
+    );
+  const chooseScopedModels = () =>
+    act("", (current) =>
+      models(current).pipe(
+        Effect.flatMap((list) =>
+          Effect.sync(() => {
+            const enabled = new Set(list.map((model) => model.slug).filter(scoped));
+            const save = () => {
+              enabledModels = enabled.size === list.length ? undefined : [...enabled];
+              saveSetting((settings) => {
+                settings.enabledModels = enabledModels;
+              });
+            };
+            const settings = () =>
+              new SettingsList(
+                list.map((model) => ({
+                  id: model.slug,
+                  label: model.slug,
+                  currentValue: enabled.has(model.slug) ? "on" : "off",
+                  values: ["on", "off"],
+                })),
+                12,
+                settingsList,
+                (slug, value) => {
+                  if (value === "on") enabled.add(slug);
+                  else enabled.delete(slug);
+                  save();
+                },
+                restoreEditor,
+                { enableSearch: true },
+              );
+            let shown = settings();
+            show({
+              render: (width) => shown.render(width),
+              invalidate: () => shown.invalidate(),
+              handleInput: (data) => {
+                const all = is("app.models.enableAll", data);
+                if (all || is("app.models.clearAll", data)) {
+                  for (const model of list)
+                    if (all) enabled.add(model.slug);
+                    else enabled.delete(model.slug);
+                  save();
+                  shown = settings();
+                } else shown.handleInput(data);
+                tui.requestRender();
+              },
+            });
           }),
         ),
       ),
@@ -1148,7 +1635,7 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
       projection?.providerThreads.findLast((thread) => thread.contextUsage)?.contextUsage;
     const selection = projection?.thread.modelSelection;
     return [
-      `${view.threadId === OZI_MAIN_THREAD_ID ? "main" : `job: ${view.title}`} · ${selection?.model ?? "unknown model"} · ${selection?.options?.map((option) => `${option.id} ${option.value}`).join(", ") ?? ""}`,
+      `${atHome() ? home.title : `job: ${view.title}`} · ${selection?.model ?? "unknown model"} · ${selection?.options?.map((option) => `${option.id} ${option.value}`).join(", ") ?? ""}`,
       `messages: ${items.filter((item) => item.type === "user_message").length} from you, ${items.filter((item) => item.type === "assistant_message").length} from Ozi · tool calls: ${items.filter((item) => item.type === "command_execution" || item.type === "file_change" || item.type === "dynamic_tool").length} · runs: ${projection?.runs.length ?? 0}`,
       usage
         ? `tokens: ↑${tokens(usage.inputTokens ?? 0)} ↓${tokens(usage.outputTokens ?? 0)} · context ${tokens(usage.usedTokens)}${usage.maxTokens ? ` of ${tokens(usage.maxTokens)}` : ""}`
@@ -1213,7 +1700,7 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
   const submit = (raw: string, steer: boolean) => {
     const text = raw.trim();
     if (!text) return;
-    if (text.startsWith("!") && view.threadId === OZI_MAIN_THREAD_ID) {
+    if (text.startsWith("!") && atHome()) {
       const quiet = text.startsWith("!!");
       const command = text.slice(quiet ? 2 : 1).trim();
       if (command) shell(command, quiet);
@@ -1243,14 +1730,26 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
           (data) =>
             `Exported main's session to ${(data as { path?: string }).path ?? "the server"}.`,
         );
-      if (command === "name" && argument)
-        return mainPi(`Named main's session "${argument}".`, {
+      if (command === "name" && argument) {
+        if (home.threadId !== OZI_MAIN_THREAD_ID) home = { ...home, title: argument };
+        return mainPi(`Named the session "${argument}".`, {
           type: "set_session_name",
           name: argument,
         });
+      }
+      if (command === "new") return newSession();
+      if (command === "import" && argument) return importSession(argument);
+      if (command === "reload") return reload();
       if (command === "model") return argument ? setModel(argument) : chooseModel();
       if (command === "thinking") return argument ? setThinking(argument) : chooseThinking();
       if (command === "session") return notice(sessionInfo());
+      if (command === "settings") return openSettings();
+      if (command === "scoped-models") return chooseScopedModels();
+      if (command === "clone")
+        return forkSession(home.threadId, { type: "latest_stable" }, `${home.title} clone`);
+      if (command === "fork") return chooseFork();
+      if (command === "resume") return chooseSession(false);
+      if (command === "tree") return chooseSession(true);
     }
     editor.addToHistory(text);
     const attached = files;
@@ -1284,6 +1783,20 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
       tui.requestRender();
       return { consume: true };
     }
+    if (area.children[0] === editor && is("app.message.copy", data)) {
+      copyLast();
+      return { consume: true };
+    }
+    for (const [id, action] of [
+      ["app.session.new", () => newSession()],
+      ["app.session.tree", () => chooseSession(true)],
+      ["app.session.fork", chooseFork],
+      ["app.session.resume", () => chooseSession(false)],
+    ] as const)
+      if (area.children[0] === editor && is(id, data)) {
+        action();
+        return { consume: true };
+      }
     if (area.children[0] === editor && is("app.model.select", data)) {
       chooseModel();
       return { consume: true };
@@ -1344,27 +1857,45 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
       area.children[0] === editor &&
       !editor.isShowingAutocomplete()
     ) {
-      if (view.threadId !== OZI_MAIN_THREAD_ID && !editor.getText()) open(OZI_MAIN_THREAD_ID, "");
-      else if (view.threadId === OZI_MAIN_THREAD_ID && active()) stop(view.threadId);
-      else return undefined;
+      if (!atHome() && !editor.getText()) open(home.threadId, home.title);
+      else if (atHome() && active()) stop(view.threadId);
+      else if (editor.getText().trim() || doubleEscape === "none") return undefined;
+      else if (performance.now() - lastEscape < 500) {
+        lastEscape = 0;
+        if (doubleEscape === "tree") chooseSession(true);
+        else chooseFork();
+      } else lastEscape = performance.now();
       return { consume: true };
     }
     return undefined;
   });
 
-  if (appearance.name === "system") {
-    tui.onTerminalColorSchemeChange((scheme) => {
-      useTheme(builtinThemes[scheme]!);
-      tui.invalidate();
-      redraw();
-      renderStatus();
-      tui.requestRender(true);
-    });
-    tui.setTerminalColorSchemeNotifications(true);
-  }
+  tui.onTerminalColorSchemeChange((scheme) => {
+    if (themeName !== "system") return;
+    useTheme(builtinThemes[scheme]!);
+    repaint();
+  });
+  tui.setTerminalColorSchemeNotifications(true);
   tui.start();
   start();
   renderStatus();
+  if (launch.resume) chooseSession(false);
+  else if (launch.latest || Option.isSome(launch.session))
+    act("", (current) =>
+      sessions(current).pipe(
+        Effect.flatMap((threads) =>
+          Effect.sync(() => {
+            const wanted = Option.getOrUndefined(launch.session);
+            const thread = wanted
+              ? (threads.find((entry) => entry.id === wanted) ??
+                threads.find((entry) => entry.id.includes(wanted)))
+              : threads[0];
+            if (!thread) return notice(`No session ${wanted}.`, "red");
+            if (thread.id !== home.threadId) switchTo(thread.id, name(thread));
+          }),
+        ),
+      ),
+    );
   yield* Deferred.await(done);
   stopLoader();
   if (session) yield* Fiber.interrupt(session);

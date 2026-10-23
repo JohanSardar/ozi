@@ -6,6 +6,7 @@ import {
   type EditorTheme,
   type MarkdownTheme,
   type SelectListTheme,
+  type SettingsListTheme,
   type TextAttributes,
 } from "@earendil-works/pi-tui";
 import * as Option from "effect/Option";
@@ -133,6 +134,14 @@ export const selectList: SelectListTheme = {
   description: (text) => fg("muted", text),
   scrollInfo: (text) => fg("muted", text),
   noMatch: (text) => fg("muted", text),
+};
+
+export const settingsList: SettingsListTheme = {
+  label: (text, selected) => fg(selected ? "accent" : "text", text),
+  value: (text, selected) => fg(selected ? "accent" : "muted", text),
+  description: (text) => fg("muted", text),
+  cursor: fg("accent", "→ "),
+  hint: (text) => fg("dim", text),
 };
 
 export const editor: EditorTheme = { borderColor: (text) => fg("border", text), selectList };
