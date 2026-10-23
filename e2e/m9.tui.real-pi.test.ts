@@ -75,8 +75,15 @@ it("m9.tui-pi-commands runs Pi's commands, shell and model switching from the te
     const exported = NodePath.join(h.root, "main.html");
     from = terminal.mark();
     terminal.keys(`/export ${exported}\r`);
-    await terminal.waitFor("Exported main's session", from);
-    expect((await NodeFSP.stat(exported)).size).toBeGreaterThan(0);
+    await terminal.waitFor(`Exported the session to ${exported}.`, from);
+    expect(await NodeFSP.readFile(exported, "utf8")).toMatch(/^<!DOCTYPE html>/);
+    const jsonl = NodePath.join(h.root, "main.jsonl");
+    from = terminal.mark();
+    terminal.keys(`/export ${jsonl}\r`);
+    await terminal.waitFor(`Exported the session to ${jsonl}.`, from);
+    expect(JSON.parse((await NodeFSP.readFile(jsonl, "utf8")).split("\n")[0]!)).toMatchObject({
+      type: "session",
+    });
     from = terminal.mark();
     terminal.keys("/compact\r");
     await terminal.waitFor("Compacted main's context.", from);

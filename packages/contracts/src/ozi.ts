@@ -130,6 +130,7 @@ export const OZI_WS_METHODS = {
   sessionList: "ozi.session.list",
   sessionImport: "ozi.session.import",
   sessionReload: "ozi.session.reload",
+  sessionExport: "ozi.session.export",
   mainPi: "ozi.main.pi",
   todosGet: "ozi.todos.get",
   clockAdvance: "ozi.test.clock.advance",
@@ -153,6 +154,12 @@ export type OziSessionImportInput = typeof OziSessionImportInput.Type;
 
 export const OziSessionResult = Schema.Struct({ threadId: ThreadId });
 export type OziSessionResult = typeof OziSessionResult.Type;
+
+export const OziSessionExportInput = Schema.Struct({
+  threadId: Schema.optional(ThreadId),
+  format: Schema.Literals(["html", "jsonl"]),
+});
+export type OziSessionExportInput = typeof OziSessionExportInput.Type;
 
 export const OziSession = Schema.Struct({
   id: ThreadId,

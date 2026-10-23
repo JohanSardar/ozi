@@ -44,6 +44,7 @@ import { htmlRenderFromToolItem, mcpAppFromToolItem } from "@t3tools/shared/tool
 import * as Cause from "effect/Cause";
 import * as Config from "effect/Config";
 import * as Crypto from "effect/Crypto";
+import * as DateTime from "effect/DateTime";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
@@ -253,7 +254,7 @@ export const runTui = Effect.fn("ozi.tui")(function* (
     { name: "model", description: "Select main's model", argumentHint: "[model]" },
     { name: "thinking", description: "Set main's thinking level", argumentHint: "[level]" },
     { name: "compact", description: "Compact main's context", argumentHint: "[instructions]" },
-    { name: "export", description: "Export main's session as HTML", argumentHint: "[path]" },
+    { name: "export", description: "Export the session as HTML or JSONL", argumentHint: "[path]" },
     { name: "name", description: "Name main's session", argumentHint: "<name>" },
     { name: "copy", description: "Copy main's last reply" },
     { name: "session", description: "Conversation stats" },
@@ -1616,6 +1617,22 @@ export const runTui = Effect.fn("ozi.tui")(function* (
       ),
     );
 
+  const exportSession = (target: string) =>
+    act("", (current) =>
+      Effect.gen(function* () {
+        const format = target.endsWith(".jsonl") ? "jsonl" : "html";
+        const { content } = yield* current.client[J.sessionExport]({
+          threadId: home.threadId,
+          format,
+        });
+        const path = yield* Path.Path;
+        const file = path.resolve(
+          target || `ozi-session-${(yield* DateTime.now).epochMilliseconds}.html`,
+        );
+        yield* (yield* FileSystem.FileSystem).writeFileString(file, content);
+        notice(`Exported the session to ${file}.`);
+      }),
+    );
   const copyLast = () => {
     const last = projection?.visibleTurnItems.findLast(
       (row) => row.item.type === "assistant_message",
@@ -1723,13 +1740,7 @@ export const runTui = Effect.fn("ozi.tui")(function* (
           "Compacted main's context.",
           argument ? { type: "compact", customInstructions: argument } : { type: "compact" },
         );
-      if (command === "export")
-        return mainPi(
-          "",
-          argument ? { type: "export_html", outputPath: argument } : { type: "export_html" },
-          (data) =>
-            `Exported main's session to ${(data as { path?: string }).path ?? "the server"}.`,
-        );
+      if (command === "export") return exportSession(argument);
       if (command === "name" && argument) {
         if (home.threadId !== OZI_MAIN_THREAD_ID) home = { ...home, title: argument };
         return mainPi(`Named the session "${argument}".`, {

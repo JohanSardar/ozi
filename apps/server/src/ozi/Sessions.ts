@@ -8,6 +8,7 @@ import {
   type OziSession,
   type OziSessionCreateInput,
   type OziSessionImportInput,
+  type OziSessionExportInput,
   type OziSessionResult,
   ThreadId,
 } from "@t3tools/contracts";
@@ -35,6 +36,9 @@ export class Sessions extends Context.Service<
       input: OziSessionImportInput,
     ) => Effect.Effect<OziSessionResult, OziSessionError>;
     readonly reload: (threadId: ThreadId) => Effect.Effect<OziSessionResult, OziSessionError>;
+    readonly export: (
+      input: OziSessionExportInput,
+    ) => Effect.Effect<{ content: string }, OziSessionError>;
     readonly mainPi: (
       input: Readonly<Record<string, unknown>>,
     ) => Effect.Effect<unknown, OziMainPiError>;
@@ -44,6 +48,9 @@ export class Sessions extends Context.Service<
 const sessionError = (message: string) => () => new OziSessionError({ message });
 const decodeHeader = Schema.decodeUnknownEffect(
   Schema.fromJsonString(Schema.Struct({ type: Schema.Literal("session") })),
+);
+const decodeSessionState = Schema.decodeUnknownEffect(
+  Schema.Struct({ sessionFile: Schema.String }),
 );
 const decodeSessionName = Schema.decodeUnknownEffect(
   Schema.Struct({
@@ -139,6 +146,36 @@ export const layer = Layer.effect(
           Effect.onError(() => fs.remove(nativeId).pipe(Effect.ignore)),
         );
       }),
+      export: Effect.fn("Sessions.export")(
+        function* (input) {
+          const threadId = input.threadId ?? OZI_MAIN_THREAD_ID;
+          if (input.format === "jsonl") {
+            const state = yield* providers.mainPi({ type: "get_state", threadId });
+            return {
+              content: yield* fs.readFileString((yield* decodeSessionState(state)).sessionFile),
+            };
+          }
+          return yield* Effect.scoped(
+            Effect.gen(function* () {
+              const outputPath = path.join(yield* fs.makeTempDirectoryScoped(), "session.html");
+              yield* providers.mainPi({ type: "export_html", outputPath, threadId });
+              return { content: yield* fs.readFileString(outputPath) };
+            }),
+          );
+        },
+        (effect) =>
+          effect.pipe(
+            Effect.mapError(
+              (error) =>
+                new OziSessionError({
+                  message:
+                    error._tag === "OziMainPiError"
+                      ? error.message
+                      : "Could not export the session.",
+                }),
+            ),
+          ),
+      ),
       reload: Effect.fn("Sessions.reload")(function* (threadId) {
         const projection = yield* projections
           .getThreadRecords(threadId, ["runs"])

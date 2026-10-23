@@ -290,6 +290,13 @@ features:
     milestone: 9
     scenarios: [m9.tui-pi-commands, m9.tui-extension-ui]
     status: passing
+  - id: main-pi-rpc
+    reqs: [pi-parity, main-full-pi]
+    module: apps/server/src/orchestration-v2/ProviderSessionManager.ts + packages/provider-pi + e2e/m9.real-pi.test.ts
+    cli: [main, thread, answer]
+    milestone: 9
+    scenarios: [m9.pi-rpc, m9.slash-passthrough, m9.model-switch, m9.extension-ui]
+    status: passing
   - id: main-sessions
     reqs: [pi-parity, main-full-pi]
     module: apps/server/src/ozi/Sessions.ts + e2e/m9.sessions.test.ts

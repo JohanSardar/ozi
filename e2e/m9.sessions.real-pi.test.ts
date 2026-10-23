@@ -5,7 +5,7 @@ import { expect, it } from "vite-plus/test";
 import { startHarness } from "./harness.ts";
 import { startAnthropic } from "./fakes/anthropic.ts";
 
-it("m9.session-import resumes a copied Pi session with its conversation intact", async () => {
+it("m9.session-import exports main's Pi session to a remote client and resumes it as a new session", async () => {
   const fake = await startAnthropic((input) =>
     JSON.stringify(input.messages).includes("import-next-turn")
       ? { text: "import-resumed" }
@@ -39,11 +39,32 @@ it("m9.session-import resumes a copied Pi session with its conversation intact",
     const source = main.providerThreads[0]!.nativeThreadRef!.nativeId!;
     expect(source).toContain(NodePath.join(h.home, "caches/ozi-main-pi/sessions"));
     const copy = NodePath.join(h.root, "exported.jsonl");
-    await NodeFSP.copyFile(source, copy);
     const original = await NodeFSP.readFile(source, "utf8");
     const remote = NodePath.join(h.root, "remote-client");
     const pairing = await h.ozi<{ url: string }>("pair");
     await h.ozi("connect", pairing.url, "--home", remote);
+    const exported = await h.ozi<{ path: string }>(
+      "session",
+      "export",
+      "--format",
+      "jsonl",
+      "--output",
+      copy,
+      "--home",
+      remote,
+    );
+    expect(exported.path).toBe(copy);
+    expect(await NodeFSP.readFile(copy, "utf8")).toBe(original);
+    const html = await h.ozi<{ path: string }>(
+      "session",
+      "export",
+      "ozi-main",
+      "--output",
+      NodePath.join(h.root, "main.html"),
+      "--home",
+      remote,
+    );
+    expect(await NodeFSP.readFile(html.path, "utf8")).toMatch(/^<!DOCTYPE html>/);
     const imported = await h.ozi<{ threadId: string }>(
       "session",
       "import",
