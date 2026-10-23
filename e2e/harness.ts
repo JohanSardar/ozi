@@ -26,6 +26,7 @@ export type Step =
   | { approval: string }
   | { wait: true }
   | { exec: string }
+  | { think: string }
   | { inference: true }
   | { history: "partial" }
   | { fail: string };
