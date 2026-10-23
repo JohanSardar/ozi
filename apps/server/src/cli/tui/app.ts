@@ -39,6 +39,8 @@ import * as Path from "effect/Path";
 import * as Schedule from "effect/Schedule";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
+import * as ChildProcess from "effect/process/ChildProcess";
+import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 import { HttpClient } from "effect/http";
 import { answerRequest, connect, send, type Connection } from "../client.ts";
 import { bg, editor as editorTheme, fg, markdown, selectList } from "./theme.ts";
@@ -78,7 +80,12 @@ class Secret implements Component {
   invalidate() {}
 }
 
-type Env = Crypto.Crypto | FileSystem.FileSystem | HttpClient.HttpClient | Path.Path;
+type Env =
+  | ChildProcessSpawner.ChildProcessSpawner
+  | Crypto.Crypto
+  | FileSystem.FileSystem
+  | HttpClient.HttpClient
+  | Path.Path;
 type Row = { container: Container; key: string };
 
 export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<string>) {
@@ -118,6 +125,8 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
   let files: string[] = [];
   let loader: Loader | null = null;
   let lastCtrlC = 0;
+  let showThinking = true;
+  let expandTools = false;
   let session: Fiber.Fiber<unknown, unknown> | null = null;
   const rows = new Map<string, Row>();
   const outputs = new Map<string, string>();
@@ -178,8 +187,10 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
       .trimEnd()
       .split("\n")
       .filter((line, index, all) => all.length > 1 || line);
-    const shown = lines.slice(0, 10).map((line) => fg("muted", line));
-    if (lines.length > 10) shown.push(fg("dim", `… (${lines.length - 10} more lines)`));
+    const limit = expandTools ? lines.length : 10;
+    const shown = lines.slice(0, limit).map((line) => fg("muted", line));
+    if (lines.length > limit)
+      shown.push(fg("dim", `… (${lines.length - limit} more lines, ctrl+o to expand)`));
     const box = new Box(1, 1, (text) =>
       bg(state === "pending" ? "toolPending" : state === "error" ? "toolError" : "toolOk", text),
     );
@@ -191,6 +202,19 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
   ): { key: string; parts: Component[] } | null => {
     const state =
       item.status === "failed" ? "error" : item.status === "completed" ? "ok" : "pending";
+    if (item.type === "reasoning")
+      return item.text.trim()
+        ? {
+            key: `${item.text}\u0000${showThinking}`,
+            parts: [
+              showThinking
+                ? new Markdown(item.text.trim(), 1, 0, markdown, {
+                    color: (content) => fg("thinking", content, { italic: true }),
+                  })
+                : new Text(fg("thinking", "Thinking...", { italic: true }), 1, 0),
+            ],
+          }
+        : null;
     if (item.type === "user_message" || item.type === "assistant_message") {
       const text = [
         item.text,
@@ -240,13 +264,13 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
       const output = item.output ?? outputs.get(item.id) ?? "";
       const failed = state === "error" || (item.exitCode !== undefined && item.exitCode !== 0);
       return {
-        key: `${item.status}\u0000${output}\u0000${item.exitCode}`,
+        key: `${item.status}\u0000${output}\u0000${item.exitCode}\u0000${expandTools}`,
         parts: [tool(`$ ${item.input}`, output, failed ? "error" : state)],
       };
     }
     if (item.type === "file_change")
       return {
-        key: `${item.status}\u0000${item.diffStr ?? item.newStr ?? ""}`,
+        key: `${item.status}\u0000${item.diffStr ?? item.newStr ?? ""}\u0000${expandTools}`,
         parts: [
           tool(
             `${item.title ?? "edit"} ${item.fileName}`,
@@ -281,7 +305,7 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
         typeof item.output === "string" ? item.output : JSON.stringify(item.output ?? "");
       const path = (item.input as { path?: unknown } | undefined)?.path;
       return {
-        key: `${item.status}\u0000${output}`,
+        key: `${item.status}\u0000${output}\u0000${expandTools}`,
         parts: [tool(`${name} ${typeof path === "string" ? path : input}`, output, state)],
       };
     }
@@ -555,6 +579,49 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
       }),
     );
 
+  const hotkeys = [
+    "Enter send, or steer while main works · Alt+Enter queue a follow-up · Shift+Enter new line",
+    "Esc stop main, or back to main · Ctrl+C clear, twice to exit · Ctrl+D exit when empty",
+    "Ctrl+T show or hide thinking · Ctrl+O expand tool output · Ctrl+G external editor · Ctrl+Z suspend",
+    "/jobs job cards · /attach <path> attach a file · /stop stop · /hotkeys keys · /quit exit",
+    "Other /commands go to main: Pi prompt templates, /skill:name and extension commands",
+  ].join("\n");
+
+  const redraw = () => {
+    for (const row of rows.values()) row.key = "";
+    renderConversation();
+  };
+
+  const externalEditor = () =>
+    run(
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const directory = yield* fs.makeTempDirectory();
+        const file = path.join(directory, "message.md");
+        yield* fs.writeFileString(file, editor.getText());
+        tui.stop();
+        const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+        yield* spawner.exitCode(
+          ChildProcess.make("sh", ["-c", '${VISUAL:-${EDITOR:-nano}} "$1"', "sh", file], {
+            stdin: "inherit",
+            stdout: "inherit",
+            stderr: "inherit",
+          }),
+        );
+        editor.setText((yield* fs.readFileString(file)).replace(/\n$/, ""));
+        yield* fs.remove(directory, { recursive: true });
+      }).pipe(
+        Effect.catchCause((cause) => Effect.sync(() => notice(errorLine(cause), "red"))),
+        Effect.ensuring(
+          Effect.sync(() => {
+            tui.start();
+            tui.requestRender(true);
+          }),
+        ),
+      ),
+    );
+
   const submit = (raw: string, steer: boolean) => {
     const text = raw.trim();
     if (!text) return;
@@ -568,7 +635,7 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
         files = [...files, argument];
         return renderStatus();
       }
-      return notice(`Unknown command: /${command}`, "red");
+      if (command === "hotkeys") return notice(hotkeys);
     }
     editor.addToHistory(text);
     const attached = files;
@@ -600,6 +667,33 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
         notice("Press Ctrl+C again to exit.");
       }
       tui.requestRender();
+      return { consume: true };
+    }
+    if (area.children[0] === editor && matchesKey(data, "ctrl+t")) {
+      showThinking = !showThinking;
+      redraw();
+      return { consume: true };
+    }
+    if (area.children[0] === editor && matchesKey(data, "ctrl+o")) {
+      expandTools = !expandTools;
+      redraw();
+      return { consume: true };
+    }
+    if (area.children[0] === editor && matchesKey(data, "ctrl+d") && !editor.getText()) {
+      run(Deferred.succeed(done, undefined));
+      return { consume: true };
+    }
+    if (area.children[0] === editor && matchesKey(data, "ctrl+g")) {
+      externalEditor();
+      return { consume: true };
+    }
+    if (matchesKey(data, "ctrl+z")) {
+      tui.stop();
+      process.once("SIGCONT", () => {
+        tui.start();
+        tui.requestRender(true);
+      });
+      process.kill(process.pid, "SIGTSTP");
       return { consume: true };
     }
     if (matchesKey(data, "escape") && area.children[0] === editor && !editor.getText()) {

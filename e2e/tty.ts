@@ -5,7 +5,7 @@ import type { Harness } from "./harness.ts";
 
 const cli = NodeURL.fileURLToPath(new URL("../apps/server/src/bin.ts", import.meta.url));
 
-export function openTui(h: Harness) {
+export function openTui(h: Harness, extra: Record<string, string> = {}) {
   const child = NodeChildProcess.spawn(
     "script",
     [
@@ -13,7 +13,11 @@ export function openTui(h: Harness) {
       `stty cols 120 rows 40; exec "${process.execPath}" "${cli}" --home "${h.home}"`,
       "/dev/null",
     ],
-    { cwd: h.dataRoot, env: { ...h.env, TERM: "xterm-256color" }, stdio: ["pipe", "pipe", "pipe"] },
+    {
+      cwd: h.dataRoot,
+      env: { ...h.env, ...extra, TERM: "xterm-256color" },
+      stdio: ["pipe", "pipe", "pipe"],
+    },
   );
   let output = "";
   const listeners = new Set<() => void>();
