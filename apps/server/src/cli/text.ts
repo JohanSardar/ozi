@@ -1,6 +1,7 @@
 import type {
   OziCheck,
   OziJobCard,
+  OziSession,
   OziTodos,
   OrchestrationV2ThreadProjection,
   ScheduledTask,
@@ -8,6 +9,7 @@ import type {
 } from "@t3tools/contracts";
 import { Fix, Mistake, Replay } from "../ozi/RepairModel.ts";
 import * as Schema from "effect/Schema";
+import * as DateTime from "effect/DateTime";
 
 const decodeMistakes = Schema.decodeUnknownSync(Schema.Array(Mistake));
 const decodeReplays = Schema.decodeUnknownSync(Schema.Array(Replay));
@@ -134,6 +136,18 @@ export const checks = (rows: ReadonlyArray<OziCheck>) => {
           `${id(row.id)} ${row.state} thread ${threadId(row.threadId)} rounds ${row.rounds.length} unsuccessful ${row.unsuccessfulRounds}`,
       )
       .join("\n") || "No checks"
+  );
+};
+
+export const sessions = (rows: ReadonlyArray<OziSession>) => {
+  const id = shortIds(rows.map((row) => row.id));
+  return (
+    rows
+      .map(
+        (row) =>
+          `${id(row.id)} ${line(row.title)} — ${row.messageCount} messages — ${DateTime.formatIso(row.updatedAt)}${row.forkedFrom ? ` — from ${id(row.forkedFrom)}` : ""}`,
+      )
+      .join("\n") || "No sessions"
   );
 };
 

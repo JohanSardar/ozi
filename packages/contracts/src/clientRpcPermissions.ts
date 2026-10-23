@@ -11,6 +11,10 @@ import { OZI_WS_METHODS } from "./ozi.ts";
 
 /** Incremental client enforcement; the server still authorizes every request. */
 export const CLIENT_GUARDED_RPC_SCOPES = {
+  [OZI_WS_METHODS.sessionNew]: AuthOrchestrationOperateScope,
+  [OZI_WS_METHODS.sessionList]: AuthOrchestrationReadScope,
+  [OZI_WS_METHODS.sessionImport]: AuthOrchestrationOperateScope,
+  [OZI_WS_METHODS.sessionReload]: AuthOrchestrationOperateScope,
   [OZI_WS_METHODS.mainPi]: AuthOrchestrationOperateScope,
   [OZI_WS_METHODS.checksList]: AuthOrchestrationReadScope,
   [OZI_WS_METHODS.checksSubscribe]: AuthOrchestrationReadScope,
