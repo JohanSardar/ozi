@@ -204,7 +204,7 @@ export const connect = Effect.fn("ozi.connect")(function* (baseDir: Option.Optio
   return { ...transport, client };
 });
 
-const snapshot = Effect.fn("ozi.snapshot")(function* (client: Client) {
+export const snapshot = Effect.fn("ozi.snapshot")(function* (client: Client) {
   const item = yield* client[O.subscribeShell]({}).pipe(
     Stream.filter((item) => item.kind === "snapshot"),
     Stream.runHead,

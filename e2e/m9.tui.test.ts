@@ -159,3 +159,48 @@ it("m9.tui-media shows image attachments inline, copies main's reply and prints 
   terminal.keys("/session\r");
   await terminal.waitFor("messages: 1 from you, 1 from Ozi", from);
 });
+
+it("m9.tui-sessions clones, forks from an earlier message, resumes and shows the tree", async () => {
+  await h.script([
+    { match: "^session-one$", steps: [{ say: "reply-one" }] },
+    { match: "^session-two$", steps: [{ say: "reply-two" }] },
+    { match: "^in-clone$", steps: [{ say: "clone-reply" }] },
+    { match: "^session-two-edited$", steps: [{ say: "fork-reply" }] },
+  ]);
+  const terminal = await ready();
+  terminal.keys("session-one\r");
+  await h.wait("ozi-main", "text:reply-one", 20);
+  terminal.keys("session-two\r");
+  await h.wait("ozi-main", "text:reply-two", 20);
+  await h.wait("ozi-main", "idle", 20);
+  let from = terminal.mark();
+  terminal.keys("/clone\r");
+  await terminal.waitFor("main clone · ", from);
+  await terminal.waitFor("reply-two", from);
+  terminal.keys("in-clone\r");
+  await terminal.waitFor("clone-reply", from);
+  const threads = async () => (await h.status()).snapshot.threads;
+  const clone = (await threads()).find((thread) => thread.title === "main clone")!;
+  expect(clone.role).toBe("main-fork");
+  expect(JSON.stringify((await h.thread("ozi-main")).messages)).not.toContain("in-clone");
+  from = terminal.mark();
+  terminal.keys("/resume\r");
+  await terminal.waitFor("• main clone", from);
+  terminal.keys("\x1b[B\r");
+  await terminal.waitFor("main · ", from);
+  await terminal.waitFor("reply-two", from);
+  from = terminal.mark();
+  terminal.keys("/fork\r");
+  await terminal.waitFor("session-one", from);
+  terminal.keys("\r");
+  await terminal.waitFor("main fork · ", from);
+  terminal.keys("-edited\r");
+  await terminal.waitFor("fork-reply", from);
+  const main = await h.thread("ozi-main");
+  const fork = (await threads()).find((thread) => thread.title === "main fork")!;
+  expect(fork.forkedFrom).toEqual({ type: "run", threadId: "ozi-main", runId: main.runs[0]!.id });
+  from = terminal.mark();
+  terminal.keys("/tree\r");
+  await terminal.waitFor("  • main fork", from);
+  await terminal.waitFor("  main clone", from);
+});

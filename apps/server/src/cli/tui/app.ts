@@ -34,7 +34,9 @@ import {
   type OrchestrationV2ThreadProjection,
   type OziJobCard,
   type OziJobRequest,
-  type ThreadId,
+  isOziMain,
+  type OrchestrationV2ThreadForkSourcePoint,
+  ThreadId,
 } from "@t3tools/contracts";
 import { htmlRenderFromToolItem, mcpAppFromToolItem } from "@t3tools/shared/toolOutput";
 import * as Cause from "effect/Cause";
@@ -53,7 +55,7 @@ import * as ChildProcess from "effect/process/ChildProcess";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 import * as Base64 from "effect/encoding/Base64";
 import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http";
-import { answerRequest, connect, send, type Connection } from "../client.ts";
+import { answerRequest, connect, send, snapshot, type Connection } from "../client.ts";
 import {
   bg,
   builtinThemes,
@@ -218,6 +220,10 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
   const editor = new Editor(tui, editorTheme, { paddingX: 1 });
   const oziCommands = [
     { name: "jobs", description: "Job cards" },
+    { name: "resume", description: "Switch to another session" },
+    { name: "tree", description: "Main and its forks" },
+    { name: "fork", description: "Fork from an earlier message" },
+    { name: "clone", description: "Duplicate this session" },
     { name: "attach", description: "Attach a file to the next message", argumentHint: "<path>" },
     { name: "stop", description: "Stop the current work" },
     { name: "model", description: "Select main's model", argumentHint: "[model]" },
@@ -241,12 +247,14 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
       ),
     );
   setCommands([]);
+  const piRpc = (current: Connection, command: OziMainPiCommand) =>
+    current.client[J.mainPi]({ ...command, threadId: home.threadId });
   let settledRun: string | undefined;
   const refreshCommands = () => {
     const current = connection;
     if (!current) return;
     run(
-      current.client[J.mainPi]({ type: "get_commands" }).pipe(
+      piRpc(current, { type: "get_commands" }).pipe(
         Effect.flatMap((data) =>
           Effect.sync(() =>
             setCommands(
@@ -268,7 +276,9 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
   let connection: Connection | null = null;
   let projection: OrchestrationV2ThreadProjection | null = null;
   let cards: ReadonlyArray<OziJobCard> | null = null;
-  let view: { threadId: ThreadId; title: string } = { threadId: OZI_MAIN_THREAD_ID, title: "" };
+  let home: { threadId: ThreadId; title: string } = { threadId: OZI_MAIN_THREAD_ID, title: "main" };
+  let view = home;
+  const atHome = () => view.threadId === home.threadId;
   let files: string[] = [];
   let loader: Loader | null = null;
   let lastCtrlC = 0;
@@ -378,8 +388,7 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
       ...(selection ? [selection.model.split("/").at(-1)!] : []),
       ...(typeof thinking === "string" ? [thinking] : []),
     ].join(" · ");
-    const place =
-      view.threadId === OZI_MAIN_THREAD_ID ? "main" : `job: ${view.title} · esc returns to main`;
+    const place = atHome() ? home.title : `job: ${view.title} · esc returns to ${home.title}`;
     footer.setText(
       [
         fg(
@@ -413,6 +422,8 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
   ): { key: string; parts: Component[] } | null => {
     const state =
       item.status === "failed" ? "error" : item.status === "completed" ? "ok" : "pending";
+    if (item.type === "fork")
+      return { key: "fork", parts: [new Text(fg("dim", "─ forked ─"), 1, 0)] };
     if (item.type === "reasoning")
       return item.text.trim()
         ? {
@@ -536,7 +547,7 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
     const settled = projection.runs.findLast((run) =>
       ["completed", "failed", "interrupted", "cancelled"].includes(run.status),
     )?.id;
-    if (view.threadId === OZI_MAIN_THREAD_ID && settled !== settledRun) {
+    if (atHome() && settled !== settledRun) {
       settledRun = settled;
       refreshCommands();
     }
@@ -563,7 +574,7 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
         rows.delete(id);
       }
     renderExtensionUi();
-    if (view.threadId === OZI_MAIN_THREAD_ID) openMainDialog();
+    if (atHome()) openMainDialog();
     const queued = projection.runs.filter((run) => run.status === "queued");
     pending.setText(
       queued
@@ -635,7 +646,7 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
     dialogFor = item.requestId;
     const request: OziJobRequest = {
       id: item.requestId,
-      threadId: OZI_MAIN_THREAD_ID,
+      threadId: home.threadId,
       kind: item.type === "user_input_request" ? "question" : "approval",
       prompt: item.title ?? "Input required",
       options: [],
@@ -771,6 +782,8 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
 
   const start = () => {
     if (session) run(Fiber.interrupt(session));
+    noticesPrimed = false;
+    editorTextAt = undefined;
     projection = null;
     rows.clear();
     chat.clear();
@@ -983,7 +996,7 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
 
   const mainPi = (label: string, command: OziMainPiCommand, describe?: (data: unknown) => string) =>
     act("", (current) =>
-      current.client[J.mainPi](command).pipe(
+      piRpc(current, command).pipe(
         Effect.flatMap((data) => Effect.sync(() => notice(describe?.(data) ?? label))),
       ),
     );
@@ -995,7 +1008,7 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
     chat.addChild(row);
     tui.requestRender();
     act("", (current) =>
-      current.client[J.mainPi]({ type: "bash", command, excludeFromContext: quiet }).pipe(
+      piRpc(current, { type: "bash", command, excludeFromContext: quiet }).pipe(
         Effect.flatMap((data) =>
           Effect.sync(() => {
             const result = data as { output?: string; exitCode?: number; cancelled?: boolean };
@@ -1022,7 +1035,7 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
         yield* current.client[O.dispatchCommand]({
           type: "thread.model-selection.set",
           commandId: CommandId.make(yield* (yield* Crypto.Crypto).randomUUIDv4()),
-          threadId: OZI_MAIN_THREAD_ID,
+          threadId: home.threadId,
           modelSelection,
           createdBy: "user",
           creationSource: "cli",
@@ -1052,14 +1065,15 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
       ),
     );
   const thinkingLevels = (current: Connection) =>
-    current.client[J.mainPi]({ type: "get_available_thinking_levels" }).pipe(
+    piRpc(current, { type: "get_available_thinking_levels" }).pipe(
       Effect.map((data) => (data as { levels?: string[] }).levels ?? []),
     );
-  const pick = (items: SelectItem[], onPick: (value: string) => void) => {
+  const pick = (items: SelectItem[], onPick: (value: string) => void, selected = 0) => {
     const list = new SelectList(items, 12, selectList, {
       minPrimaryColumnWidth: 20,
       maxPrimaryColumnWidth: 60,
     });
+    list.setSelectedIndex(selected);
     list.onSelect = (item) => {
       restoreEditor();
       onPick(item.value);
@@ -1129,6 +1143,109 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
       ),
     );
 
+  const switchTo = (threadId: ThreadId, title: string, draft = "") => {
+    home = { threadId, title };
+    settledRun = undefined;
+    open(threadId, title);
+    editor.setText(draft);
+  };
+  const forkSession = (
+    sourceThreadId: ThreadId,
+    sourcePoint: OrchestrationV2ThreadForkSourcePoint,
+    title: string,
+    draft = "",
+  ) =>
+    act("", (current) =>
+      Effect.gen(function* () {
+        const threadId = ThreadId.make(yield* (yield* Crypto.Crypto).randomUUIDv4());
+        yield* current.client[O.dispatchCommand]({
+          type: "thread.fork",
+          commandId: CommandId.make(yield* (yield* Crypto.Crypto).randomUUIDv4()),
+          sourceThreadId,
+          targetThreadId: threadId,
+          sourcePoint,
+          title,
+          createdBy: "user",
+          creationSource: "cli",
+        });
+        yield* Effect.sync(() => switchTo(threadId, title, draft));
+      }),
+    );
+  const newSession = (draft: string) => notice(draft);
+  const chooseFork = () => {
+    const visible = projection?.visibleTurnItems ?? [];
+    const choices = visible.flatMap(({ item }, index) =>
+      item.type === "user_message"
+        ? [{ item, before: visible.slice(0, index).findLast((row) => row.item.runId)?.item }]
+        : [],
+    );
+    if (choices.length === 0) return notice("No messages to fork from yet.", "red");
+    pick(
+      choices.map(({ item }, index) => ({
+        value: String(index),
+        label: item.text.split("\n")[0]!,
+      })),
+      (value) => {
+        const { item, before } = choices[Number(value)]!;
+        if (!before?.runId) return newSession(item.text);
+        forkSession(
+          before.threadId,
+          { type: "run", runId: before.runId },
+          `${home.title} fork`,
+          item.text,
+        );
+      },
+      choices.length - 1,
+    );
+  };
+  const name = (thread: { id: ThreadId; title: string }) =>
+    thread.id === OZI_MAIN_THREAD_ID ? "main" : thread.title;
+  const sessions = (current: Connection) =>
+    snapshot(current.client).pipe(Effect.map((shell) => shell.threads.filter(isOziMain)));
+  const chooseSession = (tree: boolean) =>
+    act("", (current) =>
+      sessions(current).pipe(
+        Effect.flatMap((threads) =>
+          Effect.sync(() => {
+            const depth = (thread: (typeof threads)[number]): number => {
+              const parent = threads.find((entry) => entry.id === thread.lineage.parentThreadId);
+              return parent ? depth(parent) + 1 : 0;
+            };
+            const order = (parent: ThreadId | null): typeof threads =>
+              threads
+                .filter((thread) =>
+                  parent === null
+                    ? !threads.some((entry) => entry.id === thread.lineage.parentThreadId)
+                    : thread.lineage.parentThreadId === parent,
+                )
+                .flatMap((thread) => [thread, ...order(thread.id)]);
+            const listed = tree
+              ? order(null)
+              : threads.toSorted(
+                  (a, b) =>
+                    (b.latestVisibleMessage?.updatedAt.epochMilliseconds ?? 0) -
+                    (a.latestVisibleMessage?.updatedAt.epochMilliseconds ?? 0),
+                );
+            pick(
+              listed.map((thread) => ({
+                value: thread.id,
+                label: `${tree ? "  ".repeat(depth(thread)) : ""}${thread.id === home.threadId ? "• " : ""}${name(thread)}`,
+                description: thread.latestVisibleMessage?.text.split("\n")[0] ?? "",
+              })),
+              (value) => {
+                const thread = threads.find((entry) => entry.id === value);
+                if (thread) switchTo(thread.id, name(thread));
+              },
+              Math.max(
+                0,
+                listed.findIndex((thread) => thread.id === home.threadId),
+              ),
+            );
+          }),
+        ),
+      ),
+    );
+
   const copyLast = () => {
     const last = projection?.visibleTurnItems.findLast(
       (row) => row.item.type === "assistant_message",
@@ -1148,7 +1265,7 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
       projection?.providerThreads.findLast((thread) => thread.contextUsage)?.contextUsage;
     const selection = projection?.thread.modelSelection;
     return [
-      `${view.threadId === OZI_MAIN_THREAD_ID ? "main" : `job: ${view.title}`} · ${selection?.model ?? "unknown model"} · ${selection?.options?.map((option) => `${option.id} ${option.value}`).join(", ") ?? ""}`,
+      `${atHome() ? home.title : `job: ${view.title}`} · ${selection?.model ?? "unknown model"} · ${selection?.options?.map((option) => `${option.id} ${option.value}`).join(", ") ?? ""}`,
       `messages: ${items.filter((item) => item.type === "user_message").length} from you, ${items.filter((item) => item.type === "assistant_message").length} from Ozi · tool calls: ${items.filter((item) => item.type === "command_execution" || item.type === "file_change" || item.type === "dynamic_tool").length} · runs: ${projection?.runs.length ?? 0}`,
       usage
         ? `tokens: ↑${tokens(usage.inputTokens ?? 0)} ↓${tokens(usage.outputTokens ?? 0)} · context ${tokens(usage.usedTokens)}${usage.maxTokens ? ` of ${tokens(usage.maxTokens)}` : ""}`
@@ -1213,7 +1330,7 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
   const submit = (raw: string, steer: boolean) => {
     const text = raw.trim();
     if (!text) return;
-    if (text.startsWith("!") && view.threadId === OZI_MAIN_THREAD_ID) {
+    if (text.startsWith("!") && atHome()) {
       const quiet = text.startsWith("!!");
       const command = text.slice(quiet ? 2 : 1).trim();
       if (command) shell(command, quiet);
@@ -1251,6 +1368,11 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
       if (command === "model") return argument ? setModel(argument) : chooseModel();
       if (command === "thinking") return argument ? setThinking(argument) : chooseThinking();
       if (command === "session") return notice(sessionInfo());
+      if (command === "clone")
+        return forkSession(home.threadId, { type: "latest_stable" }, `${home.title} clone`);
+      if (command === "fork") return chooseFork();
+      if (command === "resume") return chooseSession(false);
+      if (command === "tree") return chooseSession(true);
     }
     editor.addToHistory(text);
     const attached = files;
@@ -1344,8 +1466,8 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
       area.children[0] === editor &&
       !editor.isShowingAutocomplete()
     ) {
-      if (view.threadId !== OZI_MAIN_THREAD_ID && !editor.getText()) open(OZI_MAIN_THREAD_ID, "");
-      else if (view.threadId === OZI_MAIN_THREAD_ID && active()) stop(view.threadId);
+      if (!atHome() && !editor.getText()) open(home.threadId, home.title);
+      else if (atHome() && active()) stop(view.threadId);
       else return undefined;
       return { consume: true };
     }
