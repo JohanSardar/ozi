@@ -11,7 +11,10 @@ if (
   ignoreMacosTypeOfServiceEinval();
   const command = process.argv[2];
   const args = process.argv.slice(2);
-  if (
+  if (command === "pi") {
+    const { runPi } = await import("./binPi.ts");
+    runPi(args.slice(1));
+  } else if (
     process.stdin.isTTY &&
     process.stdout.isTTY &&
     (args.length === 0 || (args.length === 2 && ["--home", "--base-dir"].includes(args[0]!)))

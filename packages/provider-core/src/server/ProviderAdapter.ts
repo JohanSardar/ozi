@@ -52,6 +52,7 @@ export const ProviderAdapterV2RuntimePolicy = Schema.Struct({
   sandboxPolicy: Schema.optional(Schema.Unknown),
   reasoningEffort: Schema.optional(Schema.String),
   mainPromptPath: Schema.optional(Schema.String),
+  configFingerprint: Schema.optional(Schema.String),
   evidenceOnly: Schema.optional(Schema.Boolean),
   systemPrompt: Schema.optional(Schema.String),
 });

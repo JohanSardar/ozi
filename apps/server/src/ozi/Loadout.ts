@@ -7,8 +7,10 @@ import {
   type OrchestrationV2AppThread,
 } from "@t3tools/contracts";
 import { OZI_WORKER_ROLE } from "@t3tools/provider-core/server/orchestrationInstructions";
+import { piMainAgentDir } from "@t3tools/provider-pi/server";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
+import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import type { ServerConfig } from "../config.ts";
 import { dataRootPermit } from "./DataRoot.ts";
@@ -52,6 +54,50 @@ const effectiveLoadout = Effect.fn("Ozi.effectiveLoadout")(function* (input: {
   };
 });
 
+const piConfigEntries = [
+  "settings.json",
+  "mcp.json",
+  "models.json",
+  "auth.json",
+  "AGENTS.override.md",
+  "AGENTS.md",
+  "AGENTS.MD",
+  "CLAUDE.md",
+  "CLAUDE.MD",
+  "SYSTEM.md",
+  "APPEND_SYSTEM.md",
+  "extensions",
+  "skills",
+  "prompts",
+];
+
+const piConfigFingerprint = Effect.fn("Ozi.piConfigFingerprint")(function* (directory: string) {
+  const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const lines: string[] = [];
+  for (const entry of piConfigEntries) {
+    const target = path.join(directory, entry);
+    const stat = yield* fs.stat(target).pipe(Effect.option);
+    if (Option.isNone(stat)) continue;
+    const files =
+      stat.value.type === "Directory"
+        ? (yield* fs.readDirectory(target, { recursive: true })).map((name) =>
+            path.join(entry, name),
+          )
+        : [entry];
+    for (const file of files.toSorted()) {
+      const info = yield* fs.stat(path.join(directory, file)).pipe(Effect.option);
+      if (Option.isNone(info) || info.value.type !== "File") continue;
+      const modified = Option.getOrElse(
+        Option.map(info.value.mtime, (date) => date.getTime()),
+        () => 0,
+      );
+      lines.push(`${file}:${info.value.size}:${modified}`);
+    }
+  }
+  return yield* sha256(lines.join("\n"));
+});
+
 export const prepareLoadout = Effect.fn("Ozi.prepareLoadout")(function* (
   config: ServerConfig["Service"],
   thread: OrchestrationV2AppThread,
@@ -77,6 +123,10 @@ export const prepareLoadout = Effect.fn("Ozi.prepareLoadout")(function* (
   }
   return {
     mainPromptPath,
+    configFingerprint:
+      main && provider === "pi"
+        ? yield* piConfigFingerprint(piMainAgentDir(config.providerStatusCacheDir))
+        : undefined,
     systemPrompt,
     effectiveLoadout: yield* effectiveLoadout({
       provider,

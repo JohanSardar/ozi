@@ -512,6 +512,9 @@ export const layer: Layer.Layer<
         ...(prepared.mainPromptPath === undefined
           ? {}
           : { mainPromptPath: prepared.mainPromptPath }),
+        ...(prepared.configFingerprint === undefined
+          ? {}
+          : { configFingerprint: prepared.configFingerprint }),
       };
       const loadoutAt = yield* DateTime.now;
       const currentThread = (yield* projectionStore.getThreadRecords(projection.thread.id, []))

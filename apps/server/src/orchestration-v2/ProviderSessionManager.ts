@@ -189,6 +189,7 @@ export class ProviderSessionManagerV2 extends Context.Service<
 >()("ozi/orchestration-v2/ProviderSessionManager/ProviderSessionManagerV2") {}
 
 interface LiveSessionEntry {
+  readonly configFingerprint: string | undefined;
   readonly attachedThreadIds: ReadonlySet<ThreadId>;
   readonly loadedProviderThreadKeyByThread: ReadonlyMap<ThreadId, string>;
   /**
@@ -2097,7 +2098,17 @@ const layerWithOptions = (
                 }
               }
               const key = sessionKey(input.providerSessionId);
-              const existing = (yield* Ref.get(sessions)).get(key);
+              const live = (yield* Ref.get(sessions)).get(key);
+              const existing =
+                live !== undefined &&
+                live.configFingerprint !== input.runtimePolicy.configFingerprint &&
+                live.busyTurns.size === 0
+                  ? yield* releaseEntry({
+                      providerSessionId: input.providerSessionId,
+                      reason: "manual_shutdown",
+                      detail: "Provider configuration changed.",
+                    }).pipe(Effect.as(undefined))
+                  : live;
               if (existing !== undefined) {
                 const attached = existing.attachedThreadIds.has(input.threadId);
                 if (!attached && !existing.supportsMultipleProviderThreads) {
@@ -2200,6 +2211,7 @@ const layerWithOptions = (
               const exposedRuntime = decorateRuntime(runtime, eventSubscribers);
               const now = yield* Clock.currentTimeMillis;
               const entry: LiveSessionEntry = {
+                configFingerprint: input.runtimePolicy.configFingerprint,
                 attachedThreadIds: new Set([input.threadId]),
                 loadedProviderThreadKeyByThread: new Map(),
                 mcpCredentialIdByThread:
