@@ -35,6 +35,7 @@ import {
   OrchestrationV2RunStatus,
   OrchestrationV2ShellSnapshot,
   OrchestrationV2ThreadProjection,
+  OrchestrationV2ThreadStreamItem,
   ServerConfig,
   ServerProvider,
   ThreadId,
@@ -498,6 +499,7 @@ const printCommand = Command.make("print", {
   messages: Argument.String("message").pipe(Argument.variadic()),
   thread: threadFlag,
   files: Flag.String("file").pipe(Flag.atLeast(0)),
+  mode: Flag.Literals("mode", ["text", "json"]).pipe(Flag.withDefault("text")),
   timeout: Flag.Finite("timeout").pipe(
     Flag.withSchema(Schema.Number.check(Schema.isGreaterThan(0))),
     Flag.withDefault(1800),
@@ -509,7 +511,12 @@ const printCommand = Command.make("print", {
       const piped = (yield* stdio.stdinIsTerminal)
         ? ""
         : yield* stdio.stdin.pipe(Stream.decodeText(), Stream.mkString);
-      const [first = "", ...rest] = flags.messages;
+      const json = flags.json || flags.mode === "json";
+      const files = [
+        ...flags.files,
+        ...flags.messages.filter((text) => text.startsWith("@")).map((text) => text.slice(1)),
+      ];
+      const [first = "", ...rest] = flags.messages.filter((text) => !text.startsWith("@"));
       const prompts = [piped + first, ...rest].filter((text) => text.trim());
       if (prompts.length === 0)
         return yield* new ClientError({ operation: "print needs a message" });
@@ -520,10 +527,15 @@ const printCommand = Command.make("print", {
         yield* send(connection, {
           text,
           thread: Option.some(threadId),
-          files: index === 0 ? flags.files : [],
+          files: index === 0 ? files : [],
           messageId,
         });
         const settled = yield* connection.client[O.subscribeThread]({ threadId }).pipe(
+          Stream.tap((item) =>
+            flags.mode === "json" && item.kind === "event"
+              ? emit(OrchestrationV2ThreadStreamItem, item, true, () => "")
+              : Effect.void,
+          ),
           Stream.mapAccum(
             () => null as OrchestrationV2ThreadProjection | null,
             (projection, item) => {
@@ -565,7 +577,7 @@ const printCommand = Command.make("print", {
         yield* emit(
           PrintResult,
           { threadId, runId: run.id, status: run.status, text: reply?.text ?? "" },
-          flags.json,
+          json,
           () => reply?.text ?? "",
         );
         if (
