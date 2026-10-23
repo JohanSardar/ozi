@@ -267,5 +267,12 @@ features:
     cli: []
     milestone: 9
     scenarios:
-      [m9.tui-slash, m9.tui-thinking, m9.tui-editor, m9.tui-appearance, m9.tui-footer-dequeue]
+      [
+        m9.tui-slash,
+        m9.tui-thinking,
+        m9.tui-editor,
+        m9.tui-appearance,
+        m9.tui-footer-dequeue,
+        m9.tui-media,
+      ]
     status: passing
