@@ -186,13 +186,17 @@ export const layer = McpToolAccess.toLayer(ThreadToolkit, {
         projection: { thread },
       } = yield* readThread(input.threadId);
       const type = modelSelectionCommandType(thread.providerInstanceId, input.modelSelection);
+      const selection = {
+        threadId: thread.id,
+        commandId: yield* newCommandId(),
+        modelSelection: input.modelSelection,
+      };
       const result = yield* threads
-        .dispatch({
-          type,
-          threadId: thread.id,
-          commandId: yield* newCommandId(),
-          modelSelection: input.modelSelection,
-        })
+        .dispatch(
+          type === "thread.model-selection.set"
+            ? { ...selection, type, createdBy: "agent", creationSource: "mcp" }
+            : { ...selection, type },
+        )
         .pipe(Effect.mapError(dispatchFailure));
       return { sequence: result.sequence };
     }),

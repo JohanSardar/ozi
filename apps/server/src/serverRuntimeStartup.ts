@@ -199,7 +199,8 @@ const resolveAutoBootstrapWelcomeTargets = Effect.gen(function* () {
     });
   }
   const projection = yield* threads.getThreadRecords(OZI_MAIN_THREAD_ID, []);
-  const loadout = yield* prepareLoadout(serverConfig, projection.thread, OZI_MAIN_SELECTION, "pi", [
+  const selection = projection.thread.modelSelection;
+  const loadout = yield* prepareLoadout(serverConfig, projection.thread, selection, "pi", [
     ...mcpTools.keys(),
   ]).pipe(Effect.provideService(FileSystem.FileSystem, fs), Effect.provideService(Path.Path, path));
   const events = eventOption.value;
@@ -211,11 +212,11 @@ const resolveAutoBootstrapWelcomeTargets = Effect.gen(function* () {
         id: yield* ids.allocate.event({ threadId: OZI_MAIN_THREAD_ID }),
         type: "thread.metadata-updated",
         threadId: OZI_MAIN_THREAD_ID,
-        providerInstanceId: OZI_MAIN_SELECTION.instanceId,
+        providerInstanceId: selection.instanceId,
         occurredAt: now,
         payload: {
           ...projection.thread,
-          modelSelection: OZI_MAIN_SELECTION,
+          modelSelection: selection,
           role: "main",
           effectiveLoadout: loadout.effectiveLoadout,
         },

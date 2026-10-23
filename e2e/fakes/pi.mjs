@@ -42,6 +42,13 @@ if (launch("pi")) {
             name: "Claude Sonnet 5.5",
           },
           { ...model, provider: "claude-bridge" },
+          {
+            ...model,
+            provider: "local",
+            id: "llama-3.1-8b",
+            name: "Llama 3.1 8B",
+            reasoning: false,
+          },
         ]
       : []),
   ];

@@ -72,9 +72,7 @@ const mainSelectionError = (
   snapshot: ServerProvider | undefined,
 ) => {
   if (!isOziMain(input.thread)) return;
-  const thinking = snapshot?.models
-    .find((model) => model.slug === input.modelSelection.model)
-    ?.capabilities?.optionDescriptors?.find((option) => option.id === "thinking");
+  const model = snapshot?.models.find((model) => model.slug === input.modelSelection.model);
   if (
     !isOziMainSelection(input.modelSelection) ||
     snapshot?.driver !== "pi" ||
@@ -82,14 +80,30 @@ const mainSelectionError = (
     !snapshot.installed ||
     snapshot.status === "error" ||
     snapshot.auth.status === "unauthenticated" ||
-    thinking?.type !== "select" ||
-    !thinking.options.some((option) => option.id === "high")
+    model === undefined
   )
     return new RuntimePolicyResolveError({
       projectId: input.thread.projectId,
       providerInstanceId: input.modelSelection.instanceId,
-      cause: "Main requires available Pi claude-bridge/claude-opus-5-5, high thinking, fast off.",
+      cause: "Main requires an available Pi model with fastMode=false.",
     });
+  for (const selected of input.modelSelection.options ?? []) {
+    if (selected.id === "fastMode") continue;
+    const descriptor = model.capabilities?.optionDescriptors?.find(
+      (option) => option.id === selected.id,
+    );
+    if (
+      !descriptor ||
+      (descriptor.type === "select"
+        ? !descriptor.options.some((option) => option.id === selected.value)
+        : typeof selected.value !== "boolean")
+    )
+      return new RuntimePolicyResolveError({
+        projectId: input.thread.projectId,
+        providerInstanceId: input.modelSelection.instanceId,
+        cause: `Unsupported main option ${selected.id}=${selected.value}.`,
+      });
+  }
 };
 
 const checkerSelectionError = (
@@ -150,7 +164,10 @@ export const layerInstallation = Layer.effect(
         );
         const instance = yield* providerInstances.getInstance(input.modelSelection.instanceId);
         let snapshot = instance === undefined ? undefined : yield* instance.snapshot.getSnapshot;
-        if (instance && checkerSelectionError(input, snapshot))
+        if (
+          instance &&
+          (mainSelectionError(input, snapshot) || checkerSelectionError(input, snapshot))
+        )
           snapshot = yield* instance.snapshot.refresh;
         const invalid =
           mainSelectionError(input, snapshot) ?? checkerSelectionError(input, snapshot);

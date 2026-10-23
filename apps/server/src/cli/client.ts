@@ -11,12 +11,12 @@ import {
   CommandId,
   EventId,
   OZI_MAIN_THREAD_ID,
+  isOziMain,
   OZI_WS_METHODS as J,
   OziJobCard,
   type OziJobRequest,
   OziTodoSettings,
   OziTodos,
-  OZI_MAIN_SELECTION,
   ScheduledTask,
   ScheduledTaskId,
   ScheduledTaskDeleteResult,
@@ -491,6 +491,7 @@ const threadCommand = Command.make("thread", {
   id: Argument.String("id").pipe(Argument.withSchema(ThreadId)),
   provider: Flag.String("provider").pipe(Flag.withSchema(ProviderInstanceId), Flag.optional),
   model: Flag.String("model").pipe(Flag.optional),
+  thinking: Flag.String("thinking").pipe(Flag.optional),
   fork: Flag.Boolean("fork").pipe(Flag.withDefault(false)),
   message: Flag.String("message").pipe(Flag.optional),
 }).pipe(
@@ -512,19 +513,57 @@ const threadCommand = Command.make("thread", {
           creationSource: "cli",
         });
       }
-      if (Option.isSome(flags.provider) || Option.isSome(flags.model)) {
+      if (
+        Option.isSome(flags.provider) ||
+        Option.isSome(flags.model) ||
+        Option.isSome(flags.thinking)
+      ) {
         const current = yield* client[O.getThreadProjection]({ threadId });
+        const instanceId = Option.getOrElse(
+          flags.provider,
+          () => current.thread.modelSelection.instanceId,
+        );
+        const model = Option.getOrElse(flags.model, () => current.thread.modelSelection.model);
+        let options =
+          instanceId === current.thread.modelSelection.instanceId &&
+          (isOziMain(current.thread) ||
+            (Option.isNone(flags.provider) && Option.isNone(flags.model)))
+            ? (current.thread.modelSelection.options ?? [])
+            : [];
+        if (isOziMain(current.thread) && model !== current.thread.modelSelection.model) {
+          const descriptors =
+            (yield* client[W.serverGetConfig]({})).providers
+              .find((provider) => provider.instanceId === instanceId)
+              ?.models.find((entry) => entry.slug === model)?.capabilities?.optionDescriptors ?? [];
+          options = options.filter(
+            (option) =>
+              option.id === "fastMode" ||
+              descriptors.some(
+                (descriptor) =>
+                  descriptor.id === option.id &&
+                  (descriptor.type === "select"
+                    ? descriptor.options.some((choice) => choice.id === option.value)
+                    : typeof option.value === "boolean"),
+              ),
+          );
+        }
         yield* client[O.dispatchCommand]({
           type: "thread.model-selection.set",
           commandId: CommandId.make(yield* (yield* Crypto.Crypto).randomUUIDv4()),
           threadId,
+          createdBy: "user",
+          creationSource: "cli",
           modelSelection: {
-            instanceId: Option.getOrElse(
-              flags.provider,
-              () => current.thread.modelSelection.instanceId,
-            ),
-            model: Option.getOrElse(flags.model, () => current.thread.modelSelection.model),
-            options: [],
+            instanceId,
+            model,
+            options: [
+              ...options.filter(
+                (option) => Option.isNone(flags.thinking) || option.id !== "thinking",
+              ),
+              ...(Option.isSome(flags.thinking)
+                ? [{ id: "thinking", value: flags.thinking.value }]
+                : []),
+            ],
           },
         });
       }
@@ -997,7 +1036,7 @@ const scheduleAddCommand = Command.make("add", {
         projectId: main.thread.projectId,
         threadId: OZI_MAIN_THREAD_ID,
         workspaceStrategy: { type: "root" },
-        modelSelection: OZI_MAIN_SELECTION,
+        modelSelection: main.thread.modelSelection,
         runtimeMode: main.thread.runtimeMode,
         interactionMode: main.thread.interactionMode,
         createdBy: "user",

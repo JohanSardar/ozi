@@ -56,8 +56,10 @@ const messages = (projection: OrchestrationV2ThreadProjection, recent?: number) 
 
 export const thread = (projection: OrchestrationV2ThreadProjection) => {
   const run = projection.runs.findLast((run) => run.status !== "queued");
+  const selection = projection.thread.modelSelection;
   return [
     `Thread ${shortIds([projection.thread.id])(projection.thread.id)}: ${line(projection.thread.title)} (${run?.completionCheck?.state === "checking" ? "checking" : (run?.status ?? "idle")})`,
+    `${selection.instanceId} ${selection.model} ${(selection.options ?? []).map((option) => `${option.id}=${option.value}`).join(" ")}`.trim(),
     ...messages(projection),
   ].join("\n");
 };

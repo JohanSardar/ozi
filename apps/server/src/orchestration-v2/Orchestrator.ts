@@ -17,7 +17,6 @@ import {
   CommandId,
   OZI_MAIN_THREAD_ID,
   isOziMain,
-  isOziMainSelection,
   isOrchestrationV2WorkActive,
   isProviderNativeSubagentThread,
   MessageId,
@@ -592,8 +591,7 @@ function queuedRunModelSelection(
   run: OrchestrationV2Run,
 ): ModelSelection {
   const message = projection.messages.find((candidate) => candidate.id === run.userMessageId);
-  // App-owned monitor updates follow the agent currently handling the thread.
-  return followsCurrentConversation(message)
+  return isOziMain(projection.thread) || followsCurrentConversation(message)
     ? projection.thread.modelSelection
     : run.modelSelection;
 }
@@ -2584,6 +2582,23 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       (command.type === "thread.metadata.update" &&
         command.worktreePath !== undefined &&
         command.worktreePath !== thread.worktreePath);
+    if (command.type === "thread.model-selection.set" && isOziMain(thread)) {
+      command = {
+        ...command,
+        modelSelection: {
+          ...command.modelSelection,
+          options: [
+            ...(command.modelSelection.options ?? []),
+            ...(command.modelSelection.options?.some((option) => option.id === "fastMode")
+              ? []
+              : [{ id: "fastMode", value: false }]),
+          ],
+        },
+      };
+      yield* runtimePolicy
+        .resolve({ thread, modelSelection: command.modelSelection })
+        .pipe(mapDispatchError(command));
+    }
     const providerContext = needsProviderState
       ? yield* projectionStore
           .getThreadProviderContext(
@@ -2785,6 +2800,15 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
             ...thread,
             providerInstanceId: command.modelSelection.instanceId,
             modelSelection: command.modelSelection,
+            ...(!isOziMain(thread) || thread.effectiveLoadout === undefined
+              ? {}
+              : {
+                  effectiveLoadout: {
+                    ...thread.effectiveLoadout,
+                    model: command.modelSelection.model,
+                    options: command.modelSelection.options ?? [],
+                  },
+                }),
             updatedAt: now,
           };
       }
@@ -9975,10 +9999,29 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       );
     if (oziThread !== null && isOziMain(oziThread)) {
       const selection = "modelSelection" in command ? command.modelSelection : undefined;
+      if (command.type === "thread.model-selection.set") {
+        const cause =
+          command.createdBy !== "user"
+            ? "Only the user can change the main agent model."
+            : command.modelSelection.instanceId !== "pi"
+              ? "Main must use the pi provider instance."
+              : command.modelSelection.options?.some(
+                    (option) => option.id === "fastMode" && option.value !== false,
+                  )
+                ? "Main requires fastMode=false."
+                : undefined;
+        if (cause)
+          return yield* new OrchestratorDispatchError({
+            commandId: command.commandId,
+            commandType: command.type,
+            cause,
+          });
+      }
       if (
         (selection !== undefined &&
           command.type !== "delegated_task.request" &&
-          !isOziMainSelection(selection)) ||
+          command.type !== "thread.model-selection.set" &&
+          !modelSelectionsEqual(selection, oziThread.modelSelection)) ||
         command.type === "provider.switch" ||
         (command.type === "thread.metadata.update" &&
           ((command.worktreePath !== undefined &&
