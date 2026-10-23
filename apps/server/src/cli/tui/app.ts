@@ -15,6 +15,7 @@ import {
   matchesKey,
   ProcessTerminal,
   SelectList,
+  SettingsList,
   Spacer,
   Text,
   TuiMainScreen,
@@ -63,6 +64,7 @@ import {
   fg,
   markdown,
   selectList,
+  settingsList,
   useTheme,
   type PiTheme,
 } from "./theme.ts";
@@ -131,7 +133,12 @@ const Keybindings = Schema.Record(Schema.String, KeySetting);
 const PiSettings = Schema.Struct({
   theme: Schema.optional(Schema.String),
   themes: Schema.optional(Schema.Array(Schema.String)),
+  hideThinkingBlock: Schema.optional(Schema.Boolean),
+  terminal: Schema.optional(Schema.Struct({ showImages: Schema.optional(Schema.Boolean) })),
+  enabledModels: Schema.optional(Schema.Array(Schema.String)),
 });
+const SettingsFile = Schema.Record(Schema.String, Schema.Unknown);
+const encodeSettings = Schema.encodeEffect(Schema.fromJsonString(SettingsFile, { space: 2 }));
 const Theme = Schema.Struct({
   name: Schema.optional(Schema.String),
   vars: Schema.optional(Schema.Record(Schema.String, Schema.Union([Schema.String, Schema.Number]))),
@@ -179,7 +186,7 @@ const piAppearance = Effect.fn("ozi.tui.piAppearance")(function* () {
           custom ??= theme.value;
       }
     }
-  return { name, custom, keybindings };
+  return { name, custom, keybindings, directory, settings };
 });
 
 type Env =
@@ -233,6 +240,8 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
     { name: "name", description: "Name main's session", argumentHint: "<name>" },
     { name: "copy", description: "Copy main's last reply" },
     { name: "session", description: "Conversation stats" },
+    { name: "settings", description: "Main's and the terminal's settings" },
+    { name: "scoped-models", description: "Models for Ctrl+P cycling" },
     { name: "hotkeys", description: "Keyboard shortcuts" },
     { name: "quit", description: "Exit" },
   ];
@@ -282,7 +291,10 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
   let files: string[] = [];
   let loader: Loader | null = null;
   let lastCtrlC = 0;
-  let showThinking = true;
+  let showThinking = !appearance.settings.hideThinkingBlock;
+  let showImages = appearance.settings.terminal?.showImages ?? true;
+  let enabledModels = appearance.settings.enabledModels;
+  let themeName = appearance.name;
   let expandTools = false;
   let session: Fiber.Fiber<unknown, unknown> | null = null;
   const rows = new Map<string, Row>();
@@ -290,7 +302,7 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
   const images = new Map<string, { data: string; mimeType: string } | null>();
   const imageParts = (attachments: ReadonlyArray<ChatAttachment>) =>
     attachments.flatMap((attachment): Component[] => {
-      if (attachment.type !== "image") return [];
+      if (attachment.type !== "image" || !showImages) return [];
       const cached = images.get(attachment.id);
       if (cached === undefined && connection) {
         images.set(attachment.id, null);
@@ -963,6 +975,12 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
     for (const row of rows.values()) row.key = "";
     renderConversation();
   };
+  const repaint = () => {
+    tui.invalidate();
+    redraw();
+    renderStatus();
+    tui.requestRender(true);
+  };
 
   const externalEditor = () =>
     run(
@@ -1119,7 +1137,7 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
         Effect.flatMap((list) =>
           Effect.sync(() => {
             const next = cycle(
-              list.map((model) => model.slug),
+              list.map((model) => model.slug).filter(scoped),
               mainSelection()?.model,
               step,
             );
@@ -1239,6 +1257,177 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
               Math.max(
                 0,
                 listed.findIndex((thread) => thread.id === home.threadId),
+              ),
+            );
+          }),
+        ),
+      ),
+    );
+
+  const saveSetting = (update: (settings: Record<string, unknown>) => void) =>
+    run(
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const file = path.join(appearance.directory, "settings.json");
+        const settings = {
+          ...(yield* fs.readFileString(file).pipe(
+            Effect.flatMap(decodeJson),
+            Effect.flatMap(Schema.decodeUnknownEffect(SettingsFile)),
+            Effect.orElseSucceed(() => ({})),
+          )),
+        };
+        update(settings);
+        yield* fs.makeDirectory(appearance.directory, { recursive: true });
+        yield* fs.writeFileString(file, `${yield* encodeSettings(settings)}\n`);
+        notice(`Saved to ${file}.`);
+      }).pipe(Effect.catchCause((cause) => Effect.sync(() => notice(errorLine(cause), "red")))),
+    );
+  const scoped = (slug: string) =>
+    !enabledModels?.length ||
+    enabledModels.some((pattern) => {
+      const base = pattern.split(":")[0]!;
+      return base.includes("*")
+        ? new RegExp(`^${base.split("*").map(RegExp.escape).join(".*")}$`).test(slug)
+        : slug.includes(base);
+    });
+  const setTheme = (name: string) => {
+    themeName = name;
+    if (name === "system") terminal.write("\x1b[?996n");
+    else {
+      useTheme(
+        name === appearance.name && appearance.custom
+          ? appearance.custom
+          : (builtinThemes[name] ?? builtinThemes.dark!),
+      );
+      repaint();
+    }
+    saveSetting((settings) => {
+      settings.theme = name;
+    });
+  };
+  const openSettings = () =>
+    act("", (current) =>
+      piRpc(current, { type: "get_state" }).pipe(
+        Effect.flatMap((data) =>
+          Effect.sync(() => {
+            const state = data as {
+              autoCompactionEnabled?: boolean;
+              steeringMode?: string;
+              followUpMode?: string;
+            };
+            const toggle = ["true", "false"];
+            const modes = ["one-at-a-time", "all"];
+            const list = new SettingsList(
+              [
+                {
+                  id: "autocompact",
+                  label: "Auto-compact",
+                  description: "Compact main's context when it fills up",
+                  currentValue: String(state.autoCompactionEnabled ?? true),
+                  values: toggle,
+                },
+                {
+                  id: "steering-mode",
+                  label: "Steering mode",
+                  description: "How main takes steering messages sent while it works",
+                  currentValue: state.steeringMode ?? "one-at-a-time",
+                  values: modes,
+                },
+                {
+                  id: "follow-up-mode",
+                  label: "Follow-up mode",
+                  description: "How main takes queued follow-up messages",
+                  currentValue: state.followUpMode ?? "one-at-a-time",
+                  values: modes,
+                },
+                {
+                  id: "hide-thinking",
+                  label: "Hide thinking",
+                  description: "Show main's thinking as a short label",
+                  currentValue: String(!showThinking),
+                  values: toggle,
+                },
+                {
+                  id: "show-images",
+                  label: "Show images",
+                  description: "Render images inline",
+                  currentValue: String(showImages),
+                  values: toggle,
+                },
+                {
+                  id: "theme",
+                  label: "Theme",
+                  currentValue: themeName,
+                  values: [...new Set(["dark", "light", "system", appearance.name])],
+                },
+              ],
+              10,
+              settingsList,
+              (id, value) => {
+                const on = value === "true";
+                if (id === "autocompact")
+                  return mainPi(`Auto-compact ${on ? "on" : "off"}.`, {
+                    type: "set_auto_compaction",
+                    enabled: on,
+                  });
+                if (id === "steering-mode" || id === "follow-up-mode")
+                  return mainPi(
+                    `${id === "steering-mode" ? "Steering" : "Follow-up"} mode ${value}.`,
+                    {
+                      type: id === "steering-mode" ? "set_steering_mode" : "set_follow_up_mode",
+                      mode: value as "all" | "one-at-a-time",
+                    },
+                  );
+                if (id === "theme") return setTheme(value);
+                if (id === "hide-thinking") {
+                  showThinking = !on;
+                  saveSetting((settings) => {
+                    settings.hideThinkingBlock = on;
+                  });
+                } else {
+                  showImages = on;
+                  saveSetting((settings) => {
+                    settings.terminal = {
+                      ...(settings.terminal as Record<string, unknown> | undefined),
+                      showImages: on,
+                    };
+                  });
+                }
+                redraw();
+              },
+              restoreEditor,
+            );
+            show(list);
+          }),
+        ),
+      ),
+    );
+  const chooseScopedModels = () =>
+    act("", (current) =>
+      models(current).pipe(
+        Effect.flatMap((list) =>
+          Effect.sync(() => {
+            const enabled = new Set(list.map((model) => model.slug).filter(scoped));
+            show(
+              new SettingsList(
+                list.map((model) => ({
+                  id: model.slug,
+                  label: model.slug,
+                  currentValue: enabled.has(model.slug) ? "on" : "off",
+                  values: ["on", "off"],
+                })),
+                12,
+                settingsList,
+                (slug, value) => {
+                  if (value === "on") enabled.add(slug);
+                  else enabled.delete(slug);
+                  enabledModels = enabled.size === list.length ? undefined : [...enabled];
+                  saveSetting((settings) => {
+                    settings.enabledModels = enabledModels;
+                  });
+                },
+                restoreEditor,
               ),
             );
           }),
@@ -1368,6 +1557,8 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
       if (command === "model") return argument ? setModel(argument) : chooseModel();
       if (command === "thinking") return argument ? setThinking(argument) : chooseThinking();
       if (command === "session") return notice(sessionInfo());
+      if (command === "settings") return openSettings();
+      if (command === "scoped-models") return chooseScopedModels();
       if (command === "clone")
         return forkSession(home.threadId, { type: "latest_stable" }, `${home.title} clone`);
       if (command === "fork") return chooseFork();
@@ -1474,16 +1665,12 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
     return undefined;
   });
 
-  if (appearance.name === "system") {
-    tui.onTerminalColorSchemeChange((scheme) => {
-      useTheme(builtinThemes[scheme]!);
-      tui.invalidate();
-      redraw();
-      renderStatus();
-      tui.requestRender(true);
-    });
-    tui.setTerminalColorSchemeNotifications(true);
-  }
+  tui.onTerminalColorSchemeChange((scheme) => {
+    if (themeName !== "system") return;
+    useTheme(builtinThemes[scheme]!);
+    repaint();
+  });
+  tui.setTerminalColorSchemeNotifications(true);
   tui.start();
   start();
   renderStatus();

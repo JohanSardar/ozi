@@ -193,6 +193,14 @@ export const OziMainPiCommand = Schema.Union([
     outputPath: Schema.optional(Schema.String),
   }),
   Schema.Struct({ type: Schema.Literal("set_session_name"), name: Schema.String }),
+  Schema.Struct({
+    type: Schema.Literals(["set_auto_compaction", "set_auto_retry"]),
+    enabled: Schema.Boolean,
+  }),
+  Schema.Struct({
+    type: Schema.Literals(["set_steering_mode", "set_follow_up_mode"]),
+    mode: Schema.Literals(["all", "one-at-a-time"]),
+  }),
 ]);
 export type OziMainPiCommand = typeof OziMainPiCommand.Type;
 
