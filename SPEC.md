@@ -292,6 +292,10 @@ Everything Pi's interactive mode and harness do, Ozi's main and terminal app do;
 
 Print mode (`ozi -p`, `ozi --print`, `ozi print`) sends each prompt to main or `--thread` in turn and prints that run's last reply; `--json` prints `{threadId, runId, status, text}` per prompt. It exits non-zero when a run fails, is interrupted or cancelled, or stops on a question, naming the `ozi answer` to give.
 
+- `m9.pi-rpc`: with real Pi, `ozi main` fails in one line before main's first turn, then returns Pi's commands, session stats, last reply, models, thinking levels and state, names the session, exports HTML, runs bash into and outside main's context, aborts bash and compacts; commands outside the allowlist fail without changing state.
+- `m9.slash-passthrough`: with real Pi, extension commands complete main's turn without inference, an assistant reply or a check; a prompt template expands with its arguments before the model request.
+- `m9.model-switch`: with real Pi, the user's `ozi thread ozi-main --model --thinking` shows in main's loadout and reaches the next model request (model, effort, fast mode off).
+- `m9.extension-ui`: with real Pi, an extension's notices (last 20), statuses, widgets, title and editor text persist on main's thread across a restart, and its select, editor, input and confirm dialogs are answered or cancelled from the web app and `ozi answer`.
 - `m9.tui-slash`: an unknown `/command` typed in the terminal app reaches main unchanged; `/hotkeys` stays local; Ctrl+D exits on an empty editor.
 - `m9.tui-thinking`: main's thinking shows in Pi's thinking style and Ctrl+T hides it to a "Thinking..." label; a long command shows ten lines and Ctrl+O expands it.
 - `m9.tui-editor`: Ctrl+G opens the message in the external editor and its saved text is sent.
