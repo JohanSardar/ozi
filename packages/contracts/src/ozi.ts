@@ -131,6 +131,7 @@ export class OziJobError extends Schema.TaggedError<OziJobError>()("OziJobError"
 }
 
 export const OZI_WS_METHODS = {
+  mainPi: "ozi.main.pi",
   todosGet: "ozi.todos.get",
   clockAdvance: "ozi.test.clock.advance",
   jobsGet: "ozi.jobs.get",
@@ -139,6 +140,39 @@ export const OZI_WS_METHODS = {
   jobsSubscribe: "ozi.jobs.subscribe",
   jobsHandle: "ozi.jobs.handle",
 } as const;
+
+export const OziMainPiCommand = Schema.Union([
+  Schema.Struct({
+    type: Schema.Literals([
+      "get_commands",
+      "get_state",
+      "get_session_stats",
+      "get_available_models",
+      "get_available_thinking_levels",
+      "get_last_assistant_text",
+      "abort_bash",
+    ]),
+  }),
+  Schema.Struct({
+    type: Schema.Literal("compact"),
+    customInstructions: Schema.optional(Schema.String),
+  }),
+  Schema.Struct({
+    type: Schema.Literal("bash"),
+    command: Schema.String,
+    excludeFromContext: Schema.optional(Schema.Boolean),
+  }),
+  Schema.Struct({
+    type: Schema.Literal("export_html"),
+    outputPath: Schema.optional(Schema.String),
+  }),
+  Schema.Struct({ type: Schema.Literal("set_session_name"), name: Schema.String }),
+]);
+export type OziMainPiCommand = typeof OziMainPiCommand.Type;
+
+export class OziMainPiError extends Schema.TaggedError<OziMainPiError>()("OziMainPiError", {
+  message: Schema.String,
+}) {}
 
 export const OZI_CHECK_TOOL_NAMES = ["t3_thread_read", "completion_evidence"] as const;
 

@@ -5,6 +5,9 @@ import {
   isOrchestrationV2WorkActive,
   ModelSelection,
   isOziMain,
+  OZI_MAIN_THREAD_ID,
+  OziMainPiCommand,
+  OziMainPiError,
   OrchestrationV2DomainEvent,
   OrchestrationV2ProviderSession,
   type OrchestrationV2ProviderThread,
@@ -55,6 +58,7 @@ import * as ProviderAdapterRegistry from "./ProviderAdapterRegistry.ts";
 import * as ProjectionStore from "./ProjectionStore.ts";
 
 const DEFAULT_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
+const decodeMainPiCommand = Schema.decodeUnknownEffect(OziMainPiCommand);
 const DEFAULT_MAX_IDLE_PIN_MS = 4 * 60 * 60 * 1000;
 const RELEASE_SCOPE_CLOSE_TIMEOUT_MS = 30 * 1000;
 
@@ -144,6 +148,9 @@ export const ProviderSessionManagerV2Error = Schema.Union([
 export type ProviderSessionManagerV2Error = typeof ProviderSessionManagerV2Error.Type;
 
 export interface ProviderSessionManagerV2Shape {
+  readonly mainPi: (
+    input: Readonly<Record<string, unknown>>,
+  ) => Effect.Effect<unknown, OziMainPiError>;
   readonly shutdown: Effect.Effect<void>;
   readonly open: (input: {
     readonly threadId: ThreadId;
@@ -2080,6 +2087,33 @@ const layerWithOptions = (
 
       return ProviderSessionManagerV2.of({
         shutdown,
+        mainPi: Effect.fn("ProviderSessionManager.mainPi")(function* (input) {
+          const command = yield* decodeMainPiCommand(input).pipe(
+            Effect.mapError(
+              () =>
+                new OziMainPiError({
+                  message: `Invalid or disallowed Pi command: ${typeof input.type === "string" ? input.type.replace(/\s+/g, " ") : "missing type"}`,
+                }),
+            ),
+          );
+          const entry = [...(yield* Ref.get(sessions)).values()].find((entry) =>
+            entry.attachedThreadIds.has(OZI_MAIN_THREAD_ID),
+          );
+          if (entry?.runtime.piRpc === undefined)
+            return yield* new OziMainPiError({
+              message: "Main has no live Pi session; send a message first.",
+            });
+          yield* touchActivity(entry.runtime.providerSessionId).pipe(
+            Effect.mapError(
+              () =>
+                new OziMainPiError({
+                  message: "Main's Pi session is unavailable; send a message first.",
+                }),
+            ),
+          );
+          const data = yield* entry.runtime.piRpc(command);
+          return data === undefined ? null : data;
+        }),
         open: (input) =>
           sessionOpen.withLock(
             input.providerSessionId,

@@ -26,6 +26,7 @@ import {
 import * as Schema from "effect/Schema";
 import {
   OZI_WS_METHODS,
+  OziMainPiError,
   OziClockError,
   OziTodos,
   OziJobCard,
@@ -741,6 +742,11 @@ export class RpcScopeAuthorization extends RpcMiddleware.Service<RpcScopeAuthori
 ) {}
 
 export const WsRpcGroup = RpcGroup.make(
+  Rpc.make(OZI_WS_METHODS.mainPi, {
+    payload: Schema.Record(Schema.String, Schema.Unknown),
+    success: Schema.Unknown,
+    error: Schema.Union([OziMainPiError, EnvironmentAuthorizationError]),
+  }),
   Rpc.make(OZI_WS_METHODS.todosGet, {
     payload: Schema.Struct({}),
     success: OziTodos,

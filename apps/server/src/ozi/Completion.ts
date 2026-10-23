@@ -91,6 +91,7 @@ export const capture = Effect.fn("Completion.capture")(function* (input: {
   now: DateTime.Utc;
   eventId?: EventId;
 }) {
+  if (input.run.promptDisposition === "handled") return;
   const projection = yield* input.projections.getThreadRecords(input.run.threadId, [
     "runs",
     "messages",
