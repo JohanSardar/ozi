@@ -152,6 +152,7 @@ One binary, `ozi`. Every command takes `--json`. Command failures exit nonzero w
 | `ozi request <RPC-or-path>… [--method GET\|POST] [--payload JSON]`              | Send authenticated requests and report each RPC result or HTTP status.                                 |
 | `ozi status`                                                                    | Server, main thread, effective loadouts (model, options, tools, prompt hash), providers.               |
 | `ozi say <text> [--file <path>]…`                                               | Message main; queues when busy.                                                                        |
+| `ozi -p\|--print <text>… [--thread <id>] [--file <path>]…`                      | Print mode: send prompts in turn, print each reply.                                                    |
 | `ozi steer <text> [--thread <id>]`                                              | Steer the active turn.                                                                                 |
 | `ozi stop [--thread <id>]`                                                      | Stop a thread's work.                                                                                  |
 | `ozi thread <id> [--provider <id> --model <model>] [--fork] [--message <text>]` | Transcript, loadout, state; select a worker model, fork the latest stable run, or send to that thread. |
@@ -284,6 +285,8 @@ The harness runs `ozi` in a real pseudo-terminal through util-linux `script`, ty
 
 Everything Pi's interactive mode and harness do, Ozi's main and terminal app do, except one conversation instead of sessions to switch between. Waves: (1) slash pass-through, thinking, tool expansion, Pi keys, main's Pi RPC (`ozi main <command>`: commands, stats, bash, compact, export, last reply, name), extension commands, model and thinking switching; (2) footer usage and model, `!`/`!!`, `/compact`, `/copy`, `/export`, `/session`, `/name`, `/model`, `/thinking`, Ctrl+L, Ctrl+P, Shift+Tab, command autocomplete, extension UI (notify, status, widgets, title, editor, editor text), themes and keybindings from main's agent directory, inline images, clipboard paste, queued-message restore; (3) `/new`, `/fork`, `/clone`, `/tree`, `/resume`, `/import`, `/reload`, print mode.
 
+Print mode (`ozi -p`, `ozi --print`, `ozi print`) sends each prompt to main or `--thread` in turn and prints that run's last reply; `--json` prints `{threadId, runId, status, text}` per prompt. It exits non-zero when a run fails, is interrupted or cancelled, or stops on a question, naming the `ozi answer` to give.
+
 - `m9.tui-slash`: an unknown `/command` typed in the terminal app reaches main unchanged; `/hotkeys` stays local; Ctrl+D exits on an empty editor.
 - `m9.tui-thinking`: main's thinking shows in Pi's thinking style and Ctrl+T hides it to a "Thinking..." label; a long command shows ten lines and Ctrl+O expands it.
 - `m9.tui-editor`: Ctrl+G opens the message in the external editor and its saved text is sent.
@@ -291,4 +294,5 @@ Everything Pi's interactive mode and harness do, Ozi's main and terminal app do,
 - `m9.tui-media`: an attached PNG renders inline, `/copy` copies main's last reply through OSC 52, and `/session` shows message counts.
 - `m9.tui-pi-commands`: with real Pi, `!echo` shows its output, `/name`, `/export` and `/compact` succeed, `/model` switches main's model, Shift+Tab changes the thinking level, and a prompt template in main's agent directory appears in autocomplete.
 - `m9.tui-extension-ui`: with real Pi, an extension command's notice, status, widget and editor text appear, and its select, editor and confirm dialogs are answered in the app.
+- `m9.print`: piped stdin plus a message reach main as one prompt and only its reply prints; several prompts run in order; `--json` returns the run; a question and a failed run exit non-zero with one line.
 - `m9.tui-appearance`: a custom Pi theme and `keybindings.json` in the local Pi agent directory change the app's colors and keys.

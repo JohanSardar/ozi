@@ -316,16 +316,18 @@ export async function startHarness(
       controller.abort();
     }
   };
-  const execOutput = (...args: string[]) =>
-    new Promise<{ code: number; stdout: string; stderr: string }>((resolve) =>
-      NodeChildProcess.execFile(
-        process.execPath,
-        [cli, ...args, ...(args.includes("--home") ? [] : ["--home", home])],
-        { cwd: dataRoot, env, timeout: 45_000 },
-        (error, stdout, stderr) =>
-          resolve({ code: error ? Number(error.code ?? 1) : 0, stdout, stderr }),
-      ),
+  const pipe = (input: string, ...args: string[]) =>
+    new Promise<{ code: number; stdout: string; stderr: string }>(
+      (resolve) =>
+        void NodeChildProcess.execFile(
+          process.execPath,
+          [cli, ...args, ...(args.includes("--home") ? [] : ["--home", home])],
+          { cwd: dataRoot, env, timeout: 45_000 },
+          (error, stdout, stderr) =>
+            resolve({ code: error ? Number(error.code ?? 1) : 0, stdout, stderr }),
+        ).stdin?.end(input),
     );
+  const execOutput = (...args: string[]) => pipe("", ...args);
   const stopServer = async () => {
     if (server.exitCode !== null || server.signalCode !== null) return;
     const exited = new Promise<void>((resolve) => server.once("exit", () => resolve()));
@@ -361,6 +363,7 @@ export async function startHarness(
     stop: stopServer,
     status: () => ozi<Status>("status"),
     execOutput,
+    pipe,
     exec: async (...args: string[]) => (await execOutput(...args)).code,
     thread: (id: string) => ozi<Projection>("thread", id),
     wait: (id: string, state: string, timeout = 15) =>
