@@ -52,6 +52,7 @@ import * as ServerSettings from "./serverSettings.ts";
 import * as OziClock from "./ozi/Clock.ts";
 import * as DataRoot from "./ozi/DataRoot.ts";
 import * as Todos from "./ozi/Todos.ts";
+import * as Sessions from "./ozi/Sessions.ts";
 import * as NativeAppIconResolver from "./assets/NativeAppIconResolver.ts";
 import * as CodexInstallation from "./provider/CodexInstallation.ts";
 import * as ProviderInstanceRegistry from "./provider/ProviderInstanceRegistry.ts";
@@ -460,6 +461,7 @@ const layerMakeServer = Layer.unwrap(
     );
 
     return layerServerApplication.pipe(
+      Layer.provide(Sessions.layer.pipe(Layer.provide(ProjectionStoreV2.layer))),
       Layer.provide(Todos.layer),
       Layer.provideMerge(layerRuntimeServices),
       Layer.provideMerge(

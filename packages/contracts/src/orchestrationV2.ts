@@ -2373,6 +2373,7 @@ export const OrchestrationV2Command = Schema.Union([
   }),
   Schema.Struct({
     type: Schema.Literal("thread.create"),
+    mainFork: Schema.optional(Schema.Literal(true)),
     ...OrchestrationV2CreationFields,
     commandId: CommandId,
     threadId: ThreadId,

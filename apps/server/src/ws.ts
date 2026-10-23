@@ -1,4 +1,4 @@
-import { OZI_WS_METHODS, OziCheckError } from "@t3tools/contracts";
+import { OZI_MAIN_THREAD_ID, OZI_WS_METHODS, OziCheckError } from "@t3tools/contracts";
 import * as Completion from "./ozi/Completion.ts";
 import * as EventSink from "./orchestration-v2/EventSink.ts";
 
@@ -69,6 +69,7 @@ import * as Jobs from "./ozi/Jobs.ts";
 import { OziClock } from "./ozi/Clock.ts";
 import { Scheduler } from "./scheduling/Scheduler.ts";
 import { Todos } from "./ozi/Todos.ts";
+import * as OziSessions from "./ozi/Sessions.ts";
 import * as CommandOutputHub from "./orchestration-v2/CommandOutputHub.ts";
 import * as McpAppRequests from "./mcpApps/McpAppRequests.ts";
 import * as ProviderSessionManager from "./orchestration-v2/ProviderSessionManager.ts";
@@ -789,6 +790,7 @@ const layerWsRpc = (
       const clock = yield* OziClock;
       const scheduler = yield* Scheduler;
       const todos = yield* Todos;
+      const oziSessions = yield* OziSessions.Sessions;
       const intakeContext = yield* Effect.context<
         | ThreadManagementService.ThreadManagementService
         | Jobs.Jobs
@@ -963,7 +965,12 @@ const layerWsRpc = (
       });
 
       const handlers = ServerWsRpcGroup.of({
-        [OZI_WS_METHODS.mainPi]: (input) => providerSessionsV2.mainPi(input),
+        [OZI_WS_METHODS.sessionNew]: (input) => oziSessions.create(input),
+        [OZI_WS_METHODS.sessionList]: () => oziSessions.list,
+        [OZI_WS_METHODS.sessionImport]: (input) => oziSessions.import(input),
+        [OZI_WS_METHODS.sessionReload]: (input) =>
+          oziSessions.reload(input.threadId ?? OZI_MAIN_THREAD_ID),
+        [OZI_WS_METHODS.mainPi]: (input) => oziSessions.mainPi(input),
         [ORCHESTRATION_V2_WS_METHODS.dispatchCommand]: (command) =>
           Effect.annotateCurrentSpan({
             "orchestration_v2.command_id": command.commandId,

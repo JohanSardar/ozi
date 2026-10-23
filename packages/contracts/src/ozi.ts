@@ -9,6 +9,7 @@ import {
   ThreadId,
   TurnItemId,
   RunId,
+  TrimmedNonEmptyString,
 } from "./baseSchemas.ts";
 
 export const OZI_MAIN_THREAD_ID = ThreadId.make("ozi-main");
@@ -125,6 +126,10 @@ export class OziJobError extends Schema.TaggedError<OziJobError>()("OziJobError"
 }
 
 export const OZI_WS_METHODS = {
+  sessionNew: "ozi.session.new",
+  sessionList: "ozi.session.list",
+  sessionImport: "ozi.session.import",
+  sessionReload: "ozi.session.reload",
   mainPi: "ozi.main.pi",
   todosGet: "ozi.todos.get",
   clockAdvance: "ozi.test.clock.advance",
@@ -134,6 +139,33 @@ export const OZI_WS_METHODS = {
   jobsSubscribe: "ozi.jobs.subscribe",
   jobsHandle: "ozi.jobs.handle",
 } as const;
+
+export const OziSessionCreateInput = Schema.Struct({
+  title: Schema.optional(TrimmedNonEmptyString),
+});
+export type OziSessionCreateInput = typeof OziSessionCreateInput.Type;
+
+export const OziSessionImportInput = Schema.Struct({
+  content: Schema.String,
+  title: Schema.optional(TrimmedNonEmptyString),
+});
+export type OziSessionImportInput = typeof OziSessionImportInput.Type;
+
+export const OziSessionResult = Schema.Struct({ threadId: ThreadId });
+export type OziSessionResult = typeof OziSessionResult.Type;
+
+export const OziSession = Schema.Struct({
+  id: ThreadId,
+  title: Schema.String,
+  forkedFrom: Schema.NullOr(ThreadId),
+  updatedAt: Schema.DateTimeUtc,
+  messageCount: Schema.Int,
+});
+export type OziSession = typeof OziSession.Type;
+
+export class OziSessionError extends Schema.TaggedError<OziSessionError>()("OziSessionError", {
+  message: Schema.String,
+}) {}
 
 export const OziMainPiCommand = Schema.Union([
   Schema.Struct({

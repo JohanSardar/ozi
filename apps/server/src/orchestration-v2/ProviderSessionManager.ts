@@ -8,6 +8,7 @@ import {
   OZI_MAIN_THREAD_ID,
   OziMainPiCommand,
   OziMainPiError,
+  OziSessionError,
   OrchestrationV2DomainEvent,
   OrchestrationV2ProviderSession,
   type OrchestrationV2ProviderThread,
@@ -59,6 +60,7 @@ import * as ProjectionStore from "./ProjectionStore.ts";
 
 const DEFAULT_IDLE_TIMEOUT_MS = 30 * 60 * 1000;
 const decodeMainPiCommand = Schema.decodeUnknownEffect(OziMainPiCommand);
+const decodePiThreadId = Schema.decodeUnknownEffect(ThreadId);
 const DEFAULT_MAX_IDLE_PIN_MS = 4 * 60 * 60 * 1000;
 const RELEASE_SCOPE_CLOSE_TIMEOUT_MS = 30 * 1000;
 
@@ -148,6 +150,7 @@ export const ProviderSessionManagerV2Error = Schema.Union([
 export type ProviderSessionManagerV2Error = typeof ProviderSessionManagerV2Error.Type;
 
 export interface ProviderSessionManagerV2Shape {
+  readonly reload: (threadId: ThreadId) => Effect.Effect<void, OziSessionError>;
   readonly mainPi: (
     input: Readonly<Record<string, unknown>>,
   ) => Effect.Effect<unknown, OziMainPiError>;
@@ -2086,9 +2089,55 @@ const layerWithOptions = (
       );
 
       return ProviderSessionManagerV2.of({
+        reload: Effect.fn("ProviderSessionManager.reload")(function* (threadId) {
+          const entry = [...(yield* Ref.get(sessions)).values()].find((entry) =>
+            entry.attachedThreadIds.has(threadId),
+          );
+          if (entry === undefined) return;
+          const providerSessionId = entry.runtime.providerSessionId;
+          yield* sessionOpen.withLock(
+            providerSessionId,
+            Effect.gen(function* () {
+              const current = (yield* Ref.get(sessions)).get(sessionKey(providerSessionId));
+              if (current === undefined) return;
+              const busy = new OziSessionError({ message: "Session must be idle to reload." });
+              if (current.busyTurns.size > 0) return yield* busy;
+              const pending = current.runtime.hasPendingBackgroundWork;
+              if (pending !== undefined && (yield* pending.pipe(Effect.mapError(() => busy))))
+                return yield* busy;
+              yield* releaseEntry({
+                providerSessionId,
+                reason: "manual_shutdown",
+                detail: "Session reload requested.",
+                onlyIfIdleGeneration: current.idleGeneration,
+              }).pipe(
+                Effect.mapError(
+                  () => new OziSessionError({ message: "Could not reload the session." }),
+                ),
+              );
+              if ((yield* Ref.get(sessions)).has(sessionKey(providerSessionId))) return yield* busy;
+            }),
+          );
+        }),
         shutdown,
         mainPi: Effect.fn("ProviderSessionManager.mainPi")(function* (input) {
-          const command = yield* decodeMainPiCommand(input).pipe(
+          const { threadId: target, ...piInput } = input;
+          const threadId =
+            target === undefined
+              ? OZI_MAIN_THREAD_ID
+              : yield* decodePiThreadId(target).pipe(
+                  Effect.mapError(
+                    () => new OziMainPiError({ message: "Invalid session thread id." }),
+                  ),
+                );
+          const thread = yield* projectionStore
+            .getThread(threadId)
+            .pipe(Effect.mapError(() => new OziMainPiError({ message: "Unknown session." })));
+          if (!isOziMain(thread) || thread.deletedAt !== null)
+            return yield* new OziMainPiError({
+              message: "Pi commands require main or a main-fork session.",
+            });
+          const command = yield* decodeMainPiCommand(piInput).pipe(
             Effect.mapError(
               () =>
                 new OziMainPiError({
@@ -2097,17 +2146,17 @@ const layerWithOptions = (
             ),
           );
           const entry = [...(yield* Ref.get(sessions)).values()].find((entry) =>
-            entry.attachedThreadIds.has(OZI_MAIN_THREAD_ID),
+            entry.attachedThreadIds.has(threadId),
           );
           if (entry?.runtime.piRpc === undefined)
             return yield* new OziMainPiError({
-              message: "Main has no live Pi session; send a message first.",
+              message: "Session has no live Pi process; send a message first.",
             });
           yield* touchActivity(entry.runtime.providerSessionId).pipe(
             Effect.mapError(
               () =>
                 new OziMainPiError({
-                  message: "Main's Pi session is unavailable; send a message first.",
+                  message: "The Pi session is unavailable; send a message first.",
                 }),
             ),
           );

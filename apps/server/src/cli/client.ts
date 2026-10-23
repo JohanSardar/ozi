@@ -14,6 +14,8 @@ import {
   isOziMain,
   OZI_WS_METHODS as J,
   OziJobCard,
+  OziSession,
+  OziSessionResult,
   type OziJobRequest,
   OziTodoSettings,
   OziTodos,
@@ -1234,8 +1236,88 @@ const requestCommand = Command.make("request", {
   ),
 );
 
+const sessionTitleFlags = {
+  ...locationFlags,
+  title: Flag.String("title").pipe(Flag.optional),
+};
+const sessionNewCommand = Command.make("new", sessionTitleFlags).pipe(
+  Command.withHandler((flags) =>
+    Effect.gen(function* () {
+      const { client } = yield* connect(flags.baseDir);
+      const result = yield* client[J.sessionNew]({ title: Option.getOrUndefined(flags.title) });
+      yield* emit(OziSessionResult, result, flags.json, () =>
+        Text.result("Created session", result.threadId),
+      );
+    }),
+  ),
+);
+const sessionListCommand = Command.make("list", locationFlags).pipe(
+  Command.withHandler((flags) =>
+    Effect.gen(function* () {
+      const { client } = yield* connect(flags.baseDir);
+      const rows = yield* client[J.sessionList]({});
+      yield* emit(Schema.Array(OziSession), rows, flags.json, () => Text.sessions(rows));
+    }),
+  ),
+);
+const sessionImportCommand = Command.make("import", {
+  ...sessionTitleFlags,
+  path: Argument.String("path"),
+}).pipe(
+  Command.withHandler((flags) =>
+    Effect.gen(function* () {
+      const { client } = yield* connect(flags.baseDir);
+      const fs = yield* FileSystem.FileSystem;
+      const content = yield* fs
+        .readFileString(flags.path)
+        .pipe(
+          Effect.mapError(
+            () => new ClientError({ operation: "could not read the Pi session file" }),
+          ),
+        );
+      const result = yield* client[J.sessionImport]({
+        content,
+        title: Option.getOrUndefined(flags.title),
+      });
+      yield* emit(OziSessionResult, result, flags.json, () =>
+        Text.result("Imported session", result.threadId),
+      );
+    }),
+  ),
+);
+const sessionReloadCommand = Command.make("reload", {
+  ...locationFlags,
+  threadId: Argument.String("threadId").pipe(Argument.withSchema(ThreadId), Argument.optional),
+}).pipe(
+  Command.withHandler((flags) =>
+    Effect.gen(function* () {
+      const { client } = yield* connect(flags.baseDir);
+      const threadId = Option.isNone(flags.threadId)
+        ? OZI_MAIN_THREAD_ID
+        : yield* resolveId(
+            flags.threadId.value,
+            (yield* client[J.sessionList]({})).map((row) => row.id),
+            "session",
+          );
+      const result = yield* client[J.sessionReload]({ threadId });
+      yield* emit(OziSessionResult, result, flags.json, () =>
+        Text.result("Reloaded session", result.threadId),
+      );
+    }),
+  ),
+);
+const sessionCommand = Command.make("session").pipe(
+  Command.withSubcommands([
+    sessionNewCommand,
+    sessionListCommand,
+    sessionImportCommand,
+    sessionReloadCommand,
+  ]),
+);
+
 const mainCommand = Command.make("main", {
   ...locationFlags,
+  thread: threadFlag,
   type: Argument.String("type"),
   payload: Flag.String("payload").pipe(Flag.withDefault("{}")),
 }).pipe(
@@ -1243,7 +1325,8 @@ const mainCommand = Command.make("main", {
     Effect.gen(function* () {
       const payload = yield* decodeMainPiPayload(flags.payload);
       const { client } = yield* connect(flags.baseDir);
-      const data = yield* client[J.mainPi]({ ...payload, type: flags.type });
+      const threadId = yield* targetThread(client, flags.thread);
+      const data = yield* client[J.mainPi]({ ...payload, type: flags.type, threadId });
       yield* print(data, flags.json, () => {
         if (typeof data === "string") return data;
         if (Predicate.isObject(data)) {
@@ -1259,6 +1342,7 @@ const mainCommand = Command.make("main", {
 );
 
 export const clientCommands = [
+  sessionCommand,
   mainCommand,
   connectCommand,
   disconnectCommand,

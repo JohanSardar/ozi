@@ -27,6 +27,11 @@ import * as Schema from "effect/Schema";
 import {
   OZI_WS_METHODS,
   OziMainPiError,
+  OziSession,
+  OziSessionCreateInput,
+  OziSessionImportInput,
+  OziSessionResult,
+  OziSessionError,
   OziClockError,
   OziTodos,
   OziJobCard,
@@ -742,6 +747,26 @@ export class RpcScopeAuthorization extends RpcMiddleware.Service<RpcScopeAuthori
 ) {}
 
 export const WsRpcGroup = RpcGroup.make(
+  Rpc.make(OZI_WS_METHODS.sessionNew, {
+    payload: OziSessionCreateInput,
+    success: OziSessionResult,
+    error: Schema.Union([OziSessionError, EnvironmentAuthorizationError]),
+  }),
+  Rpc.make(OZI_WS_METHODS.sessionList, {
+    payload: Schema.Struct({}),
+    success: Schema.Array(OziSession),
+    error: Schema.Union([OziSessionError, EnvironmentAuthorizationError]),
+  }),
+  Rpc.make(OZI_WS_METHODS.sessionImport, {
+    payload: OziSessionImportInput,
+    success: OziSessionResult,
+    error: Schema.Union([OziSessionError, EnvironmentAuthorizationError]),
+  }),
+  Rpc.make(OZI_WS_METHODS.sessionReload, {
+    payload: Schema.Struct({ threadId: Schema.optional(ThreadId) }),
+    success: OziSessionResult,
+    error: Schema.Union([OziSessionError, EnvironmentAuthorizationError]),
+  }),
   Rpc.make(OZI_WS_METHODS.mainPi, {
     payload: Schema.Record(Schema.String, Schema.Unknown),
     success: Schema.Unknown,

@@ -2268,29 +2268,34 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
       });
     }
 
+    const main = command.mainFork
+      ? yield* projectionStore.getThread(OZI_MAIN_THREAD_ID).pipe(mapDispatchError(command))
+      : undefined;
+    const selection = main?.modelSelection ?? command.modelSelection;
     const now = yield* DateTime.now;
     const emitEvent = emit(events, command);
     const thread: OrchestrationV2AppThread = {
       createdBy: command.createdBy,
       creationSource: command.creationSource,
       id: command.threadId,
-      role: command.threadId === OZI_MAIN_THREAD_ID ? "main" : "worker",
+      role: main ? "main-fork" : command.threadId === OZI_MAIN_THREAD_ID ? "main" : "worker",
+      ...(main?.effectiveLoadout === undefined ? {} : { effectiveLoadout: main.effectiveLoadout }),
       jobId: null,
       visibility: "user",
       handledEventId: null,
-      projectId: command.projectId,
+      projectId: main?.projectId ?? command.projectId,
       title: command.title,
-      providerInstanceId: command.modelSelection.instanceId,
-      modelSelection: command.modelSelection,
-      runtimeMode: command.runtimeMode,
-      interactionMode: command.interactionMode,
-      branch: command.branch,
-      worktreePath: command.worktreePath,
+      providerInstanceId: selection.instanceId,
+      modelSelection: selection,
+      runtimeMode: main?.runtimeMode ?? command.runtimeMode,
+      interactionMode: main?.interactionMode ?? command.interactionMode,
+      branch: main ? main.branch : command.branch,
+      worktreePath: main ? main.worktreePath : command.worktreePath,
       activeProviderThreadId: null,
       lineage: {
-        parentThreadId: null,
-        relationshipToParent: null,
-        rootThreadId: command.threadId,
+        parentThreadId: main?.id ?? null,
+        relationshipToParent: main ? "fork" : null,
+        rootThreadId: main?.lineage.rootThreadId ?? command.threadId,
       },
       forkedFrom: null,
       createdAt: now,
@@ -2305,7 +2310,7 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
     yield* emitEvent({
       type: "thread.created",
       threadId: command.threadId,
-      providerInstanceId: command.modelSelection.instanceId,
+      providerInstanceId: selection.instanceId,
       occurredAt: now,
       payload: thread,
     });
@@ -2314,16 +2319,16 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
         type: "provider-thread.updated",
         threadId: command.threadId,
         driver: command.importedNativeThread.ref.driver,
-        providerInstanceId: command.modelSelection.instanceId,
+        providerInstanceId: selection.instanceId,
         occurredAt: now,
         payload: {
           id: idAllocator.derive.providerThread({
             driver: command.importedNativeThread.ref.driver,
-            providerInstanceId: command.modelSelection.instanceId,
+            providerInstanceId: selection.instanceId,
             nativeThreadId: command.importedNativeThread.ref.nativeId,
           }),
           driver: command.importedNativeThread.ref.driver,
-          providerInstanceId: command.modelSelection.instanceId,
+          providerInstanceId: selection.instanceId,
           providerSessionId: null,
           appThreadId: command.threadId,
           ownerNodeId: null,
