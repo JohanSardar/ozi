@@ -65,7 +65,7 @@ it("m1.main-loadout sends Pi and Ozi tools and the data-root prompt through real
         "---\nname: ambient\ndescription: ambient-skill-must-not-load\n---\nambient-skill-must-not-load",
       );
     }
-    await NodeFSP.writeFile(NodePath.join(workspace, "CLAUDE.md"), "ambient-context-must-not-load");
+    await NodeFSP.writeFile(NodePath.join(workspace, "AGENTS.md"), "workspace-context-loads");
     await NodeFSP.writeFile(
       NodePath.join(workspace, ".mcp.json"),
       JSON.stringify({
@@ -112,6 +112,7 @@ it("m1.main-loadout sends Pi and Ozi tools and the data-root prompt through real
       );
     }
     expect(JSON.stringify(requests.at(-1)?.messages)).toContain("ozi-demo-skill-loaded");
+    expect(JSON.stringify(requests.at(-1))).toContain("workspace-context-loads");
     await expect(NodeFSP.stat(hook)).rejects.toThrow();
   } finally {
     await h.close();

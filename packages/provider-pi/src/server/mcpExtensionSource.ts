@@ -418,7 +418,7 @@ export default async function t3McpExtension(pi: ExtensionAPI) {
 
   const reconcileDiscovery = (ctx: Pick<ExtensionContext, "model">) => {
     if (mainPromptPath) {
-      pi.setActiveTools(["read", "bash", "edit", "write", ...catalog.map((tool) => "mcp__t3-code__" + tool.name)]);
+      pi.setActiveTools([...new Set([...pi.getActiveTools(), "read", "bash", "edit", "write", ...catalog.map((tool) => "mcp__t3-code__" + tool.name)])]);
       return;
     }
     if (!supportsExposure) return;

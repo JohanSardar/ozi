@@ -218,19 +218,17 @@ it("m1.main-tools gives main Pi's built-in tools and every worker Ozi tool and r
       record.event === "launch" &&
       record.argv?.includes("--system-prompt"),
   );
-  expect(launch?.argv).toEqual(
-    expect.arrayContaining([
-      "--no-mcp",
-      "--no-extensions",
-      "--no-skills",
-      "--no-context-files",
-      "--no-prompt-templates",
-      "--system-prompt",
-      "claude-bridge",
-    ]),
-  );
-  expect(launch?.argv).not.toContain("--no-builtin-tools");
-  expect(launch?.argv).not.toContain("--no-tools");
+  expect(launch?.argv).toEqual(expect.arrayContaining(["--system-prompt", "claude-bridge"]));
+  for (const flag of [
+    "--no-builtin-tools",
+    "--no-tools",
+    "--no-mcp",
+    "--no-extensions",
+    "--no-skills",
+    "--no-context-files",
+    "--no-prompt-templates",
+  ])
+    expect(launch?.argv).not.toContain(flag);
   expect(launch?.argv?.filter((argument) => argument === "--extension")).toHaveLength(2);
 });
 

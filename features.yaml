@@ -29,6 +29,7 @@ requirements:
   t3-keep: Keep chat (attachments, steer/queue, stop), approval/question cards, delegation, scheduler, webhooks, secret entry, shared browser, visual replies, desktop shell, Pi/Claude/Codex adapters.
   provider-scope: Only Pi, Claude and Codex providers ship.
   client-scope: Only desktop, web and terminal clients ship.
+  main-full-pi: Main is a regular Pi with its own agent directory; MCP servers, packages, extensions, skills, prompt templates and context files are added with Pi's own commands through `ozi pi` and apply on the next turn.
   terminal-client: Running `ozi` opens a Pi-style terminal app for main and job cards, on the server or a remote machine.
   t3-cut: Cut other providers, thread list, projects, worktrees, PR tools, checkpoints, diffs, simulators, terminal, T3 coding instructions.
   minimal: Fewest words and least code.
@@ -251,4 +252,11 @@ features:
     cli: []
     milestone: 7
     scenarios: [m7.tui-question, m7.tui-close, m7.tui-secret, m7.tui-lead]
+    status: passing
+  - id: main-pi-config
+    reqs: [main-full-pi, main-pi]
+    module: packages/provider-pi/src/server/mcpInjection.ts + apps/server/src/ozi/Loadout.ts + apps/server/src/binPi.ts + e2e/m8.real-pi.test.ts
+    cli: [pi]
+    milestone: 8
+    scenarios: [m8.pi-config]
     status: passing
