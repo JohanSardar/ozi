@@ -1768,11 +1768,23 @@ export const runTui = Effect.fn("ozi.tui")(function* (
     files = [];
     renderStatus();
     act("", (current) =>
-      send(
-        current,
-        { text, thread: Option.some(view.threadId), files: attached },
-        steer ? "active" : false,
-      ),
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const mentioned = yield* Effect.filter(
+          [...text.matchAll(/(?:^|\s)@(\S+)/g)].map((match) => path.resolve(match[1]!)),
+          (file) =>
+            fs.stat(file).pipe(
+              Effect.map((info) => info.type === "File"),
+              Effect.orElseSucceed(() => false),
+            ),
+        );
+        yield* send(
+          current,
+          { text, thread: Option.some(view.threadId), files: [...attached, ...mentioned] },
+          steer ? "active" : false,
+        );
+      }),
     );
   };
 

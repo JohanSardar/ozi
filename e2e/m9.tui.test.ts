@@ -136,7 +136,7 @@ it("m9.tui-footer-dequeue shows model, thinking and usage and restores queued me
   expect(runs.some((run) => run.status === "queued")).toBe(false);
 });
 
-it("m9.tui-media shows image attachments inline, copies main's reply and prints session stats", async () => {
+it("m9.tui-media shows image attachments inline, copies main's reply, prints session stats and attaches @-mentioned files", async () => {
   const image = NodePath.join(h.root, "pixel.png");
   await NodeFSP.writeFile(
     image,
@@ -145,7 +145,10 @@ it("m9.tui-media shows image attachments inline, copies main's reply and prints 
       "base64",
     ),
   );
-  await h.script([{ match: "look at this", role: "main", steps: [{ say: "copy-me reply" }] }]);
+  await h.script([
+    { match: "look at this", role: "main", steps: [{ say: "copy-me reply" }] },
+    { match: "read this", role: "main", steps: [{ say: "mention-ok" }] },
+  ]);
   const terminal = await ready();
   terminal.keys(`/attach ${image}\r`);
   await terminal.waitFor("1 attached");
@@ -158,6 +161,14 @@ it("m9.tui-media shows image attachments inline, copies main's reply and prints 
   const from = terminal.mark();
   terminal.keys("/session\r");
   await terminal.waitFor("messages: 1 from you, 1 from Ozi", from);
+  await NodeFSP.writeFile(NodePath.join(h.dataRoot, "mention.txt"), "mentioned-content");
+  terminal.keys("@mention.txt read this\r");
+  const mentioned = await h.wait("ozi-main", "text:mention-ok", 20);
+  expect(
+    mentioned.messages
+      .findLast((message) => message.role === "user")
+      ?.attachments.map((attachment) => attachment.name),
+  ).toEqual(["mention.txt"]);
 });
 
 it("m9.tui-sessions clones, forks from an earlier message, resumes and shows the tree", async () => {
