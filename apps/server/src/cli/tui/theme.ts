@@ -20,6 +20,7 @@ const palette = {
   yellow: "okhsl(83 88% 67%)",
   userBg: "okhsl(233 41% 24%)",
   border: "okhsl(229 8% 53%)",
+  thinking: "okhsl(226 7% 65%)",
   toolPending: "okhsl(229 5% 24%)",
   toolOk: "okhsl(158 46% 25%)",
   toolError: "okhsl(19 54% 25%)",

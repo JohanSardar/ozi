@@ -281,6 +281,8 @@ export function interpreter(provider, hooks) {
           };
           if (!response.ok) throw new Error("Fake inference failed");
           if (process.env.OZI_REPAIR_STAGE !== "observer") await hooks.say(JSON.stringify(result));
+        } else if (step.think) {
+          await hooks.think?.(step.think);
         } else if (step.exec) {
           const execution = NodeChildProcess.spawnSync("/bin/sh", ["-c", step.exec], {
             encoding: "utf8",

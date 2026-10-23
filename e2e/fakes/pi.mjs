@@ -125,6 +125,21 @@ if (launch("pi")) {
         timestamp: Date.now(),
       });
     },
+    think(text) {
+      const message = assistant("");
+      write({ type: "message_start", message });
+      write({
+        type: "message_update",
+        message,
+        assistantMessageEvent: { type: "thinking_delta", contentIndex: 0, delta: text },
+      });
+      write({
+        type: "message_update",
+        message,
+        assistantMessageEvent: { type: "thinking_end", contentIndex: 0, content: text },
+      });
+      write({ type: "message_end", message });
+    },
     shell(command, result) {
       const toolCallId = id();
       write({ type: "tool_execution_start", toolCallId, toolName: "bash", args: { command } });

@@ -96,6 +96,7 @@ Cases freeze the original message, native prefix, attachment bytes, expectation 
 - Main's conversation comes from `orchestration.subscribeThread` folded with the shared projection reducer; cards come from `ozi.jobs.subscribe`. Disconnects resubscribe; mutations wait for a current snapshot.
 - Layout: conversation, status line (main idle, working or checking; Needs you count; server and connection), editor.
 - Keys follow Pi: Enter sends, steering main's active turn when it works; Alt+Enter queues a follow-up, shown until it starts. Esc stops main. Ctrl+C clears the editor; twice exits. Slash commands autocomplete: `/jobs`, `/attach <path>`, `/stop`, `/quit`.
+- Keys follow Pi's: Ctrl+T shows or hides thinking, Ctrl+O expands tool output, Ctrl+D exits when the editor is empty, Ctrl+G edits the message in `$VISUAL`/`$EDITOR`, Ctrl+Z suspends. `/hotkeys` lists them. Slash commands Ozi does not own go to main unchanged, so Pi expands prompt templates and `/skill:name` and runs extension commands.
 - `/jobs` lists cards by column. A card shows title, agent, report and requests. Questions pick an option or take text, approvals allow or deny, secrets use masked input that is never rendered, Blocked takes a reply. Close sends the displayed `eventId`; errors such as `StaleEvent` show as one line. Stop and Open are separate. Open shows the lead's conversation and the editor addresses the lead until Esc.
 - Settings → Connections in the packaged desktop app installs or removes the `ozi` command: the app's launcher under its home, linked from a folder on PATH. Unpackaged builds hide the row, so the real-agent run verifies it.
 - Tool calls render like Pi's: commands, file changes and Pi tools in boxes colored by status with up to ten output lines; Ozi tool calls as one dim line.
@@ -274,3 +275,11 @@ The harness runs `ozi` in a real pseudo-terminal through util-linux `script`, ty
 ### M8 Main as a full Pi
 
 - `m8.pi-config`: `ozi pi mcp add` writes main's Pi agent directory; on main's next turn, without restarting Ozi, real Pi sends the model that server's tools next to Pi's and Ozi's tools, and a skill and `APPEND_SYSTEM.md` in that directory load; the personal `~/.pi` config does not.
+
+### M9 Pi parity
+
+Everything Pi's interactive mode and harness do, Ozi's main and terminal app do, except one conversation instead of sessions to switch between. Waves: (1) slash pass-through, thinking, tool expansion, Pi keys, main's Pi RPC (`ozi main <command>`: commands, stats, bash, compact, export, last reply, name), extension commands, model and thinking switching; (2) footer usage and model, `!`/`!!`, `/compact`, `/copy`, `/export`, `/session`, `/name`, `/model`, `/thinking`, Ctrl+L, Ctrl+P, Shift+Tab, command autocomplete, extension UI (notify, status, widgets, title, editor, editor text), themes and keybindings from main's agent directory, inline images, clipboard paste, queued-message restore; (3) `/new`, `/fork`, `/clone`, `/tree`, `/resume`, `/import`, `/reload`, print mode.
+
+- `m9.tui-slash`: an unknown `/command` typed in the terminal app reaches main unchanged; `/hotkeys` stays local; Ctrl+D exits on an empty editor.
+- `m9.tui-thinking`: main's thinking shows in Pi's thinking style and Ctrl+T hides it to a "Thinking..." label; a long command shows ten lines and Ctrl+O expands it.
+- `m9.tui-editor`: Ctrl+G opens the message in the external editor and its saved text is sent.
