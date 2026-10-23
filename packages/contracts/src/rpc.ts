@@ -31,6 +31,7 @@ import {
   OziSessionCreateInput,
   OziSessionImportInput,
   OziSessionResult,
+  OziSessionExportInput,
   OziSessionError,
   OziClockError,
   OziTodos,
@@ -765,6 +766,11 @@ export const WsRpcGroup = RpcGroup.make(
   Rpc.make(OZI_WS_METHODS.sessionReload, {
     payload: Schema.Struct({ threadId: Schema.optional(ThreadId) }),
     success: OziSessionResult,
+    error: Schema.Union([OziSessionError, EnvironmentAuthorizationError]),
+  }),
+  Rpc.make(OZI_WS_METHODS.sessionExport, {
+    payload: OziSessionExportInput,
+    success: Schema.Struct({ content: Schema.String }),
     error: Schema.Union([OziSessionError, EnvironmentAuthorizationError]),
   }),
   Rpc.make(OZI_WS_METHODS.mainPi, {

@@ -1458,12 +1458,39 @@ const sessionReloadCommand = Command.make("reload", {
     }),
   ),
 );
+const sessionExportCommand = Command.make("export", {
+  ...locationFlags,
+  threadId: Argument.String("threadId").pipe(Argument.withSchema(ThreadId), Argument.optional),
+  format: Flag.Literals("format", ["html", "jsonl"]).pipe(Flag.withDefault("html")),
+  output: Flag.String("output").pipe(Flag.optional),
+}).pipe(
+  Command.withHandler((flags) =>
+    Effect.gen(function* () {
+      const { client } = yield* connect(flags.baseDir);
+      const threadId = Option.isNone(flags.threadId)
+        ? OZI_MAIN_THREAD_ID
+        : yield* resolveId(
+            flags.threadId.value,
+            (yield* client[J.sessionList]({})).map((row) => row.id),
+            "session",
+          );
+      const { content } = yield* client[J.sessionExport]({ threadId, format: flags.format });
+      const path = yield* Path.Path;
+      const file = path.resolve(
+        Option.getOrElse(flags.output, () => `ozi-session-${threadId.slice(-8)}.${flags.format}`),
+      );
+      yield* (yield* FileSystem.FileSystem).writeFileString(file, content);
+      yield* print({ path: file }, flags.json, () => `Exported session to ${file}`);
+    }),
+  ),
+);
 const sessionCommand = Command.make("session").pipe(
   Command.withSubcommands([
     sessionNewCommand,
     sessionListCommand,
     sessionImportCommand,
     sessionReloadCommand,
+    sessionExportCommand,
   ]),
 );
 
