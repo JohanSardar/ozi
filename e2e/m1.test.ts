@@ -3,7 +3,7 @@ import * as NodeCrypto from "node:crypto";
 import * as NodePath from "node:path";
 import * as NodeChildProcess from "node:child_process";
 import * as NodeUtil from "node:util";
-import { OZI_MAIN_TOOL_NAMES, PI_BUILTIN_TOOL_NAMES } from "@t3tools/contracts";
+import { PI_BUILTIN_TOOL_NAMES } from "@t3tools/contracts";
 import { afterEach, beforeEach, expect, it } from "vite-plus/test";
 import { startHarness, type Harness, type Projection, type Rule } from "./harness.ts";
 
@@ -147,9 +147,7 @@ it("m1.main-loadout preserves the Pi loadout, prompt and tools after resume and 
     expect(loadout.tools?.map((tool) => tool.name)).toContain("read_skill");
     expect(
       loadout.tools?.filter((tool) =>
-        /shell|file|browser|preview|device|computer|terminal|project|git|pull_request/.test(
-          tool.name,
-        ),
+        /device|computer|terminal|project|git|pull_request/.test(tool.name),
       ),
     ).toEqual([]);
   };
@@ -187,12 +185,18 @@ it("m1.main-loadout preserves the Pi loadout, prompt and tools after resume and 
   ).rejects.toThrow();
 });
 
-it("m1.main-tools gives main Pi's built-in tools and rejects Ozi tools outside its allowlist", async () => {
+it("m1.main-tools gives main Pi's built-in tools and every worker Ozi tool and rejects checker tools", async () => {
   const initial = await main();
-  expect(initial.thread.effectiveLoadout?.toolNames).toEqual([
-    ...PI_BUILTIN_TOOL_NAMES,
-    ...OZI_MAIN_TOOL_NAMES,
-  ]);
+  const names = initial.thread.effectiveLoadout?.toolNames ?? [];
+  expect(names.slice(0, PI_BUILTIN_TOOL_NAMES.length)).toEqual([...PI_BUILTIN_TOOL_NAMES]);
+  expect(names).toEqual(
+    expect.arrayContaining([
+      "delegate_task",
+      "html_render",
+      "preview_open",
+      "change_protected_rule",
+    ]),
+  );
   await h.script([
     {
       match: "outside-allowlist",

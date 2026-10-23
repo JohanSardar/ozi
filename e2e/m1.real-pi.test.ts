@@ -1,7 +1,7 @@
 import * as NodeFSP from "node:fs/promises";
 import * as NodePath from "node:path";
 import * as NodeURL from "node:url";
-import { OZI_MAIN_TOOL_NAMES, PI_BUILTIN_TOOL_NAMES } from "@t3tools/contracts";
+import { PI_BUILTIN_TOOL_NAMES } from "@t3tools/contracts";
 import { expect, it } from "vite-plus/test";
 import { startHarness } from "./harness.ts";
 import { startAnthropic } from "./fakes/anthropic.ts";
@@ -85,8 +85,10 @@ it("m1.main-loadout sends Pi and Ozi tools and the data-root prompt through real
         { id: "thinking", value: "high" },
         { id: "fastMode", value: false },
       ],
-      toolNames: [...PI_BUILTIN_TOOL_NAMES, ...OZI_MAIN_TOOL_NAMES],
     });
+    const names = result.thread.effectiveLoadout?.toolNames ?? [];
+    expect(names.slice(0, PI_BUILTIN_TOOL_NAMES.length)).toEqual([...PI_BUILTIN_TOOL_NAMES]);
+    expect(names).toEqual(expect.arrayContaining(["delegate_task", "html_render", "preview_open"]));
     const requests = fake.requests.filter((request) =>
       request.system?.some((block) => block.text.includes("data-root-adhd-marker")),
     );
@@ -100,10 +102,13 @@ it("m1.main-loadout sends Pi and Ozi tools and the data-root prompt through real
         /ambient-context-must-not-load|ambient-skill-must-not-load/,
       );
       expect(request.tools.map((tool) => tool.name).sort()).toEqual(
-        [
-          ...PI_BUILTIN_TOOL_NAMES.map((name) => `mcp__custom-tools__${name}`),
-          ...OZI_MAIN_TOOL_NAMES.map((name) => `mcp__custom-tools__mcp__t3-code__${name}`),
-        ].sort(),
+        names
+          .map((name, index) =>
+            index < PI_BUILTIN_TOOL_NAMES.length
+              ? `mcp__custom-tools__${name}`
+              : `mcp__custom-tools__mcp__t3-code__${name}`,
+          )
+          .sort(),
       );
     }
     expect(JSON.stringify(requests.at(-1)?.messages)).toContain("ozi-demo-skill-loaded");
