@@ -94,7 +94,15 @@ class Secret implements Component {
   invalidate() {}
 }
 
+const tokens = (count: number) =>
+  count >= 1_000_000
+    ? `${(count / 1_000_000).toFixed(1)}M`
+    : count >= 1000
+      ? `${(count / 1000).toFixed(1)}k`
+      : `${count}`;
+
 const appKeys: Record<string, KeyId[]> = {
+  "app.message.dequeue": ["alt+up"],
   "app.interrupt": ["escape"],
   "app.clear": ["ctrl+c"],
   "app.exit": ["ctrl+d"],
@@ -267,11 +275,34 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
       )
       .join(" · ");
     const where = connection ? new URL(connection.state.origin).host : "connecting…";
+    const usage =
+      projection?.providerTurns.findLast((turn) => turn.tokenUsage)?.tokenUsage ??
+      projection?.providerThreads.findLast((thread) => thread.contextUsage)?.contextUsage ??
+      undefined;
+    const selection = projection?.thread.modelSelection;
+    const thinking = selection?.options?.find((option) => option.id === "thinking")?.value;
+    const stats = [
+      ...(usage
+        ? [
+            `↑${tokens(usage.inputTokens ?? 0)} ↓${tokens(usage.outputTokens ?? 0)}`,
+            ...(usage.maxTokens
+              ? [
+                  `${((usage.usedTokens / usage.maxTokens) * 100).toFixed(1)}%/${tokens(usage.maxTokens)}`,
+                ]
+              : []),
+          ]
+        : []),
+      ...(selection ? [selection.model.split("/").at(-1)!] : []),
+      ...(typeof thinking === "string" ? [thinking] : []),
+    ].join(" · ");
     const place =
       view.threadId === OZI_MAIN_THREAD_ID ? "main" : `job: ${view.title} · esc returns to main`;
     footer.setText(
       [
-        fg("dim", `${where}${files.length ? ` · ${files.length} attached` : ""}`),
+        fg(
+          "dim",
+          `${where}${files.length ? ` · ${files.length} attached` : ""}${stats ? ` · ${stats}` : ""}`,
+        ),
         fg("dim", `${place} · `) +
           fg(cards?.some((card) => card.column === "needs_you") ? "yellow" : "dim", counts),
       ].join("\n"),
@@ -679,7 +710,7 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
   const hotkeys = [
     "Enter send, or steer while main works · Alt+Enter queue a follow-up · Shift+Enter new line",
     "Esc stop main, or back to main · Ctrl+C clear, twice to exit · Ctrl+D exit when empty",
-    "Ctrl+T show or hide thinking · Ctrl+O expand tool output · Ctrl+G external editor · Ctrl+Z suspend",
+    "Ctrl+T show or hide thinking · Ctrl+O expand tool output · Ctrl+G external editor · Ctrl+Z suspend · Alt+Up restore queued messages",
     "/jobs job cards · /attach <path> attach a file · /stop stop · /hotkeys keys · /quit exit",
     "Other /commands go to main: Pi prompt templates, /skill:name and extension commands",
   ].join("\n");
@@ -718,6 +749,30 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
         ),
       ),
     );
+
+  const dequeue = () => {
+    const queued = projection?.runs.filter((run) => run.status === "queued") ?? [];
+    if (queued.length === 0) return;
+    const texts = queued.map(
+      (run) => projection?.messages.find((message) => message.id === run.userMessageId)?.text ?? "",
+    );
+    editor.setText([editor.getText(), ...texts].filter(Boolean).join("\n\n"));
+    act("", (current) =>
+      Effect.forEach(
+        queued,
+        (run) =>
+          Effect.gen(function* () {
+            yield* current.client[O.dispatchCommand]({
+              type: "queued-run.cancel",
+              commandId: CommandId.make(yield* (yield* Crypto.Crypto).randomUUIDv4()),
+              threadId: view.threadId,
+              runId: run.id,
+            });
+          }),
+        { discard: true },
+      ),
+    );
+  };
 
   const submit = (raw: string, steer: boolean) => {
     const text = raw.trim();
@@ -766,6 +821,10 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
       tui.requestRender();
       return { consume: true };
     }
+    if (area.children[0] === editor && is("app.message.dequeue", data)) {
+      dequeue();
+      return { consume: true };
+    }
     if (area.children[0] === editor && is("app.thinking.toggle", data)) {
       showThinking = !showThinking;
       redraw();
@@ -793,9 +852,14 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
       process.kill(process.pid, "SIGTSTP");
       return { consume: true };
     }
-    if (is("app.interrupt", data) && area.children[0] === editor && !editor.getText()) {
-      if (view.threadId !== OZI_MAIN_THREAD_ID) open(OZI_MAIN_THREAD_ID, "");
-      else if (active()) stop(view.threadId);
+    if (
+      is("app.interrupt", data) &&
+      area.children[0] === editor &&
+      !editor.isShowingAutocomplete()
+    ) {
+      if (view.threadId !== OZI_MAIN_THREAD_ID && !editor.getText()) open(OZI_MAIN_THREAD_ID, "");
+      else if (view.threadId === OZI_MAIN_THREAD_ID && active()) stop(view.threadId);
+      else return undefined;
       return { consume: true };
     }
     return undefined;

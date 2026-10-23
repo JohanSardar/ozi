@@ -109,3 +109,29 @@ it("m9.tui-appearance applies Pi's theme and keybindings from the local Pi agent
   terminal.keys("\x19");
   await terminal.waitFor("Thinking...", from);
 });
+
+it("m9.tui-footer-dequeue shows model, thinking and usage and restores queued messages with Alt+Up", async () => {
+  await h.script([
+    { match: "first-turn", role: "main", steps: [{ say: "first done" }] },
+    { match: "hold-main", role: "main", steps: [{ say: "holding main" }, { wait: true }] },
+    { match: "queued-follow-up", role: "main", steps: [{ fail: "queued message ran" }] },
+  ]);
+  const terminal = await ready();
+  await terminal.waitFor("claude-opus-5-5 · high");
+  terminal.keys("first-turn\r");
+  await terminal.waitFor("first done");
+  await h.wait("ozi-main", "completed");
+  await terminal.waitFor("↑");
+  terminal.keys("hold-main\r");
+  await h.wait("ozi-main", "running");
+  await terminal.waitFor("holding main");
+  terminal.keys("queued-follow-up\x1b\r");
+  await terminal.waitFor("Queued: queued-follow-up");
+  const from = terminal.mark();
+  terminal.keys("\x1b[1;3A");
+  await terminal.waitFor("queued-follow-up", from);
+  terminal.keys("\x1b");
+  await h.wait("ozi-main", "interrupted");
+  const runs = (await h.thread("ozi-main")).runs;
+  expect(runs.some((run) => run.status === "queued")).toBe(false);
+});
