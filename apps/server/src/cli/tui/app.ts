@@ -27,6 +27,7 @@ import {
   ORCHESTRATION_V2_WS_METHODS as O,
   OZI_MAIN_THREAD_ID,
   OZI_WS_METHODS as J,
+  type OziMainPiCommand,
   WS_METHODS as W,
   type ChatAttachment,
   OziJobError,
@@ -107,6 +108,10 @@ const tokens = (count: number) =>
       : `${count}`;
 
 const appKeys: Record<string, KeyId[]> = {
+  "app.model.select": ["ctrl+l"],
+  "app.model.cycleForward": ["ctrl+p"],
+  "app.model.cycleBackward": ["shift+ctrl+p"],
+  "app.thinking.cycle": ["shift+tab"],
   "app.clipboard.pasteImage": ["ctrl+v"],
   "app.message.dequeue": ["alt+up"],
   "app.interrupt": ["escape"],
@@ -211,21 +216,48 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
   const area = new Container();
   const footer = new Text("", 1, 0);
   const editor = new Editor(tui, editorTheme, { paddingX: 1 });
-  editor.setAutocompleteProvider(
-    new CombinedAutocompleteProvider(
-      [
-        { name: "jobs", description: "Job cards" },
-        {
-          name: "attach",
-          description: "Attach a file to the next message",
-          argumentHint: "<path>",
-        },
-        { name: "stop", description: "Stop the current work" },
-        { name: "quit", description: "Exit" },
-      ],
-      process.cwd(),
-    ),
-  );
+  const oziCommands = [
+    { name: "jobs", description: "Job cards" },
+    { name: "attach", description: "Attach a file to the next message", argumentHint: "<path>" },
+    { name: "stop", description: "Stop the current work" },
+    { name: "model", description: "Select main's model", argumentHint: "[model]" },
+    { name: "thinking", description: "Set main's thinking level", argumentHint: "[level]" },
+    { name: "compact", description: "Compact main's context", argumentHint: "[instructions]" },
+    { name: "export", description: "Export main's session as HTML", argumentHint: "[path]" },
+    { name: "name", description: "Name main's session", argumentHint: "<name>" },
+    { name: "copy", description: "Copy main's last reply" },
+    { name: "session", description: "Conversation stats" },
+    { name: "hotkeys", description: "Keyboard shortcuts" },
+    { name: "quit", description: "Exit" },
+  ];
+  const setCommands = (extra: ReadonlyArray<{ name: string; description?: string }>) =>
+    editor.setAutocompleteProvider(
+      new CombinedAutocompleteProvider(
+        [
+          ...oziCommands,
+          ...extra.filter((command) => !oziCommands.some((own) => own.name === command.name)),
+        ],
+        process.cwd(),
+      ),
+    );
+  setCommands([]);
+  let settledRun: string | undefined;
+  const refreshCommands = () => {
+    const current = connection;
+    if (!current) return;
+    run(
+      current.client[J.mainPi]({ type: "get_commands" }).pipe(
+        Effect.flatMap((data) =>
+          Effect.sync(() =>
+            setCommands(
+              (data as { commands?: Array<{ name: string; description?: string }> }).commands ?? [],
+            ),
+          ),
+        ),
+        Effect.catchCause(() => Effect.void),
+      ),
+    );
+  };
   area.addChild(editor);
   for (const component of [chat, pending, status, area, footer]) tui.addChild(component);
   tui.setFocus(editor);
@@ -498,6 +530,13 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
 
   const renderConversation = () => {
     if (!projection) return;
+    const settled = projection.runs.findLast((run) =>
+      ["completed", "failed", "interrupted", "cancelled"].includes(run.status),
+    )?.id;
+    if (view.threadId === OZI_MAIN_THREAD_ID && settled !== settledRun) {
+      settledRun = settled;
+      refreshCommands();
+    }
     const seen = new Set<string>();
     for (const { item } of projection.visibleTurnItems) {
       const next = display(item);
@@ -606,6 +645,7 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
           connection = current;
           renderStatus();
           for (const action of waiting.splice(0)) action();
+          refreshCommands();
           yield* watch(current);
         }),
       ).pipe(
@@ -763,6 +803,8 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
     "Esc stop main, or back to main · Ctrl+C clear, twice to exit · Ctrl+D exit when empty",
     "Ctrl+T show or hide thinking · Ctrl+O expand tool output · Ctrl+G external editor · Ctrl+Z suspend · Alt+Up restore queued messages",
     "Ctrl+V paste files, images or text · /copy copy main's last reply · /session conversation stats",
+    "Ctrl+L choose model · Ctrl+P / Shift+Ctrl+P cycle models · Shift+Tab cycle thinking · /model · /thinking",
+    "!cmd run a shell command on main's Pi and share it · !!cmd run it without sharing · /compact · /export · /name",
     "/jobs job cards · /attach <path> attach a file · /stop stop · /hotkeys keys · /quit exit",
     "Other /commands go to main: Pi prompt templates, /skill:name and extension commands",
   ].join("\n");
@@ -797,6 +839,154 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
           Effect.sync(() => {
             tui.start();
             tui.requestRender(true);
+          }),
+        ),
+      ),
+    );
+
+  const mainPi = (label: string, command: OziMainPiCommand, describe?: (data: unknown) => string) =>
+    act("", (current) =>
+      current.client[J.mainPi](command).pipe(
+        Effect.flatMap((data) => Effect.sync(() => notice(describe?.(data) ?? label))),
+      ),
+    );
+
+  const shell = (command: string, quiet: boolean) => {
+    const row = new Container();
+    row.addChild(new Spacer(1));
+    row.addChild(tool(`${quiet ? "!!" : "!"} ${command}`, "", "pending"));
+    chat.addChild(row);
+    tui.requestRender();
+    act("", (current) =>
+      current.client[J.mainPi]({ type: "bash", command, excludeFromContext: quiet }).pipe(
+        Effect.flatMap((data) =>
+          Effect.sync(() => {
+            const result = data as { output?: string; exitCode?: number; cancelled?: boolean };
+            row.clear();
+            row.addChild(new Spacer(1));
+            row.addChild(
+              tool(
+                `${quiet ? "!!" : "!"} ${command}`,
+                result.output ?? "",
+                result.cancelled || (result.exitCode ?? 0) !== 0 ? "error" : "ok",
+              ),
+            );
+            tui.requestRender();
+          }),
+        ),
+      ),
+    );
+  };
+
+  const mainSelection = () => projection?.thread.modelSelection;
+  const select = (modelSelection: NonNullable<ReturnType<typeof mainSelection>>) =>
+    act("", (current) =>
+      Effect.gen(function* () {
+        yield* current.client[O.dispatchCommand]({
+          type: "thread.model-selection.set",
+          commandId: CommandId.make(yield* (yield* Crypto.Crypto).randomUUIDv4()),
+          threadId: OZI_MAIN_THREAD_ID,
+          modelSelection,
+          createdBy: "user",
+          creationSource: "cli",
+        });
+      }),
+    );
+  const setModel = (model: string) => {
+    const current = mainSelection();
+    if (!current) return notice("Main isn't loaded yet.", "red");
+    select({ ...current, model: model.includes("/") ? model : `claude-bridge/${model}` });
+  };
+  const setThinking = (level: string) => {
+    const current = mainSelection();
+    if (!current) return notice("Main isn't loaded yet.", "red");
+    select({
+      ...current,
+      options: [
+        ...(current.options ?? []).filter((option) => option.id !== "thinking"),
+        { id: "thinking", value: level },
+      ],
+    });
+  };
+  const models = (current: Connection) =>
+    current.client[W.serverGetConfig]({}).pipe(
+      Effect.map(
+        (config) => config.providers.find((provider) => provider.instanceId === "pi")?.models ?? [],
+      ),
+    );
+  const thinkingLevels = (current: Connection) =>
+    current.client[J.mainPi]({ type: "get_available_thinking_levels" }).pipe(
+      Effect.map((data) => (data as { levels?: string[] }).levels ?? []),
+    );
+  const pick = (items: SelectItem[], onPick: (value: string) => void) => {
+    const list = new SelectList(items, 12, selectList, {
+      minPrimaryColumnWidth: 20,
+      maxPrimaryColumnWidth: 60,
+    });
+    list.onSelect = (item) => {
+      restoreEditor();
+      onPick(item.value);
+    };
+    list.onCancel = restoreEditor;
+    show(list);
+  };
+  const chooseModel = () =>
+    act("", (current) =>
+      models(current).pipe(
+        Effect.flatMap((list) =>
+          Effect.sync(() =>
+            pick(
+              list.map((model) => ({
+                value: model.slug,
+                label: model.slug,
+                description: model.slug === mainSelection()?.model ? "current" : (model.name ?? ""),
+              })),
+              setModel,
+            ),
+          ),
+        ),
+      ),
+    );
+  const chooseThinking = () =>
+    act("", (current) =>
+      thinkingLevels(current).pipe(
+        Effect.flatMap((levels) =>
+          Effect.sync(() =>
+            pick(
+              levels.map((level) => ({ value: level, label: level })),
+              setThinking,
+            ),
+          ),
+        ),
+      ),
+    );
+  const cycle = <A>(list: ReadonlyArray<A>, currentValue: A | undefined, step: number) =>
+    list[(Math.max(0, list.indexOf(currentValue as A)) + step + list.length) % list.length];
+  const cycleModel = (step: number) =>
+    act("", (current) =>
+      models(current).pipe(
+        Effect.flatMap((list) =>
+          Effect.sync(() => {
+            const next = cycle(
+              list.map((model) => model.slug),
+              mainSelection()?.model,
+              step,
+            );
+            if (next) setModel(next);
+          }),
+        ),
+      ),
+    );
+  const cycleThinking = () =>
+    act("", (current) =>
+      thinkingLevels(current).pipe(
+        Effect.flatMap((levels) =>
+          Effect.sync(() => {
+            const value = mainSelection()?.options?.find(
+              (option) => option.id === "thinking",
+            )?.value;
+            const next = cycle(levels, typeof value === "string" ? value : undefined, 1);
+            if (next) setThinking(next);
           }),
         ),
       ),
@@ -886,6 +1076,12 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
   const submit = (raw: string, steer: boolean) => {
     const text = raw.trim();
     if (!text) return;
+    if (text.startsWith("!") && view.threadId === OZI_MAIN_THREAD_ID) {
+      const quiet = text.startsWith("!!");
+      const command = text.slice(quiet ? 2 : 1).trim();
+      if (command) shell(command, quiet);
+      return;
+    }
     if (text.startsWith("/")) {
       const [command, ...rest] = text.slice(1).split(" ");
       const argument = rest.join(" ").trim();
@@ -898,6 +1094,25 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
       }
       if (command === "hotkeys") return notice(hotkeys);
       if (command === "copy") return copyLast();
+      if (command === "compact")
+        return mainPi(
+          "Compacted main's context.",
+          argument ? { type: "compact", customInstructions: argument } : { type: "compact" },
+        );
+      if (command === "export")
+        return mainPi(
+          "",
+          argument ? { type: "export_html", outputPath: argument } : { type: "export_html" },
+          (data) =>
+            `Exported main's session to ${(data as { path?: string }).path ?? "the server"}.`,
+        );
+      if (command === "name" && argument)
+        return mainPi(`Named main's session "${argument}".`, {
+          type: "set_session_name",
+          name: argument,
+        });
+      if (command === "model") return argument ? setModel(argument) : chooseModel();
+      if (command === "thinking") return argument ? setThinking(argument) : chooseThinking();
       if (command === "session") return notice(sessionInfo());
     }
     editor.addToHistory(text);
@@ -930,6 +1145,22 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
         notice("Press Ctrl+C again to exit.");
       }
       tui.requestRender();
+      return { consume: true };
+    }
+    if (area.children[0] === editor && is("app.model.select", data)) {
+      chooseModel();
+      return { consume: true };
+    }
+    if (area.children[0] === editor && is("app.model.cycleForward", data)) {
+      cycleModel(1);
+      return { consume: true };
+    }
+    if (area.children[0] === editor && is("app.model.cycleBackward", data)) {
+      cycleModel(-1);
+      return { consume: true };
+    }
+    if (area.children[0] === editor && is("app.thinking.cycle", data)) {
+      cycleThinking();
       return { consume: true };
     }
     if (area.children[0] === editor && is("app.clipboard.pasteImage", data)) {
