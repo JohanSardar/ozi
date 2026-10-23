@@ -6,7 +6,7 @@ import { startHarness } from "./harness.ts";
 import { startAnthropic } from "./fakes/anthropic.ts";
 import { openTui } from "./tty.ts";
 
-it("m9.tui-pi-commands runs Pi's commands, shell and model switching from the terminal app", async () => {
+const realPi = async () => {
   const pi = NodeURL.fileURLToPath(new URL("./node_modules/.bin/pi", import.meta.url));
   const claude = NodeURL.fileURLToPath(new URL("./node_modules/.bin", import.meta.url));
   const fake = await startAnthropic(() => ({ text: "real-pi-ok" }));
@@ -32,6 +32,19 @@ it("m9.tui-pi-commands runs Pi's commands, shell and model switching from the te
     throw error;
   });
   const terminal = openTui(h);
+  return {
+    h,
+    terminal,
+    close: async () => {
+      terminal.close();
+      await h.close();
+      await fake.close();
+    },
+  };
+};
+
+it("m9.tui-pi-commands runs Pi's commands, shell and model switching from the terminal app", async () => {
+  const { h, terminal, close } = await realPi();
   try {
     await h.ozi("wait", "provider", "pi", "ready", "--timeout", "30");
     const prompts = NodePath.join(h.home, "caches/ozi-main-pi/prompts");
@@ -77,8 +90,60 @@ it("m9.tui-pi-commands runs Pi's commands, shell and model switching from the te
     terminal.keys("/m9-te");
     await terminal.waitFor("m9-template", from);
   } finally {
-    terminal.close();
-    await h.close();
-    await fake.close();
+    await close();
+  }
+});
+
+it("m9.tui-extension-ui shows Pi extension UI and answers its dialogs in the terminal app", async () => {
+  const { h, terminal, close } = await realPi();
+  try {
+    await h.ozi("wait", "provider", "pi", "ready", "--timeout", "30");
+    const extensions = NodePath.join(h.home, "caches/ozi-main-pi/extensions");
+    await NodeFSP.mkdir(extensions, { recursive: true });
+    await NodeFSP.writeFile(
+      NodePath.join(extensions, "ui-tui.js"),
+      `
+export default function (pi) {
+  pi.registerCommand("ui-tui", {
+    description: "Terminal extension UI",
+    handler: async (_args, ctx) => {
+      ctx.ui.notify("tui-note");
+      ctx.ui.setStatus("demo", "tui-status");
+      ctx.ui.setWidget("demo", ["tui-widget-line"]);
+      ctx.ui.setEditorText("tui-draft");
+      const choice = await ctx.ui.select("Pick one", ["Red", "Blue"]);
+      ctx.ui.notify("picked:" + choice);
+      const text = await ctx.ui.editor("Edit me", "prefill");
+      ctx.ui.notify("edited:" + text);
+      const allowed = await ctx.ui.confirm("Sure?", "Continue?");
+      ctx.ui.notify("confirmed:" + allowed);
+    },
+  });
+}
+`,
+    );
+    await terminal.waitFor(`:${h.port}`);
+    terminal.keys("hello\r");
+    await terminal.waitFor("real-pi-ok");
+    await h.wait("ozi-main", "completed", 60);
+    terminal.keys("/ui-tui\r");
+    await terminal.waitFor("tui-note");
+    await terminal.waitFor("tui-status");
+    await terminal.waitFor("tui-widget-line");
+    await terminal.waitFor("Pick one");
+    let from = terminal.mark();
+    terminal.keys("\x1b[B\r");
+    await terminal.waitFor("picked:Blue", from);
+    await terminal.waitFor("Edit me", from);
+    from = terminal.mark();
+    terminal.keys(" more\r");
+    await terminal.waitFor("edited:prefill more", from);
+    await terminal.waitFor("Sure?", from);
+    from = terminal.mark();
+    terminal.keys("\r");
+    await terminal.waitFor("confirmed:true", from);
+    expect(terminal.output).toContain("tui-draft");
+  } finally {
+    await close();
   }
 });

@@ -259,7 +259,10 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
     );
   };
   area.addChild(editor);
-  for (const component of [chat, pending, status, area, footer]) tui.addChild(component);
+  const widgetsAbove = new Container();
+  const widgetsBelow = new Container();
+  for (const component of [chat, pending, status, widgetsAbove, area, widgetsBelow, footer])
+    tui.addChild(component);
   tui.setFocus(editor);
 
   let connection: Connection | null = null;
@@ -381,7 +384,7 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
       [
         fg(
           "dim",
-          `${where}${files.length ? ` · ${files.length} attached` : ""}${stats ? ` · ${stats}` : ""}`,
+          `${where}${files.length ? ` · ${files.length} attached` : ""}${stats ? ` · ${stats}` : ""}${extensionStatus()}`,
         ),
         fg("dim", `${place} · `) +
           fg(cards?.some((card) => card.column === "needs_you") ? "yellow" : "dim", counts),
@@ -559,6 +562,8 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
         chat.removeChild(row.container);
         rows.delete(id);
       }
+    renderExtensionUi();
+    if (view.threadId === OZI_MAIN_THREAD_ID) openMainDialog();
     const queued = projection.runs.filter((run) => run.status === "queued");
     pending.setText(
       queued
@@ -573,7 +578,139 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
   };
 
   const stopLoader = () => loader?.stop();
+
+  const extensionStatus = () => {
+    const statuses = Object.entries(projection?.thread.extensionUi?.statuses ?? {})
+      .toSorted(([a], [b]) => a.localeCompare(b))
+      .map(([, text]) => text);
+    return statuses.length ? ` · ${statuses.join(" · ")}` : "";
+  };
+  const seenNotices = new Set<string>();
+  let noticesPrimed = false;
+  let editorTextAt: string | undefined;
+  let title: string | null | undefined;
+  const renderExtensionUi = () => {
+    const ui = projection?.thread.extensionUi;
+    for (const [container, placement] of [
+      [widgetsAbove, "aboveEditor"],
+      [widgetsBelow, "belowEditor"],
+    ] as const) {
+      container.clear();
+      for (const widget of Object.values(ui?.widgets ?? {}))
+        if (widget.placement === placement)
+          container.addChild(new Text(widget.lines.join("\n"), 1, 0));
+    }
+    for (const entry of ui?.notices ?? [])
+      if (!seenNotices.has(entry.id)) {
+        seenNotices.add(entry.id);
+        if (noticesPrimed)
+          notice(
+            entry.message,
+            entry.type === "error" ? "red" : entry.type === "warning" ? "yellow" : "muted",
+          );
+      }
+    if (ui?.editorText && ui.editorText.at !== editorTextAt) {
+      if (editorTextAt !== undefined || noticesPrimed) editor.setText(ui.editorText.text);
+      editorTextAt = ui.editorText.at;
+    }
+    if ((ui?.title ?? null) !== title) {
+      title = ui?.title ?? null;
+      if (title) terminal.write(`\x1b]0;${title}\x07`);
+    }
+    noticesPrimed = true;
+  };
+
+  let dialogFor: string | undefined;
+  const openMainDialog = () => {
+    if (!projection || area.children[0] !== editor) return;
+    const item = projection.turnItems.find(
+      (candidate) =>
+        (candidate.type === "user_input_request" || candidate.type === "approval_request") &&
+        candidate.requestId !== dialogFor &&
+        projection!.runtimeRequests.some(
+          (request) => request.id === candidate.requestId && request.status === "pending",
+        ),
+    );
+    if (!item || (item.type !== "user_input_request" && item.type !== "approval_request")) return;
+    dialogFor = item.requestId;
+    const request: OziJobRequest = {
+      id: item.requestId,
+      threadId: OZI_MAIN_THREAD_ID,
+      kind: item.type === "user_input_request" ? "question" : "approval",
+      prompt: item.title ?? "Input required",
+      options: [],
+    };
+    const cancel = () => {
+      restoreEditor();
+      act("", (current) => answerRequest(current, request, [], true));
+    };
+    const box = new Container();
+    box.addChild(new Spacer(1));
+    if (item.type === "approval_request") {
+      box.addChild(new Text(fg("accent", item.title ?? "Confirm", { bold: true }), 1, 0));
+      if (item.prompt) box.addChild(new Markdown(item.prompt, 1, 0, markdown));
+      const list = new SelectList(
+        [
+          { value: "allow", label: "Allow" },
+          { value: "deny", label: "Deny" },
+        ],
+        4,
+        selectList,
+      );
+      list.onSelect = (choice) => {
+        restoreEditor();
+        respond(request, [choice.value]);
+      };
+      list.onCancel = cancel;
+      box.addChild(list);
+      return show(box, list);
+    }
+    const question = item.questions[0];
+    if (!question) return;
+    box.addChild(new Text(fg("accent", question.question, { bold: true }), 1, 0));
+    if (question.options.length) {
+      const list = new SelectList(
+        question.options.map((option) => ({
+          value: option.value ?? option.label,
+          label: option.label,
+          description: option.description,
+        })),
+        10,
+        selectList,
+      );
+      list.onSelect = (choice) => {
+        restoreEditor();
+        respond(request, [choice.value]);
+      };
+      list.onCancel = cancel;
+      box.addChild(list);
+      return show(box, list);
+    }
+    if (question.multiline) {
+      const text = new Editor(tui, editorTheme, { paddingX: 1 });
+      text.setText(question.initialAnswer ?? "");
+      text.onSubmit = (value) => {
+        restoreEditor();
+        respond(request, [value]);
+      };
+      box.addChild(text);
+      box.addChild(new Text(fg("dim", "Enter submits · Shift+Enter new line · Esc cancels"), 1, 0));
+      dialogCancel = cancel;
+      return show(box, text);
+    }
+    const input = new Input();
+    input.setValue(question.initialAnswer ?? "");
+    input.onSubmit = (value) => {
+      restoreEditor();
+      respond(request, [value]);
+    };
+    input.onEscape = cancel;
+    box.addChild(input);
+    show(box, input);
+  };
+  let dialogCancel: (() => void) | undefined;
   const restoreEditor = () => {
+    dialogCancel = undefined;
     area.clear();
     area.addChild(editor);
     tui.setFocus(editor);
@@ -1196,6 +1333,10 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
         tui.requestRender(true);
       });
       process.kill(process.pid, "SIGTSTP");
+      return { consume: true };
+    }
+    if (dialogCancel && matchesKey(data, "escape")) {
+      dialogCancel();
       return { consume: true };
     }
     if (

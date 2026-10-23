@@ -281,5 +281,5 @@ features:
     module: apps/server/src/cli/tui + e2e/m9.tui.real-pi.test.ts
     cli: [main]
     milestone: 9
-    scenarios: [m9.tui-pi-commands]
+    scenarios: [m9.tui-pi-commands, m9.tui-extension-ui]
     status: passing
