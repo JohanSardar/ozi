@@ -32,6 +32,8 @@ if (
       "say",
       "print",
       "main",
+      "session",
+      "settings",
       "steer",
       "stop",
       "thread",

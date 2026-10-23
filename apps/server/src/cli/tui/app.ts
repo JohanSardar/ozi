@@ -1366,19 +1366,21 @@ export const runTui = Effect.fn("ozi.tui")(function* (
         ),
       ),
     );
+  const retitle = Effect.fn("ozi.tui.retitle")(function* (
+    current: Connection,
+    threadId: ThreadId,
+    title: string,
+  ) {
+    yield* current.client[O.dispatchCommand]({
+      type: "thread.metadata.update",
+      commandId: CommandId.make(yield* (yield* Crypto.Crypto).randomUUIDv4()),
+      threadId,
+      title,
+    });
+    if (threadId === home.threadId && threadId !== OZI_MAIN_THREAD_ID) home = { ...home, title };
+  });
   const metadata = (threadId: ThreadId, title: string) =>
-    act(`Renamed to "${title}".`, (current) =>
-      Effect.gen(function* () {
-        yield* current.client[O.dispatchCommand]({
-          type: "thread.metadata.update",
-          commandId: CommandId.make(yield* (yield* Crypto.Crypto).randomUUIDv4()),
-          threadId,
-          title,
-        });
-        if (threadId === home.threadId && threadId !== OZI_MAIN_THREAD_ID)
-          home = { ...home, title };
-      }),
-    );
+    act(`Renamed to "${title}".`, (current) => retitle(current, threadId, title));
   const renameSession = (thread: { id: ThreadId; title: string }) => {
     const input = new Input();
     input.handleInput(thread.title);
@@ -1458,14 +1460,9 @@ export const runTui = Effect.fn("ozi.tui")(function* (
   };
   const openSettings = () =>
     act("", (current) =>
-      piRpc(current, { type: "get_state" }).pipe(
-        Effect.flatMap((data) =>
+      current.client[J.mainSettings]({}).pipe(
+        Effect.flatMap((state) =>
           Effect.sync(() => {
-            const state = data as {
-              autoCompactionEnabled?: boolean;
-              steeringMode?: string;
-              followUpMode?: string;
-            };
             const toggle = ["true", "false"];
             const modes = ["one-at-a-time", "all"];
             const list = new SettingsList(
@@ -1474,21 +1471,28 @@ export const runTui = Effect.fn("ozi.tui")(function* (
                   id: "autocompact",
                   label: "Auto-compact",
                   description: "Compact main's context when it fills up",
-                  currentValue: String(state.autoCompactionEnabled ?? true),
+                  currentValue: String(state.autoCompaction),
+                  values: toggle,
+                },
+                {
+                  id: "auto-retry",
+                  label: "Auto-retry",
+                  description: "Retry main's failed model requests",
+                  currentValue: String(state.autoRetry),
                   values: toggle,
                 },
                 {
                   id: "steering-mode",
                   label: "Steering mode",
                   description: "How main takes steering messages sent while it works",
-                  currentValue: state.steeringMode ?? "one-at-a-time",
+                  currentValue: state.steeringMode,
                   values: modes,
                 },
                 {
                   id: "follow-up-mode",
                   label: "Follow-up mode",
                   description: "How main takes queued follow-up messages",
-                  currentValue: state.followUpMode ?? "one-at-a-time",
+                  currentValue: state.followUpMode,
                   values: modes,
                 },
                 {
@@ -1523,18 +1527,15 @@ export const runTui = Effect.fn("ozi.tui")(function* (
               settingsList,
               (id, value) => {
                 const on = value === "true";
-                if (id === "autocompact")
-                  return mainPi(`Auto-compact ${on ? "on" : "off"}.`, {
-                    type: "set_auto_compaction",
-                    enabled: on,
-                  });
-                if (id === "steering-mode" || id === "follow-up-mode")
-                  return mainPi(
-                    `${id === "steering-mode" ? "Steering" : "Follow-up"} mode ${value}.`,
-                    {
-                      type: id === "steering-mode" ? "set_steering_mode" : "set_follow_up_mode",
-                      mode: value as "all" | "one-at-a-time",
-                    },
+                const main = {
+                  autocompact: { autoCompaction: on },
+                  "auto-retry": { autoRetry: on },
+                  "steering-mode": { steeringMode: value as "all" | "one-at-a-time" },
+                  "follow-up-mode": { followUpMode: value as "all" | "one-at-a-time" },
+                }[id];
+                if (main)
+                  return act(`Saved main's ${id.replace("-", " ")}: ${value}.`, (current) =>
+                    current.client[J.mainSettings](main),
                   );
                 if (id === "theme") return setTheme(value);
                 if (id === "double-escape") {
@@ -1741,13 +1742,13 @@ export const runTui = Effect.fn("ozi.tui")(function* (
           argument ? { type: "compact", customInstructions: argument } : { type: "compact" },
         );
       if (command === "export") return exportSession(argument);
-      if (command === "name" && argument) {
-        if (home.threadId !== OZI_MAIN_THREAD_ID) home = { ...home, title: argument };
-        return mainPi(`Named the session "${argument}".`, {
-          type: "set_session_name",
-          name: argument,
-        });
-      }
+      if (command === "name" && argument)
+        return act(`Named the session "${argument}".`, (current) =>
+          piRpc(current, { type: "set_session_name", name: argument }).pipe(
+            Effect.ignore,
+            Effect.andThen(retitle(current, home.threadId, argument)),
+          ),
+        );
       if (command === "new") return newSession();
       if (command === "import" && argument) return importSession(argument);
       if (command === "reload") return reload();

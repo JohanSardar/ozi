@@ -160,7 +160,7 @@ export default function (pi) {
   }
 });
 
-it("m9.tui-settings changes main's and the terminal's settings and scopes Ctrl+P models", async () => {
+it("m9.tui-settings changes main's and the terminal's settings before main's first turn and scopes Ctrl+P models", async () => {
   const { h, terminal, close } = await realPi({
     enabledModels: ["claude-bridge/claude-sonnet-5-5", "claude-bridge/claude-opus-5-5"],
   });
@@ -169,18 +169,21 @@ it("m9.tui-settings changes main's and the terminal's settings and scopes Ctrl+P
   try {
     await h.ozi("wait", "provider", "pi", "ready", "--timeout", "30");
     await terminal.waitFor(`:${h.port}`);
-    terminal.keys("hello\r");
-    await terminal.waitFor("real-pi-ok");
-    await h.wait("ozi-main", "completed", 60);
     let from = terminal.mark();
     terminal.keys("/settings\r");
     await terminal.waitFor("Auto-compact", from);
     terminal.keys("\r");
-    await terminal.waitFor("Auto-compact off.", from);
-    expect(
-      (await read(NodePath.join(h.home, "caches/ozi-main-pi/settings.json"))).compaction,
-    ).toMatchObject({ enabled: false });
-    terminal.keys("\x1b[B\x1b[B\x1b[B\r");
+    await terminal.waitFor("Saved main's autocompact: false.", from);
+    const main = NodePath.join(h.home, "caches/ozi-main-pi/settings.json");
+    expect((await read(main)).compaction).toMatchObject({ enabled: false });
+    expect(await h.ozi("settings", "--steering-mode", "all", "--auto-retry", "off")).toEqual({
+      autoCompaction: false,
+      autoRetry: false,
+      steeringMode: "all",
+      followUpMode: "one-at-a-time",
+    });
+    expect(await read(main)).toMatchObject({ steeringMode: "all", retry: { enabled: false } });
+    terminal.keys("\x1b[B\x1b[B\x1b[B\x1b[B\r");
     await terminal.waitFor(`Saved to ${local}.`, from);
     expect(await read(local)).toMatchObject({ hideThinkingBlock: true });
     terminal.keys("\x03");

@@ -300,7 +300,7 @@ features:
   - id: main-sessions
     reqs: [pi-parity, main-full-pi]
     module: apps/server/src/ozi/Sessions.ts + e2e/m9.sessions.test.ts
-    cli: [session, main]
+    cli: [session, main, settings]
     milestone: 9
     scenarios: [m9.sessions, m9.session-import]
     status: passing

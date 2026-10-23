@@ -131,6 +131,7 @@ export const OZI_WS_METHODS = {
   sessionImport: "ozi.session.import",
   sessionReload: "ozi.session.reload",
   sessionExport: "ozi.session.export",
+  mainSettings: "ozi.main.settings",
   mainPi: "ozi.main.pi",
   todosGet: "ozi.todos.get",
   clockAdvance: "ozi.test.clock.advance",
@@ -160,6 +161,22 @@ export const OziSessionExportInput = Schema.Struct({
   format: Schema.Literals(["html", "jsonl"]),
 });
 export type OziSessionExportInput = typeof OziSessionExportInput.Type;
+
+const PiQueueMode = Schema.Literals(["one-at-a-time", "all"]);
+export const OziMainSettings = Schema.Struct({
+  autoCompaction: Schema.Boolean,
+  autoRetry: Schema.Boolean,
+  steeringMode: PiQueueMode,
+  followUpMode: PiQueueMode,
+});
+export type OziMainSettings = typeof OziMainSettings.Type;
+export const OziMainSettingsInput = Schema.Struct({
+  autoCompaction: Schema.optional(Schema.Boolean),
+  autoRetry: Schema.optional(Schema.Boolean),
+  steeringMode: Schema.optional(PiQueueMode),
+  followUpMode: Schema.optional(PiQueueMode),
+});
+export type OziMainSettingsInput = typeof OziMainSettingsInput.Type;
 
 export const OziSession = Schema.Struct({
   id: ThreadId,
@@ -200,14 +217,6 @@ export const OziMainPiCommand = Schema.Union([
     outputPath: Schema.optional(Schema.String),
   }),
   Schema.Struct({ type: Schema.Literal("set_session_name"), name: Schema.String }),
-  Schema.Struct({
-    type: Schema.Literals(["set_auto_compaction", "set_auto_retry"]),
-    enabled: Schema.Boolean,
-  }),
-  Schema.Struct({
-    type: Schema.Literals(["set_steering_mode", "set_follow_up_mode"]),
-    mode: Schema.Literals(["all", "one-at-a-time"]),
-  }),
 ]);
 export type OziMainPiCommand = typeof OziMainPiCommand.Type;
 

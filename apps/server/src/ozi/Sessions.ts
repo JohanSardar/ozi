@@ -9,6 +9,8 @@ import {
   type OziSessionCreateInput,
   type OziSessionImportInput,
   type OziSessionExportInput,
+  type OziMainSettings,
+  type OziMainSettingsInput,
   type OziSessionResult,
   ThreadId,
 } from "@t3tools/contracts";
@@ -36,6 +38,9 @@ export class Sessions extends Context.Service<
       input: OziSessionImportInput,
     ) => Effect.Effect<OziSessionResult, OziSessionError>;
     readonly reload: (threadId: ThreadId) => Effect.Effect<OziSessionResult, OziSessionError>;
+    readonly settings: (
+      input: OziMainSettingsInput,
+    ) => Effect.Effect<OziMainSettings, OziSessionError>;
     readonly export: (
       input: OziSessionExportInput,
     ) => Effect.Effect<{ content: string }, OziSessionError>;
@@ -49,6 +54,16 @@ const sessionError = (message: string) => () => new OziSessionError({ message })
 const decodeHeader = Schema.decodeUnknownEffect(
   Schema.fromJsonString(Schema.Struct({ type: Schema.Literal("session") })),
 );
+const PiSettingsFile = Schema.Record(Schema.String, Schema.Unknown);
+const decodePiSettings = Schema.decodeUnknownEffect(Schema.fromJsonString(PiSettingsFile));
+const encodePiSettings = Schema.encodeEffect(Schema.fromJsonString(PiSettingsFile, { space: 2 }));
+const PiSettingsView = Schema.Struct({
+  steeringMode: Schema.optional(Schema.Literals(["one-at-a-time", "all"])),
+  followUpMode: Schema.optional(Schema.Literals(["one-at-a-time", "all"])),
+  compaction: Schema.optional(Schema.Struct({ enabled: Schema.optional(Schema.Boolean) })),
+  retry: Schema.optional(Schema.Struct({ enabled: Schema.optional(Schema.Boolean) })),
+});
+const decodePiSettingsView = Schema.decodeUnknownEffect(PiSettingsView);
 const decodeSessionState = Schema.decodeUnknownEffect(
   Schema.Struct({ sessionFile: Schema.String }),
 );
@@ -146,6 +161,41 @@ export const layer = Layer.effect(
           Effect.onError(() => fs.remove(nativeId).pipe(Effect.ignore)),
         );
       }),
+      settings: Effect.fn("Sessions.settings")(
+        function* (input) {
+          const file = path.join(piMainAgentDir(config.providerStatusCacheDir), "settings.json");
+          const current = (yield* fs.exists(file))
+            ? yield* decodePiSettings(yield* fs.readFileString(file))
+            : {};
+          const section = (key: string) => {
+            const value = current[key];
+            return typeof value === "object" && value !== null ? value : {};
+          };
+          const next = {
+            ...current,
+            ...(input.steeringMode === undefined ? {} : { steeringMode: input.steeringMode }),
+            ...(input.followUpMode === undefined ? {} : { followUpMode: input.followUpMode }),
+            ...(input.autoCompaction === undefined
+              ? {}
+              : { compaction: { ...section("compaction"), enabled: input.autoCompaction } }),
+            ...(input.autoRetry === undefined
+              ? {}
+              : { retry: { ...section("retry"), enabled: input.autoRetry } }),
+          };
+          if (Object.values(input).some((value) => value !== undefined)) {
+            yield* fs.makeDirectory(path.dirname(file), { recursive: true });
+            yield* fs.writeFileString(file, `${yield* encodePiSettings(next)}\n`);
+          }
+          const view = yield* decodePiSettingsView(next);
+          return {
+            autoCompaction: view.compaction?.enabled ?? true,
+            autoRetry: view.retry?.enabled ?? true,
+            steeringMode: view.steeringMode ?? "one-at-a-time",
+            followUpMode: view.followUpMode ?? "one-at-a-time",
+          };
+        },
+        Effect.mapError(sessionError("Could not read or write main's Pi settings.")),
+      ),
       export: Effect.fn("Sessions.export")(
         function* (input) {
           const threadId = input.threadId ?? OZI_MAIN_THREAD_ID;

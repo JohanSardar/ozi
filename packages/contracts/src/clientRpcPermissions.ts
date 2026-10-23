@@ -16,6 +16,7 @@ export const CLIENT_GUARDED_RPC_SCOPES = {
   [OZI_WS_METHODS.sessionImport]: AuthOrchestrationOperateScope,
   [OZI_WS_METHODS.sessionReload]: AuthOrchestrationOperateScope,
   [OZI_WS_METHODS.sessionExport]: AuthOrchestrationReadScope,
+  [OZI_WS_METHODS.mainSettings]: AuthOrchestrationOperateScope,
   [OZI_WS_METHODS.mainPi]: AuthOrchestrationOperateScope,
   [OZI_WS_METHODS.checksList]: AuthOrchestrationReadScope,
   [OZI_WS_METHODS.checksSubscribe]: AuthOrchestrationReadScope,

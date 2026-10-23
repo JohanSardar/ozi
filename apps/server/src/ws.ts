@@ -971,6 +971,7 @@ const layerWsRpc = (
         [OZI_WS_METHODS.sessionReload]: (input) =>
           oziSessions.reload(input.threadId ?? OZI_MAIN_THREAD_ID),
         [OZI_WS_METHODS.sessionExport]: (input) => oziSessions.export(input),
+        [OZI_WS_METHODS.mainSettings]: (input) => oziSessions.settings(input),
         [OZI_WS_METHODS.mainPi]: (input) => oziSessions.mainPi(input),
         [ORCHESTRATION_V2_WS_METHODS.dispatchCommand]: (command) =>
           Effect.annotateCurrentSpan({
