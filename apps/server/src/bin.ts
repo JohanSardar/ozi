@@ -9,6 +9,7 @@ if (
 ) {
   const { ignoreMacosTypeOfServiceEinval } = await import("./outboundHttp.ts");
   ignoreMacosTypeOfServiceEinval();
+  if (process.argv[2] === "-p" || process.argv[2] === "--print") process.argv[2] = "print";
   const command = process.argv[2];
   const args = process.argv.slice(2);
   if (command === "pi") {
@@ -25,6 +26,8 @@ if (
     [
       "status",
       "say",
+      "print",
+      "main",
       "steer",
       "stop",
       "thread",

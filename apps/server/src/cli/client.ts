@@ -25,12 +25,14 @@ import {
   ScheduledTaskUpsertSchedule,
   ScheduledTaskWebhookFilter,
   SecretRef,
+  RunId,
   RuntimeRequestId,
   TurnItemId,
   MessageId,
   ProviderInstanceId,
   ORCHESTRATION_V2_WS_METHODS as O,
   OrchestrationV2DispatchCommandResult,
+  OrchestrationV2RunStatus,
   OrchestrationV2ShellSnapshot,
   OrchestrationV2ThreadProjection,
   ServerConfig,
@@ -39,6 +41,7 @@ import {
   WS_METHODS as W,
   WsRpcGroup,
 } from "@t3tools/contracts";
+import { applyOrchestrationV2ProjectionEvent } from "@t3tools/client-runtime/state/orchestration-v2-projection";
 import * as Crypto from "effect/Crypto";
 import * as Predicate from "effect/Predicate";
 import * as Cause from "effect/Cause";
@@ -50,6 +53,7 @@ import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Schedule from "effect/Schedule";
 import * as Schema from "effect/Schema";
+import * as Stdio from "effect/Stdio";
 import * as Stream from "effect/Stream";
 import { Argument, Command, Flag } from "effect/cli";
 import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http";
@@ -401,7 +405,12 @@ const imageTypes: Record<string, "image/png" | "image/jpeg" | "image/gif" | "ima
 
 export const send = Effect.fn("ozi.send")(function* (
   { client, state }: Connection,
-  flags: { text: string; thread?: Option.Option<ThreadId>; files?: ReadonlyArray<string> },
+  flags: {
+    text: string;
+    thread?: Option.Option<ThreadId>;
+    files?: ReadonlyArray<string>;
+    messageId?: MessageId;
+  },
   steer: boolean | "active" = false,
 ) {
   const threadId = yield* targetThread(client, flags.thread ?? Option.none());
@@ -448,7 +457,7 @@ export const send = Effect.fn("ozi.send")(function* (
     type: "message.dispatch",
     commandId: CommandId.make(yield* (yield* Crypto.Crypto).randomUUIDv4()),
     threadId,
-    messageId: MessageId.make(yield* (yield* Crypto.Crypto).randomUUIDv4()),
+    messageId: flags.messageId ?? MessageId.make(yield* (yield* Crypto.Crypto).randomUUIDv4()),
     text: flags.text,
     attachments,
     createdBy: "user",
@@ -476,6 +485,100 @@ const sayCommand = Command.make("say", {
         emit(OrchestrationV2DispatchCommandResult, result, flags.json, () => "Message sent"),
       ),
     ),
+  ),
+);
+const PrintResult = Schema.Struct({
+  threadId: ThreadId,
+  runId: RunId,
+  status: OrchestrationV2RunStatus,
+  text: Schema.String,
+});
+const printCommand = Command.make("print", {
+  ...locationFlags,
+  messages: Argument.String("message").pipe(Argument.variadic()),
+  thread: threadFlag,
+  files: Flag.String("file").pipe(Flag.atLeast(0)),
+  timeout: Flag.Finite("timeout").pipe(
+    Flag.withSchema(Schema.Number.check(Schema.isGreaterThan(0))),
+    Flag.withDefault(1800),
+  ),
+}).pipe(
+  Command.withHandler((flags) =>
+    Effect.gen(function* () {
+      const stdio = yield* Stdio.Stdio;
+      const piped = (yield* stdio.stdinIsTerminal)
+        ? ""
+        : yield* stdio.stdin.pipe(Stream.decodeText(), Stream.mkString);
+      const [first = "", ...rest] = flags.messages;
+      const prompts = [piped + first, ...rest].filter((text) => text.trim());
+      if (prompts.length === 0)
+        return yield* new ClientError({ operation: "print needs a message" });
+      const connection = yield* connect(flags.baseDir);
+      const threadId = yield* targetThread(connection.client, flags.thread);
+      for (const [index, text] of prompts.entries()) {
+        const messageId = MessageId.make(yield* (yield* Crypto.Crypto).randomUUIDv4());
+        yield* send(connection, {
+          text,
+          thread: Option.some(threadId),
+          files: index === 0 ? flags.files : [],
+          messageId,
+        });
+        const settled = yield* connection.client[O.subscribeThread]({ threadId }).pipe(
+          Stream.mapAccum(
+            () => null as OrchestrationV2ThreadProjection | null,
+            (projection, item) => {
+              const next =
+                item.kind === "snapshot"
+                  ? item.projection
+                  : item.kind === "event" && projection
+                    ? applyOrchestrationV2ProjectionEvent(projection, item.event)
+                    : projection;
+              return [next, [next]];
+            },
+          ),
+          Stream.map((projection) => {
+            const run = projection?.runs.find((candidate) => candidate.userMessageId === messageId);
+            if (!projection || !run) return undefined;
+            const request = projection.turnItems.find(
+              (item) =>
+                (item.type === "user_input_request" || item.type === "approval_request") &&
+                item.runId === run.id &&
+                projection.runtimeRequests.some(
+                  (candidate) => candidate.id === item.requestId && candidate.status === "pending",
+                ),
+            );
+            return request ||
+              ["completed", "failed", "interrupted", "cancelled"].includes(run.status)
+              ? { projection, run, request }
+              : undefined;
+          }),
+          Stream.filter(Predicate.isNotUndefined),
+          Stream.runHead,
+          Effect.timeout(`${flags.timeout} seconds`),
+        );
+        if (Option.isNone(settled))
+          return yield* new ClientError({ operation: "thread subscription ended" });
+        const { projection, run, request } = settled.value;
+        const reply = projection.messages.findLast(
+          (message) => message.runId === run.id && message.role === "assistant",
+        );
+        yield* emit(
+          PrintResult,
+          { threadId, runId: run.id, status: run.status, text: reply?.text ?? "" },
+          flags.json,
+          () => reply?.text ?? "",
+        );
+        if (
+          request &&
+          (request.type === "user_input_request" || request.type === "approval_request")
+        )
+          return yield* new ClientError({
+            operation: `is waiting for you: ${request.title ?? "input"} (ozi answer ${request.requestId})`,
+          });
+        if (run.status !== "completed")
+          return yield* new ClientError({ operation: `run ${run.status}` });
+      }
+    }),
   ),
 );
 const steerCommand = Command.make("steer", {
@@ -1407,6 +1510,7 @@ export const clientCommands = [
   eventsCommand,
   statusCommand,
   sayCommand,
+  printCommand,
   steerCommand,
   stopCommand,
   threadCommand,
