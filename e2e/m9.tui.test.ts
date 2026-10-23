@@ -166,6 +166,7 @@ it("m9.tui-sessions clones, forks from an earlier message, resumes and shows the
     { match: "^session-two$", steps: [{ say: "reply-two" }] },
     { match: "^in-clone$", steps: [{ say: "clone-reply" }] },
     { match: "^session-two-edited$", steps: [{ say: "fork-reply" }] },
+    { match: "^in-new$", steps: [{ say: "new-reply" }] },
   ]);
   const terminal = await ready();
   terminal.keys("session-one\r");
@@ -191,7 +192,7 @@ it("m9.tui-sessions clones, forks from an earlier message, resumes and shows the
   await terminal.waitFor("reply-two", from);
   from = terminal.mark();
   terminal.keys("/fork\r");
-  await terminal.waitFor("session-one", from);
+  await terminal.waitFor("→ session-two", from);
   terminal.keys("\r");
   await terminal.waitFor("main fork · ", from);
   terminal.keys("-edited\r");
@@ -203,4 +204,25 @@ it("m9.tui-sessions clones, forks from an earlier message, resumes and shows the
   terminal.keys("/tree\r");
   await terminal.waitFor("  • main fork", from);
   await terminal.waitFor("  main clone", from);
+  terminal.keys("\x03");
+  from = terminal.mark();
+  terminal.keys("/new\r");
+  await terminal.waitFor("New session · ", from);
+  terminal.keys("in-new\r");
+  await terminal.waitFor("new-reply", from);
+  const fresh = (await threads()).find((thread) => thread.title === "New session")!;
+  expect(fresh).toMatchObject({ role: "main-fork", forkedFrom: null });
+  expect(JSON.stringify((await h.thread(fresh.id)).messages)).not.toContain("session-one");
+  from = terminal.mark();
+  terminal.keys("/reload\r");
+  await terminal.waitFor("Pi reloads on the session's next turn.", from);
+  from = terminal.mark();
+  terminal.keys("/fork\r");
+  await terminal.waitFor("→ in-new", from);
+  terminal.keys("\r");
+  await terminal.waitFor("New session fork · ", from);
+  terminal.keys("\r");
+  const again = (await threads()).find((thread) => thread.title === "New session fork")!;
+  expect(again.forkedFrom).toBeNull();
+  await h.wait(again.id, "text:new-reply", 20);
 });

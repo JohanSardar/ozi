@@ -201,22 +201,26 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
   const context = yield* Effect.context<Env>();
   const run = Effect.runForkWith(context);
   const done = yield* Deferred.make<void>();
-  const appearance = yield* piAppearance();
-  const userKeys = Object.fromEntries(
-    Object.entries(appearance.keybindings).map(([id, keys]) => [
-      id,
-      (Array.isArray(keys) ? keys : [keys]) as KeyId[],
-    ]),
-  );
-  setKeybindings(
-    new KeybindingsManager(
-      TUI_KEYBINDINGS,
-      Object.fromEntries(Object.entries(userKeys).filter(([id]) => id.startsWith("tui."))),
-    ),
-  );
+  let appearance = yield* piAppearance();
+  let userKeys: Record<string, KeyId[]> = {};
+  const applyAppearance = () => {
+    userKeys = Object.fromEntries(
+      Object.entries(appearance.keybindings).map(([id, keys]) => [
+        id,
+        (Array.isArray(keys) ? keys : [keys]) as KeyId[],
+      ]),
+    );
+    setKeybindings(
+      new KeybindingsManager(
+        TUI_KEYBINDINGS,
+        Object.fromEntries(Object.entries(userKeys).filter(([id]) => id.startsWith("tui."))),
+      ),
+    );
+    useTheme(appearance.custom ?? builtinThemes[appearance.name] ?? builtinThemes.dark!);
+  };
+  applyAppearance();
   const is = (id: string, data: string) =>
     (userKeys[id] ?? appKeys[id] ?? []).some((key) => matchesKey(data, key));
-  useTheme(appearance.custom ?? builtinThemes[appearance.name] ?? builtinThemes.dark!);
   const terminal = new ProcessTerminal();
   const tui = new TuiMainScreen(terminal);
   const chat = new Container();
@@ -231,6 +235,9 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
     { name: "tree", description: "Main and its forks" },
     { name: "fork", description: "Fork from an earlier message" },
     { name: "clone", description: "Duplicate this session" },
+    { name: "new", description: "Start a new session" },
+    { name: "import", description: "Import and resume a Pi session file", argumentHint: "<path>" },
+    { name: "reload", description: "Reload Pi's extensions, skills, prompts, themes and keys" },
     { name: "attach", description: "Attach a file to the next message", argumentHint: "<path>" },
     { name: "stop", description: "Stop the current work" },
     { name: "model", description: "Select main's model", argumentHint: "[model]" },
@@ -1189,7 +1196,46 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
         yield* Effect.sync(() => switchTo(threadId, title, draft));
       }),
     );
-  const newSession = (draft: string) => notice(draft);
+  const newSession = (title = "New session", draft = "") =>
+    act("", (current) =>
+      current.client[J.sessionNew]({ title }).pipe(
+        Effect.flatMap(({ threadId }) => Effect.sync(() => switchTo(threadId, title, draft))),
+      ),
+    );
+  const importSession = (file: string) =>
+    act("", (current) =>
+      Effect.gen(function* () {
+        const fs = yield* FileSystem.FileSystem;
+        const path = yield* Path.Path;
+        const title = path.basename(file, ".jsonl");
+        const { threadId } = yield* current.client[J.sessionImport]({
+          content: yield* fs.readFileString(file),
+          title,
+        });
+        yield* Effect.sync(() => switchTo(threadId, title));
+      }),
+    );
+  const reload = () => {
+    act("Pi reloads on the session's next turn.", (current) =>
+      current.client[J.sessionReload]({ threadId: home.threadId }),
+    );
+    run(
+      piAppearance().pipe(
+        Effect.flatMap((next) =>
+          Effect.sync(() => {
+            appearance = next;
+            themeName = next.name;
+            showThinking = !next.settings.hideThinkingBlock;
+            showImages = next.settings.terminal?.showImages ?? true;
+            enabledModels = next.settings.enabledModels;
+            applyAppearance();
+            if (themeName === "system") terminal.write("\x1b[?996n");
+            repaint();
+          }),
+        ),
+      ),
+    );
+  };
   const chooseFork = () => {
     const visible = projection?.visibleTurnItems ?? [];
     const choices = visible.flatMap(({ item }, index) =>
@@ -1205,7 +1251,7 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
       })),
       (value) => {
         const { item, before } = choices[Number(value)]!;
-        if (!before?.runId) return newSession(item.text);
+        if (!before?.runId) return newSession(`${home.title} fork`, item.text);
         forkSession(
           before.threadId,
           { type: "run", runId: before.runId },
@@ -1230,13 +1276,15 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
               return parent ? depth(parent) + 1 : 0;
             };
             const order = (parent: ThreadId | null): typeof threads =>
-              threads
-                .filter((thread) =>
+              threads.flatMap((thread) =>
+                (
                   parent === null
                     ? !threads.some((entry) => entry.id === thread.lineage.parentThreadId)
-                    : thread.lineage.parentThreadId === parent,
+                    : thread.lineage.parentThreadId === parent
                 )
-                .flatMap((thread) => [thread, ...order(thread.id)]);
+                  ? [thread, ...order(thread.id)]
+                  : [],
+              );
             const listed = tree
               ? order(null)
               : threads.toSorted(
@@ -1549,11 +1597,16 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
           (data) =>
             `Exported main's session to ${(data as { path?: string }).path ?? "the server"}.`,
         );
-      if (command === "name" && argument)
-        return mainPi(`Named main's session "${argument}".`, {
+      if (command === "name" && argument) {
+        if (home.threadId !== OZI_MAIN_THREAD_ID) home = { ...home, title: argument };
+        return mainPi(`Named the session "${argument}".`, {
           type: "set_session_name",
           name: argument,
         });
+      }
+      if (command === "new") return newSession();
+      if (command === "import" && argument) return importSession(argument);
+      if (command === "reload") return reload();
       if (command === "model") return argument ? setModel(argument) : chooseModel();
       if (command === "thinking") return argument ? setThinking(argument) : chooseThinking();
       if (command === "session") return notice(sessionInfo());

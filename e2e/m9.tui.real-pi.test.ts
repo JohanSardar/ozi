@@ -71,7 +71,7 @@ it("m9.tui-pi-commands runs Pi's commands, shell and model switching from the te
     await terminal.waitFor("m9-shell-output", from);
     from = terminal.mark();
     terminal.keys("/name m9 session\r");
-    await terminal.waitFor('Named main\'s session "m9 session".', from);
+    await terminal.waitFor('Named the session "m9 session".', from);
     const exported = NodePath.join(h.root, "main.html");
     from = terminal.mark();
     terminal.keys(`/export ${exported}\r`);
@@ -195,6 +195,36 @@ it("m9.tui-settings changes main's and the terminal's settings and scopes Ctrl+P
     terminal.keys("\r");
     await terminal.waitFor(`Saved to ${local}.`, from);
     expect((await read(local)).enabledModels).toEqual(["claude-bridge/claude-sonnet-5-5"]);
+  } finally {
+    await close();
+  }
+});
+
+it("m9.tui-import imports a Pi session file and continues it in the terminal app", async () => {
+  const { h, terminal, close } = await realPi();
+  try {
+    await h.ozi("wait", "provider", "pi", "ready", "--timeout", "30");
+    await terminal.waitFor(`:${h.port}`);
+    terminal.keys("remember-this-chat\r");
+    await terminal.waitFor("real-pi-ok");
+    await h.wait("ozi-main", "completed", 60);
+    const sessions = NodePath.join(h.home, "caches/ozi-main-pi/sessions");
+    const files = await NodeFSP.readdir(sessions, { recursive: true });
+    const source = files.find((file) => file.endsWith(".jsonl"))!;
+    const copy = NodePath.join(h.root, "old-chat.jsonl");
+    await NodeFSP.copyFile(NodePath.join(sessions, source), copy);
+    const from = terminal.mark();
+    terminal.keys(`/import ${copy}\r`);
+    await terminal.waitFor("old-chat · ", from);
+    terminal.keys("continue-old-chat\r");
+    const imported = (await h.status()).snapshot.threads.find(
+      (thread) => thread.title === "old-chat",
+    )!;
+    expect(imported.role).toBe("main-fork");
+    await h.wait(imported.id, "text:real-pi-ok", 60);
+    expect(JSON.stringify((await h.thread("ozi-main")).messages)).not.toContain(
+      "continue-old-chat",
+    );
   } finally {
     await close();
   }
