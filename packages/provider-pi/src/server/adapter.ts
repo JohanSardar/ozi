@@ -7,6 +7,7 @@ import * as Predicate from "effect/Predicate";
 import {
   ProviderDriverKind,
   OziMainPiError,
+  OrchestrationV2ExtensionUiUpdate,
   type ChatAttachment,
   type ModelSelection,
   type OrchestrationV2ExecutionNode,
@@ -74,6 +75,7 @@ import {
 import { PI_FILE_CHANGE_TOOLS } from "./mcpExtensionSource.ts";
 
 const PI_PROVIDER = ProviderDriverKind.make("pi");
+const decodeExtensionUiUpdate = Schema.decodeUnknownOption(OrchestrationV2ExtensionUiUpdate);
 const PI_DRIVER_KIND = PI_PROVIDER;
 const DEFAULT_PI_SETTINGS = Schema.decodeSync(PiSettings)({});
 
@@ -1226,25 +1228,13 @@ const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (options: PiAdapt
         const method = recordString(event, "method");
         const nativeRequestId = recordString(event, "id");
         if (method === undefined) return;
-        if (method === "notify") {
-          const state = threadState;
-          const turn = state?.activeTurn ?? null;
-          const message = recordString(event, "message") ?? "";
-          if (turn === null || message.length === 0) return;
-          const emittedAt = yield* DateTime.now;
-          const nativeItemId = `notify:${turn.providerTurn.id}:${turn.nextItemOrdinal}`;
-          yield* emitItemNode(turn, nativeItemId, "system", "completed", emittedAt, emittedAt);
+        const update = decodeExtensionUiUpdate(event);
+        if (Option.isSome(update)) {
           yield* emit({
-            type: "turn_item.updated",
+            type: "extension_ui.updated",
             driver: PI_PROVIDER,
-            turnItem: {
-              ...baseItemFields(turn, nativeItemId, emittedAt, emittedAt),
-              status: "completed",
-              completedAt: emittedAt,
-              title: message,
-              type: "system_notice",
-              message,
-            },
+            threadId: threadState?.providerThread.appThreadId ?? input.threadId,
+            update: update.value,
           });
           return;
         }
@@ -1637,16 +1627,11 @@ const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (options: PiAdapt
       });
 
       const handleSessionEvent = Effect.fnUntraced(function* (event: PiRpcRecord) {
-        // Model-selection hooks can await a dialog before startTurn can claim
-        // a wake. Keep interactive requests session-scoped until a turn owns
-        // them; buffer native output and notifications for that turn.
-        const interactiveUiRequest =
-          event["type"] === "extension_ui_request" &&
-          ["select", "confirm", "input", "editor"].includes(String(event["method"]));
+        const extensionUiRequest = event["type"] === "extension_ui_request";
         if (
           threadState?.activeTurn === null &&
           pendingWake !== null &&
-          !interactiveUiRequest &&
+          !extensionUiRequest &&
           !String(event["type"]).startsWith("t3.") &&
           event["type"] !== "response"
         ) {
@@ -2776,10 +2761,16 @@ const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (options: PiAdapt
               sessionApprovals.add(pending.approvalKey);
             }
             const resolvedAt = yield* DateTime.now;
+            const status =
+              response["cancelled"] === true || response["confirmed"] === false
+                ? ("cancelled" as const)
+                : ("completed" as const);
             pending.runtimeRequest = {
               ...pending.runtimeRequest,
               status: "resolved",
               resolvedAt,
+              ...(requestInput.decision === undefined ? {} : { decision: requestInput.decision }),
+              ...(requestInput.answers === undefined ? {} : { answers: requestInput.answers }),
             };
             yield* emit({
               type: "runtime_request.updated",
@@ -2790,14 +2781,14 @@ const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (options: PiAdapt
             yield* emit({
               type: "node.updated",
               driver: PI_PROVIDER,
-              node: { ...pending.node, status: "completed", completedAt: resolvedAt },
+              node: { ...pending.node, status, completedAt: resolvedAt },
             });
             yield* emit({
               type: "turn_item.updated",
               driver: PI_PROVIDER,
               turnItem: {
                 ...pending.turnItem,
-                status: "completed",
+                status,
                 completedAt: resolvedAt,
                 updatedAt: resolvedAt,
               },
@@ -3237,6 +3228,7 @@ function piUiResponse(
   decision: ProviderApprovalDecision | undefined,
   answers: Record<string, unknown> | undefined,
 ): PiRpcRecord {
+  if (decision === "cancel") return { cancelled: true };
   if (pending.method === "confirm") {
     if (decision === "accept" || decision === "acceptForSession") return { confirmed: true };
     if (decision === "decline") return { confirmed: false };

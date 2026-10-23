@@ -616,9 +616,23 @@ export const answerRequest = Effect.fn("ozi.answerRequest")(function* (
   connection: Connection,
   request: OziJobRequest,
   values: ReadonlyArray<string>,
+  cancel = false,
 ) {
   const { client } = connection;
   const value = values.join(" ");
+  if (cancel) {
+    if (request.kind !== "question" && request.kind !== "approval")
+      return yield* new ClientError({ operation: "only questions and approvals can be cancelled" });
+    return yield* client[O.dispatchCommand]({
+      type: "runtime-request.respond",
+      commandId: CommandId.make(yield* (yield* Crypto.Crypto).randomUUIDv4()),
+      threadId: request.threadId,
+      requestId: RuntimeRequestId.make(request.id),
+      decision: "cancel",
+    });
+  }
+  if (values.length === 0)
+    return yield* new ClientError({ operation: "answer requires a value or --cancel" });
   if (request.kind === "secret") {
     yield* client[W.secretsAnswerRequest]({
       threadId: request.threadId,
@@ -660,12 +674,32 @@ export const answerRequest = Effect.fn("ozi.answerRequest")(function* (
 const answerCommand = Command.make("answer", {
   ...locationFlags,
   requestId: Argument.String("requestId"),
-  values: Argument.String("value").pipe(Argument.atLeast(1)),
+  values: Argument.String("value").pipe(Argument.variadic()),
+  cancel: Flag.Boolean("cancel").pipe(Flag.withDefault(false)),
 }).pipe(
   Command.withHandler((flags) =>
     Effect.gen(function* () {
       const connection = yield* connect(flags.baseDir);
       const requests = (yield* connection.client[J.jobsGet]({})).flatMap((card) => card.requests);
+      const main = yield* connection.client[O.getThreadProjection]({
+        threadId: OZI_MAIN_THREAD_ID,
+      });
+      for (const item of main.turnItems) {
+        if (item.type !== "user_input_request" && item.type !== "approval_request") continue;
+        if (
+          !main.runtimeRequests.some(
+            (request) => request.id === item.requestId && request.status === "pending",
+          )
+        )
+          continue;
+        requests.push({
+          id: item.requestId,
+          threadId: OZI_MAIN_THREAD_ID,
+          kind: item.type === "user_input_request" ? "question" : "approval",
+          prompt: item.title ?? "Input required",
+          options: [],
+        });
+      }
       const requestId = yield* resolveId(
         flags.requestId,
         requests.map((request) => request.id),
@@ -673,7 +707,7 @@ const answerCommand = Command.make("answer", {
       );
       const request = requests.find((request) => request.id === requestId);
       if (!request) return yield* new ClientError({ operation: "found no such request" });
-      const result = yield* answerRequest(connection, request, flags.values);
+      const result = yield* answerRequest(connection, request, flags.values, flags.cancel);
       const text = () => Text.result("Answered", request.id);
       if (result === null) yield* print({ answered: true }, flags.json, text);
       else yield* emit(OrchestrationV2DispatchCommandResult, result, flags.json, text);
@@ -814,6 +848,21 @@ const waitCommand = Command.make("wait", {
         ),
         Stream.filter((projection) => {
           const latest = projection.runs.findLast((run) => run.status !== "queued");
+          if (flags.state.startsWith("request:"))
+            return projection.turnItems.some(
+              (item) =>
+                (item.type === "user_input_request" || item.type === "approval_request") &&
+                item.title === flags.state.slice(8) &&
+                projection.runtimeRequests.some(
+                  (request) => request.id === item.requestId && request.status === "pending",
+                ),
+            );
+          if (flags.state.startsWith("notice:"))
+            return (
+              projection.thread.extensionUi?.notices.some((notice) =>
+                notice.message.includes(flags.state.slice(7)),
+              ) === true
+            );
           if (flags.state.startsWith("text:"))
             return projection.messages.some((message) =>
               message.text.includes(flags.state.slice(5)),

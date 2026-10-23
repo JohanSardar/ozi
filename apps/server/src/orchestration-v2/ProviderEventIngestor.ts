@@ -324,6 +324,14 @@ export const layer: Layer.Layer<
       Effect.fnUntraced(
         function* (input) {
           switch (input.event.type) {
+            case "extension_ui.updated":
+              return [
+                yield* makeDomainEvent(input, {
+                  type: "thread.extension-ui-updated",
+                  threadId: input.event.threadId,
+                  payload: input.event.update,
+                }),
+              ];
             case "app_thread.created": {
               const offered = input.event.appThread;
               const existing = yield* projections.getThread(offered.id).pipe(

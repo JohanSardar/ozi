@@ -330,6 +330,50 @@ export const OrchestrationV2LimitRecoveryUpdate = Schema.Struct({
 );
 export type OrchestrationV2LimitRecoveryUpdate = typeof OrchestrationV2LimitRecoveryUpdate.Type;
 
+const ExtensionWidgetPlacement = Schema.Literals(["aboveEditor", "belowEditor"]);
+const ExtensionNoticeType = Schema.Literals(["info", "warning", "error"]);
+
+export const OrchestrationV2ExtensionUi = Schema.Struct({
+  statuses: Schema.Record(Schema.String, Schema.String),
+  widgets: Schema.Record(
+    Schema.String,
+    Schema.Struct({ lines: Schema.Array(Schema.String), placement: ExtensionWidgetPlacement }),
+  ),
+  title: Schema.NullOr(Schema.String),
+  notices: Schema.Array(
+    Schema.Struct({
+      id: Schema.String,
+      message: Schema.String,
+      type: ExtensionNoticeType,
+      at: IsoDateTime,
+    }),
+  ),
+  editorText: Schema.NullOr(Schema.Struct({ text: Schema.String, at: IsoDateTime })),
+});
+export type OrchestrationV2ExtensionUi = typeof OrchestrationV2ExtensionUi.Type;
+
+export const OrchestrationV2ExtensionUiUpdate = Schema.Union([
+  Schema.Struct({
+    method: Schema.Literal("notify"),
+    message: Schema.String,
+    notifyType: Schema.optional(ExtensionNoticeType),
+  }),
+  Schema.Struct({
+    method: Schema.Literal("setStatus"),
+    statusKey: Schema.String,
+    statusText: Schema.optional(Schema.String),
+  }),
+  Schema.Struct({
+    method: Schema.Literal("setWidget"),
+    widgetKey: Schema.String,
+    widgetLines: Schema.optional(Schema.Array(Schema.String)),
+    widgetPlacement: Schema.optional(ExtensionWidgetPlacement),
+  }),
+  Schema.Struct({ method: Schema.Literal("setTitle"), title: Schema.String }),
+  Schema.Struct({ method: Schema.Literal("set_editor_text"), text: Schema.String }),
+]);
+export type OrchestrationV2ExtensionUiUpdate = typeof OrchestrationV2ExtensionUiUpdate.Type;
+
 export const OrchestrationV2AppThread = Schema.Struct({
   ...OrchestrationV2CreationFields,
   jobId: Schema.optional(Schema.NullOr(ThreadId)),
@@ -340,6 +384,7 @@ export const OrchestrationV2AppThread = Schema.Struct({
     Schema.Struct({ threadId: ThreadId, runId: RunId, round: Schema.Number }),
   ),
   effectiveLoadout: Schema.optional(OziEffectiveLoadout),
+  extensionUi: Schema.optional(OrchestrationV2ExtensionUi),
   id: ThreadId,
   projectId: ProjectId,
   title: TrimmedNonEmptyString,
@@ -1461,6 +1506,11 @@ const OrchestrationV2EventBase = Schema.Struct({
 export const OrchestrationV2DomainEvent = Schema.Union([
   Schema.Struct({
     ...OrchestrationV2EventBase.fields,
+    type: Schema.Literal("thread.extension-ui-updated"),
+    payload: OrchestrationV2ExtensionUiUpdate,
+  }),
+  Schema.Struct({
+    ...OrchestrationV2EventBase.fields,
     type: Schema.Literal("thread.created"),
     payload: OrchestrationV2AppThread,
   }),
@@ -2222,6 +2272,11 @@ export const OrchestrationV2RawProviderEventJson = OrchestrationV2RawProviderEve
 export type OrchestrationV2RawProviderEventJson = typeof OrchestrationV2RawProviderEventJson.Type;
 
 export const OrchestrationV2DomainEventJson = Schema.Union([
+  Schema.Struct({
+    ...OrchestrationV2JsonEventBaseFields,
+    type: Schema.Literal("thread.extension-ui-updated"),
+    payload: OrchestrationV2ExtensionUiUpdate,
+  }),
   Schema.Struct({
     ...OrchestrationV2JsonEventBaseFields,
     type: Schema.Literal("thread.created"),

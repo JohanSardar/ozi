@@ -7,6 +7,7 @@ import {
   OrchestrationV2AppThread,
   OrchestrationV2ConversationMessage,
   OrchestrationV2ExecutionNode,
+  OrchestrationV2ExtensionUiUpdate,
   OrchestrationV2ProviderSession,
   OrchestrationV2PlanArtifact,
   OrchestrationV2ProviderCapabilities,
@@ -82,6 +83,12 @@ export const ProviderAdapterV2SessionStatus = Schema.Literals([
 export type ProviderAdapterV2SessionStatus = typeof ProviderAdapterV2SessionStatus.Type;
 
 export const ProviderAdapterV2Event = Schema.Union([
+  Schema.Struct({
+    type: Schema.Literal("extension_ui.updated"),
+    driver: ProviderDriverKind,
+    threadId: ThreadId,
+    update: OrchestrationV2ExtensionUiUpdate,
+  }),
   Schema.Struct({
     type: Schema.Literal("app_thread.created"),
     driver: ProviderDriverKind,

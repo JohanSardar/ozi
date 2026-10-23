@@ -7,6 +7,7 @@ import type {
   OrchestrationV2SearchThreadResult,
   OrchestrationV2ThreadHistoryPage,
 } from "@t3tools/contracts";
+import { applyExtensionUiEvent } from "@t3tools/shared/extensionUi";
 import {
   latestRootProviderFailure,
   latestUnheldRun,
@@ -535,6 +536,14 @@ export function applyToProjection(
   };
 
   switch (event.type) {
+    case "thread.extension-ui-updated":
+      return {
+        ...base,
+        thread: {
+          ...base.thread,
+          extensionUi: applyExtensionUiEvent(base.thread.extensionUi, event),
+        },
+      };
     case "thread.created":
     case "thread.archived":
     case "thread.unarchived":
@@ -551,7 +560,12 @@ export function applyToProjection(
     case "thread.provider-switched":
       return {
         ...base,
-        thread: event.payload,
+        thread: {
+          ...event.payload,
+          ...(base.thread.extensionUi === undefined
+            ? {}
+            : { extensionUi: base.thread.extensionUi }),
+        },
       };
     // Reordering and PR refreshes preserve the orchestrator's activity timestamp.
     case "thread.active-reordered":
@@ -559,7 +573,12 @@ export function applyToProjection(
     case "thread.marked-unread":
       return {
         ...projection,
-        thread: event.payload,
+        thread: {
+          ...event.payload,
+          ...(projection.thread.extensionUi === undefined
+            ? {}
+            : { extensionUi: projection.thread.extensionUi }),
+        },
       };
     case "job.handled":
       return {
@@ -775,6 +794,9 @@ const matchesNothing = (...filters: ReadonlyArray<ReadonlyArray<unknown> | undef
 
 const encodeThreadPayload = Schema.encodeEffect(
   Schema.fromJsonString(OrchestrationV2AppThreadJsonSchema),
+);
+const encodeExtensionUi = Schema.encodeEffect(
+  Schema.fromJsonString(OrchestrationV2AppThreadJsonSchema.fields.extensionUi),
 );
 const encodeThreadUpdatedAt = Schema.encodeEffect(
   OrchestrationV2AppThreadJsonSchema.fields.updatedAt,
@@ -1549,6 +1571,20 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
       Effect.fnUntraced(
         function* (event) {
           switch (event.type) {
+            case "thread.extension-ui-updated": {
+              const rows = yield* sql<PayloadRow>`
+                SELECT payload_json FROM orchestration_v2_projection_threads
+                WHERE thread_id = ${event.threadId}
+              `;
+              const thread = yield* decodeThreadPayload(rows[0]!.payload_json);
+              const state = applyExtensionUiEvent(thread.extensionUi, event);
+              yield* sql`
+                UPDATE orchestration_v2_projection_threads
+                SET payload_json = json_set(payload_json, '$.extensionUi', json(${yield* encodeExtensionUi(state)}))
+                WHERE thread_id = ${event.threadId}
+              `;
+              break;
+            }
             case "thread.created":
             case "thread.archived":
             case "thread.unarchived":
@@ -1612,7 +1648,11 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
                 updated_at = excluded.updated_at,
                 archived_at = excluded.archived_at,
                 deleted_at = excluded.deleted_at,
-                payload_json = excluded.payload_json
+                payload_json = CASE
+                  WHEN json_type(orchestration_v2_projection_threads.payload_json, '$.extensionUi') IS NOT NULL
+                  THEN json_set(excluded.payload_json, '$.extensionUi', json_extract(orchestration_v2_projection_threads.payload_json, '$.extensionUi'))
+                  ELSE excluded.payload_json
+                END
             `;
               break;
             }
