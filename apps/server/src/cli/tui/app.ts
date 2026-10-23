@@ -1,6 +1,8 @@
 import {
   Box,
   CombinedAutocompleteProvider,
+  getNativeClipboard,
+  Image,
   KeybindingsManager,
   setKeybindings,
   TUI_KEYBINDINGS,
@@ -25,6 +27,8 @@ import {
   ORCHESTRATION_V2_WS_METHODS as O,
   OZI_MAIN_THREAD_ID,
   OZI_WS_METHODS as J,
+  WS_METHODS as W,
+  type ChatAttachment,
   OziJobError,
   type OrchestrationV2ThreadProjection,
   type OziJobCard,
@@ -46,7 +50,8 @@ import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import * as ChildProcess from "effect/process/ChildProcess";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
-import { HttpClient } from "effect/http";
+import * as Base64 from "effect/encoding/Base64";
+import { HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http";
 import { answerRequest, connect, send, type Connection } from "../client.ts";
 import {
   bg,
@@ -102,6 +107,7 @@ const tokens = (count: number) =>
       : `${count}`;
 
 const appKeys: Record<string, KeyId[]> = {
+  "app.clipboard.pasteImage": ["ctrl+v"],
   "app.message.dequeue": ["alt+up"],
   "app.interrupt": ["escape"],
   "app.clear": ["ctrl+c"],
@@ -197,7 +203,8 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
   const is = (id: string, data: string) =>
     (userKeys[id] ?? appKeys[id] ?? []).some((key) => matchesKey(data, key));
   useTheme(appearance.custom ?? builtinThemes[appearance.name] ?? builtinThemes.dark!);
-  const tui = new TuiMainScreen(new ProcessTerminal());
+  const terminal = new ProcessTerminal();
+  const tui = new TuiMainScreen(terminal);
   const chat = new Container();
   const pending = new Text("", 1, 0);
   const status = new Container();
@@ -235,6 +242,47 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
   let session: Fiber.Fiber<unknown, unknown> | null = null;
   const rows = new Map<string, Row>();
   const outputs = new Map<string, string>();
+  const images = new Map<string, { data: string; mimeType: string } | null>();
+  const imageParts = (attachments: ReadonlyArray<ChatAttachment>) =>
+    attachments.flatMap((attachment): Component[] => {
+      if (attachment.type !== "image") return [];
+      const cached = images.get(attachment.id);
+      if (cached === undefined && connection) {
+        images.set(attachment.id, null);
+        const current = connection;
+        run(
+          Effect.gen(function* () {
+            const { relativeUrl } = yield* current.client[W.assetsCreateUrl]({
+              resource: {
+                _tag: "attachment",
+                attachmentId: attachment.id,
+                mimeType: attachment.mimeType,
+                disposition: "inline",
+              },
+            });
+            const http = yield* HttpClient.HttpClient;
+            const response = yield* http
+              .execute(HttpClientRequest.get(new URL(relativeUrl, current.state.origin).toString()))
+              .pipe(Effect.flatMap(HttpClientResponse.filterStatusOk));
+            images.set(attachment.id, {
+              data: Base64.encode(new Uint8Array(yield* response.arrayBuffer)),
+              mimeType: attachment.mimeType,
+            });
+            redraw();
+          }).pipe(Effect.catchCause(() => Effect.void)),
+        );
+      }
+      return cached
+        ? [
+            new Image(
+              cached.data,
+              cached.mimeType,
+              { fallbackColor: (text) => fg("muted", text) },
+              { maxWidthCells: 60, maxHeightCells: 20, filename: attachment.name },
+            ),
+          ]
+        : [];
+    });
 
   const notice = (text: string, tone: "muted" | "red" | "yellow" = "muted") => {
     chat.addChild(new Spacer(1));
@@ -348,23 +396,26 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
         item.text,
         ...(item.attachments ?? []).map((file) => `_attached ${file.name}_`),
       ].join("\n\n");
+      const pictures = imageParts(item.attachments ?? []);
       if (item.type === "user_message")
         return {
-          key: text,
+          key: `${text}\u0000${pictures.length}`,
           parts: [
             new Markdown(text, 1, 1, markdown, {
               color: (content) => fg("text", content),
               bgColor: (content) => bg("userBg", content),
             }),
+            ...pictures,
           ],
         };
       const checking =
         projection?.runs.find((run) => run.id === item.runId)?.completionCheck?.state ===
         "checking";
       return {
-        key: `${text}\u0000${checking}`,
+        key: `${text}\u0000${checking}\u0000${pictures.length}`,
         parts: [
           new Markdown(text.trim(), 1, 0, markdown),
+          ...pictures,
           ...(checking ? [new Text(fg("dim", "unchecked"), 1, 0)] : []),
         ],
       };
@@ -711,6 +762,7 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
     "Enter send, or steer while main works · Alt+Enter queue a follow-up · Shift+Enter new line",
     "Esc stop main, or back to main · Ctrl+C clear, twice to exit · Ctrl+D exit when empty",
     "Ctrl+T show or hide thinking · Ctrl+O expand tool output · Ctrl+G external editor · Ctrl+Z suspend · Alt+Up restore queued messages",
+    "Ctrl+V paste files, images or text · /copy copy main's last reply · /session conversation stats",
     "/jobs job cards · /attach <path> attach a file · /stop stop · /hotkeys keys · /quit exit",
     "Other /commands go to main: Pi prompt templates, /skill:name and extension commands",
   ].join("\n");
@@ -748,6 +800,63 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
           }),
         ),
       ),
+    );
+
+  const copyLast = () => {
+    const last = projection?.visibleTurnItems.findLast(
+      (row) => row.item.type === "assistant_message",
+    )?.item;
+    if (last?.type !== "assistant_message") return notice("Nothing to copy yet.", "red");
+    terminal.write(`\x1b]52;c;${Base64.encode(last.text)}\x07`);
+    void getNativeClipboard()
+      ?.setText?.(last.text)
+      .catch(() => undefined);
+    notice("Copied main's last reply.");
+  };
+
+  const sessionInfo = () => {
+    const items = projection?.visibleTurnItems.map((row) => row.item) ?? [];
+    const usage =
+      projection?.providerTurns.findLast((turn) => turn.tokenUsage)?.tokenUsage ??
+      projection?.providerThreads.findLast((thread) => thread.contextUsage)?.contextUsage;
+    const selection = projection?.thread.modelSelection;
+    return [
+      `${view.threadId === OZI_MAIN_THREAD_ID ? "main" : `job: ${view.title}`} · ${selection?.model ?? "unknown model"} · ${selection?.options?.map((option) => `${option.id} ${option.value}`).join(", ") ?? ""}`,
+      `messages: ${items.filter((item) => item.type === "user_message").length} from you, ${items.filter((item) => item.type === "assistant_message").length} from Ozi · tool calls: ${items.filter((item) => item.type === "command_execution" || item.type === "file_change" || item.type === "dynamic_tool").length} · runs: ${projection?.runs.length ?? 0}`,
+      usage
+        ? `tokens: ↑${tokens(usage.inputTokens ?? 0)} ↓${tokens(usage.outputTokens ?? 0)} · context ${tokens(usage.usedTokens)}${usage.maxTokens ? ` of ${tokens(usage.maxTokens)}` : ""}`
+        : "tokens: none reported yet",
+      `jobs: ${cards?.length ?? 0} (${(cards ?? []).filter((card) => card.column === "needs_you").length} need you)`,
+    ].join("\n");
+  };
+
+  const pasteClipboard = () =>
+    run(
+      Effect.gen(function* () {
+        const clipboard = getNativeClipboard();
+        if (!clipboard) return notice("No clipboard on this machine.", "red");
+        const paths = yield* Effect.tryPromise(
+          () => clipboard.getFilePaths?.() ?? Promise.resolve(undefined),
+        );
+        if (paths?.length) {
+          files = [...files, ...paths];
+          return renderStatus();
+        }
+        const image = yield* Effect.tryPromise(() => clipboard.getImage());
+        if (image) {
+          const fs = yield* FileSystem.FileSystem;
+          const path = yield* Path.Path;
+          const file = path.join(yield* fs.makeTempDirectory(), "pasted.png");
+          yield* fs.writeFile(file, image);
+          files = [...files, file];
+          return renderStatus();
+        }
+        const text = yield* Effect.tryPromise(() => clipboard.getText());
+        if (text) {
+          editor.insertTextAtCursor(text);
+          tui.requestRender();
+        }
+      }).pipe(Effect.catchCause((cause) => Effect.sync(() => notice(errorLine(cause), "red")))),
     );
 
   const dequeue = () => {
@@ -788,6 +897,8 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
         return renderStatus();
       }
       if (command === "hotkeys") return notice(hotkeys);
+      if (command === "copy") return copyLast();
+      if (command === "session") return notice(sessionInfo());
     }
     editor.addToHistory(text);
     const attached = files;
@@ -819,6 +930,10 @@ export const runTui = Effect.fn("ozi.tui")(function* (baseDir: Option.Option<str
         notice("Press Ctrl+C again to exit.");
       }
       tui.requestRender();
+      return { consume: true };
+    }
+    if (area.children[0] === editor && is("app.clipboard.pasteImage", data)) {
+      pasteClipboard();
       return { consume: true };
     }
     if (area.children[0] === editor && is("app.message.dequeue", data)) {

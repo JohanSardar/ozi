@@ -135,3 +135,27 @@ it("m9.tui-footer-dequeue shows model, thinking and usage and restores queued me
   const runs = (await h.thread("ozi-main")).runs;
   expect(runs.some((run) => run.status === "queued")).toBe(false);
 });
+
+it("m9.tui-media shows image attachments inline, copies main's reply and prints session stats", async () => {
+  const image = NodePath.join(h.root, "pixel.png");
+  await NodeFSP.writeFile(
+    image,
+    Buffer.from(
+      "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==",
+      "base64",
+    ),
+  );
+  await h.script([{ match: "look at this", role: "main", steps: [{ say: "copy-me reply" }] }]);
+  const terminal = await ready();
+  terminal.keys(`/attach ${image}\r`);
+  await terminal.waitFor("1 attached");
+  terminal.keys("look at this\r");
+  await terminal.waitFor("copy-me reply");
+  await terminal.waitFor("[Image: pixel.png [image/png] 1x1]");
+  terminal.keys("/copy\r");
+  await terminal.waitFor("Copied main's last reply.");
+  expect(terminal.raw).toContain(`\x1b]52;c;${Buffer.from("copy-me reply").toString("base64")}`);
+  const from = terminal.mark();
+  terminal.keys("/session\r");
+  await terminal.waitFor("messages: 1 from you, 1 from Ozi", from);
+});

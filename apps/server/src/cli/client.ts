@@ -389,6 +389,14 @@ const pairCommand = Command.make("pair", locationFlags).pipe(
 
 export type Connection = Effect.Success<ReturnType<typeof connect>>;
 
+const imageTypes: Record<string, "image/png" | "image/jpeg" | "image/gif" | "image/webp"> = {
+  png: "image/png",
+  jpg: "image/jpeg",
+  jpeg: "image/jpeg",
+  gif: "image/gif",
+  webp: "image/webp",
+};
+
 export const send = Effect.fn("ozi.send")(function* (
   { client, state }: Connection,
   flags: { text: string; thread?: Option.Option<ThreadId>; files?: ReadonlyArray<string> },
@@ -400,12 +408,20 @@ export const send = Effect.fn("ozi.send")(function* (
   const path = yield* Path.Path;
   for (const file of flags.files ?? []) {
     const bytes = yield* fs.readFile(file);
-    const metadata = {
-      type: "file" as const,
-      name: path.basename(file),
-      mimeType: "application/octet-stream",
-      sizeBytes: bytes.length,
-    };
+    const image = imageTypes[path.extname(file).slice(1).toLowerCase()];
+    const metadata = image
+      ? {
+          type: "image" as const,
+          name: path.basename(file),
+          mimeType: image,
+          sizeBytes: bytes.length,
+        }
+      : {
+          type: "file" as const,
+          name: path.basename(file),
+          mimeType: "application/octet-stream",
+          sizeBytes: bytes.length,
+        };
     const upload = yield* client[W.attachmentsCreateUploadUrl](metadata);
     const http = yield* HttpClient.HttpClient;
     yield* http
