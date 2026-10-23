@@ -374,6 +374,7 @@ function routeProviderEvent(
   });
 
   switch (event.type) {
+    case "extension_ui.updated":
     case "provider_session.updated":
       return [false, state];
     case "app_thread.created": {

@@ -8,6 +8,7 @@ import {
   createOrchestrationV2TurnItemVisibility,
   isOrchestrationV2TurnItemVisible,
 } from "@t3tools/shared/orchestrationV2Timeline";
+import { applyExtensionUiEvent } from "@t3tools/shared/extensionUi";
 
 export type ApplyOrchestrationV2ProjectionEventOptions = {
   readonly partialTimeline?: boolean;
@@ -220,6 +221,14 @@ export function applyOrchestrationV2ProjectionEvent(
   const latestLocalTurnOrdinal = options?.latestLocalTurnOrdinal;
   const base = { ...projection, updatedAt: event.occurredAt };
   switch (event.type) {
+    case "thread.extension-ui-updated":
+      return {
+        ...base,
+        thread: {
+          ...base.thread,
+          extensionUi: applyExtensionUiEvent(base.thread.extensionUi, event),
+        },
+      };
     case "thread.created":
     case "thread.archived":
     case "thread.unarchived":
@@ -235,11 +244,27 @@ export function applyOrchestrationV2ProjectionEvent(
     case "thread.interaction-mode-updated":
     case "thread.model-selection-updated":
     case "thread.provider-switched":
-      return { ...base, thread: event.payload };
+      return {
+        ...base,
+        thread: {
+          ...event.payload,
+          ...(base.thread.extensionUi === undefined
+            ? {}
+            : { extensionUi: base.thread.extensionUi }),
+        },
+      };
     // Visited tracking is read state, not activity: skip the updatedAt bump.
     case "thread.visited":
     case "thread.marked-unread":
-      return { ...projection, thread: event.payload };
+      return {
+        ...projection,
+        thread: {
+          ...event.payload,
+          ...(projection.thread.extensionUi === undefined
+            ? {}
+            : { extensionUi: projection.thread.extensionUi }),
+        },
+      };
     case "job.handled":
       return {
         ...base,

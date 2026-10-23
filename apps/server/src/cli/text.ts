@@ -61,6 +61,10 @@ export const thread = (projection: OrchestrationV2ThreadProjection) => {
     `Thread ${shortIds([projection.thread.id])(projection.thread.id)}: ${line(projection.thread.title)} (${run?.completionCheck?.state === "checking" ? "checking" : (run?.status ?? "idle")})`,
     `${selection.instanceId} ${selection.model} ${(selection.options ?? []).map((option) => `${option.id}=${option.value}`).join(" ")}`.trim(),
     ...messages(projection),
+    ...Object.values(projection.thread.extensionUi?.statuses ?? {}).map(line),
+    ...(projection.thread.extensionUi?.notices.slice(-3) ?? []).map(
+      (notice) => `${notice.type}: ${line(notice.message)}`,
+    ),
   ].join("\n");
 };
 

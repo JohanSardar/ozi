@@ -3,6 +3,10 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./extensionUi": {
+      "types": "./src/extensionUi.ts",
+      "import": "./src/extensionUi.ts"
+    },
     "./authScopeOptions": {
       "types": "./src/authScopeOptions.ts",
       "import": "./src/authScopeOptions.ts"

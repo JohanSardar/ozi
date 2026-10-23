@@ -51,34 +51,40 @@ export function Questions({
           });
       }}
     >
-      {item.questions.map((question) => (
-        <fieldset key={question.id} disabled={!connected || pending || sent}>
-          <legend>{question.question}</legend>
-          <div className={styles["ozi-options"]}>
-            {question.options.map((option) => (
-              <button
-                key={option.label}
-                type="button"
-                aria-pressed={answers[question.id] === option.label}
-                onClick={() =>
-                  setAnswers((previous) => ({ ...previous, [question.id]: option.label }))
+      {item.questions.map((question) => {
+        const Input = question.multiline ? "textarea" : "input";
+        return (
+          <fieldset key={question.id} disabled={!connected || pending || sent}>
+            <legend>{question.question}</legend>
+            <div className={styles["ozi-options"]}>
+              {question.options.map((option) => (
+                <button
+                  key={option.label}
+                  type="button"
+                  aria-pressed={answers[question.id] === (option.value ?? option.label)}
+                  onClick={() =>
+                    setAnswers((previous) => ({
+                      ...previous,
+                      [question.id]: option.value ?? option.label,
+                    }))
+                  }
+                >
+                  {option.label}
+                </button>
+              ))}
+            </div>
+            {question.allowCustomAnswer !== false && (
+              <Input
+                aria-label={question.question}
+                value={answers[question.id] ?? ""}
+                onChange={(event) =>
+                  setAnswers((previous) => ({ ...previous, [question.id]: event.target.value }))
                 }
-              >
-                {option.label}
-              </button>
-            ))}
-          </div>
-          {question.allowCustomAnswer !== false && (
-            <input
-              aria-label={question.question}
-              value={answers[question.id] ?? ""}
-              onChange={(event) =>
-                setAnswers((previous) => ({ ...previous, [question.id]: event.target.value }))
-              }
-            />
-          )}
-        </fieldset>
-      ))}
+              />
+            )}
+          </fieldset>
+        );
+      })}
       <div className={styles["ozi-actions"]}>
         <button
           type="submit"
@@ -86,7 +92,9 @@ export function Questions({
             !connected ||
             pending ||
             sent ||
-            item.questions.some((question) => !answers[question.id]?.trim())
+            item.questions.some(
+              (question) => question.required !== false && !answers[question.id]?.trim(),
+            )
           }
         >
           Send answers

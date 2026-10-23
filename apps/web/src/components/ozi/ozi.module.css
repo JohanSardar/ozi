@@ -273,6 +273,7 @@
   border-top: 1px solid var(--border);
 }
 .ozi-composer textarea,
+.ozi-request textarea,
 .ozi-request input {
   width: 100%;
   font: inherit;
@@ -283,7 +284,8 @@
   color: var(--foreground);
   resize: vertical;
 }
-.ozi-composer textarea {
+.ozi-composer textarea,
+.ozi-request textarea {
   min-height: 70px;
   max-height: 200px;
 }
