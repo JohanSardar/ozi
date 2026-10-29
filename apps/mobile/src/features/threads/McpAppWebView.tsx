@@ -552,7 +552,7 @@ export function ThreadMcpApp(props: {
             }
             if (!Predicate.isObject(envelope) || envelope.secret !== secret) return;
             const message = envelope.message;
-            if (Predicate.isObject(message) && message.t3 === "navigated") {
+            if (Predicate.isObject(message) && message.ozi === "navigated") {
               host?.dispose();
               setNavigatedAway(true);
               return;

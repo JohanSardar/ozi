@@ -847,7 +847,7 @@ const devRunnerCli = Command.make("dev-runner", {
   ),
   t3Home: Flag.String("home-dir").pipe(
     Flag.withDescription(
-      "Explicit Ozi data directory; runtime state is stored under userdata (equivalent to OZI_HOME). Inside a git worktree this defaults to that worktree's own .t3 so dev state stays off the shared home.",
+      "Explicit Ozi data directory; runtime state is stored under userdata (equivalent to OZI_HOME). In any git checkout this defaults to that checkout's own .ozi so dev state stays off the shared home.",
     ),
     Flag.optional,
     Flag.map(Option.getOrUndefined),

@@ -39,7 +39,7 @@ const runStep = Effect.fn("browserSetup.runStep")(function* (
   }
 });
 
-/** Under sudo, an unspecified home uses the invoking user's ~/.t3. */
+/** Under sudo, an unspecified home uses the invoking user's ~/.ozi. */
 const setupBaseDir = Effect.fn("browserSetup.baseDir")(function* (explicit: Option.Option<string>) {
   const env = yield* HostProcess.Environment;
   const raw = Option.getOrUndefined(explicit) ?? env.OZI_HOME;

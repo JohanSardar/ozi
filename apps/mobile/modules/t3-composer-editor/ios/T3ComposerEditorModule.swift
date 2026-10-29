@@ -2,7 +2,7 @@ import ExpoModulesCore
 import UIKit
 
 enum T3ComposerClipboard {
-  static let fragmentType = "app.t3.context-fragment"
+  static let fragmentType = "app.ozi.context-fragment"
 
   static func write(text: String, fragment: String) {
     var items: [String: Any] = ["public.utf8-plain-text": text]

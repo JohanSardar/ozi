@@ -260,7 +260,7 @@ export function MobileEnrichedMarkdownText(props: SelectableMarkdownTextProps) {
       htmlAttributes: {
         "data-t3-context-fragment": encodeURIComponent(props.contextClipboardFragment!),
       },
-      mimeTypes: { "app.t3.context-fragment": props.contextClipboardFragment! },
+      mimeTypes: { "app.ozi.context-fragment": props.contextClipboardFragment! },
     };
   }, [props.contextClipboardFragment, props.markdown]);
   const { fontScale } = useWindowDimensions();

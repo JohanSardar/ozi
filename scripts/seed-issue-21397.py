@@ -5,7 +5,7 @@ Copies a migrated statev2.sqlite (default: this worktree's .t3, with dev stopped
 run dev once first to migrate it) into NEW_DIR/userdata, then replaces every
 thread/project projection in that copy with a synthetic stopped usage-limit run.
 The source is only read as bytes, never opened by SQLite, so it stays unchanged.
-NEW_DIR must not exist and must not be under the live ~/.t3. Then run the printed
+NEW_DIR must not exist and must not be under the live ~/.ozi. Then run the printed
 `vp run dev --home-dir NEW_DIR`.
 
 Fixture times are frozen around the evidence clock, 2026-10-22T19:00:00Z (usage
