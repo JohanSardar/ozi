@@ -1,3 +1,4 @@
+import { ChatSessionInput, ChatSessionResult, ChatSessionError, ChatPrintInput, ChatPrintEvent } from "./chatSessions.ts";
 import {
   OrchestrationV2SearchThreadError,
   OrchestrationV2SearchThreadInput,
@@ -413,6 +414,8 @@ export const WS_METHODS = {
 
   filesystemBrowse: "filesystem.browse",
   filesystemGetMetadata: "filesystem.getMetadata",
+  chatSessionsExecute: "chatSessions.execute",
+  chatSessionsPrint: "chatSessions.print",
   agentSessionsScan: "agentSessions.scan",
   agentSessionsImport: "agentSessions.import",
   assetsCreateUrl: "assets.createUrl",
@@ -1932,7 +1935,16 @@ export class RpcScopeAuthorization extends RpcMiddleware.Service<RpcScopeAuthori
   { error: EnvironmentAuthorizationError },
 ) {}
 
+const WsChatSessionsExecuteRpc = Rpc.make(WS_METHODS.chatSessionsExecute, {
+  payload: ChatSessionInput, success: ChatSessionResult, error: Schema.Union([ChatSessionError, EnvironmentAuthorizationError]),
+});
+const WsChatSessionsPrintRpc = Rpc.make(WS_METHODS.chatSessionsPrint, {
+  payload: ChatPrintInput, success: ChatPrintEvent, stream: true, error: Schema.Union([ChatSessionError, EnvironmentAuthorizationError]),
+});
+
 export const WsRpcGroup = RpcGroup.make(
+  WsChatSessionsExecuteRpc,
+  WsChatSessionsPrintRpc,
   WsGuestShareCreateRpc,
   WsServerProbeRpc,
   WsServerGetConfigRpc,

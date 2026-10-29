@@ -86,7 +86,7 @@ function dateTime(value: string): DateTime.Utc {
   return DateTime.makeUnsafe(value);
 }
 
-function messageEvents(input: {
+export function messageEvents(input: {
   readonly threadId: ThreadId;
   readonly index: number;
   readonly message: AgentSessionScanner.AgentSessionThreadMessage;
