@@ -55,9 +55,9 @@ for (const prefix of [
     assert.equal(result.stdout, "::add-mask::fixture-token\n");
     assert.equal(
       result.envFile,
-      "T3CODE_RELAY_CLIENT_OTLP_TRACES_URL=https://example.invalid/traces\n" +
-        "T3CODE_RELAY_CLIENT_OTLP_TRACES_DATASET=fixture-dataset\n" +
-        "T3CODE_RELAY_CLIENT_OTLP_TRACES_TOKEN=fixture-token\n",
+      "OZI_RELAY_CLIENT_OTLP_TRACES_URL=https://example.invalid/traces\n" +
+        "OZI_RELAY_CLIENT_OTLP_TRACES_DATASET=fixture-dataset\n" +
+        "OZI_RELAY_CLIENT_OTLP_TRACES_TOKEN=fixture-token\n",
     );
   });
 }
