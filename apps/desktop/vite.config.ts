@@ -103,7 +103,12 @@ export default defineConfig({
       dts: false,
       sourcemap: true,
       outExtensions: () => ({ js: ".cjs" }),
-      define: publicConfigDefine,
+      define: {
+        ...publicConfigDefine,
+        ...(shouldLaunchElectronAfterPack && process.env.OZI_DESKTOP_TEST_PLATFORM === "darwin"
+          ? { "process.platform": JSON.stringify("darwin") }
+          : {}),
+      },
       entry: ["src/preload.ts"],
       deps: {
         // Sandboxed preloads cannot resolve imports inside ASAR; bundle Clerk's bridge.

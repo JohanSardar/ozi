@@ -302,6 +302,10 @@ export default defineConfig({
     },
     overrides: [
       {
+        files: ["e2e/g3.desktop-dev.test.ts"],
+        rules: { "t3code/no-wall-clock-in-tests": "off" },
+      },
+      {
         files: [
           "**/*.{test,spec,testkit}.{ts,tsx}",
           "**/{test,tests,testkit,testing,fixtures,integration}/**",
@@ -358,7 +362,11 @@ export default defineConfig({
         rules: { "t3code/no-rpc-permission-bypass": "off" },
       },
       {
-        files: ["packages/shared/src/HostProcess.ts"],
+        files: [
+          "packages/shared/src/HostProcess.ts",
+          "apps/desktop/scripts/dev-electron.mjs",
+          "e2e/g3.desktop-dev.test.ts",
+        ],
         rules: { "t3code/no-global-process-runtime": "off" },
       },
       {

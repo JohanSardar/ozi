@@ -12,7 +12,7 @@ Ozi splits into a GUI that runs any harness and the Ozi harness. The GUI moves t
 
 - Port the client onto T3 Code v0.1.5's own components: sidebar, chat view, work log, composer, attachments (images, video, files), queued runs, settings window, themes. Copy their code; remove projects, git, worktrees, diffs and devices.
 - Rename `t3` to `ozi` in the MCP server name, tool names (`t3_thread_*`, `t3_queue_*`, …) and descriptions, which also lose T3 examples and project wording.
-- Nothing may sit under the macOS window buttons; the sidebar header keeps their native 90-point inset clear, including after zoom and reload.
+- Nothing may sit under the macOS window buttons; the sidebar header keeps their native 90-point inset clear, including after zoom and reload. Desktop automation runs under Xvfb on Linux with Playwright Electron; the macOS layout is forced there for verification. Test-only keychain switches stay in the dev launcher.
 - No pills, coloured dots or monospace capital labels. Working shows as a thin spinner; labels are plain sentence case.
 
 ## Layout

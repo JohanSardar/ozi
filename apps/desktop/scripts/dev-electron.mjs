@@ -67,6 +67,14 @@ await waitForResources({
 const childEnv = { ...process.env };
 delete childEnv.ELECTRON_RUN_AS_NODE;
 const automation = process.env.OZI_DESKTOP_AUTOMATION === "1";
+const testArgs =
+  process.env.OZI_DESKTOP_TEST === "1"
+    ? process.platform === "darwin"
+      ? ["--use-mock-keychain"]
+      : process.platform === "linux"
+        ? ["--password-store=basic", "--ozone-platform=x11"]
+        : []
+    : [];
 const devProtocolClient = automation ? null : resolveDevProtocolClient();
 if (devProtocolClient) {
   childEnv.OZI_DESKTOP_APP_USER_MODEL_ID = devProtocolClient.appBundleId;
@@ -86,8 +94,8 @@ function startApp() {
   }
 
   const electronArgs = remoteDebuggingPort
-    ? [`--remote-debugging-port=${remoteDebuggingPort}`]
-    : [];
+    ? [...testArgs, `--remote-debugging-port=${remoteDebuggingPort}`]
+    : testArgs;
   const launchArgs = devProtocolClient
     ? electronArgs
     : [...electronArgs, `--ozi-dev-root=${desktopDir}`, "dist-electron/main.cjs"];
@@ -233,7 +241,9 @@ if (automation) {
           "OZI_TELEMETRY_ENABLED",
         ].map((name) => [name, childEnv[name]]),
       ),
-      ...resolveElectronLaunchCommand(["dist-electron/main.cjs"], { useLauncher: false }),
+      ...resolveElectronLaunchCommand([...testArgs, "dist-electron/main.cjs"], {
+        useLauncher: false,
+      }),
     })}`,
   );
 } else {
