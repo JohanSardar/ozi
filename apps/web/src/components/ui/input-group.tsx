@@ -65,7 +65,7 @@ const inputGroupAddonVariants = cva(
     variants: {
       inset: {
         default: null,
-        pill: "[&_button]:rounded-full",
+        pill: "[&_button]:rounded-sm",
       },
       align: {
         "block-end":

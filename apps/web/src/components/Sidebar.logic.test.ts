@@ -442,19 +442,19 @@ describe("resolveThreadStatusPill", () => {
     },
   };
 
-  it("shows an active thread wait without a pulse and resumes Working when it ends", () => {
+  it("shows an active thread wait without a spinner and resumes Working when it ends", () => {
     const blocked = { ...baseThread, blockedOnThreadWait: true };
     expect(resolveSidebarThreadStatus(blocked)).toBe("waiting");
     expect(resolveThreadStatusPill({ thread: blocked })).toMatchObject({
       label: "Waiting",
-      pulse: false,
+      spinner: false,
     });
 
     const resumed = { ...blocked, blockedOnThreadWait: false };
     expect(resolveSidebarThreadStatus(resumed)).toBe("working");
     expect(resolveThreadStatusPill({ thread: resumed })).toMatchObject({
       label: "Working",
-      pulse: true,
+      spinner: true,
     });
   });
 
@@ -475,9 +475,7 @@ describe("resolveThreadStatusPill", () => {
       }),
     ).toMatchObject({
       label: "Waiting",
-      colorClass: "text-sidebar-muted-foreground",
-      dotClass: "bg-sidebar-muted-foreground",
-      pulse: false,
+      spinner: false,
     });
   });
 
@@ -495,7 +493,7 @@ describe("resolveThreadStatusPill", () => {
           },
         },
       }),
-    ).toMatchObject({ label: "Plan Ready", pulse: false });
+    ).toMatchObject({ label: "Plan ready", spinner: false });
   });
 
   it("does not manufacture completed state without a client visit marker", () => {
@@ -529,7 +527,7 @@ describe("resolveThreadStatusPill", () => {
           },
         },
       }),
-    ).toMatchObject({ label: "Completed", pulse: false });
+    ).toMatchObject({ label: "Completed", spinner: false });
   });
 
   it("shows failed, not completed, when the unseen run failed", () => {
@@ -548,7 +546,7 @@ describe("resolveThreadStatusPill", () => {
           },
         },
       }),
-    ).toMatchObject({ label: "Failed", pulse: false });
+    ).toMatchObject({ label: "Failed", spinner: false });
   });
 
   it("shows failed, not plan ready, when a plan run proposed a plan and then failed", () => {
@@ -584,9 +582,7 @@ describe("resolveProjectStatusIndicator", () => {
   it("ranks waiting below active work and above plan-ready", () => {
     const waiting = {
       label: "Waiting" as const,
-      colorClass: "text-sidebar-muted-foreground",
-      dotClass: "bg-sidebar-muted-foreground",
-      pulse: false,
+      spinner: false,
     };
 
     expect(
@@ -594,19 +590,15 @@ describe("resolveProjectStatusIndicator", () => {
         waiting,
         {
           label: "Working",
-          colorClass: "text-sky-600",
-          dotClass: "bg-sky-500",
-          pulse: true,
+          spinner: true,
         },
       ]),
     ).toMatchObject({ label: "Working" });
     expect(
       resolveProjectStatusIndicator([
         {
-          label: "Plan Ready",
-          colorClass: "text-violet-600",
-          dotClass: "bg-violet-500",
-          pulse: false,
+          label: "Plan ready",
+          spinner: false,
         },
         waiting,
       ]),

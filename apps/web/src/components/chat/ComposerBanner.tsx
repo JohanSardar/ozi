@@ -264,12 +264,6 @@ function Body({ className, ...props }: ComponentProps<"div">) {
   return <div className={cn("min-w-0 ps-8 sm:ps-7", className)} {...props} />;
 }
 
-function Dot({ className, ...props }: ComponentProps<"span">) {
-  return (
-    <span className={cn("size-1.5 flex-none rounded-full bg-current", className)} {...props} />
-  );
-}
-
 function ToggleIcon({ expanded }: { expanded: boolean }) {
   return (
     <Button
@@ -307,7 +301,6 @@ export const ComposerBanner = {
   Scroll,
   Count,
   Body,
-  Dot,
   ToggleIcon,
   Dismiss,
 };

@@ -28,7 +28,6 @@ import { cn } from "~/lib/utils";
 import { relayEnvironmentDiscovery } from "~/state/relay";
 import { useRelayEnvironmentDiscovery } from "~/state/environments";
 import { useAtomCommand } from "~/state/use-atom-command";
-import { ConnectionStatusDot } from "../ConnectionStatusDot";
 import { EnvironmentMachineIcon } from "../EnvironmentMachineIcon";
 import { ITEM_ROW_CLASSNAME, ITEM_ROW_INNER_CLASSNAME } from "../settings/itemRows";
 import { Checkbox } from "../ui/checkbox";
@@ -332,21 +331,6 @@ export function CloudEnvironmentConnectRows({
       savedEnvironment?.serverConfig ??
         (descriptor === undefined ? null : { environment: descriptor }),
     );
-    const dotClassName = savedConnection
-      ? savedConnection.tone === "connected"
-        ? "bg-success"
-        : savedConnection.tone === "connecting"
-          ? "bg-warning"
-          : savedConnection.tone === "error"
-            ? "bg-destructive"
-            : "bg-muted-foreground/35"
-      : availability === "online"
-        ? "bg-success"
-        : availability === "error"
-          ? "bg-destructive"
-          : availability === "checking"
-            ? "bg-warning"
-            : "bg-muted-foreground/35";
     const notAdded = savedWithoutRelay.has(environment.environmentId)
       ? "Saved without Ozi Connect"
       : "Not added";
@@ -425,30 +409,6 @@ export function CloudEnvironmentConnectRows({
         <div className={ITEM_ROW_INNER_CLASSNAME}>
           <div className="min-w-0">
             <div className="flex items-center gap-2">
-              <ConnectionStatusDot
-                dotClassName={dotClassName}
-                pingClassName={
-                  savedConnection?.tone === "connecting" ||
-                  (savedConnection === null && availability === "checking")
-                    ? "bg-warning/60 duration-2000"
-                    : null
-                }
-                tooltipText={
-                  unsupportedDetail !== null
-                    ? unsupportedDetail
-                    : offlineReason !== null
-                      ? offlineReason
-                      : savedConnection
-                        ? savedConnection.statusText
-                        : availability === "online"
-                          ? "Relay online"
-                          : availability === "offline"
-                            ? "Relay offline"
-                            : availability === "checking"
-                              ? "Checking relay status"
-                              : (Option.getOrNull(error)?.message ?? "Relay status unavailable")
-                }
-              />
               <EnvironmentMachineIcon
                 aria-hidden
                 kind={machineKind}

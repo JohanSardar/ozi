@@ -24,7 +24,6 @@ import { useEnvironmentQuery } from "~/state/query";
 import { useEnvironmentScope, usePreparedConnection } from "~/state/session";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { accessConfig } from "../auth/ConnectAgentSurface";
-import { ConnectionStatusDot } from "../ConnectionStatusDot";
 import { Button } from "../ui/button";
 import {
   Dialog,
@@ -129,19 +128,6 @@ function LinkedEnvironmentRow({
       <div className={ITEM_ROW_INNER_CLASSNAME}>
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex min-h-5 items-center gap-1.5">
-            <ConnectionStatusDot
-              tooltipText={status}
-              dotClassName={
-                health.kind === "reachable"
-                  ? health.expiresInDays === null
-                    ? "bg-success"
-                    : "bg-warning"
-                  : health.kind === "expired" || health.kind === "failing"
-                    ? "bg-destructive"
-                    : "bg-muted-foreground/30"
-              }
-              pingClassName={null}
-            />
             <h3 className="text-sm font-medium text-foreground">{link.label}</h3>
           </div>
           <p className="text-xs text-muted-foreground">

@@ -7,7 +7,7 @@ const skeletonVariants = cva("bg-muted-foreground/15 motion-safe:animate-skeleto
     shape: {
       block: "rounded-sm",
       card: "rounded-lg",
-      pill: "rounded-full",
+      pill: "rounded-sm",
     },
   },
   defaultVariants: { shape: "block" },

@@ -230,7 +230,7 @@ function ThemeLibraryCard({
                         >
                           <span className="truncate">{selected.option.label}</span>
                           {options.length > 1 ? (
-                            <span className="shrink-0 rounded-full bg-muted px-1 text-3xs text-muted-foreground">
+                            <span className="shrink-0 text-3xs text-muted-foreground">
                               +{options.length - 1}
                             </span>
                           ) : null}

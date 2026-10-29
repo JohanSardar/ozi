@@ -281,9 +281,7 @@ function UserMessageProjectedStatus({ row }: { row: Extract<TimelineRow, { kind:
     return null;
   return (
     <div className="me-1 flex items-center gap-1.5">
-      <span className="rounded-full border border-destructive/25 bg-destructive/8 px-1.5 py-0.5 text-3xs font-medium text-destructive">
-        {status}
-      </span>
+      <span className="inline-block text-xs text-destructive first-letter:uppercase">{status}</span>
     </div>
   );
 }
