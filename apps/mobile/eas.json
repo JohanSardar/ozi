@@ -59,7 +59,7 @@
     "testflight": {
       "extends": "production",
       "env": {
-        "T3CODE_MOBILE_VERSION": "3.0.0"
+        "OZI_MOBILE_VERSION": "3.0.0"
       }
     },
     "production": {
@@ -67,7 +67,7 @@
       "env": {
         "APP_VARIANT": "production",
         "NODE_OPTIONS": "--max-old-space-size=4096",
-        "SOURCEMAP_FILE": "/tmp/t3code-ios-main.jsbundle.map"
+        "SOURCEMAP_FILE": "/tmp/ozi-ios-main.jsbundle.map"
       },
       "channel": "production",
       "environment": "production",
@@ -82,9 +82,6 @@
       "extends": "production"
     },
     "production": {
-      "ios": {
-        "ascAppId": "6787819824"
-      },
       "android": {
         "track": "internal"
       }

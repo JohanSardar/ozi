@@ -32,8 +32,8 @@ import {
 
 const REPO_ROOT = NodePath.resolve(NodePath.dirname(NodeURL.fileURLToPath(import.meta.url)), "..");
 const MOBILE_ROOT = NodePath.join(REPO_ROOT, "apps/mobile");
-const ANDROID_PACKAGE = "com.t3tools.t3code";
-const APP_SCHEME = "t3code";
+const ANDROID_PACKAGE = "com.ozi.app";
+const APP_SCHEME = "ozi";
 // Manifest flags update expo-dev-launcher preferences before loading, hiding dev chrome in captures.
 const DEV_CLIENT_LAUNCH_FLAGS = "disableOnboarding=1&disableFab=1&disableAutoLaunch=1";
 const IOS_READY_FILENAME = "T3ShowcaseReadyScene";
@@ -65,7 +65,7 @@ const MOBILE_BUILD_ENV = {
   APP_VARIANT: "production",
   EXPO_NO_GIT_STATUS: "1",
   // iPad self-rotation needs the capture build's fullscreen mode (app.config.ts).
-  T3_SHOWCASE_CAPTURE_BUILD: "1",
+  OZI_SHOWCASE_CAPTURE_BUILD: "1",
   JAVA_HOME:
     NodeProcess.env.JAVA_HOME ??
     (NodeProcess.platform === "darwin"

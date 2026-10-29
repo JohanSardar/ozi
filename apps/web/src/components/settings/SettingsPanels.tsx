@@ -1999,13 +1999,14 @@ export function AboutSettingsPanel() {
             />
           </>
         )}
+        <p>Forked from T3 Code.</p>
         <MobileAppSettingsRow />
       </SettingsSection>
 
       <SettingsSection id="legal" title="Legal">
         <SettingsRow
           {...searchableSetting("privacy-policy")}
-          description="How we handle your data, including the anonymous usage data T3 Code collects."
+          description="How Ozi stores your data and connects to providers."
           control={
             <Button
               render={<a href={PRIVACY_POLICY_URL} target="_blank" rel="noreferrer noopener" />}
@@ -2018,7 +2019,7 @@ export function AboutSettingsPanel() {
         />
         <SettingsRow
           {...searchableSetting("open-source-licenses")}
-          description="Notices for dependencies, assets, and optional tools used by T3 Code."
+          description="Notices for dependencies, assets, and optional tools used by Ozi."
           control={
             <Button
               render={<Link to="/settings/open-source-licenses" />}

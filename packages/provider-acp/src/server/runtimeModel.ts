@@ -10,7 +10,7 @@ import {
   deriveToolActivityPresentation,
   mergeToolActivityData,
 } from "@t3tools/shared/toolActivity";
-import { T3_MCP_TOOL_NAMES } from "@t3tools/shared/t3McpToolPresentation";
+import { OZI_MCP_TOOL_NAMES } from "@t3tools/shared/t3McpToolPresentation";
 import type {
   OrchestrationV2ProviderThreadNativeMetadata,
   ThreadTokenUsageSnapshot,
@@ -1067,10 +1067,10 @@ function acpMcpFallbackInput(value: string | undefined): Record<string, unknown>
 }
 
 // Known T3 inventory gates matches, so server-name separators can stay loose.
-const T3_MCP_TITLE_CALL =
+const OZI_MCP_TITLE_CALL =
   /^(?:mcp[-_]{1,2})?t3[-_ ]?code[-_.:/ ]{1,3}(?<tool>[A-Za-z0-9][A-Za-z0-9_.-]*)(?::.*)?$/i;
 
-const T3_MCP_TITLE_SUFFIX_CALL =
+const OZI_MCP_TITLE_SUFFIX_CALL =
   /^(?<tool>[A-Za-z0-9][A-Za-z0-9_.-]*?)(?: \(t3[-_ ]?code MCP Server\)(?::|$)|[-_.]t3[-_ ]?code$)/i;
 
 /**
@@ -1078,7 +1078,7 @@ const T3_MCP_TITLE_SUFFIX_CALL =
  * streamed JSON arguments. Require a name or JSON opening brace so built-ins
  * titled "<tool>: <description>" cannot impersonate an inventory entry.
  */
-const T3_MCP_BARE_TITLE_CALL = /^(?:Running )?(?<tool>[A-Za-z0-9_]+)(?::\s*\{|$)/;
+const OZI_MCP_BARE_TITLE_CALL = /^(?:Running )?(?<tool>[A-Za-z0-9_]+)(?::\s*\{|$)/;
 
 /** ACP lacks typed MCP calls; recognize provider metadata and terminal fallback commands. */
 export function extractMcpToolCallIdentity(
@@ -1103,7 +1103,7 @@ export function extractMcpToolCallIdentity(
   const metaServerId = typeof meta?.serverId === "string" ? meta.serverId.trim() : "";
   const metaToolName = typeof meta?.toolName === "string" ? meta.toolName.trim() : "";
   if (/^t3[-_ ]?code$/i.test(metaServerId) && metaToolName.length > 0) {
-    for (const knownTool of T3_MCP_TOOL_NAMES) {
+    for (const knownTool of OZI_MCP_TOOL_NAMES) {
       const boundary = metaToolName.length - knownTool.length - 1;
       if (
         metaToolName === knownTool ||
@@ -1141,11 +1141,11 @@ export function extractMcpToolCallIdentity(
     if (qualified?.[1] && qualified[2] && !/^t3[-_ ]?code$/i.test(qualified[1]))
       return { server: qualified[1], tool: qualified[2] };
     const match =
-      T3_MCP_TITLE_CALL.exec(trimmed) ??
-      T3_MCP_TITLE_SUFFIX_CALL.exec(trimmed) ??
-      T3_MCP_BARE_TITLE_CALL.exec(trimmed);
+      OZI_MCP_TITLE_CALL.exec(trimmed) ??
+      OZI_MCP_TITLE_SUFFIX_CALL.exec(trimmed) ??
+      OZI_MCP_BARE_TITLE_CALL.exec(trimmed);
     const candidateTool = match?.groups?.tool;
-    if (candidateTool !== undefined && T3_MCP_TOOL_NAMES.has(candidateTool)) {
+    if (candidateTool !== undefined && OZI_MCP_TOOL_NAMES.has(candidateTool)) {
       return { server: "t3-code", tool: candidateTool };
     }
   }

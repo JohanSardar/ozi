@@ -87,7 +87,7 @@ const PRICES = {
   "claude-opus-5-5": { input: 4, output: 20, cacheWrite: 5, cacheRead: 0.2 },
 };
 type PricedModel = keyof typeof PRICES;
-const T3_PREFIX = "mcp__t3-code__";
+const OZI_PREFIX = "mcp__t3-code__";
 const RUNTIME_MARKER = "<runtime_info>";
 const TOOL_LOADED = "Tool loaded.";
 const DEFERRED_LIST =
@@ -323,7 +323,7 @@ const toolResult = (id: string, content: unknown): Block => ({
 });
 const texts = (content: typeof Content.Type) =>
   typeof content === "string" ? [content] : content.flatMap((block) => block.text ?? []);
-const isT3Name = (name: string) => name.startsWith(T3_PREFIX) || name.startsWith("mcp__t3_code__");
+const isT3Name = (name: string) => name.startsWith(OZI_PREFIX) || name.startsWith("mcp__t3_code__");
 const hasTool = (tools: ReadonlyArray<ApiTool>, name: string) =>
   tools.some((tool) => tool.name === name);
 
@@ -340,7 +340,7 @@ const CODEX_NAMES: Readonly<Record<string, string>> = {
 export const normalizeToolName = (name: string) => {
   const bare = name.slice(name.lastIndexOf(".") + 1);
   return isT3Name(bare)
-    ? bare.slice(T3_PREFIX.length)
+    ? bare.slice(OZI_PREFIX.length)
     : (CODEX_NAMES[bare] ?? bare.slice(bare.lastIndexOf("_") + 1));
 };
 export const normalizeToolInput = (name: string, input: unknown) =>
@@ -366,7 +366,7 @@ const t3SourceTools: ReadonlyArray<Tool.Any> = [
   HtmlToolkit,
 ].flatMap((toolkit): ReadonlyArray<Tool.Any> => Object.values(toolkit.tools));
 const t3Tools: ReadonlyArray<ApiTool> = t3SourceTools.map((tool) => ({
-  name: `${T3_PREFIX}${tool.name}`,
+  name: `${OZI_PREFIX}${tool.name}`,
   description: Tool.getDescription(tool) ?? "",
   input_schema: advertisedJsonSchema(tool),
 }));
@@ -376,7 +376,7 @@ const enabledWhen = (predicate: () => boolean) =>
       .filter(
         (tool) => Context.getOrUndefined(tool.annotations, McpSchema.EnabledWhen) === predicate,
       )
-      .map((tool) => `${T3_PREFIX}${tool.name}`),
+      .map((tool) => `${OZI_PREFIX}${tool.name}`),
   );
 // T3 does not offer these to a delegated child, so its harness never lists them.
 const hiddenFromSubagents = enabledWhen(McpInvocationContext.hiddenFromSubagents);
@@ -984,7 +984,7 @@ const t3Default = (sample: Sample, name: string, input: Readonly<Record<string, 
       const home =
         /^\/(?:home|Users)\/[^/]+/.exec(sample.base.environment.cwd)?.[0] ?? "/home/user";
       return input.delivery === "file"
-        ? { status: "saved", file: `${home}/.t3/userdata/secrets/files/${id}` }
+        ? { status: "saved", file: `${home}/.ozi/userdata/secrets/files/${id}` }
         : { status: "saved", secretRef: `secret-ref:${id}` };
     }
     case "unlink_pull_request":

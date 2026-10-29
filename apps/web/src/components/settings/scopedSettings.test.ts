@@ -262,7 +262,7 @@ describe("scoped settings writes", () => {
     const unsupported = [
       {
         label: server.label,
-        message: "This environment does not support this setting. Update T3 Code on it.",
+        message: "This environment does not support this setting. Update Ozi on it.",
       },
     ];
 
@@ -557,7 +557,7 @@ describe("scoped settings mixed values", () => {
 describe("project overrides at environment scope", () => {
   const laptop = EnvironmentId.make("laptop");
   const fleet = ProjectId.make("fleet");
-  const t3 = ProjectId.make("t3");
+  const t3 = ProjectId.make("ozi");
   const environment = (
     environmentId: EnvironmentId,
     overrides: ServerSettings["projectSettingsOverrides"],

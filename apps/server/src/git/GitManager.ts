@@ -157,7 +157,7 @@ export class GitManager extends Context.Service<
       Scope.Scope
     >;
   }
->()("t3/git/GitManager") {}
+>()("ozi/git/GitManager") {}
 
 const COMMIT_TIMEOUT_MS = 10 * 60_000;
 const MAX_PROGRESS_TEXT_LENGTH = 500;
@@ -2298,7 +2298,7 @@ export const make = Effect.gen(function* () {
 
     const bodyFile = path.join(
       tempDir,
-      `t3code-pr-body-${process.pid}-${yield* randomUUIDv4(cwd)}.md`,
+      `ozi-pr-body-${process.pid}-${yield* randomUUIDv4(cwd)}.md`,
     );
     yield* fileSystem.writeFileString(bodyFile, generated.body).pipe(
       Effect.mapError(

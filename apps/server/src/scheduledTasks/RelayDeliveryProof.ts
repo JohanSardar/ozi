@@ -34,7 +34,7 @@ export class RelayDeliveryProof extends Context.Service<
       Option.Option<{ readonly deliveryId: string; readonly receivedAt: string }>
     >;
   }
->()("t3/scheduledTasks/RelayDeliveryProof") {}
+>()("ozi/scheduledTasks/RelayDeliveryProof") {}
 
 const make = Effect.gen(function* () {
   const secrets = yield* ServerSecretStore.ServerSecretStore;
@@ -42,8 +42,8 @@ const make = Effect.gen(function* () {
   const verify: RelayDeliveryProof["Service"]["verify"] = Effect.fn("webhook.verifyRelayDelivery")(
     function* (input) {
       const proof = input.headers[RELAY_HOOK_DELIVERY_HEADER];
-      const deliveryId = input.headers["x-t3-relay-delivery-id"];
-      const receivedAt = input.headers["x-t3-relay-received-at"];
+      const deliveryId = input.headers["x-ozi-relay-delivery-id"];
+      const receivedAt = input.headers["x-ozi-relay-received-at"];
       if (proof === undefined || deliveryId === undefined || receivedAt === undefined) {
         return Option.none();
       }

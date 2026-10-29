@@ -7,7 +7,7 @@ import { MobileClientsUserProfilePage } from "./MobileClientsUserProfilePage";
 import { T3ChatUserProfilePage } from "./T3ChatUserProfilePage";
 import { T3ConnectUserProfilePage } from "./T3ConnectUserProfilePage";
 
-export const T3_CONNECT_ACCOUNT_PAGES = [
+export const OZI_CONNECT_ACCOUNT_PAGES = [
   {
     label: "Mobile clients",
     url: "mobile-clients",
@@ -15,7 +15,7 @@ export const T3_CONNECT_ACCOUNT_PAGES = [
     content: <MobileClientsUserProfilePage />,
   },
   {
-    label: "T3 Connect",
+    label: "Ozi Connect",
     url: "t3-connect",
     icon: <ServerIcon className="size-4" />,
     content: <T3ConnectUserProfilePage />,
@@ -28,7 +28,7 @@ export const T3_CONNECT_ACCOUNT_PAGES = [
   },
 ] as const;
 
-export type T3ConnectAccountPageUrl = (typeof T3_CONNECT_ACCOUNT_PAGES)[number]["url"];
+export type T3ConnectAccountPageUrl = (typeof OZI_CONNECT_ACCOUNT_PAGES)[number]["url"];
 
 type PortalTargets = Readonly<Record<string, HTMLDivElement | undefined>>;
 
@@ -46,7 +46,7 @@ export function useT3ConnectAccountPage(): {
       setTargets((current) => ({ ...current, [key]: element }));
     clerk.openUserProfile({
       __experimental_startPath: `/${page}`,
-      customPages: T3_CONNECT_ACCOUNT_PAGES.map((page) => ({
+      customPages: OZI_CONNECT_ACCOUNT_PAGES.map((page) => ({
         label: page.label,
         url: page.url,
         mount: (element: HTMLDivElement) => setTarget(`content:${page.url}`, element),
@@ -57,7 +57,7 @@ export function useT3ConnectAccountPage(): {
     });
   };
 
-  const portals = T3_CONNECT_ACCOUNT_PAGES.flatMap((page) => {
+  const portals = OZI_CONNECT_ACCOUNT_PAGES.flatMap((page) => {
     const content = targets[`content:${page.url}`];
     const icon = targets[`icon:${page.url}`];
     return [

@@ -426,7 +426,7 @@ export const make = Effect.fn("SimlockDeviceHost.make")(function* (
       });
     }
     const suffix = (yield* Random.nextIntBetween(0, 0xffffff)).toString(16).padStart(6, "0");
-    const session = `t3-${suffix}`;
+    const session = `ozi-${suffix}`;
     const dir = path.join(hostDir, suffix);
     const configPath = path.join(dir, "agent-device.json");
     yield* writeAgentDeviceConfig(configPath, {

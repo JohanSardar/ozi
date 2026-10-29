@@ -25,7 +25,7 @@ import { ChildProcess, ChildProcessSpawner } from "effect/process";
 import {
   GitCommandError,
   type GitCommandFailureReason,
-  T3_PROJECT_FILE_NAME,
+  OZI_PROJECT_FILE_NAME,
   type ReviewDiffFileContentsInput,
   type ReviewDiffPreviewInput,
   type ReviewDiffFileStat,
@@ -665,7 +665,7 @@ const createTrace2Monitor = Effect.fnUntraced(function* (
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const traceFilePath = yield* fs.makeTempFileScoped({
-    prefix: `t3code-git-trace2-${process.pid}-`,
+    prefix: `ozi-git-trace2-${process.pid}-`,
     suffix: ".json",
   });
   const hookStartByChildKey = new Map<string, { hookName: string; startedAtMs: number }>();
@@ -2402,7 +2402,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
           );
           const indexPath = path.resolve(cwd, indexValue.trim());
           const directory = yield* fileSystem.makeTempDirectoryScoped({
-            prefix: "t3code-commit-index-",
+            prefix: "ozi-commit-index-",
           });
           const tempIndexPath = path.join(directory, "index");
           const env = { GIT_INDEX_FILE: tempIndexPath } satisfies NodeJS.ProcessEnv;
@@ -2906,7 +2906,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
       ? indexValue.trim()
       : path.resolve(cwd, indexValue.trim());
     const tempIndexPath = yield* fileSystem.makeTempFileScoped({
-      prefix: `t3code-review-index-${process.pid}-`,
+      prefix: `ozi-review-index-${process.pid}-`,
     });
     const indexExists = yield* fileSystem.exists(indexPath);
     if (indexExists) {
@@ -3878,7 +3878,7 @@ export const makeGitVcsDriverCore = Effect.fn("makeGitVcsDriverCore")(function* 
           options?.submodules ?? null,
           options?.submodules != null
             ? null
-            : yield* fileSystem.readFileString(path.join(worktreePath, T3_PROJECT_FILE_NAME)).pipe(
+            : yield* fileSystem.readFileString(path.join(worktreePath, OZI_PROJECT_FILE_NAME)).pipe(
                 Effect.flatMap((contents) => {
                   const file = parseT3ProjectFile(contents);
                   return file === null

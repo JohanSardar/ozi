@@ -10,7 +10,7 @@ import {
 } from "./appLinking";
 
 describe("shouldHandleAppLink", () => {
-  it.each(["t3code://", "t3code:///", "t3code-dev://", "t3code-preview://"])(
+  it.each(["ozi://", "ozi:///", "ozi-dev://", "ozi-preview://"])(
     "ignores scheme-only URL %s",
     (url) => {
       expect(shouldHandleAppLink(url, true)).toBe(false);
@@ -18,14 +18,14 @@ describe("shouldHandleAppLink", () => {
   );
 
   it.each([
-    "t3code://threads/env-1/thread-1",
-    "t3code://pair?pairingUrl=x",
-    "t3code-dev://settings/usage?tab=limits",
+    "ozi://threads/env-1/thread-1",
+    "ozi://pair?pairingUrl=x",
+    "ozi-dev://settings/usage?tab=limits",
   ])("handles path-bearing URL %s", (url) => {
     expect(shouldHandleAppLink(url, true)).toBe(true);
   });
 
-  it.each(["t3code://expo-development-client/?url=x", "t3code://expo-sharing/anything"])(
+  it.each(["ozi://expo-development-client/?url=x", "ozi://expo-sharing/anything"])(
     "ignores lifecycle URL %s",
     (url) => {
       expect(shouldHandleAppLink(url, true)).toBe(false);
@@ -35,10 +35,10 @@ describe("shouldHandleAppLink", () => {
 
 describe("cloud-only deep links", () => {
   it.each([
-    "t3code://connect-onboarding",
-    "t3code-dev://connect-onboarding/?source=x",
-    "t3code://settings/waitlist",
-    "t3code://settings/auth",
+    "ozi://connect-onboarding",
+    "ozi-dev://connect-onboarding/?source=x",
+    "ozi://settings/waitlist",
+    "ozi://settings/auth",
     "exp://192.168.1.2:8081/--/settings/auth",
   ])("ignores %s without cloud config", (url) => {
     expect(shouldHandleAppLink(url, false)).toBe(false);
@@ -46,11 +46,11 @@ describe("cloud-only deep links", () => {
   });
 
   it.each([
-    "t3code://settings",
-    "t3code://settings/authors",
-    "t3code://pair?next=settings/auth",
-    "t3code://threads/env/thread/files/scripts/connect-onboarding",
-    "t3code://new/draft/files/settings/auth",
+    "ozi://settings",
+    "ozi://settings/authors",
+    "ozi://pair?next=settings/auth",
+    "ozi://threads/env/thread/files/scripts/connect-onboarding",
+    "ozi://new/draft/files/settings/auth",
     "exp://192.168.1.2:8081/--/threads/env/thread/files/settings/waitlist",
   ])("still handles %s without cloud config", (url) => {
     expect(shouldHandleAppLink(url, false)).toBe(true);

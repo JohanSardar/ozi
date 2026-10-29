@@ -42,7 +42,7 @@ const runStep = Effect.fn("browserSetup.runStep")(function* (
 /** Under sudo, an unspecified home uses the invoking user's ~/.t3. */
 const setupBaseDir = Effect.fn("browserSetup.baseDir")(function* (explicit: Option.Option<string>) {
   const env = yield* HostProcess.Environment;
-  const raw = Option.getOrUndefined(explicit) ?? env.T3CODE_HOME;
+  const raw = Option.getOrUndefined(explicit) ?? env.OZI_HOME;
   if (raw !== undefined || env.SUDO_USER === undefined) return yield* resolveBaseDir(raw);
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
   const entry = yield* spawner
@@ -52,7 +52,7 @@ const setupBaseDir = Effect.fn("browserSetup.baseDir")(function* (explicit: Opti
     .pipe(Effect.orElseSucceed(() => ""));
   const home = entry.trim().split(":")[5];
   const path = yield* Path.Path;
-  return home ? path.join(home, ".t3") : yield* resolveBaseDir(undefined);
+  return home ? path.join(home, ".ozi") : yield* resolveBaseDir(undefined);
 });
 
 const aptOffers = Effect.fn("browserSetup.aptOffers")(function* (name: string) {
@@ -221,7 +221,7 @@ const browserSetupCommand = Command.make("setup", { baseDir: baseDirFlag }).pipe
           );
         }
         yield* Console.log(
-          "Installed the browser's fonts. Restart the T3 server if browser tabs were already open.",
+          "Installed the browser's fonts. Restart the Ozi server if browser tabs were already open.",
         );
       }
 

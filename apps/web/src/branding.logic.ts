@@ -8,7 +8,7 @@ export function formatAppDisplayName(input: {
     return input.baseName;
   }
 
-  return `${input.baseName} (${input.stageLabel})`;
+  return `${input.baseName} ${input.stageLabel}`;
 }
 
 export function resolveServerBackedAppStageLabel(input: {

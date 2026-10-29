@@ -1,6 +1,13 @@
 {
   "customNotices": [
     {
+      "name": "T3 Code",
+      "bundles": ["desktop", "web"],
+      "license": "MIT",
+      "sourceUrl": "https://github.com/pingdotgg/t3code",
+      "noticeFile": "LICENSE"
+    },
+    {
       "name": "opencode Office viewers",
       "bundles": ["web"],
       "license": "MIT",

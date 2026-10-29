@@ -102,7 +102,7 @@ const withDescriptorServer = <A, E, R>(
   Effect.acquireUseRelease(
     Effect.callback<NodeHttp.Server>((resume) => {
       const server = NodeHttp.createServer((request, response) => {
-        if (request.url === "/.well-known/t3/environment") {
+        if (request.url === "/.well-known/ozi/environment") {
           response.writeHead(200, { "content-type": "application/json" });
           response.end(JSON.stringify(descriptor));
           return;
@@ -122,7 +122,7 @@ const withDescriptorServer = <A, E, R>(
     (server) => Effect.sync(() => server.close()),
   );
 
-describe("t3 pair", () => {
+describe("ozi pair", () => {
   it.effect("publishes an IPv6-only server through Tailscale Serve when pairing", () =>
     withDescriptorServer(
       (origin) =>
@@ -136,7 +136,7 @@ describe("t3 pair", () => {
               if (command.args[0] === "serve") {
                 const target = command.args.at(-1)!;
                 const descriptor = yield* Effect.promise(async () =>
-                  (await fetch(new URL("/.well-known/t3/environment", target))).json(),
+                  (await fetch(new URL("/.well-known/ozi/environment", target))).json(),
                 );
                 expect(descriptor).toEqual(testDescriptor);
                 serving = true;
@@ -175,7 +175,7 @@ describe("t3 pair", () => {
                 if (String(input).startsWith(origin)) return fetch(input, init);
                 assert.equal(
                   String(input),
-                  "https://pair-test.tail.ts.net/.well-known/t3/environment",
+                  "https://pair-test.tail.ts.net/.well-known/ozi/environment",
                 );
                 return serving
                   ? Response.json(testDescriptor)
@@ -224,7 +224,7 @@ describe("t3 pair", () => {
           readonly scopes: ReadonlyArray<string>;
         }>;
         assert.equal(credentials.length, 1);
-        assert.equal(credentials[0]?.label, "t3 pair");
+        assert.equal(credentials[0]?.label, "ozi pair");
         assert.deepEqual(credentials[0]?.scopes, AuthStandardClientScopes);
       }),
     ).pipe(
@@ -287,7 +287,7 @@ describe("t3 pair", () => {
         const rendered = String(
           typeof error === "object" && error !== null && "cause" in error ? error.cause : error,
         );
-        assert.include(rendered, "No running T3 Code server found.");
+        assert.include(rendered, "No running Ozi server found.");
       }),
     ).pipe(Effect.provide(NodeServices.layer)),
   );
@@ -317,13 +317,13 @@ describe("t3 pair", () => {
           runCli(["pair"]).pipe(
             Effect.provideService(HostProcess.WorkingDirectory, worktree),
             Effect.provide(
-              ConfigProvider.layer(ConfigProvider.fromEnv({ env: { T3CODE_HOME: sharedHome } })),
+              ConfigProvider.layer(ConfigProvider.fromEnv({ env: { OZI_HOME: sharedHome } })),
             ),
             Effect.flip,
           ),
         );
 
-        assert.include(String(error), "No running T3 Code server found.");
+        assert.include(String(error), "No running Ozi server found.");
         assert.notInclude(String(error), sharedHome);
         assert.deepEqual(NodeFS.readdirSync(NodePath.join(sharedHome, "userdata")), [
           "server-runtime.json",
@@ -478,7 +478,7 @@ describe("auth scope options", () => {
       if (!CliError.isCliError(error) || error._tag !== "ShowHelp") {
         assert.fail(`Expected ShowHelp, got ${String(error)}`);
       }
-      assert.deepEqual(error.commandPath, ["t3", ...command]);
+      assert.deepEqual(error.commandPath, ["ozi", ...command]);
       const scopeError = error.errors[0];
       if (scopeError?._tag !== "InvalidValue") {
         assert.fail(`Expected InvalidValue, got ${String(scopeError?._tag)}`);

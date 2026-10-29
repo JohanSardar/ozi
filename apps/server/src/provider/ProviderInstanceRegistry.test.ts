@@ -230,7 +230,7 @@ describe("ProviderInstanceRegistry — multi-instance codex slice", () => {
           enabled: true,
           environment: [
             {
-              name: "T3_CODEX_COLLAB_SCRIPT",
+              name: "OZI_CODEX_COLLAB_SCRIPT",
               value: fixtures.codexScriptPath,
               sensitive: false,
             },
@@ -284,7 +284,7 @@ describe("ProviderInstanceRegistry — multi-instance codex slice", () => {
             driver: ProviderDriverKind.make("claudeAgent"),
             enabled: true,
             // Packaged desktop starts in $HOME, where some claude wrappers refuse to run.
-            environment: [{ name: "T3_CLAUDE_REQUIRED_CWD", value: stateDir, sensitive: false }],
+            environment: [{ name: "OZI_CLAUDE_REQUIRED_CWD", value: stateDir, sensitive: false }],
             config: makeClaudeConfig({
               enabled: true,
               binaryPath: fixtures.claudeBinaryPath,
@@ -481,9 +481,9 @@ describe("ProviderInstanceRegistry — multi-instance codex slice", () => {
             driver: ProviderDriverKind.make("claudeAgent"),
             enabled: true,
             environment: [
-              { name: "T3_CLAUDE_RESET_MARKER", value: marker, sensitive: false },
+              { name: "OZI_CLAUDE_RESET_MARKER", value: marker, sensitive: false },
               ...(claim.usageFailsAfterClaim
-                ? [{ name: "T3_CLAUDE_USAGE_FAILS_AFTER_CLAIM", value: "1", sensitive: false }]
+                ? [{ name: "OZI_CLAUDE_USAGE_FAILS_AFTER_CLAIM", value: "1", sensitive: false }]
                 : []),
             ],
             config: makeClaudeConfig({
@@ -546,15 +546,15 @@ describe("ProviderInstanceRegistry — multi-instance codex slice", () => {
           driver: ProviderDriverKind.make("claudeAgent"),
           enabled: true,
           environment: [
-            { name: "T3_CLAUDE_PROBE_LOG", value: probeLog, sensitive: false },
+            { name: "OZI_CLAUDE_PROBE_LOG", value: probeLog, sensitive: false },
             ...(state === "ready"
               ? []
               : [
                   {
                     name:
                       state === "signed-out"
-                        ? "T3_CLAUDE_LOGIN_MARKER"
-                        : "T3_CLAUDE_USAGE_FAILS_UNTIL",
+                        ? "OZI_CLAUDE_LOGIN_MARKER"
+                        : "OZI_CLAUDE_USAGE_FAILS_UNTIL",
                     value: recovered,
                     sensitive: false,
                   },

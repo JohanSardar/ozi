@@ -464,12 +464,12 @@ describe("OtlpHeadersFromString", () => {
     {
       name: "decodes percent-encoded values",
       input: "authorization=Basic%20abc%3D%3D,x-tenant=t3",
-      expected: { authorization: "Basic abc==", "x-tenant": "t3" },
+      expected: { authorization: "Basic abc==", "x-tenant": "ozi" },
     },
     {
       name: "ignores whitespace around separators",
       input: "authorization=Basic%20abc%3D%3D, x-tenant = t3 ,",
-      expected: { authorization: "Basic abc==", "x-tenant": "t3" },
+      expected: { authorization: "Basic abc==", "x-tenant": "ozi" },
     },
     {
       name: "keeps literal equals signs inside a value",

@@ -60,13 +60,13 @@ export class PortDiscovery extends Context.Service<
       input: PreviewStopLocalServerInput,
     ) => Effect.Effect<void, PreviewStopLocalServerError>;
   }
->()("t3/preview/PortScanner/PortDiscovery") {}
+>()("ozi/preview/PortScanner/PortDiscovery") {}
 
 /**
  * Agents launch with this set to their thread, and every job they start inherits it, so a
  * server stays attributed after its launching shell exits or the agent settles.
  */
-export const AGENT_THREAD_ENV = "T3CODE_THREAD_ID";
+export const AGENT_THREAD_ENV = "OZI_THREAD_ID";
 
 const POLL_INTERVAL = Duration.seconds(3);
 const LSOF_TIMEOUT_MS = 5_000;

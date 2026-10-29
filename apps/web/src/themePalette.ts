@@ -12,9 +12,9 @@ import {
   GROVE_THEME,
   IRIS_THEME,
   OCEAN_THEME,
-  T3_CHAT_THEME,
-  T3_CODE_LIGHT_THEME_COLORS,
-  T3_CODE_DARK_THEME_COLORS,
+  OZI_CHAT_THEME,
+  OZI_CODE_LIGHT_THEME_COLORS,
+  OZI_CODE_DARK_THEME_COLORS,
   RESERVED_THEME_IDS,
   THEME_COLOR_ROLES,
   type ThemeAppearance,
@@ -32,19 +32,19 @@ import {
 import { appAtomRegistry, subscribeAtomChanges } from "./rpc/atomRegistry";
 import { primaryServerEnvironmentThemesAtom } from "./state/server";
 
-export { EMBER_THEME, GROVE_THEME, IRIS_THEME, OCEAN_THEME, T3_CHAT_THEME, THEME_COLOR_ROLES };
+export { EMBER_THEME, GROVE_THEME, IRIS_THEME, OCEAN_THEME, OZI_CHAT_THEME, THEME_COLOR_ROLES };
 export type { ThemeAppearance, ThemeColorRole, ThemeColors, ThemeDefinition, ThemeVariants };
 
-const T3_CHAT_THEME_ID = "t3-chat" as const;
+const OZI_CHAT_THEME_ID = "t3-chat" as const;
 const GROVE_THEME_ID = "grove" as const;
 const OCEAN_THEME_ID = "ocean" as const;
 const EMBER_THEME_ID = "ember" as const;
 const IRIS_THEME_ID = "iris" as const;
 export const THEME_FILE_VERSION = 1 as const;
-export const CUSTOM_THEMES_STORAGE_KEY = "t3code:themes:v1";
-export const THEME_FOLLOW_SYSTEM_STORAGE_KEY = "t3code:theme-follow-system";
-export const THEME_APPEARANCE_MODE_STORAGE_KEY = "t3code:theme-appearance-mode";
-export const THEME_HALVES_STORAGE_KEY = "t3code:theme-halves:v1";
+export const CUSTOM_THEMES_STORAGE_KEY = "ozi:themes:v1";
+export const THEME_FOLLOW_SYSTEM_STORAGE_KEY = "ozi:theme-follow-system";
+export const THEME_APPEARANCE_MODE_STORAGE_KEY = "ozi:theme-appearance-mode";
+export const THEME_HALVES_STORAGE_KEY = "ozi:theme-halves:v1";
 
 const LEGACY_T3_CHAT_DARK_THEME_ID = "t3-chat-dark";
 
@@ -371,7 +371,7 @@ export function subscribeToCustomThemes(listener: () => void): () => void {
 }
 
 const LEGACY_THEME_ID_ALIASES: Readonly<Record<string, string>> = {
-  [LEGACY_T3_CHAT_DARK_THEME_ID]: T3_CHAT_THEME_ID,
+  [LEGACY_T3_CHAT_DARK_THEME_ID]: OZI_CHAT_THEME_ID,
   "t3-grove": GROVE_THEME_ID,
   "t3-ocean": OCEAN_THEME_ID,
   "t3-ember": EMBER_THEME_ID,
@@ -396,9 +396,9 @@ function legacyThemeMode(theme: ThemePreference): ThemeAppearance | null {
 
 export function getStandardThemeColors(appearance: ThemeAppearance): ThemeColors {
   if (appearance === "dark") {
-    return (standardDarkThemeColors ??= decodeThemeColors(T3_CODE_DARK_THEME_COLORS));
+    return (standardDarkThemeColors ??= decodeThemeColors(OZI_CODE_DARK_THEME_COLORS));
   }
-  return (standardLightThemeColors ??= decodeThemeColors(T3_CODE_LIGHT_THEME_COLORS));
+  return (standardLightThemeColors ??= decodeThemeColors(OZI_CODE_LIGHT_THEME_COLORS));
 }
 
 // index.css paints the light bubble a step darker than the shared palette mobile uses.
@@ -969,7 +969,7 @@ function standardMutedThemeText(
 }
 
 export function getDefaultThemeColors(appearance: ThemeAppearance): ThemeColors {
-  return appearance === "dark" ? T3_CHAT_THEME.variants!.dark! : T3_CHAT_THEME.colors;
+  return appearance === "dark" ? OZI_CHAT_THEME.variants!.dark! : OZI_CHAT_THEME.colors;
 }
 
 export function updateThemeColorFamily(

@@ -41,7 +41,7 @@ const layerServerSettings = () =>
     Layer.provideMerge(
       Layer.fresh(
         ServerConfig.layerTest(process.cwd(), {
-          prefix: "t3code-server-settings-test-",
+          prefix: "ozi-server-settings-test-",
         }),
       ),
     ),
@@ -54,7 +54,7 @@ const layerServerSettingsWithSecrets = () =>
     Layer.provideMerge(
       Layer.fresh(
         ServerConfig.layerTest(process.cwd(), {
-          prefix: "t3code-server-settings-test-",
+          prefix: "ozi-server-settings-test-",
         }),
       ),
     ),
@@ -1022,7 +1022,7 @@ it.layer(NodeServices.layer)("server settings", (it) => {
       Layer.provideMerge(
         Layer.fresh(
           ServerConfig.layerTest(process.cwd(), {
-            prefix: "t3code-inline-secret-failure-test-",
+            prefix: "ozi-inline-secret-failure-test-",
           }),
         ),
       ),
@@ -1419,7 +1419,7 @@ it.layer(NodeServices.layer)("server settings", (it) => {
       Layer.provideMerge(
         Layer.fresh(
           ServerConfig.layerTest(process.cwd(), {
-            prefix: "t3code-server-settings-legacy-failure-test-",
+            prefix: "ozi-server-settings-legacy-failure-test-",
           }),
         ),
       ),
@@ -1673,7 +1673,7 @@ it.layer(NodeServices.layer)("server settings", (it) => {
         Layer.provideMerge(
           Layer.fresh(
             ServerConfig.layerTest(process.cwd(), {
-              prefix: "t3code-server-settings-materialization-failure-test-",
+              prefix: "ozi-server-settings-materialization-failure-test-",
             }),
           ),
         ),

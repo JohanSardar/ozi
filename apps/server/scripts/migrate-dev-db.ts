@@ -4,7 +4,7 @@ import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as NodeOS from "node:os";
 import * as NodeURL from "node:url";
-import { resolveWorktreeT3Home } from "@t3tools/shared/devHome";
+import { resolveCheckoutOziHome } from "@t3tools/shared/devHome";
 import * as Console from "effect/Console";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
@@ -68,7 +68,7 @@ export class MigrateDevDbServerRunningError extends Schema.TaggedError<MigrateDe
   },
 ) {
   override get message(): string {
-    return `Dev database at '${this.databasePath}' is open by a running server (pid ${this.pid} per server-runtime.json). Stop that server first; if that pid is not actually a T3 server (stale descriptor, reused pid), delete the server-runtime.json next to the database and retry.`;
+    return `Dev database at '${this.databasePath}' is open by a running server (pid ${this.pid} per server-runtime.json). Stop that server first; if that pid is not actually a Ozi server (stale descriptor, reused pid), delete the server-runtime.json next to the database and retry.`;
   }
 }
 
@@ -439,7 +439,7 @@ export const runMigrateDevDb = Effect.fn("runMigrateDevDb")(function* (
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
 
-  const sharedHome = path.resolve(options.sharedHome ?? path.join(NodeOS.homedir(), ".t3"));
+  const sharedHome = path.resolve(options.sharedHome ?? path.join(NodeOS.homedir(), ".ozi"));
   const sourcePath = path.resolve(
     input.source ?? path.join(sharedHome, "userdata", "statev2.sqlite"),
   );
@@ -447,7 +447,7 @@ export const runMigrateDevDb = Effect.fn("runMigrateDevDb")(function* (
   const baseDir =
     input.baseDir !== undefined
       ? path.resolve(input.baseDir)
-      : yield* resolveWorktreeT3Home(process.cwd());
+      : yield* resolveCheckoutOziHome(process.cwd());
   if (baseDir === undefined) {
     return yield* new MigrateDevDbNotInWorktreeError();
   }
@@ -590,7 +590,7 @@ export const migrateDevDbCommand = Command.make(
     ),
     source: Flag.String("source").pipe(
       Flag.optional,
-      Flag.withDescription("Source database. Defaults to ~/.t3/userdata/statev2.sqlite."),
+      Flag.withDescription("Source database. Defaults to ~/.ozi/userdata/statev2.sqlite."),
     ),
   },
   ({ projects, threadsPerProject, baseDir, source }) =>

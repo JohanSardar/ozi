@@ -1,8 +1,8 @@
 # MCP tool use
 
-Replays small fake threads on Claude and Codex models and checks how they use T3's MCP tools: delegation, PR linking, previews, scheduling, and more. Each case reproduces a real mistake an agent made in T3 Code.
+Replays small fake threads on Claude and Codex models and checks how they use T3's MCP tools: delegation, PR linking, previews, scheduling, and more. Each case reproduces a real mistake an agent made in Ozi.
 
-The model sees what it sees in T3 Code. A trimmed capture of a real harness turn supplies the harness prompt and native tools. T3's instructions, tool descriptions, and schemas come from this checkout. A cheap model plays the shell, so nothing runs on your machine.
+The model sees what it sees in Ozi. A trimmed capture of a real harness turn supplies the harness prompt and native tools. T3's instructions, tool descriptions, and schemas come from this checkout. A cheap model plays the shell, so nothing runs on your machine.
 
 ## Run
 
@@ -32,7 +32,7 @@ Check that the case builds with `--dry-run --case <id>`. Then run it on the text
 
 ## Device manager cases
 
-`cases/device-manager.ndjson` ports nine mechanisms from the [device-routing investigation described in #25661](https://github.com/pingdotgg/t3code/pull/25661) and adds seven cases from t3dotgg’s 2026-10-26 fleet device investigation. All prompts, files, hosts and prior turns are authored Acme data; the fleet cases cite finding ids without carrying source transcripts or identifiers.
+`cases/device-manager.ndjson` ports nine mechanisms from the [device-routing investigation described in #25661](https://github.com/JohanSardar/ozi/pull/25661) and adds seven cases from t3dotgg’s 2026-10-26 fleet device investigation. All prompts, files, hosts and prior turns are authored Acme data; the fleet cases cite finding ids without carrying source transcripts or identifiers.
 
 | Case           | Kind    | What it checks                                                                                                                                                                                     |
 | -------------- | ------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -120,7 +120,7 @@ This API replay measures routing and recovery decisions. Screenshots return prod
 
 `templates/` holds one trimmed capture per harness. Refresh them when a harness changes its prompt or native tools:
 
-1. Capture one T3 Code turn through CLIProxyAPI, with T3's MCP server connected.
+1. Capture one Ozi turn through CLIProxyAPI, with T3's MCP server connected.
 2. From `evals/`, run `pnpm mcp-tool-use:trim-capture <claude|codex> <capture.json> mcp-tool-use/templates/<claude|codex>.json.gz`. It keeps only what `run.ts` reads, and removes user instructions, the user's own skills and agents, account ids, and home paths.
 3. Read the output for user data before you commit it: `zcat <file> | less`.
 4. Run the full eval on the old and new templates, and compare.

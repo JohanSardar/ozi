@@ -79,7 +79,7 @@ import { attachmentRelativePath } from "../../attachmentStore.ts";
 import { WorkflowAgentTranscriptReadObserver } from "../workflowAgentTranscript.ts";
 import * as ServerConfig from "../../config.ts";
 import * as McpProviderSession from "@t3tools/provider-core/server/mcpSession";
-import { T3_CODE_DEVICE_TOOL_INSTRUCTIONS_WITH_TOOL_SEARCH } from "@t3tools/provider-core/server/orchestrationInstructions";
+import { OZI_CODE_DEVICE_TOOL_INSTRUCTIONS_WITH_TOOL_SEARCH } from "@t3tools/provider-core/server/orchestrationInstructions";
 import * as McpProviderSessions from "@t3tools/provider-core/server/McpProviderSessions";
 import { PreviewControlsToolkit } from "../../mcp/toolkits/previewControls/tools.ts";
 import { HtmlToolkit } from "../../mcp/toolkits/html/tools.ts";
@@ -461,7 +461,7 @@ describe("ClaudeAdapterV2 runtime query policy", () => {
 });
 
 describe("ClaudeAdapterV2 MCP query overrides", () => {
-  const T3_MCP_SERVERS = {
+  const OZI_MCP_SERVERS = {
     "t3-code": {
       type: "http",
       url: "http://127.0.0.1:43123/mcp",
@@ -499,7 +499,7 @@ describe("ClaudeAdapterV2 MCP query overrides", () => {
         ...ClaudeAdapterV2.CLAUDE_READ_ONLY_ALLOWED_TOOLS,
         ...ClaudeAdapterV2.CLAUDE_READ_ONLY_T3_MCP_ALLOWED_TOOLS,
       ],
-      mcpServers: T3_MCP_SERVERS,
+      mcpServers: OZI_MCP_SERVERS,
     });
     assert.isFalse(overrides.allowedTools?.includes(ClaudeAdapterV2.CLAUDE_T3_MCP_TOOL_WILDCARD));
   });
@@ -604,7 +604,7 @@ describe("ClaudeAdapterV2 native protocol logging", () => {
     assert.equal(systemPrompt.preset, "claude_code");
     assert.include(systemPrompt.append ?? "", "Use `delegate_task`");
     assert.include(systemPrompt.append ?? "", "call `t3_background_wait`");
-    assert.notInclude(systemPrompt.append ?? "", "## T3 Code devices");
+    assert.notInclude(systemPrompt.append ?? "", "## Ozi devices");
     const logged = ClaudeAdapterV2.loggedClaudeQueryOptions(options);
     assert.equal(logged.hasMcpServers, true);
     assert.notInclude(JSON.stringify(logged), "secret-claude-token");
@@ -645,13 +645,13 @@ describe("ClaudeAdapterV2 device instructions", () => {
 
   it("gives a session with device access the device block and the ToolSearch line to load it", () => {
     const text = append({ mcp: true, deviceToolsAvailable: true });
-    assert.include(text, T3_CODE_DEVICE_TOOL_INSTRUCTIONS_WITH_TOOL_SEARCH);
+    assert.include(text, OZI_CODE_DEVICE_TOOL_INSTRUCTIONS_WITH_TOOL_SEARCH);
     assert.include(text, "Use `delegate_task`");
   });
 
   it("leaves the device block out without device access or without T3 tools", () => {
-    assert.notInclude(append({ mcp: true, deviceToolsAvailable: false }), "## T3 Code devices");
-    assert.notInclude(append({ mcp: false, deviceToolsAvailable: true }), "## T3 Code devices");
+    assert.notInclude(append({ mcp: true, deviceToolsAvailable: false }), "## Ozi devices");
+    assert.notInclude(append({ mcp: false, deviceToolsAvailable: true }), "## Ozi devices");
   });
 
   it("gives native subagents the device block only in a session with device access", async () => {
@@ -682,7 +682,7 @@ describe("ClaudeAdapterV2 device instructions", () => {
       {
         hookSpecificOutput: {
           hookEventName: "SubagentStart",
-          additionalContext: T3_CODE_DEVICE_TOOL_INSTRUCTIONS_WITH_TOOL_SEARCH,
+          additionalContext: OZI_CODE_DEVICE_TOOL_INSTRUCTIONS_WITH_TOOL_SEARCH,
         },
       },
     ]);

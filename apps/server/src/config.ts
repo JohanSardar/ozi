@@ -21,10 +21,10 @@ import { type ReleaseChannel, releaseResourceAttributes } from "@t3tools/shared/
 import packageJson from "../package.json" with { type: "json" };
 
 // Official release workflows set this telemetry channel; other builds report dev.
-// Unlike __T3CODE_BUILD_CHANNEL__, this is not the sign-in page's latest/nightly channel.
-declare const __T3CODE_TELEMETRY_CHANNEL__: ReleaseChannel | undefined;
+// Unlike __OZI_BUILD_CHANNEL__, this is not the sign-in page's latest/nightly channel.
+declare const __OZI_TELEMETRY_CHANNEL__: ReleaseChannel | undefined;
 export const telemetryChannel: ReleaseChannel =
-  typeof __T3CODE_TELEMETRY_CHANNEL__ === "undefined" ? "dev" : __T3CODE_TELEMETRY_CHANNEL__;
+  typeof __OZI_TELEMETRY_CHANNEL__ === "undefined" ? "dev" : __OZI_TELEMETRY_CHANNEL__;
 
 export const DEFAULT_PORT = 3773;
 
@@ -107,7 +107,7 @@ export class ServerConfig extends Context.Service<
     readonly tailscaleServeEnabled: boolean;
     readonly tailscaleServePort: number;
   }
->()("t3/config/ServerConfig") {
+>()("ozi/config/ServerConfig") {
   static readonly layerTest = (
     cwd: string,
     baseDirOrPrefix: string | { readonly prefix: string },
@@ -120,12 +120,12 @@ export const otlpResource = (
   config: Pick<ServerConfig["Service"], "mode" | "otelEnvironment">,
   hostName: string,
 ) => ({
-  serviceName: "t3code-server",
+  serviceName: "ozi-server",
   serviceVersion: packageJson.version,
   attributes: {
-    "service.namespace": "t3code",
+    "service.namespace": "ozi",
     "service.runtime": "t3-server",
-    "t3code.server.managed_by": config.mode === "desktop" ? "desktop" : "standalone",
+    "ozi.server.managed_by": config.mode === "desktop" ? "desktop" : "standalone",
     "service.instance.id": processServiceInstanceId(config.otelEnvironment.resourceAttributes),
     ...releaseResourceAttributes(telemetryChannel, config.otelEnvironment.resourceAttributes),
     "host.name": config.otelEnvironment.resourceAttributes["host.name"] || hostName,

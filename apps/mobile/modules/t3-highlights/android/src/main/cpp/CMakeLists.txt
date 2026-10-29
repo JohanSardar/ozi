@@ -2,21 +2,21 @@ cmake_minimum_required(VERSION 3.22.1)
 
 project(t3highlights LANGUAGES C)
 
-set(T3_HIGHLIGHTS_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../..")
+set(OZI_HIGHLIGHTS_ROOT "${CMAKE_CURRENT_SOURCE_DIR}/../../../..")
 
 add_library(
   t3highlights SHARED
   t3_highlights_jni.c
-  "${T3_HIGHLIGHTS_ROOT}/cpp/t3_highlights.c"
-  "${T3_HIGHLIGHTS_ROOT}/Vendor/highlights/highlights.c"
-  "${T3_HIGHLIGHTS_ROOT}/Vendor/wasm2c/wasm-rt-impl.c"
-  "${T3_HIGHLIGHTS_ROOT}/Vendor/wasm2c/wasm-rt-mem-impl.c"
+  "${OZI_HIGHLIGHTS_ROOT}/cpp/t3_highlights.c"
+  "${OZI_HIGHLIGHTS_ROOT}/Vendor/highlights/highlights.c"
+  "${OZI_HIGHLIGHTS_ROOT}/Vendor/wasm2c/wasm-rt-impl.c"
+  "${OZI_HIGHLIGHTS_ROOT}/Vendor/wasm2c/wasm-rt-mem-impl.c"
 )
 
 target_include_directories(
   t3highlights
-  PRIVATE "${T3_HIGHLIGHTS_ROOT}/cpp" "${T3_HIGHLIGHTS_ROOT}/Vendor"
-          "${T3_HIGHLIGHTS_ROOT}/Vendor/highlights" "${T3_HIGHLIGHTS_ROOT}/Vendor/wasm2c"
+  PRIVATE "${OZI_HIGHLIGHTS_ROOT}/cpp" "${OZI_HIGHLIGHTS_ROOT}/Vendor"
+          "${OZI_HIGHLIGHTS_ROOT}/Vendor/highlights" "${OZI_HIGHLIGHTS_ROOT}/Vendor/wasm2c"
 )
 
 # Plain malloc memory with explicit bounds checks: no guard-page signal

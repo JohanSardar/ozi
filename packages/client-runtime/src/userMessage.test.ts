@@ -38,8 +38,8 @@ describe("resolveUserMessagePresentation", () => {
     ).toEqual({ text: "Why?", attribution: "guest", scheduledTaskId: undefined, guestName: "Sam" });
   });
 
-  it("attributes older server-sent restart continuations to T3 Code, not another agent", () => {
-    const text = "Note: the T3 server restarted.";
+  it("attributes older server-sent restart continuations to Ozi, not another agent", () => {
+    const text = "Note: the Ozi server restarted.";
     expect(
       resolveUserMessagePresentation({
         role: "user",
@@ -47,7 +47,7 @@ describe("resolveUserMessagePresentation", () => {
         creationSource: "server",
         text,
       }),
-    ).toMatchObject({ attribution: "t3code" });
+    ).toMatchObject({ attribution: "ozi" });
     for (const creationSource of ["mcp", "provider"] as const) {
       expect(
         resolveUserMessagePresentation({ role: "user", createdBy: "agent", creationSource, text }),

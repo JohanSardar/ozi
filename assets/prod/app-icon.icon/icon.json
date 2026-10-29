@@ -1,27 +1,19 @@
 {
   "fill": {
-    "solid": "display-p3:0.00000,0.00000,0.00000,1.00000"
+    "solid": "srgb:0.26667,0.48627,0.70980,1.00000"
   },
   "groups": [
     {
       "layers": [
         {
           "image-name": "text.svg",
-          "name": "Text",
+          "name": "Ozi",
           "position": {
-            "scale": 8.5,
+            "scale": 1,
             "translation-in-points": [0, 0]
           }
         }
-      ],
-      "shadow": {
-        "kind": "neutral",
-        "opacity": 0.5
-      },
-      "translucency": {
-        "enabled": true,
-        "value": 0.5
-      }
+      ]
     }
   ],
   "supported-platforms": {

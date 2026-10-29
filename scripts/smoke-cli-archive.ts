@@ -96,7 +96,7 @@ const smokeCliArchive = Effect.fn("smokeCliArchive")(function* (input: {
     });
   }
   const contentDir = path.join(scratch, root);
-  const executable = path.join(contentDir, platform === "win32" ? "t3.exe" : "t3");
+  const executable = path.join(contentDir, platform === "win32" ? "ozi.exe" : "ozi");
   const bundledLibatomic = path.join(contentDir, "lib/libatomic.so.1");
   for (const required of [
     executable,
@@ -121,7 +121,7 @@ const smokeCliArchive = Effect.fn("smokeCliArchive")(function* (input: {
       (yield* fs.realPath(loaded)) !== (yield* fs.realPath(bundledLibatomic))
     ) {
       return yield* new CliArchiveSmokeError({
-        step: "checking that t3 loads the bundled libatomic",
+        step: "checking that ozi loads the bundled libatomic",
         detail: ldd,
       });
     }
@@ -150,10 +150,10 @@ const smokeCliArchive = Effect.fn("smokeCliArchive")(function* (input: {
           USERPROFILE: home,
           TMPDIR: scratch,
           TEMP: scratch,
-          T3CODE_HOME: home,
+          OZI_HOME: home,
           // The archive has a release channel built in, so its events would
           // look like a real new install.
-          T3CODE_TELEMETRY_ENABLED: "false",
+          OZI_TELEMETRY_ENABLED: "false",
         },
         extendEnv: false,
       },

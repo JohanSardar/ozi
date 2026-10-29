@@ -42,10 +42,10 @@ it("counts only confirmed hits, preserves their tier, and never transmits comman
 it("deduplicates shared summaries and retries delivery without credentials in queued records", async () => {
   const root = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "cache-observer-"));
   const home = NodePath.join(root, "home");
-  const endpoint = "https://cache.example/projects/t3code";
+  const endpoint = "https://cache.example/projects/ozi";
   try {
-    const stopA = observeSummaries(root, endpoint, { T3_TASK_CACHE_HOST: "test-host" }, home);
-    const stopB = observeSummaries(root, endpoint, { T3_TASK_CACHE_HOST: "test-host" }, home);
+    const stopA = observeSummaries(root, endpoint, { OZI_TASK_CACHE_HOST: "test-host" }, home);
+    const stopB = observeSummaries(root, endpoint, { OZI_TASK_CACHE_HOST: "test-host" }, home);
     const version = NodePath.join(root, "node_modules/.vite/task-cache/v18");
     NodeFS.mkdirSync(version);
     NodeFS.writeFileSync(
@@ -90,7 +90,7 @@ it("deduplicates shared summaries and retries delivery without credentials in qu
 
 it("skips unauthenticated endpoints without consuming the delivery budget", async () => {
   const home = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "cache-queue-"));
-  const endpoint = "https://cache.example/projects/t3code";
+  const endpoint = "https://cache.example/projects/ozi";
   try {
     const queue = NodePath.join(home, ".cache/t3-task-cache/telemetry");
     NodeFS.mkdirSync(queue, { recursive: true });
@@ -98,7 +98,7 @@ it("skips unauthenticated endpoints without consuming the delivery budget", asyn
     for (const file of skipped)
       NodeFS.writeFileSync(
         NodePath.join(queue, file),
-        JSON.stringify({ endpoint: "https://old.example/projects/t3code", event: { id: file } }),
+        JSON.stringify({ endpoint: "https://old.example/projects/ozi", event: { id: file } }),
       );
     NodeFS.writeFileSync(
       NodePath.join(queue, "b.json"),
@@ -168,7 +168,7 @@ it("drops revoked credentials and continues delivering other queued endpoints", 
 
 it("delivers an event queued while the previous flusher releases its lock", async () => {
   const home = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "cache-handoff-"));
-  const endpoint = "https://cache.example/projects/t3code";
+  const endpoint = "https://cache.example/projects/ozi";
   try {
     const queue = NodePath.join(home, ".cache/t3-task-cache/telemetry");
     const state = NodePath.join(home, ".config/t3-task-cache");

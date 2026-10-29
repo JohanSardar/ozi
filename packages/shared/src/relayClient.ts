@@ -27,7 +27,7 @@ import * as HostProcess from "./HostProcess.ts";
 export const CLOUDFLARED_VERSION = "2026.10.4";
 // Minimum for --output support; older connectors exit on that flag.
 export const CLOUDFLARED_MIN_VERSION = "2025.6.1";
-const CLOUDFLARED_PATH_ENV_NAME = "T3CODE_CLOUDFLARED_PATH";
+const CLOUDFLARED_PATH_ENV_NAME = "OZI_CLOUDFLARED_PATH";
 
 const CLOUDFLARED_DOWNLOAD_TIMEOUT = "10 minutes";
 
@@ -502,7 +502,7 @@ export const makeCloudflaredRelayClient = Effect.fn("cloudflared.make")(function
     if (!releaseAsset) {
       return yield* new RelayClientInstallError({
         reason: "unsupported_platform",
-        message: `T3 Code does not provide a managed relay client binary for ${platform}-${arch}.`,
+        message: `Ozi does not provide a managed relay client binary for ${platform}-${arch}.`,
       });
     }
 

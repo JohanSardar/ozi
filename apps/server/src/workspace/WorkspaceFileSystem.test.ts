@@ -26,7 +26,7 @@ vi.mock("node:fs/promises", async (importOriginal) => {
   return { ...actual, realpath: vi.fn(actual.realpath) };
 });
 
-const UNKNOWN_WORKSPACE_PREFIX = "t3code-unknown-workspace-";
+const UNKNOWN_WORKSPACE_PREFIX = "ozi-unknown-workspace-";
 const layerKnownWorkspacesTest = Layer.mock(KnownWorkspaces.KnownWorkspaces)({
   assertContains: (cwd) =>
     cwd.includes(UNKNOWN_WORKSPACE_PREFIX)
@@ -56,7 +56,7 @@ const layerTest = Layer.empty.pipe(
 const makeTempDir = Effect.gen(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
   return yield* fileSystem.makeTempDirectoryScoped({
-    prefix: "t3code-workspace-files-",
+    prefix: "ozi-workspace-files-",
   });
 });
 

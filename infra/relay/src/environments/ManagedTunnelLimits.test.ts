@@ -19,7 +19,7 @@ import * as ManagedTunnelLimits from "./ManagedTunnelLimits.ts";
 const BACKFILL_MIGRATION = "20261028062605_backfill_withdrawn_tunnel_allocations";
 
 class FakeTransaction extends Context.Service<FakeTransaction, { holdsLock: boolean }>()(
-  "t3code-relay/environments/ManagedTunnelLimits.test/FakeTransaction",
+  "ozi-relay/environments/ManagedTunnelLimits.test/FakeTransaction",
 ) {}
 
 interface FakeDbInput {

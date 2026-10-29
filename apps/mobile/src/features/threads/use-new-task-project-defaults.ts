@@ -2,7 +2,7 @@ import { resolveFilesystemReadAccess } from "@t3tools/client-runtime/state/files
 import { isScratchProject } from "@t3tools/client-runtime/state/projects";
 import type { EnvironmentProject } from "@t3tools/client-runtime/state/shell";
 import type { ProjectReadFileResult } from "@t3tools/contracts";
-import { DEFAULT_SERVER_SETTINGS, T3_PROJECT_FILE_NAME } from "@t3tools/contracts";
+import { DEFAULT_SERVER_SETTINGS, OZI_PROJECT_FILE_NAME } from "@t3tools/contracts";
 import { resolveNewThreadEnvMode, resolveProjectSettings } from "@t3tools/shared/projectSettings";
 import { parseT3ProjectFile } from "@t3tools/shared/t3ProjectFile";
 
@@ -41,7 +41,7 @@ export function useNewTaskProjectDefaults(project: EnvironmentProject | null) {
           environmentId: project.environmentId,
           input: {
             cwd: project.workspaceRoot,
-            relativePath: T3_PROJECT_FILE_NAME,
+            relativePath: OZI_PROJECT_FILE_NAME,
             allowMissing: true,
           },
         })

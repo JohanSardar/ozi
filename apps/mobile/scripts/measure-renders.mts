@@ -84,9 +84,9 @@ const connectInspector = Effect.fn("measure.connectInspector")(function* (metro:
   const targets = yield* http
     .get(`${metro}/json/list`)
     .pipe(Effect.flatMap(HttpClientResponse.schemaBodyJson(InspectorTargets)));
-  const target = targets.find((entry) => entry.appId.startsWith("com.t3tools.t3code"));
+  const target = targets.find((entry) => entry.appId.startsWith("com.ozi.app"));
   if (!target)
-    return yield* new MeasureError({ message: `No T3 Code app is attached to Metro at ${metro}.` });
+    return yield* new MeasureError({ message: `No Ozi app is attached to Metro at ${metro}.` });
   // Expo closes inspector sockets unless Origin matches Metro's advertised URL; pass that URL as --metro.
   const socket = yield* Socket.makeWebSocket(target.webSocketDebuggerUrl, {
     headers: { origin: new URL(metro).origin },
@@ -129,7 +129,7 @@ const connectServer = Effect.fn("measure.connectServer")(function* (options: Opt
     HttpClient.filterStatusOk,
   );
   const descriptor = yield* http
-    .get(`${options.server}/.well-known/t3/environment`)
+    .get(`${options.server}/.well-known/ozi/environment`)
     .pipe(Effect.flatMap(HttpClientResponse.schemaBodyJson(ExecutionEnvironmentDescriptor)));
   const shell = yield* http
     .get(`${options.server}/api/orchestration/shell`)
@@ -337,11 +337,11 @@ const command = Command.make(
   "measure-renders",
   {
     server: Flag.String("server").pipe(
-      Flag.withDescription("T3 server origin the app is paired with."),
+      Flag.withDescription("Ozi server origin the app is paired with."),
       Flag.withDefault(""),
     ),
     token: Flag.String("token").pipe(
-      Flag.withDescription("Bearer token from `t3 auth session issue --token-only`."),
+      Flag.withDescription("Bearer token from `ozi auth session issue --token-only`."),
       Flag.withDefault(""),
     ),
     route: Flag.String("route").pipe(
@@ -351,7 +351,7 @@ const command = Command.make(
       Flag.optional,
     ),
     metro: Flag.String("metro").pipe(Flag.withDefault("http://127.0.0.1:8081")),
-    scheme: Flag.String("scheme").pipe(Flag.withDefault("t3code-dev")),
+    scheme: Flag.String("scheme").pipe(Flag.withDefault("ozi-dev")),
     runs: Flag.Int("runs").pipe(Flag.withDefault(3)),
     window: Flag.Int("window").pipe(
       Flag.withDescription("Seconds to record; defaults to 12 for a reply and 6 for --route."),

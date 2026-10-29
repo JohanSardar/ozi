@@ -72,12 +72,12 @@ describe("parseOriginUrlFromGitConfig", () => {
       '[remote "upstream"]',
       "\turl = https://github.com/other/repo.git",
       '[remote "origin"]',
-      "\turl = git@github.com:pingdotgg/t3code.git",
+      "\turl = git@github.com:JohanSardar/ozi.git",
       "\tfetch = +refs/heads/*:refs/remotes/origin/*",
       '[branch "main"]',
       "\tremote = origin",
     ].join("\n");
-    expect(parseOriginUrlFromGitConfig(config)).toBe("git@github.com:pingdotgg/t3code.git");
+    expect(parseOriginUrlFromGitConfig(config)).toBe("git@github.com:JohanSardar/ozi.git");
   });
 
   it("strips inline comments and quotes from the url value", () => {
@@ -139,7 +139,7 @@ describe("isTemporaryWorktreeBranch", () => {
 
   it("matches legacy t3code temporary worktree refs", () => {
     expect(isTemporaryWorktreeBranch("t3code/deadbeef")).toBe(true);
-    expect(isTemporaryWorktreeBranch("t3code-deadbeef")).toBe(true);
+    expect(isTemporaryWorktreeBranch("ozi-deadbeef")).toBe(true);
     expect(isTemporaryWorktreeBranch("t3code/f4ae4e0e-f971-4d48-b4f2-9cf0aa54ab12")).toBe(true);
     expect(
       isTemporaryWorktreeBranch(`${WORKTREE_BRANCH_PREFIX}/f4ae4e0e-f971-4d48-b4f2-9cf0aa54ab12`),
@@ -160,7 +160,7 @@ describe("isTemporaryWorktreeBranch", () => {
     expect(flattenTemporaryWorktreeBranchName("t3code/f4ae4e0e-f971-4d48-b4f2-9cf0aa54ab12")).toBe(
       `${WORKTREE_BRANCH_PREFIX}-f4ae4e0e`,
     );
-    expect(flattenTemporaryWorktreeBranchName("t3code-deadbeef")).toBe(
+    expect(flattenTemporaryWorktreeBranchName("ozi-deadbeef")).toBe(
       `${WORKTREE_BRANCH_PREFIX}-deadbeef`,
     );
     expect(flattenTemporaryWorktreeBranchName("t3code/deadbeef")).toBe(
@@ -289,7 +289,7 @@ describe("formatGeneratedBranchName", () => {
     expect(
       formatGeneratedBranchName("feat/Add Search", {
         mode: "semantic",
-        prefix: "t3code",
+        prefix: "ozi",
         instructions: "",
       }),
     ).toBe("feat/add-search");

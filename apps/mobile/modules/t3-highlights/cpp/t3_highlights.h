@@ -1,5 +1,5 @@
-#ifndef T3_HIGHLIGHTS_H
-#define T3_HIGHLIGHTS_H
+#ifndef OZI_HIGHLIGHTS_H
+#define OZI_HIGHLIGHTS_H
 
 #include <stddef.h>
 #include <stdint.h>
