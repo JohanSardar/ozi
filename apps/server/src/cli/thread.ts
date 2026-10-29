@@ -125,6 +125,7 @@ const ThreadCliError = Schema.Union([
   ThreadRunEndedError,
 ]);
 const isThreadCliError = Schema.is(ThreadCliError);
+const isThreadServerUnreachableError = Schema.is(ThreadServerUnreachableError);
 
 /**
  * These errors are expected outcomes for a script, so they print as one line
@@ -231,14 +232,15 @@ const withThreadTools = Effect.fn("cli.thread.withThreadTools")(function* <A, E,
         ),
       );
       return yield* run(makeThreadTools(session, remote.value.origin)).pipe(
-        Effect.catchTags({
-          ThreadServerUnreachableError: (cause) =>
-            new RemoteConnectionError({
-              message:
-                "Remote connection failed. Check the server and run `ozi connect <pairing-url>` again if access expired or was revoked.",
-              cause,
-            }),
-        }),
+        Effect.mapError((cause) =>
+          isThreadServerUnreachableError(cause)
+            ? new RemoteConnectionError({
+                message:
+                  "Remote connection failed. Check the server and run `ozi connect <pairing-url>` again if access expired or was revoked.",
+                cause,
+              })
+            : cause,
+        ),
       );
     }).pipe(Effect.scoped, reportRemoteErrors(flags.json));
   }

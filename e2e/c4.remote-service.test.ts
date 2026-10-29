@@ -6,7 +6,7 @@ import * as NodeNet from "node:net";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 import * as NodeUtil from "node:util";
-import { afterAll, beforeAll, describe, expect, it } from "vite-plus/test";
+import { afterAll, describe, expect, it } from "vite-plus/test";
 
 const exec = NodeUtil.promisify(NodeChildProcess.execFile);
 const root = NodePath.resolve(import.meta.dirname, "..");
@@ -68,7 +68,7 @@ describe("c4.remote-client", () => {
   let port: number;
   let server: NodeChildProcess.ChildProcess | undefined;
 
-  beforeAll(async () => {
+  it("c4.remote-server: start an isolated pairing server", async () => {
     directory = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "ozi-c4-"));
     home = NodePath.join(directory, "server");
     port = await freePort();
