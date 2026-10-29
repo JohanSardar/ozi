@@ -6,8 +6,7 @@ import {
   ChatSessionResult,
   MessageId,
   ProviderInstanceId,
-  WsRpcGroup,
-  CommandId,
+  ChatSessionRpcGroup,
   RuntimeRequestId,
   ProviderApprovalDecision,
   ProviderUserInputAnswers,
@@ -15,7 +14,6 @@ import {
   ORCHESTRATION_PROTOCOL_VERSION,
 } from "@t3tools/contracts";
 import * as Console from "effect/Console";
-import * as Crypto from "effect/Crypto";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
@@ -31,8 +29,9 @@ import * as RpcSerialization from "effect/rpc/RpcSerialization";
 import { Argument, Command, Flag, GlobalFlag } from "effect/cli";
 import * as EnvironmentAuth from "../auth/EnvironmentAuth.ts";
 import * as ServerConfig from "../config.ts";
-import { readPersistedServerRuntimeState } from "../serverRuntimeState.ts";
+import { isProcessAlive, readPersistedServerRuntimeState } from "../serverRuntimeState.ts";
 import { baseDirFlag, resolveCliAuthConfig } from "./config.ts";
+import { readRemoteConnection } from "./remote.ts";
 import packageJson from "../../package.json" with { type: "json" };
 
 class SessionCliError extends Schema.TaggedError<SessionCliError>()("SessionCliError", {
@@ -41,7 +40,7 @@ class SessionCliError extends Schema.TaggedError<SessionCliError>()("SessionCliE
   override readonly [Runtime.errorReported] = false;
 }
 
-const makeClient = RpcClient.make(WsRpcGroup);
+const makeClient = RpcClient.make(ChatSessionRpcGroup);
 const decodeResponse = Schema.decodeEffect(
   Schema.fromJsonString(
     Schema.Struct({
@@ -56,37 +55,52 @@ const withClient = Effect.fn("cli.sessions.withClient")(function* <A, E, R>(
   run: (client: SessionClient) => Effect.Effect<A, E, R>,
 ) {
   const config = yield* resolveCliAuthConfig(flags, yield* GlobalFlag.LogLevel);
+  const connect = Effect.fn("cli.sessions.connect")(function* (url: URL, token: string) {
+    url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+    url.searchParams.set(
+      ORCHESTRATION_PROTOCOL_QUERY_PARAM,
+      String(ORCHESTRATION_PROTOCOL_VERSION),
+    );
+    const protocol = RpcClient.layerProtocolSocket({ retryTransientErrors: false }).pipe(
+      Layer.provide(
+        Layer.mergeAll(
+          RpcSerialization.layerJson,
+          NodeSocket.layerWebSocket(url.href, {
+            headers: { authorization: `Bearer ${token}` },
+          }),
+        ),
+      ),
+    );
+    return yield* Effect.gen(function* () {
+      return yield* run(yield* makeClient);
+    }).pipe(Effect.provide(protocol));
+  });
+  const runtime = yield* readPersistedServerRuntimeState(config.serverRuntimeStatePath);
+  if (Option.isNone(runtime) || !isProcessAlive(runtime.value.pid))
+    return yield* Effect.gen(function* () {
+      const remote = yield* readRemoteConnection(Option.some(config.baseDir));
+      if (Option.isNone(remote))
+        return yield* new SessionCliError({
+          message: "Start Ozi or run `ozi connect <pairing-url>` before using sessions.",
+        });
+      return yield* connect(new URL("/mcp/sessions", remote.value.origin), remote.value.token).pipe(
+        Effect.catchTags({
+          RpcClientError: () =>
+            new SessionCliError({
+              message:
+                "Remote session connection failed. Run `ozi connect <pairing-url> --access full-access` again and check the server version.",
+            }),
+        }),
+      );
+    }).pipe(Effect.scoped);
   return yield* Effect.scoped(
     Effect.gen(function* () {
-      const runtime = yield* readPersistedServerRuntimeState(config.serverRuntimeStatePath);
-      if (Option.isNone(runtime))
-        return yield* new SessionCliError({
-          message: "Start the Ozi server before using sessions.",
-        });
       const auth = yield* EnvironmentAuth.EnvironmentAuth;
       const session = yield* Effect.acquireRelease(
         auth.issueSession({ label: "ozi sessions CLI" }),
         (issued) => auth.revokeSession(issued.sessionId).pipe(Effect.ignore),
       );
-      const url = new URL("/ws", runtime.value.origin);
-      url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-      url.searchParams.set(
-        ORCHESTRATION_PROTOCOL_QUERY_PARAM,
-        String(ORCHESTRATION_PROTOCOL_VERSION),
-      );
-      const protocol = RpcClient.layerProtocolSocket({ retryTransientErrors: false }).pipe(
-        Layer.provide(
-          Layer.mergeAll(
-            RpcSerialization.layerJson,
-            NodeSocket.layerWebSocket(url.href, {
-              headers: { authorization: `Bearer ${session.token}` },
-            }),
-          ),
-        ),
-      );
-      return yield* Effect.gen(function* () {
-        return yield* run(yield* makeClient);
-      }).pipe(Effect.provide(protocol));
+      return yield* connect(new URL("/ws", runtime.value.origin), session.token);
     }),
   ).pipe(
     Effect.provide(
@@ -357,11 +371,7 @@ export const answerCommand = Command.make("answer", {
         flags,
         Effect.fn("cli.answer")(function* (client) {
           const response = yield* decodeResponse(flags.response);
-          const receipt = yield* client["orchestration.dispatchCommand"]({
-            type: "runtime-request.respond",
-            commandId: CommandId.make(
-              yield* Crypto.Crypto.pipe(Effect.flatMap((crypto) => crypto.randomUUIDv4())),
-            ),
+          const receipt = yield* client["chatSessions.answer"]({
             threadId: yield* current(client, flags.thread),
             requestId: RuntimeRequestId.make(flags.request),
             ...response,

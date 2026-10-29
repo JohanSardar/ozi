@@ -16,8 +16,8 @@ let server: NodeChildProcess.ChildProcess;
 let port: number;
 let env: NodeJS.ProcessEnv;
 
-const cli = (...args: string[]) => {
-  const running = exec(process.execPath, [bin, ...args, "--home", home], {
+const cliAt = (clientHome: string, ...args: string[]) => {
+  const running = exec(process.execPath, [bin, ...args, "--home", clientHome], {
     env,
     timeout: 30_000,
     maxBuffer: 4 * 1024 * 1024,
@@ -34,6 +34,7 @@ const cli = (...args: string[]) => {
     );
   });
 };
+const cli = (...args: string[]) => cliAt(home, ...args);
 const json = async (...args: string[]) => JSON.parse((await cli(...args, "--json")).stdout);
 const stop = async () => {
   const exited = NodeEvents.once(server, "exit");
@@ -292,4 +293,60 @@ it("C3.print: aliases, stdin, sequential prompts, files, JSON events and failure
   await expect(json("session", "reload", source)).rejects.toThrow("finish");
   await json("answer", requestId, '{"decision":"accept"}', "--thread", source);
   expect((await json("print", "answered", "--thread", source)).status).toBe("completed");
+});
+
+it("C3.remote: paired clients import, export, print and answer without local server state", async () => {
+  const source = await seed();
+  const client = NodePath.join(directory, "remote-client");
+  const remote = async (...args: string[]) =>
+    JSON.parse((await cliAt(client, ...args, "--json")).stdout);
+  const pairing = await json("pair");
+  await remote("connect", pairing.pairingUrl);
+  const output = NodePath.join(client, "export.jsonl");
+  await remote("session", "export", source, "--format", "jsonl", "--output", output);
+  const imported = (await remote("session", "import", output)).threadId;
+  expect(JSON.parse((await remote("print", "remote", "--thread", imported)).text).history).toEqual([
+    "first",
+    "second",
+  ]);
+  const streamed = (
+    await cliAt(client, "-p", "events", "--thread", imported, "--mode", "json")
+  ).stdout
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line));
+  expect(streamed.some((event) => event.event?.type === "message.updated")).toBe(true);
+  expect(streamed.at(-1)).toMatchObject({ status: "completed" });
+  const question = await remote("print", "ask", "--thread", imported).then(
+    () => undefined,
+    (error) => JSON.parse(error.message),
+  );
+  const requestId = question.stderr.match(/ozi answer ([^ ]+)/)?.[1];
+  expect(requestId).toBeDefined();
+  await remote("answer", requestId, '{"decision":"accept"}', "--thread", imported);
+  expect((await remote("print", "answered", "--thread", imported)).status).toBe("completed");
+  await expect(NodeFSP.access(NodePath.join(client, "userdata/statev2.sqlite"))).rejects.toThrow();
+  expect(await NodeFSP.readFile(output, "utf8")).not.toContain("remote");
+});
+
+it("C3.remote-access: restricted and revoked sessions fail and live local state takes precedence", async () => {
+  const client = NodePath.join(directory, "restricted-client");
+  const pairing = await json("pair");
+  await cliAt(client, "connect", pairing.pairingUrl, "--access", "read-only", "--json");
+  await expect(cliAt(client, "session", "list", "--json")).rejects.toThrow("ozi connect");
+  const sessions = await json("auth", "session", "list");
+  const previous = new Set(sessions.map((session: { sessionId: string }) => session.sessionId));
+  await cliAt(client, "connect", (await json("pair")).pairingUrl, "--json");
+  const issued = (await json("auth", "session", "list")).find(
+    (session: { sessionId: string }) => !previous.has(session.sessionId),
+  );
+  expect(issued).toBeDefined();
+  await cli("auth", "session", "revoke", issued.sessionId);
+  await expect(cliAt(client, "session", "list", "--json")).rejects.toThrow("ozi connect");
+  await NodeFSP.writeFile(NodePath.join(home, "remote.json"), "invalid");
+  try {
+    expect(Array.isArray((await json("session", "list")).sessions)).toBe(true);
+  } finally {
+    await NodeFSP.rm(NodePath.join(home, "remote.json"));
+  }
 });

@@ -18,8 +18,8 @@ let port: number;
 let env: NodeJS.ProcessEnv;
 let fake: Awaited<ReturnType<typeof startAnthropic>>;
 let server: NodeChildProcess.ChildProcess | undefined;
-const run = async (...args: string[]) => {
-  const child = exec(process.execPath, [bin, ...args, "--home", home], {
+const runAt = async (clientHome: string, ...args: string[]) => {
+  const child = exec(process.execPath, [bin, ...args, "--home", clientHome], {
     cwd: workspace,
     env,
     timeout: 30_000,
@@ -30,6 +30,7 @@ const run = async (...args: string[]) => {
     throw new Error(JSON.stringify({ stdout: error.stdout, stderr: error.stderr }));
   });
 };
+const run = (...args: string[]) => runAt(home, ...args);
 const json = async (...args: string[]) => JSON.parse((await run(...args, "--json")).stdout);
 const stop = async () => {
   if (server?.exitCode !== null) return;
@@ -133,22 +134,29 @@ it("C3.ozi-native: real Pi clones and forks keep independent native histories an
   );
 });
 
-it("C3.ozi-import: native JSONL imports and reloaded sessions continue after restart", async () => {
-  const jsonl = await json("session", "export", source, "--format", "jsonl");
-  const importedFile = NodePath.join(directory, "import.jsonl");
+it("C3.ozi-import: a remote client's native Pi import and reloaded session continue after restart", async () => {
+  const client = NodePath.join(directory, "remote-client");
+  const remote = async (...args: string[]) =>
+    JSON.parse((await runAt(client, ...args, "--json")).stdout);
+  await remote("connect", (await json("pair")).pairingUrl);
+  const jsonl = await remote("session", "export", source, "--format", "jsonl");
+  const htmlFile = NodePath.join(client, "export.html");
+  await remote("session", "export", source, "--format", "html", "--output", htmlFile);
+  expect(await NodeFSP.readFile(htmlFile, "utf8")).toMatch(/<html/i);
+  const importedFile = NodePath.join(client, "import.jsonl");
   await NodeFSP.writeFile(importedFile, jsonl.content);
-  const imported = (await json("session", "import", importedFile)).threadId;
-  expect((await json("session", "export", imported, "--format", "jsonl")).content).toBe(
+  const imported = (await remote("session", "import", importedFile)).threadId;
+  expect((await remote("session", "export", imported, "--format", "jsonl")).content).toBe(
     jsonl.content,
   );
   await json("session", "reload", source);
   await stop();
   await start();
-  expect((await json("print", "C3 resumed", "--thread", source)).text).toBe("c3-native-ok");
+  expect((await remote("print", "C3 resumed", "--thread", source)).text).toBe("c3-native-ok");
   expect(JSON.stringify(fake.requests.at(-1)?.messages)).toContain("C3 second");
   expect(JSON.stringify(fake.requests.at(-1)?.messages)).not.toContain("C3 clone");
   expect(JSON.stringify(fake.requests.at(-1)?.messages)).not.toContain("C3 fork");
-  expect((await json("print", "C3 imported", "--thread", imported)).text).toBe("c3-native-ok");
+  expect((await remote("print", "C3 imported", "--thread", imported)).text).toBe("c3-native-ok");
   expect(JSON.stringify(fake.requests.at(-1)?.messages)).toContain("C3 second");
   expect(JSON.stringify(fake.requests.at(-1)?.messages)).not.toContain("C3 resumed");
   expect(await NodeFSP.readFile(importedFile, "utf8")).toBe(jsonl.content);

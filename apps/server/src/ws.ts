@@ -2832,6 +2832,7 @@ export const layerWsRpc = (
         [WS_METHODS.attachmentsDelete]: (input) => deletePendingAttachment(input.attachmentId),
         [WS_METHODS.chatSessionsExecute]: (input) => chatSessions.execute(input),
         [WS_METHODS.chatSessionsPrint]: (input) => chatSessions.print(input),
+        [WS_METHODS.chatSessionsAnswer]: (input) => chatSessions.answer(input),
         [WS_METHODS.agentSessionsScan]: () => agentSessionScanner.scan,
         [WS_METHODS.agentSessionsImport]: (input) =>
           agentSessionImporter.importRecentAgentThreads(input),

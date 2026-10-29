@@ -5,6 +5,7 @@ import {
   ChatSessionError,
   ChatSessionInput,
   ChatSessionResult,
+  ChatSessionAnswerInput,
   CommandId,
   EventId,
   MessageId,
@@ -23,6 +24,7 @@ import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
+import * as PlatformError from "effect/PlatformError";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import * as ChildProcess from "effect/process/ChildProcess";
@@ -100,6 +102,9 @@ export class ChatSessions extends Context.Service<
       input: ChatSessionInput,
     ) => Effect.Effect<ChatSessionResult, ChatSessionError>;
     readonly print: (input: ChatPrintInput) => Stream.Stream<ChatPrintEvent, ChatSessionError>;
+    readonly answer: (
+      input: ChatSessionAnswerInput,
+    ) => Effect.Effect<ChatSessionResult, ChatSessionError>;
   }
 >()("ozi/sessions/ChatSessions") {}
 
@@ -195,7 +200,10 @@ const make = Effect.gen(function* () {
   };
   const sessionContent = Effect.fn("ChatSessions.sessionContent")(function* (
     projection: Projection,
-  ): Effect.fn.Return<string, unknown> {
+  ): Effect.fn.Return<
+    string,
+    ChatSessionError | PlatformError.PlatformError | Effect.Error<ReturnType<typeof load>>
+  > {
     const fork = projection.thread.forkedFrom;
     if (projection.thread.activeProviderThreadId !== null || fork?.type !== "run")
       return yield* fs.readFileString(yield* nativeFile(projection));
@@ -536,7 +544,18 @@ const make = Effect.gen(function* () {
           : new ChatSessionError({ reason: "operation_failed", cause }),
       ),
     );
-  return ChatSessions.of({ execute, print });
+  const answer = Effect.fn("ChatSessions.answer")(
+    function* (input: ChatSessionAnswerInput) {
+      yield* threads.dispatch({
+        type: "runtime-request.respond",
+        commandId: yield* commandId(),
+        ...input,
+      });
+      return { threadId: input.threadId };
+    },
+    Effect.mapError((cause) => new ChatSessionError({ reason: "operation_failed", cause })),
+  );
+  return ChatSessions.of({ execute, print, answer });
 });
 
 export const layer = Layer.effect(ChatSessions, make);

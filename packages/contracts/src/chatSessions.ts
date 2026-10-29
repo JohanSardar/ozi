@@ -1,6 +1,7 @@
 import * as Schema from "effect/Schema";
-import { MessageId, RunId, ThreadId } from "./baseSchemas.ts";
+import { MessageId, RunId, RuntimeRequestId, ThreadId } from "./baseSchemas.ts";
 import { ModelSelection } from "./modelSelection.ts";
+import { ProviderApprovalDecision, ProviderUserInputAnswers } from "./providerPolicy.ts";
 
 export const ChatSessionInput = Schema.Union([
   Schema.Struct({ action: Schema.Literal("list") }),
@@ -48,6 +49,14 @@ export const ChatSessionResult = Schema.Struct({
   messages: Schema.optional(Schema.Array(Schema.Struct({ id: MessageId, text: Schema.String }))),
 });
 export type ChatSessionResult = typeof ChatSessionResult.Type;
+
+export const ChatSessionAnswerInput = Schema.Struct({
+  threadId: ThreadId,
+  requestId: RuntimeRequestId,
+  decision: Schema.optional(ProviderApprovalDecision),
+  answers: Schema.optional(ProviderUserInputAnswers),
+});
+export type ChatSessionAnswerInput = typeof ChatSessionAnswerInput.Type;
 
 export class ChatSessionError extends Schema.TaggedError<ChatSessionError>()("ChatSessionError", {
   reason: Schema.Literals([
