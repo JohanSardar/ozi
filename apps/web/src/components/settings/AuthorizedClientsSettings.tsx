@@ -53,7 +53,6 @@ import {
 } from "~/environments/primary";
 import { readEnvironmentScope } from "~/state/session";
 import { usePrimaryEnvironmentId } from "~/state/environments";
-import { ConnectionStatusDot } from "../ConnectionStatusDot";
 import { ITEM_ROW_CLASSNAME, ITEM_ROW_INNER_CLASSNAME } from "./itemRows";
 import {
   formatAccessTimestamp,
@@ -272,10 +271,6 @@ const PairingLinkListRow = memo(function PairingLinkListRow({
       <div className={ITEM_ROW_INNER_CLASSNAME}>
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex min-h-5 items-center gap-1.5">
-            <ConnectionStatusDot
-              tooltipText={`Link created at ${formatAccessTimestamp(pairingLink.createdAt)}`}
-              dotClassName="bg-warning"
-            />
             <h3 className="text-sm font-medium text-foreground">{primaryLabel}</h3>
           </div>
           <p className="text-xs text-muted-foreground">
@@ -497,7 +492,7 @@ const ConnectedClientListRow = memo(function ConnectedClientListRow({
   const nowMs = useNowSecond();
   const isLive = clientSession.current || clientSession.connected;
   const lastConnectedAt = clientSession.lastConnectedAt;
-  const statusTooltip = isLive
+  const connectionLabel = isLive
     ? lastConnectedAt
       ? `Connected for ${formatElapsedDurationLabel(lastConnectedAt, nowMs)}`
       : "Connected"
@@ -522,11 +517,6 @@ const ConnectedClientListRow = memo(function ConnectedClientListRow({
       <div className={ITEM_ROW_INNER_CLASSNAME}>
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex min-h-5 items-center gap-1.5">
-            <ConnectionStatusDot
-              tooltipText={statusTooltip}
-              dotClassName={isLive ? "bg-success" : "bg-muted-foreground/30"}
-              pingClassName={isLive ? "bg-success/60 duration-2000" : null}
-            />
             <h3 className="text-sm font-medium text-foreground">{primaryLabel}</h3>
             {clientSession.current ? (
               <span className="text-3xs text-muted-foreground/80 rounded-md border border-border/50 bg-muted/50 px-1 py-0.5">
@@ -542,6 +532,8 @@ const ConnectedClientListRow = memo(function ConnectedClientListRow({
               </>
             ) : null}
             <AccessScopeSummary scopes={clientSession.scopes} label="Client scopes" />
+            <span aria-hidden> · </span>
+            {connectionLabel}
           </p>
         </div>
         <div className="flex w-full shrink-0 items-center gap-2 sm:w-auto sm:justify-end">

@@ -22,6 +22,7 @@ import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
 
 import { readEnvironmentScope } from "../../state/session";
+import { Spinner } from "../ui/spinner";
 import { Switch } from "../ui/switch";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -29,13 +30,6 @@ import {
   THREAD_DETAILS_PANEL_ICON_CLASS,
   THREAD_DETAILS_PANEL_ROW_CONTENT_CLASS,
 } from "./threadDetailsPanelStyles";
-
-const STATUS_DOT_CLASS: Record<ScheduledTask["lastRunStatus"], string> = {
-  never: "bg-muted-foreground/40",
-  running: "bg-sky-500",
-  succeeded: "bg-emerald-500",
-  failed: "bg-destructive",
-};
 
 function taskScheduleLine(task: ScheduledTask) {
   return (
@@ -164,13 +158,11 @@ export function ThreadAutomationsPanel(props: {
           >
             <span className="relative inline-flex size-4 shrink-0 items-center justify-center">
               <CalendarClockIcon className={THREAD_DETAILS_PANEL_ICON_CLASS} />
-              <span
-                className={cn(
-                  "absolute -right-1 -top-1 size-1.5 rounded-full",
-                  STATUS_DOT_CLASS[task.lastRunStatus],
-                )}
-                aria-hidden
-              />
+              {task.lastRunStatus === "running" ? (
+                <span className="absolute -right-1.5 -top-1.5 rounded-full bg-background flex">
+                  <Spinner size="xs" tone="muted" />
+                </span>
+              ) : null}
             </span>
             <Tooltip>
               <TooltipTrigger render={<div className="min-w-0 flex-1" />}>

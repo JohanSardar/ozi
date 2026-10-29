@@ -169,7 +169,7 @@ function AssistantMessageMeta({
       )}
     >
       {projectedItem && projectedItem.item.status !== "completed" ? (
-        <span className="rounded-full border border-border/70 px-1.5 py-0.5 font-mono text-3xs text-muted-foreground">
+        <span className="inline-block text-xs text-muted-foreground first-letter:uppercase">
           {projectedItem.item.status}
         </span>
       ) : null}

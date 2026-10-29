@@ -45,6 +45,7 @@ import {
 } from "lucide-react";
 
 import { Tooltip, TooltipTrigger, TooltipPopup } from "../ui/tooltip";
+import { Spinner } from "../ui/spinner";
 import {
   applyProviderInstanceSettings,
   deriveProviderInstanceEntries,
@@ -158,18 +159,15 @@ export function V2LifecycleRow(props: {
   return null;
 }
 
-const STATUS_VISUALS: Record<
-  OrchestrationV2TurnItem["status"],
-  { dotClass: string; label: string }
-> = {
-  pending: { dotClass: "bg-info", label: "Queued" },
-  running: { dotClass: "bg-info", label: "Running" },
-  waiting: { dotClass: "bg-info", label: "Waiting" },
-  idle: { dotClass: "bg-muted-foreground/50", label: "Idle · resumable" },
-  completed: { dotClass: "bg-success", label: "Completed" },
-  failed: { dotClass: "bg-destructive", label: "Failed" },
-  cancelled: { dotClass: "bg-muted-foreground/60", label: "Stopped" },
-  interrupted: { dotClass: "bg-muted-foreground/60", label: "Stopped" },
+const STATUS_VISUALS: Record<OrchestrationV2TurnItem["status"], { label: string }> = {
+  pending: { label: "Queued" },
+  running: { label: "Running" },
+  waiting: { label: "Waiting" },
+  idle: { label: "Idle · resumable" },
+  completed: { label: "Completed" },
+  failed: { label: "Failed" },
+  cancelled: { label: "Stopped" },
+  interrupted: { label: "Stopped" },
 };
 
 function subagentStatusVisual(status: OrchestrationV2TurnItem["status"]) {
@@ -234,13 +232,10 @@ function SubagentAvatar({
       ) : (
         <BotIcon className="size-3.5 text-muted-foreground" />
       )}
-      {status ? (
-        <span
-          className={cn(
-            "absolute -right-px -bottom-px size-2 rounded-full ring-2 ring-background",
-            subagentStatusVisual(status).dotClass,
-          )}
-        />
+      {status === "pending" || status === "running" || status === "waiting" ? (
+        <span className="absolute -right-1 -bottom-1 rounded-full bg-background flex">
+          <Spinner size="xs" tone="muted" />
+        </span>
       ) : null}
     </span>
   );

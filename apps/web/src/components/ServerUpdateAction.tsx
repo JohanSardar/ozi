@@ -30,6 +30,7 @@ import { manualServerUpdateCommand } from "~/versionSkew";
 import { useServerConfigs } from "~/state/entities";
 import { crossesReleaseTrack } from "@t3tools/shared/cliRelease";
 import { Button } from "./ui/button";
+import { Spinner } from "./ui/spinner";
 import { toastManager } from "./ui/toast";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 
@@ -214,7 +215,6 @@ export function ServerUpdateProgress({
   if (state.status === "failed") {
     return (
       <div className="mt-1 flex min-w-0 items-center gap-2 text-xs text-destructive" role="alert">
-        <span className="size-1.5 shrink-0 rounded-full bg-destructive" aria-hidden="true" />
         <Tooltip>
           <TooltipTrigger render={<span className="min-w-0 truncate">{state.message}</span>} />
           <TooltipPopup side="top">{state.message}</TooltipPopup>
@@ -224,7 +224,7 @@ export function ServerUpdateProgress({
   }
   return (
     <div className="mt-1 flex items-center gap-2 text-xs font-medium text-foreground">
-      <span className="size-1.5 shrink-0 rounded-full bg-foreground" aria-hidden="true" />
+      <Spinner size="xs" tone="muted" />
       <span>{serverUpdateStageLabel(state.stage)}</span>
     </div>
   );

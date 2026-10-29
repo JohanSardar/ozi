@@ -68,7 +68,6 @@ import { FoldedSettingsSection } from "./FoldedSettingsSection";
 import { readCodexSetupMode } from "./CodexSetupSection.logic";
 import {
   getProviderVersionAdvisoryPresentation,
-  PROVIDER_STATUS_STYLES,
   getProviderStatusKey,
   getProviderSummary,
   getProviderVersionLabel,
@@ -633,7 +632,6 @@ export function ProviderInstanceCard({
   const effectiveProvider = liveProvider && { ...liveProvider, enabled };
   const compatibility = enabled ? liveProvider?.compatibilityAdvisory : undefined;
   const statusKey = enabled ? getProviderStatusKey(effectiveProvider) : "disabled";
-  const statusStyle = PROVIDER_STATUS_STYLES[statusKey];
   const summary = enabled
     ? getProviderSummary(effectiveProvider)
     : { headline: "Disabled", detail: null };
@@ -815,10 +813,6 @@ export function ProviderInstanceCard({
     <code className="text-xs text-muted-foreground">{versionLabel}</code>
   ) : null;
 
-  const statusDotNode =
-    statusKey === "warning" || statusKey === "error" ? (
-      <span className={cn("size-1.5 shrink-0 rounded-full", statusStyle.dot)} aria-hidden />
-    ) : null;
   const needsAttention = statusKey === "warning" || statusKey === "error";
   const statusDiagnostic = hasCompatibilityWarning && needsAttention ? summary.detail : null;
   const inlineStatusDetail = hasCompatibilityWarning
@@ -831,7 +825,6 @@ export function ProviderInstanceCard({
   const editorStatusNode =
     isAuthenticated && authEmail ? (
       <>
-        {needsAttention ? statusDotNode : null}
         <span>Authenticated as</span>
         <ProviderAuthEmail email={authEmail} />
         {authLabel ? <span>· {authLabel}</span> : null}
@@ -841,7 +834,6 @@ export function ProviderInstanceCard({
       </>
     ) : (
       <>
-        {statusDotNode}
         <span>{summary.headline}</span>
         {inlineStatusDetail ? (
           <span className="min-w-0 [overflow-wrap:anywhere]">· {inlineStatusDetail}</span>
@@ -925,7 +917,7 @@ export function ProviderInstanceCard({
             </p>
           ) : null}
           {onRunVersionAction && updateCommand ? (
-            <div className="flex items-center gap-2 text-3xs font-medium uppercase tracking-wider text-muted-foreground">
+            <div className="flex items-center gap-2 text-3xs font-medium text-muted-foreground">
               <span aria-hidden className="h-px flex-1 bg-border" />
               or, update manually using
               <span aria-hidden className="h-px flex-1 bg-border" />
@@ -994,9 +986,6 @@ export function ProviderInstanceCard({
               {versionAdvisoryNode}
             </span>
             <span className="mt-0.5 flex items-start gap-1.5 text-xs leading-normal text-muted-foreground/80">
-              {statusDotNode && !updateProgress ? (
-                <span className="flex h-[1.45em] shrink-0 items-center">{statusDotNode}</span>
-              ) : null}
               <ProviderStatusDiagnostic detail={statusDiagnostic}>
                 <span
                   tabIndex={statusDiagnostic ? 0 : undefined}

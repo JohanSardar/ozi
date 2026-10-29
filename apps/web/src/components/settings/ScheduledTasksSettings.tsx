@@ -66,7 +66,6 @@ import { EMPTY_SERVER_PROVIDERS, serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { WorktreeBaseBranchPicker } from "../WorktreeBaseBranchPicker";
 import { EnvironmentMachineIcon } from "../EnvironmentMachineIcon";
-import { ConnectionStatusDot, connectionPhaseDotClassName } from "../ConnectionStatusDot";
 import { AuthOrchestrationOperateScope } from "@t3tools/contracts";
 import { readEnvironmentScope } from "~/state/session";
 import { useSettingsScope } from "./SettingsScopeContext";
@@ -542,10 +541,6 @@ function ScheduledTaskEnvironmentList({
                 </>
               }
             >
-              <ConnectionStatusDot
-                dotClassName={connectionPhaseDotClassName(environment.connection.phase)}
-                tooltipText={connectionStatusTitle(environment.connection)}
-              />
               <span className="text-xs text-muted-foreground">
                 {connectionStatusTitle(environment.connection)}
               </span>

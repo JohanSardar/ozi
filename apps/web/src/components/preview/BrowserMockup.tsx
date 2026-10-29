@@ -10,9 +10,9 @@ export function BrowserMockup({ className }: { className?: string }) {
       )}
     >
       <div className="flex gap-0.5">
-        <span className="size-[3px] rounded-full bg-destructive/80" />
-        <span className="size-[3px] rounded-full bg-warning/80" />
-        <span className="size-[3px] rounded-full bg-success/80" />
+        <span className="size-[3px] rounded-full bg-muted-foreground/40" />
+        <span className="size-[3px] rounded-full bg-muted-foreground/40" />
+        <span className="size-[3px] rounded-full bg-muted-foreground/40" />
       </div>
       <div className="mt-[1px] flex flex-1 flex-col gap-0.5">
         <span className="h-[2px] w-full rounded-full bg-muted-foreground/30" />

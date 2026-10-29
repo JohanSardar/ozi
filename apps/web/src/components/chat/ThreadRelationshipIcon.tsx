@@ -1,6 +1,6 @@
 import type { ProviderDriverKind, ServerProvider } from "@t3tools/contracts";
 import { BotIcon, type LucideIcon } from "lucide-react";
-import { cn } from "../../lib/utils";
+import { Spinner } from "../ui/spinner";
 import { ProviderInstanceIcon } from "./ProviderInstanceIcon";
 
 export function threadRelationshipStatusLabel(status: string | null): string {
@@ -67,22 +67,14 @@ export function ThreadRelationshipIcon({
       ) : (
         <FallbackIcon className={iconClassName} />
       )}
-      <span
-        className={cn(
-          "absolute -bottom-1 -right-1 size-2 rounded-full border-2 border-card",
-          status === "running" ||
-            status === "in_progress" ||
-            status === "pending" ||
-            status === "waiting"
-            ? "bg-info"
-            : status === "failed" || status === "error"
-              ? "bg-destructive"
-              : status === "completed"
-                ? "bg-success"
-                : "bg-muted-foreground/45",
-        )}
-        aria-hidden="true"
-      />
+      {status === "running" ||
+      status === "in_progress" ||
+      status === "pending" ||
+      status === "waiting" ? (
+        <span className="absolute -right-1.5 -bottom-1.5 rounded-full bg-card flex">
+          <Spinner size="xs" tone="muted" />
+        </span>
+      ) : null}
     </span>
   );
 }

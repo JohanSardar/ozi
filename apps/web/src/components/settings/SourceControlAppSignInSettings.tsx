@@ -247,7 +247,7 @@ export function SourceControlAppSignInSettings({
               <ExternalLinkIcon aria-hidden className="size-3.5" />
             </Button>
             <p className="flex items-center gap-1.5 text-xs text-muted-foreground">
-              <span aria-hidden className="size-1.5 rounded-full bg-warning" />
+              <Spinner size="xs" tone="muted" />
               Waiting for approval · code expires at {expiryTime(waiting.expiresAt)}
             </p>
           </div>

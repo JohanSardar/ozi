@@ -4,25 +4,7 @@ import type {
   ServerProviderCompatibilityAdvisory,
 } from "@t3tools/contracts";
 
-export const PROVIDER_STATUS_STYLES = {
-  disabled: {
-    dot: "bg-muted-foreground/50",
-  },
-  error: {
-    dot: "bg-destructive",
-  },
-  neutral: {
-    dot: "bg-muted-foreground",
-  },
-  ready: {
-    dot: "bg-success",
-  },
-  warning: {
-    dot: "bg-warning",
-  },
-} as const;
-
-export type ProviderStatusKey = keyof typeof PROVIDER_STATUS_STYLES;
+export type ProviderStatusKey = "disabled" | "error" | "neutral" | "ready" | "warning";
 
 // Antigravity's local health check verifies installation, not Google sign-in.
 // API-key and Agent Platform warnings still need attention.

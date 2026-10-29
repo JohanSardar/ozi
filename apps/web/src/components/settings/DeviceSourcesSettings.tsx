@@ -665,7 +665,7 @@ function PlatformIcon(props: {
         {partial ? (
           <span
             aria-hidden
-            className="absolute top-0.5 right-0.5 size-1.5 rounded-full bg-warning ring-2 ring-background"
+            className="absolute top-0.5 right-0.5 size-1.5 rounded-full bg-current ring-2 ring-background"
           />
         ) : null}
       </PopoverTrigger>
@@ -754,7 +754,7 @@ function DeviceSourceRow(props: { row: SourceRow }) {
         <div className="flex min-w-0 items-center gap-1.5">
           <p className="truncate text-sm font-medium">{row.title}</p>
           {row.kind ? (
-            <span className="shrink-0 rounded border border-border px-1 text-3xs uppercase tracking-wide text-muted-foreground">
+            <span className="shrink-0 rounded border border-border px-1 text-3xs text-muted-foreground">
               {row.kind}
             </span>
           ) : null}

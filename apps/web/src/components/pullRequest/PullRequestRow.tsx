@@ -202,7 +202,7 @@ function PullRequestRowImpl({
                 <Tooltip>
                   <TooltipTrigger
                     render={
-                      <span className="flex min-w-6 items-center gap-1 overflow-hidden rounded-full border border-border/60 px-1 text-3xs" />
+                      <span className="flex min-w-6 items-center gap-1 overflow-hidden rounded-sm border border-border/60 px-1 text-3xs" />
                     }
                   >
                     <span className="sr-only">matched in the description</span>
