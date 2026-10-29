@@ -179,13 +179,19 @@ beforeAll(async () => {
   );
   await exec("git", ["init", directory]);
   await start("https://hooks.example.invalid/base/");
-}, 180_000);
-
-it("c1.target: create a real chat through the CLI", async () => {
   await exec(
     process.execPath,
     [NodePath.join(root, "apps/server/src/bin.ts"), "project", "add", directory, "--home", home],
-    { cwd: directory },
+    {
+      cwd: directory,
+      env: {
+        ...process.env,
+        HOME: directory,
+        OZI_HOME: home,
+        OZI_TELEMETRY_ENABLED: "false",
+        NODE_COMPILE_CACHE: NodePath.join(directory, "compile-cache"),
+      },
+    },
   );
   chat = await cli(
     "thread",
@@ -233,7 +239,7 @@ it("c1.timed: intervals, local weekdays, pause, manual runs and deletion target 
       (thread: any) => thread.threadId,
     ),
   ).toEqual([chat.threadId]);
-}, 240_000);
+});
 
 it("c1.webhooks: URL tokens, raw HMAC, filters, rotation, replay expiry and fixed coalescing survive restart", async () => {
   const secret = NodeCrypto.randomBytes(32).toString("hex");
@@ -319,7 +325,7 @@ it("c1.webhooks: URL tokens, raw HMAC, filters, rotation, replay expiry and fixe
   await advance("10s");
   await delivered("C1 hook 3");
   await cli("schedule", "rm", task.id, "--json");
-}, 240_000);
+});
 
 it("c1.public-url: unsigned CLI webhooks omit the public URL without configuration", async () => {
   await stop();
@@ -346,4 +352,4 @@ it("c1.public-url: unsigned CLI webhooks omit the public URL without configurati
   ).toBe(202);
   await delivered("C1 unsigned delivered");
   await cli("schedule", "rm", task.scheduledTaskId, "--json");
-}, 120_000);
+});
