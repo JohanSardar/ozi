@@ -2,10 +2,8 @@ import { useAtomValue } from "@effect/atom-react";
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import type { EnvironmentId, Ticket, TicketId } from "@t3tools/contracts";
 import { useNavigate } from "@tanstack/react-router";
-import { CheckIcon, ChevronDownIcon, Maximize2Icon } from "lucide-react";
 import { useEffect, useState } from "react";
 
-import { useRelativeTimeState } from "../../hooks/useRelativeTimeState";
 import { isEditableFocused } from "../../lib/editableFocus";
 import { cn } from "../../lib/utils";
 import { primaryEnvironmentIdAtom } from "../../state/primaryEnvironment";
@@ -17,11 +15,11 @@ import { buildThreadRouteParams } from "../../threadRoutes";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Spinner } from "../ui/spinner";
+import { Age, Choices, clearedBy, TicketWindow } from "./TicketWindow";
 
 export interface TicketHooks {
   readonly choose?: (ticket: Ticket, index: number) => void;
   readonly reply?: (ticket: Ticket, text: string) => void;
-  readonly openDetails?: (ticket: Ticket) => void;
 }
 
 const GROUPS = [
@@ -30,20 +28,6 @@ const GROUPS = [
   ["Review", "finished work"],
   ["Read", "nothing to do"],
 ] as const;
-
-function Age(props: { iso: string }) {
-  const relative = useRelativeTimeState(props.iso);
-  return relative.status === "relative" ? relative.value : null;
-}
-
-function clearedBy(ticket: Ticket) {
-  if (ticket.cleared === null) return "";
-  const by = ticket.cleared.by;
-  if (by.type === "answered") return `Answered: ${ticket.choices[by.choiceIndex]?.label ?? ""}`;
-  if (by.type === "replied") return "Replied";
-  if (by.type === "acknowledged") return "Got it";
-  return "Closed from chat";
-}
 
 export function InboxPanel(props: TicketHooks) {
   const environmentId = useAtomValue(primaryEnvironmentIdAtom);
@@ -59,6 +43,7 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks }) {
     index: 0,
   });
   const [workingOpen, setWorkingOpen] = useState(false);
+  const [details, setDetails] = useState<Ticket | null>(null);
   const navigate = useNavigate();
   const close = useAtomCommand(ticketClose);
   const threads = useAtomValue(environmentThreadShells.environmentThreadsAtom(environmentId));
@@ -79,6 +64,7 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks }) {
       ? undefined
       : (ordered.find((ticket) => ticket.id === selected.id) ??
         ordered[Math.min(selected.index, ordered.length - 1)]);
+  const shown = details && (open.find((ticket) => ticket.id === details.id) ?? details);
   const titles = new Map(threads.map((thread) => [thread.id, thread.title]));
   const jobs = threads.flatMap((thread) =>
     (thread.pendingBackgroundTasks ?? []).flatMap((task) =>
@@ -108,7 +94,7 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks }) {
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- window keydown listener that picks a choice on the open ticket
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (tab !== "inbox" || !current || !hooks.choose) return;
+      if (tab !== "inbox" || details || !current || !hooks.choose) return;
       if (event.metaKey || event.ctrlKey || event.altKey || isEditableFocused(event.target)) return;
       const index = Number(event.key) - 1;
       if (!(index >= 0 && index < current.choices.length)) return;
@@ -117,7 +103,7 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks }) {
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [tab, current, hooks]);
+  }, [tab, details, current, hooks]);
 
   return (
     <aside
@@ -174,6 +160,7 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks }) {
                       hooks={hooks}
                       onToggle={() => toggle(ticket)}
                       onGotIt={() => gotIt(ticket)}
+                      onOpenDetails={() => setDetails(ticket)}
                     />
                   ))}
                 </section>
@@ -197,12 +184,6 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks }) {
                   <span className="font-normal text-muted-foreground tabular-nums">
                     {jobs.length}
                   </span>
-                  <ChevronDownIcon
-                    className={cn(
-                      "ml-auto size-3.5 self-center text-muted-foreground transition-transform",
-                      workingOpen && "rotate-180",
-                    )}
-                  />
                 </button>
                 {workingOpen ? (
                   <div className="overflow-hidden rounded-lg border border-border bg-card">
@@ -248,7 +229,7 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks }) {
               <button
                 key={ticket.id}
                 type="button"
-                onClick={() => hooks.openDetails?.(ticket)}
+                onClick={() => setDetails(ticket)}
                 className="flex w-full items-center gap-3 rounded-lg border border-transparent px-2.5 py-2 text-left transition-colors hover:border-border hover:bg-card"
               >
                 <span className="min-w-0 flex-1">
@@ -270,6 +251,17 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks }) {
           </>
         )}
       </div>
+      {shown ? (
+        <TicketWindow
+          environmentId={environmentId}
+          ticket={shown}
+          titles={titles}
+          onClose={() => setDetails(null)}
+          onChoose={(index) => hooks.choose?.(shown, index)}
+          onReply={(text) => hooks.reply?.(shown, text)}
+          onGotIt={() => gotIt(shown)}
+        />
+      ) : null}
     </aside>
   );
 }
@@ -281,6 +273,7 @@ function TicketRow(props: {
   hooks: TicketHooks;
   onToggle: () => void;
   onGotIt: () => void;
+  onOpenDetails: () => void;
 }) {
   const { ticket, hooks } = props;
   const [reply, setReply] = useState("");
@@ -307,23 +300,8 @@ function TicketRow(props: {
             {ticket.summary}
           </p>
           {ticket.choices.length > 0 ? (
-            <div role="group" aria-label="Choices" className="mt-3 grid gap-1.5">
-              {ticket.choices.map((choice, index) => (
-                <button
-                  key={choice.label}
-                  type="button"
-                  onClick={() => hooks.choose?.(ticket, index)}
-                  className="grid w-full grid-cols-[22px_minmax(0,1fr)] gap-x-2.5 rounded-md border border-border py-2 pr-3 pl-2 text-left transition-colors hover:bg-accent"
-                >
-                  <span className="h-5 rounded-sm bg-accent text-center text-xs leading-5 text-muted-foreground tabular-nums">
-                    {index + 1}
-                  </span>
-                  <span className="text-sm leading-5">{choice.label}</span>
-                  <span className="col-start-2 text-xs leading-4.5 text-muted-foreground">
-                    {choice.detail}
-                  </span>
-                </button>
-              ))}
+            <div className="mt-3">
+              <Choices ticket={ticket} onChoose={(index) => hooks.choose?.(ticket, index)} />
             </div>
           ) : null}
           <div className="mt-2.5 flex items-center gap-2">
@@ -342,7 +320,6 @@ function TicketRow(props: {
               className="flex-1"
             />
             <Button variant="outline" onClick={props.onGotIt}>
-              <CheckIcon />
               Got it
             </Button>
           </div>
@@ -350,9 +327,8 @@ function TicketRow(props: {
             variant="ghost-muted"
             size="xs"
             className="mt-2 -ml-2"
-            onClick={() => hooks.openDetails?.(ticket)}
+            onClick={props.onOpenDetails}
           >
-            <Maximize2Icon />
             Open details
           </Button>
         </div>
