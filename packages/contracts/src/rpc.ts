@@ -1,4 +1,14 @@
 import {
+  Ticket,
+  TicketCloseInput,
+  TicketCreateInput,
+  TicketError,
+  TicketGetInput,
+  TicketListInput,
+  TicketListResult,
+  TicketUpdateInput,
+} from "./ticket.ts";
+import {
   OrchestrationV2SearchThreadError,
   OrchestrationV2SearchThreadInput,
   OrchestrationV2SearchThreadResult,
@@ -398,6 +408,12 @@ import { VcsError } from "./vcs.ts";
 import { Project, ProjectMutation, ProjectMutationError } from "./project.ts";
 
 export const WS_METHODS = {
+  ticketsCreate: "tickets.create",
+  ticketsUpdate: "tickets.update",
+  ticketsClose: "tickets.close",
+  ticketsGet: "tickets.get",
+  ticketsList: "tickets.list",
+  ticketsSubscribe: "tickets.subscribe",
   projectsListEntries: "projects.listEntries",
   projectsListIgnoredFiles: "projects.listIgnoredFiles",
   projectsReadFile: "projects.readFile",
@@ -1932,7 +1948,50 @@ export class RpcScopeAuthorization extends RpcMiddleware.Service<RpcScopeAuthori
   { error: EnvironmentAuthorizationError },
 ) {}
 
+const WsTicketsCreateRpc = Rpc.make(WS_METHODS.ticketsCreate, {
+  payload: TicketCreateInput,
+  success: Ticket,
+  error: Schema.Union([TicketError, EnvironmentAuthorizationError]),
+});
+
+const WsTicketsUpdateRpc = Rpc.make(WS_METHODS.ticketsUpdate, {
+  payload: TicketUpdateInput,
+  success: Ticket,
+  error: Schema.Union([TicketError, EnvironmentAuthorizationError]),
+});
+
+const WsTicketsCloseRpc = Rpc.make(WS_METHODS.ticketsClose, {
+  payload: TicketCloseInput,
+  success: Ticket,
+  error: Schema.Union([TicketError, EnvironmentAuthorizationError]),
+});
+
+const WsTicketsGetRpc = Rpc.make(WS_METHODS.ticketsGet, {
+  payload: TicketGetInput,
+  success: Ticket,
+  error: Schema.Union([TicketError, EnvironmentAuthorizationError]),
+});
+
+const WsTicketsListRpc = Rpc.make(WS_METHODS.ticketsList, {
+  payload: TicketListInput,
+  success: TicketListResult,
+  error: Schema.Union([TicketError, EnvironmentAuthorizationError]),
+});
+
+const WsTicketsSubscribeRpc = Rpc.make(WS_METHODS.ticketsSubscribe, {
+  payload: TicketListInput,
+  success: TicketListResult,
+  error: Schema.Union([TicketError, EnvironmentAuthorizationError]),
+  stream: true,
+});
+
 export const WsRpcGroup = RpcGroup.make(
+  WsTicketsSubscribeRpc,
+  WsTicketsListRpc,
+  WsTicketsGetRpc,
+  WsTicketsCloseRpc,
+  WsTicketsUpdateRpc,
+  WsTicketsCreateRpc,
   WsGuestShareCreateRpc,
   WsServerProbeRpc,
   WsServerGetConfigRpc,

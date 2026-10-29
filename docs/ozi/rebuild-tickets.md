@@ -40,3 +40,5 @@ The work in `ui-redesign.md`, split into tickets. A ticket starts when everythin
 F1 implementation: Ozi identities, isolated checkout dev homes with no live-state seeding, neutral blue icons, inherited notices, Ozi agent rules, and a single typecheck/lint workflow. Internal packages and MCP namespaces stay upstream-named; MCP renaming belongs to G2.
 
 Open: the current build's external to-dos (M4) are not in the redesign spec.
+
+I1 implementation: structured ticket contracts, migration 73 in T3's SQLite database, automatic thread/chat/task/worker/session/message provenance, immutable clearance records, archive search, authorized RPC and live snapshots. `ozi ticket create|update|close|get|list|subscribe --input '<json>' --json` provides the CLI boundary. E2E: `e2e/i1.tickets.test.ts`. UI and MCP tools remain I3 and I2.

@@ -1,3 +1,4 @@
+import * as Tickets from "./tickets/Tickets.ts";
 import { OrchestrationDispatchCommandError } from "@t3tools/contracts";
 import * as Context from "effect/Context";
 import * as Crypto from "effect/Crypto";
@@ -1335,6 +1336,7 @@ export const layerWsRpc = (
       const databaseStorage = yield* DatabaseStorage.DatabaseStorage;
       const serverSettings = yield* ServerSettings.ServerSettingsService;
       const peerLinks = yield* PeerLinks.PeerLinks;
+      const tickets = yield* Tickets.Tickets;
       const peerLinkRequests = yield* PeerLinkRequests.PeerLinkRequests;
       const startup = yield* ServerRuntimeStartup.ServerRuntimeStartup;
       const workspaceEntries = yield* WorkspaceEntries.WorkspaceEntries;
@@ -1861,6 +1863,12 @@ export const layerWsRpc = (
       });
 
       const handlers = ServerWsRpcGroup.of({
+        [WS_METHODS.ticketsCreate]: (input) => tickets.create(input),
+        [WS_METHODS.ticketsUpdate]: (input) => tickets.update(input),
+        [WS_METHODS.ticketsClose]: (input) => tickets.close(input),
+        [WS_METHODS.ticketsGet]: ({ id }) => tickets.get(id),
+        [WS_METHODS.ticketsList]: (input) => tickets.list(input),
+        [WS_METHODS.ticketsSubscribe]: (input) => tickets.subscribe(input),
         [ORCHESTRATION_V2_WS_METHODS.dispatchCommand]: (command) =>
           Effect.annotateCurrentSpan({
             "orchestration_v2.command_id": command.commandId,
@@ -3263,6 +3271,7 @@ export const layer = Layer.unwrap(
     const pullRequests = yield* PullRequestService.PullRequestService;
     const reviewGuides = yield* PullRequestReviewGuideService.PullRequestReviewGuideService;
     const peerLinks = yield* PeerLinks.PeerLinks;
+    const tickets = yield* Tickets.Tickets;
     const peerLinkRequests = yield* PeerLinkRequests.PeerLinkRequests;
     const sql = yield* SqlClient.SqlClient;
     return HttpRouter.add(
@@ -3344,6 +3353,7 @@ export const layer = Layer.unwrap(
                 ),
               ),
               Layer.provide(Layer.succeed(PeerLinks.PeerLinks, peerLinks)),
+              Layer.provide(Layer.succeed(Tickets.Tickets, tickets)),
               Layer.provide(Layer.succeed(PeerLinkRequests.PeerLinkRequests, peerLinkRequests)),
               Layer.provide(
                 SourceControlDiscovery.layer.pipe(

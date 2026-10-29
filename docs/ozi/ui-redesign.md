@@ -68,3 +68,13 @@ Multiple bots (personas, each its own harness) in the sidebar, an animated bot a
 The GUI uses the public `ozi` command, `OZI_` environment variables and `~/.ozi` (`OZI_HOME`). Desktop names are Ozi Beta / Ozi Dev, app IDs com.ozi.app / com.ozi.app.dev, profiles and schemes ozi / ozi-dev. No T3 homes, environment variables or profiles are read or migrated. T3 Code's MIT notice and “Forked from T3 Code” credit remain. Internal `@t3tools/*` package names remain. MCP names stay upstream-named until G2.
 
 `pnpm dev` resolves every git checkout to its own `.ozi`, derives ports from the checkout path and never seeds from installed state. The GUI stores runtime data beneath `.ozi/userdata`; the harness's separate data repository is outside F1. CI runs typecheck and lint only; release and deployment workflows are removed.
+
+## I1 ticket storage
+
+Tickets live in the GUI server's existing SQLite database. `tickets.create`, `tickets.update`, `tickets.close`, `tickets.get`, `tickets.list` and `tickets.subscribe` use shared contracts; reads require orchestration read access and mutations require orchestration operate access. Subscriptions send an initial filtered snapshot and fresh snapshots after committed changes. Reconnecting starts with the persisted current state. Lists default to open tickets; `status: "archived"` or `"all"`, `chatId` and case-insensitive literal `search` filter the archive and inbox. Search covers title, need, summary and markdown.
+
+Content includes up to four labelled choices and reuses T3 attachment references for files and HTML pages. The create caller supplies its thread and, when available, its provider session and message IDs; the store validates those associations, follows worker ancestry to the chat, resolves the delegated-task ID, and attaches the existing authenticated transcript route. Omitted session and message IDs resolve to the latest bound session and local message, or null before either exists. Content updates cannot change provenance.
+
+Closing records the time and an answered choice, reply message, Got it acknowledgement or agent acknowledgement message. Message references must exist in their recorded thread; answered choices must exist on the ticket. Repeated closes preserve the first clearance. Archived content is immutable. Delivering replies and adding chat closure notes belong to I5–I7; MCP caller authentication and tools belong to I2.
+
+The `ozi ticket` CLI exposes those six operations with `--input '<json>' --json`; `subscribe` emits newline-delimited snapshots.

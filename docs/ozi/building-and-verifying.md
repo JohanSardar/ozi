@@ -33,3 +33,9 @@ Typecheck and lint only.
 The foundation scenarios in `e2e/f1.foundation.test.ts` pass against real temporary git checkouts and a real isolated server. They cover checkout and worktree home selection, the public CLI identity, and JSON pairing with a temporary T3-home sentinel left untouched. The focused run took 7.9 seconds. Workspace typecheck passed all 36 packages; lint passed with four inherited warnings.
 
 The dev app was paired in the shared browser and a real Claude Opus 5.5 turn replied “Ozi is ready.” These screenshots preserve the rebuild's initial baseline: [paired chat](screenshots/f1-chat.png) and [About with upstream credit](screenshots/f1-about.png). The Ozi Pi harness default arrives in H2. Production and desktop bundles were not built.
+
+## I1 baseline evidence
+
+`e2e/i1.tickets.test.ts` uses a real isolated server, SQLite, CLI and WebSocket clients. It covers structured content, two subscribers, transcript access, caller validation, delegated-task provenance, all clearance types, archive search and server restart. No provider turn is needed: the worker is created through T3's real delegation command and fails workspace preparation before provider startup. Each scenario uses the standard E2E timeout. The complete file takes about a minute because each CLI invocation starts the Effect runtime; individual package checks and lint take seconds.
+
+The dev app was paired in the shared browser, and its authenticated WebSocket client received the initial `tickets.subscribe` snapshot. [Paired app](screenshots/i1-paired.png). I1 has no inbox UI or MCP tools; those checks arrive with I3 and I2. The dev server was stopped after the check.
