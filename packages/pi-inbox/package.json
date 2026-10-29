@@ -1,0 +1,23 @@
+{
+  "name": "@ozi/pi-inbox",
+  "version": "0.1.0",
+  "license": "MIT",
+  "files": [
+    "index.ts",
+    "README.md"
+  ],
+  "type": "module",
+  "exports": "./index.ts",
+  "scripts": {
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@earendil-works/pi-coding-agent": "1.4.0",
+    "@types/node": "catalog:"
+  },
+  "pi": {
+    "extensions": [
+      "./index.ts"
+    ]
+  }
+}
