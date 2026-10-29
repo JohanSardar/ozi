@@ -118,6 +118,38 @@ const knownRecords: Record<(typeof COMPOSER_CONTEXT_KINDS)[number], Record<strin
     label: "vps",
     environmentId: "environment-vps",
   },
+  ticket: {
+    ...base,
+    kind: "ticket",
+    label: "Pick a dentist slot",
+    ticket: {
+      id: "ticket-1",
+      group: "Decide",
+      title: "Pick a dentist slot",
+      need: "Choose a time",
+      summary: "Two slots are free.",
+      choices: [],
+      markdown: "",
+      attachments: [],
+      htmlPages: [],
+      origin: {
+        threadId: "thread-1",
+        chatId: "thread-1",
+        jobId: null,
+        workerId: null,
+        sessionId: null,
+        messageId: null,
+        transcriptPath: "/api/orchestration/threads/thread-1/transcript",
+      },
+      createdAt: "2026-10-29T10:00:00.000Z",
+      updatedAt: "2026-10-29T10:00:00.000Z",
+      status: "open",
+      cleared: null,
+    },
+    chat: "Dentist",
+    session: "Dentist",
+    transcriptUrl: "http://localhost:3773/api/orchestration/threads/thread-1/transcript",
+  },
 };
 
 describe("ComposerContextRecord", () => {

@@ -827,9 +827,12 @@ const UserMessageBody = memo(function UserMessageBody(props: {
   const ctx = use(TimelineRowCtx);
   const [reply] = collectAssistantCitations(props.text);
   const quote = reply?.start === 0 ? reply : null;
-  const text = quote ? props.text.slice(quote.end).trimStart() : props.text;
+  const [lead] = collectComposerContextReferences(props.text);
+  const ticket = lead?.start === 0 && lead.kind === "ticket" ? lead : null;
+  const text = props.text.slice(quote?.end ?? ticket?.end ?? 0).trimStart();
   return (
     <>
+      {ticket ? props.renderContextReference?.(ticket) : null}
       {quote ? (
         <div className="mb-2 flex items-start gap-2 rounded-md bg-foreground/6 px-2.5 py-1.5 text-muted-foreground text-xs">
           <CornerUpLeftIcon aria-hidden className="mt-0.5 size-3.5 shrink-0" />
