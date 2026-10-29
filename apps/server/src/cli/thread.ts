@@ -679,6 +679,10 @@ const threadSendCommand = Command.make("send", {
 );
 
 const threadShowCommand = Command.make("show", {
+  activity: Flag.Boolean("activity").pipe(
+    Flag.withDescription("Include work log steps."),
+    Flag.withDefault(false),
+  ),
   ...projectLocationFlags,
   thread: threadArgument,
   messages: Flag.Int("messages").pipe(
@@ -694,7 +698,11 @@ const threadShowCommand = Command.make("show", {
       yield* withThreadTools(
         flags,
         Effect.fn("cli.thread.show")(function* (tools) {
-          const { thread, items } = yield* readTimeline(tools, threadId, "messages");
+          const { thread, items } = yield* readTimeline(
+            tools,
+            threadId,
+            flags.activity ? "activity" : "messages",
+          );
           const conversation = items.filter(
             (item) => item.type === "user_message" || item.type === "assistant_message",
           );
@@ -709,7 +717,11 @@ const threadShowCommand = Command.make("show", {
             ),
           );
           if (flags.json) {
-            return yield* printJson({ thread, messages });
+            return yield* printJson({
+              thread,
+              messages,
+              ...(flags.activity ? { activity: items } : {}),
+            });
           }
           yield* Console.log(thread.title);
           yield* Console.log(

@@ -13,7 +13,9 @@ export type AnthropicReply =
   | { text: string }
   | { tool: string; arguments: Record<string, unknown> };
 
-export async function startAnthropic(reply: (input: AnthropicRequest) => AnthropicReply) {
+export async function startAnthropic(
+  reply: (input: AnthropicRequest) => AnthropicReply | Promise<AnthropicReply>,
+) {
   const requests: AnthropicRequest[] = [];
   const headers: NodeHttp.IncomingHttpHeaders[] = [];
   const server = NodeHttp.createServer(async (request, response) => {
@@ -32,7 +34,7 @@ export async function startAnthropic(reply: (input: AnthropicRequest) => Anthrop
     const input = JSON.parse(body) as AnthropicRequest;
     requests.push(input);
     headers.push(request.headers);
-    const answer = reply(input);
+    const answer = await reply(input);
     const useTool = "tool" in answer;
     response.writeHead(200, { "content-type": "text/event-stream" });
     const emit = (type: string, data: object) =>

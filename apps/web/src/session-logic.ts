@@ -499,6 +499,14 @@ function projectedWorkEntry(row: OrchestrationV2ProjectedTurnItem): WorkLogEntry
       };
     }
     case "dynamic_tool": {
+      if (item.toolName === "inbox_check") {
+        return {
+          ...common,
+          label: title ?? "Inbox check",
+          tone: "tool",
+          sourceActivityKind: "inbox.check",
+        };
+      }
       const classified = classifyToolActivity({
         itemType: "dynamic_tool_call",
         data: { toolName: item.toolName ?? undefined, input: item.input },

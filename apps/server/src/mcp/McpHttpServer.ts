@@ -186,6 +186,13 @@ const linkedEnvironmentsOff = HttpServerResponse.jsonUnsafe(
   { status: 403, headers: { "cache-control": "no-store" } },
 );
 
+const decodeInboxCall = Schema.decodeUnknownOption(
+  Schema.Struct({
+    method: Schema.String,
+    params: Schema.optional(Schema.Struct({ name: Schema.String })),
+  }),
+);
+
 const makeMcpAuthMiddleware = Effect.gen(function* () {
   const registry = yield* McpSessionRegistry.McpSessionRegistry;
   const clients = yield* Effect.serviceOption(McpClientAuthenticator);
@@ -215,6 +222,16 @@ const makeMcpAuthMiddleware = Effect.gen(function* () {
         presentedToken: token.length > 0,
         offerOAuth: Option.isSome(clients) && !looksLikeProviderToken(token),
       });
+    }
+    if (invocation.thread?.inboxCheck !== undefined && request.method === "POST") {
+      const call = decodeInboxCall(yield* request.json.pipe(Effect.orElseSucceed(() => undefined)));
+      if (
+        Option.isSome(call) &&
+        call.value.method === "tools/call" &&
+        !Object.hasOwn(TicketToolkit.tools, call.value.params?.name ?? "")
+      ) {
+        return HttpServerResponse.jsonUnsafe({ error: "inbox_tools_only" }, { status: 403 });
+      }
     }
     const limited = withModeLimit(invocation, request);
     if (limited === undefined) return invalidModeLimit;

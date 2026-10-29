@@ -1,4 +1,5 @@
 import * as Tickets from "./tickets/Tickets.ts";
+import * as InboxChecks from "./tickets/InboxChecks.ts";
 import * as ProviderEventLoggers from "@t3tools/provider-core/server/ProviderEventLoggers";
 import type { RelayManagedEndpointRuntimeConfig } from "@t3tools/contracts/relay";
 import * as Random from "effect/Random";
@@ -632,6 +633,13 @@ const layerRuntimeCoreDependenciesBase = Layer.mergeAll(
   ),
   Layer.provideMerge(ProviderRegistry.layer),
   Layer.provideMerge(ProviderInstanceRegistryHydration.layer),
+  Layer.provideMerge(
+    InboxChecks.layer.pipe(
+      Layer.provide(Tickets.layer),
+      Layer.provide(ProjectionStoreV2.layer),
+      Layer.provide(layerPersistence),
+    ),
+  ),
   // Provider hydration builds the Claude runner, which reports agents to the same scanner the
   // terminal and preview layers share.
   Layer.provideMerge(layerPortScanner),

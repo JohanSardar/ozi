@@ -5,6 +5,8 @@ import {
   OrchestratorMcpFailure,
   PreviewAutomationUnavailableError,
   type ProviderInstanceId,
+  type ProviderSessionId,
+  type MessageId,
   type ProviderInteractionMode,
   type RuntimeMode,
   type ThreadId,
@@ -23,6 +25,11 @@ export interface McpThreadCaller {
   readonly providerInstanceId: ProviderInstanceId;
   /** A delegated child task; its parent owns the work it hands back. */
   readonly subagent?: boolean;
+  readonly inboxCheck?: {
+    readonly sessionId: ProviderSessionId;
+    readonly messageId: MessageId;
+    readonly filed: Set<string>;
+  };
 }
 
 export interface McpClientCaller {

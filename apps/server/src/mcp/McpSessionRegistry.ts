@@ -19,6 +19,7 @@ export interface McpCredentialRequest {
   readonly browserToolsAvailable?: boolean;
   readonly capabilities?: ReadonlySet<McpInvocationContext.McpCapability>;
   readonly subagent?: boolean;
+  readonly inboxCheck?: McpInvocationContext.McpThreadCaller["inboxCheck"];
 }
 
 export interface McpIssuedCredential {
@@ -107,6 +108,7 @@ const makeWithOptions = Effect.fn("McpSessionRegistry.make")(function* (
           providerSessionId,
           providerInstanceId: ProviderInstanceId.make(request.providerInstanceId),
           subagent: request.subagent === true,
+          ...(request.inboxCheck === undefined ? {} : { inboxCheck: request.inboxCheck }),
         },
         client: undefined,
         capabilities: new Set<McpInvocationContext.McpCapability>([
@@ -144,7 +146,12 @@ const makeWithOptions = Effect.fn("McpSessionRegistry.make")(function* (
       const timestamp = yield* currentTimeMillis;
       return yield* SynchronizedRef.modify(state, ({ records }) => {
         const record = records.get(tokenHash);
-        if (!record || timestamp - record.lastAliveAt > livenessWindowMs) {
+        if (
+          !record ||
+          timestamp - record.lastAliveAt > livenessWindowMs ||
+          (record.scope.thread.inboxCheck !== undefined &&
+            timestamp - record.scope.issuedAt > 120_000)
+        ) {
           return [undefined, { records }] as const;
         }
         const next = new Map(records);
