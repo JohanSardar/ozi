@@ -622,25 +622,23 @@ export interface ThreadStatusPill {
     | "Connecting"
     | "Completed"
     | "Failed"
-    | "Pending Approval"
-    | "Awaiting Input"
-    | "Guest Request"
+    | "Pending approval"
+    | "Awaiting input"
+    | "Guest request"
     | "Waiting"
-    | "Plan Ready";
-  colorClass: string;
-  dotClass: string;
-  pulse: boolean;
+    | "Plan ready";
+  spinner: boolean;
 }
 
 const THREAD_STATUS_PRIORITY: Record<ThreadStatusPill["label"], number> = {
-  "Pending Approval": 5,
-  "Awaiting Input": 4,
-  "Guest Request": 3.75,
+  "Pending approval": 5,
+  "Awaiting input": 4,
+  "Guest request": 3.75,
   Failed: 3.5,
   Working: 3,
   Connecting: 3,
   Waiting: 2.5,
-  "Plan Ready": 2,
+  "Plan ready": 2,
   Completed: 1,
 };
 
@@ -1077,28 +1075,22 @@ export function resolveThreadStatusPill(input: {
 
   if (thread.hasPendingApprovals || thread.pendingSubagentRequest === "approval") {
     return {
-      label: "Pending Approval",
-      colorClass: "text-amber-600 dark:text-amber-300/90",
-      dotClass: "bg-amber-500 dark:bg-amber-300/90",
-      pulse: false,
+      label: "Pending approval",
+      spinner: false,
     };
   }
 
   if (thread.hasPendingUserInput || thread.pendingSubagentRequest === "user_input") {
     return {
-      label: "Awaiting Input",
-      colorClass: "text-indigo-600 dark:text-indigo-300/90",
-      dotClass: "bg-indigo-500 dark:bg-indigo-300/90",
-      pulse: false,
+      label: "Awaiting input",
+      spinner: false,
     };
   }
 
   if ((thread.pendingGuestMessageCount ?? 0) > 0) {
     return {
-      label: "Guest Request",
-      colorClass: "text-guest-foreground",
-      dotClass: "bg-guest",
-      pulse: false,
+      label: "Guest request",
+      spinner: false,
     };
   }
 
@@ -1108,9 +1100,7 @@ export function resolveThreadStatusPill(input: {
   ) {
     return {
       label: "Working",
-      colorClass: "text-sky-600 dark:text-sky-300/80",
-      dotClass: "bg-sky-500 dark:bg-sky-300/80",
-      pulse: true,
+      spinner: true,
     };
   }
 
@@ -1121,9 +1111,7 @@ export function resolveThreadStatusPill(input: {
   ) {
     return {
       label: "Connecting",
-      colorClass: "text-sky-600 dark:text-sky-300/80",
-      dotClass: "bg-sky-500 dark:bg-sky-300/80",
-      pulse: true,
+      spinner: true,
     };
   }
 
@@ -1133,18 +1121,14 @@ export function resolveThreadStatusPill(input: {
   ) {
     return {
       label: "Waiting",
-      colorClass: "text-sidebar-muted-foreground",
-      dotClass: "bg-sidebar-muted-foreground",
-      pulse: false,
+      spinner: false,
     };
   }
 
   if (hasUnseenFailure(thread)) {
     return {
       label: "Failed",
-      colorClass: "text-red-600 dark:text-red-300/90",
-      dotClass: "bg-red-500 dark:bg-red-300/90",
-      pulse: false,
+      spinner: false,
     };
   }
 
@@ -1155,19 +1139,15 @@ export function resolveThreadStatusPill(input: {
     thread.hasActionableProposedPlan;
   if (hasPlanReadyPrompt) {
     return {
-      label: "Plan Ready",
-      colorClass: "text-violet-600 dark:text-violet-300/90",
-      dotClass: "bg-violet-500 dark:bg-violet-300/90",
-      pulse: false,
+      label: "Plan ready",
+      spinner: false,
     };
   }
 
   if (hasUnseenCompletion(thread)) {
     return {
       label: "Completed",
-      colorClass: "text-emerald-600 dark:text-emerald-300/90",
-      dotClass: "bg-emerald-500 dark:bg-emerald-300/90",
-      pulse: false,
+      spinner: false,
     };
   }
 

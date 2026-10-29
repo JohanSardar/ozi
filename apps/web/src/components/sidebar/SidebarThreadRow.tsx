@@ -35,7 +35,6 @@ import {
   CheckIcon,
   CircleAlertIcon,
   CircleCheckIcon,
-  CircleDashedIcon,
   CircleDotDashedIcon,
   ClockIcon,
   GitBranchIcon,
@@ -110,6 +109,7 @@ import { shouldShowInstanceBadge, type ProviderInstanceEntry } from "../../provi
 import { useThreadRunningTerminalIds } from "../../state/terminalSessions";
 import { InlineButton } from "../ui/button";
 import { Menu, MenuItem, MenuPopup, MenuSeparator, MenuShortcut, MenuTrigger } from "../ui/menu";
+import { Spinner } from "../ui/spinner";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { MiddleTruncate } from "../ui/middle-truncate";
 import { useThreadHasUnsentDraft } from "../../composerDraftStore";
@@ -152,7 +152,7 @@ function JumpHintBadge(props: { label: string }) {
   return (
     <span
       aria-hidden
-      className="pointer-events-none absolute right-1.5 top-1/2 z-10 inline-flex h-5 -translate-y-1/2 items-center rounded-full border border-border/80 bg-background/95 px-1.5 font-mono text-3xs font-medium tracking-tight text-foreground shadow-sm"
+      className="pointer-events-none absolute right-1.5 top-1/2 z-10 inline-flex h-5 -translate-y-1/2 items-center rounded-sm border border-border/80 bg-background/95 px-1.5 text-3xs font-medium tracking-tight text-foreground shadow-sm"
     >
       {props.label}
     </span>
@@ -516,7 +516,7 @@ const dropVerbBadge: Record<SidebarDropVerb, ReactNode> = {
 };
 
 const TOP_STATUS_ICONS = {
-  working: CircleDashedIcon,
+  working: Spinner,
   waiting: CircleDotDashedIcon,
   input: MessageCircleQuestionIcon,
   request: UserRoundIcon,
@@ -725,55 +725,46 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
       ? {
           label: thread.goal?.status === "active" ? "Goal" : "Working",
           icon: "working" as const,
-          className: "text-info-foreground",
         }
       : status === "waiting"
         ? {
             label: "Waiting",
             icon: "waiting" as const,
-            className: "text-muted-foreground",
           }
         : status === "approval"
           ? {
               label: "Approval",
               icon: "approval" as const,
-              className: "text-warning-foreground",
             }
           : status === "input"
             ? {
                 label: "Input",
                 icon: "input" as const,
-                className: "text-indigo-600 dark:text-indigo-300",
               }
             : status === "request"
               ? {
                   label: "Request",
                   icon: "request" as const,
-                  className: "text-guest-foreground",
                 }
               : status === "limited"
                 ? {
                     label: "Limited",
                     icon: "failed" as const,
-                    className: "text-warning-foreground",
                   }
                 : status === "failed"
                   ? {
                       label: "Failed",
                       icon: "failed" as const,
-                      className: "text-error-foreground",
                     }
                   : isWoke
                     ? {
                         label: "Woke",
                         icon: "woke" as const,
-                        className: "text-warning-foreground",
                       }
                     : isUnread
                       ? {
                           label: "Done",
                           icon: "done" as const,
-                          className: "text-success-foreground",
                         }
                       : null;
   const isWokeStatus = topStatus?.icon === "woke";
@@ -1273,7 +1264,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                     )}
                   >
                     {variantAction === "unsnooze" && props.snoozeWakeLabelText !== null ? (
-                      <span className="inline-flex items-center gap-1 text-xs text-info-foreground tabular-nums">
+                      <span className="inline-flex items-center gap-1 text-xs text-muted-foreground tabular-nums">
                         {/* The clock tells a wake time from an age at a glance. */}
                         <AlarmClockIcon aria-hidden className="size-3" />
                         {props.snoozeWakeLabelText}
@@ -1286,7 +1277,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                               type="button"
                               aria-label="Dismiss Woke notification"
                               onClick={handleAcknowledgeWokeClick}
-                              className="inline-flex cursor-pointer items-center gap-1 rounded-sm text-xs font-medium text-warning-foreground outline-none hover:underline focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
+                              className="inline-flex cursor-pointer items-center gap-1 rounded-sm text-xs font-medium text-muted-foreground outline-none hover:underline focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                             >
                               <AlarmClockIcon aria-hidden className="size-3" />
                               <span role="status">Woke</span>
@@ -1297,12 +1288,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                       </Tooltip>
                     ) : inFolder && topStatus ? (
                       // Folder rows have no status line, so the status takes the time slot.
-                      <span
-                        className={cn(
-                          "inline-flex items-center gap-1 text-xs font-medium",
-                          topStatus.className,
-                        )}
-                      >
+                      <span className="inline-flex items-center gap-1 text-xs font-medium text-muted-foreground">
                         <TopStatusIcon icon={topStatus.icon} className="size-3" />
                         {topStatus.label}
                       </span>
@@ -1463,10 +1449,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                                 type="button"
                                 aria-label="Dismiss Woke notification"
                                 onClick={handleAcknowledgeWokeClick}
-                                className={cn(
-                                  "inline-flex cursor-pointer items-center gap-1 rounded-sm font-medium outline-none hover:underline focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-                                  topStatus.className,
-                                )}
+                                className="inline-flex cursor-pointer items-center gap-1 rounded-sm font-medium text-muted-foreground outline-none hover:underline focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
                               >
                                 <AlarmClockIcon aria-hidden className="size-4 shrink-0" />
                                 <span role="status">{topStatus.label}</span>
@@ -1476,12 +1459,7 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                           <TooltipPopup side="top">Dismiss Woke notification</TooltipPopup>
                         </Tooltip>
                       ) : (
-                        <span
-                          className={cn(
-                            "inline-flex items-center gap-1 font-medium",
-                            topStatus.className,
-                          )}
-                        >
+                        <span className="inline-flex items-center gap-1 font-medium text-muted-foreground">
                           <TopStatusIcon icon={topStatus.icon} className="size-4" />
                           {/* Not a live region: a collapsed sidebar is inert, so
                             BackgroundThreadAnnouncer and the open thread's
