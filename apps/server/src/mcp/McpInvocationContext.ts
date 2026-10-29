@@ -14,13 +14,7 @@ import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import { formatThreadLink } from "@t3tools/shared/threadLinks";
 
-const ALL_MCP_CAPABILITIES = [
-  "preview",
-  "orchestration",
-  "worktree",
-  "device",
-  "pull-requests",
-] as const;
+const ALL_MCP_CAPABILITIES = ["preview", "orchestration", "worktree", "pull-requests"] as const;
 export type McpCapability = (typeof ALL_MCP_CAPABILITIES)[number];
 
 export interface McpThreadCaller {
@@ -178,14 +172,22 @@ export const requireMcpCapability = <const C extends McpCapability>(
     Effect.withSpan("mcp.requireCapability"),
   );
 
-export const requireThreadMcpCapability = <const C extends "preview" | "device">(
-  capability: C,
-): Effect.Effect<McpThreadInvocationScope, McpCapabilityError<C>, McpInvocationContext> =>
+export const requireThreadMcpCapability = (
+  capability: "preview",
+): Effect.Effect<
+  McpThreadInvocationScope,
+  PreviewAutomationUnavailableError,
+  McpInvocationContext
+> =>
   McpInvocationContext.pipe(
     Effect.filterOrFail(
       (invocation): invocation is McpThreadInvocationScope =>
         invocation.capabilities.has(capability) && invocation.thread !== undefined,
-      (invocation) => missingCapability(invocation, capability) as McpCapabilityError<C>,
+      (invocation) =>
+        new PreviewAutomationUnavailableError({
+          capability,
+          environmentId: invocation.environmentId,
+        }),
     ),
     Effect.withSpan("mcp.requireCapability"),
   );

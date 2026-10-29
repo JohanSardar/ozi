@@ -84,3 +84,7 @@ The `ozi ticket` CLI exposes those six operations with `--input '<json>' --json`
 The default chat provider is **Ozi**, a named Pi instance loading `@ozi/pi` from the merged harness PR #81. Pi 1.4 and the harness package ship with the server; no global Pi installation or checkout path is needed. Ozi starts on Claude Opus 5.5, high thinking, fast off, through `pi-claude-bridge` and the user's Claude subscription (`claude auth login`), never an Anthropic API key. Other T3 providers and ordinary Pi remain selectable per chat.
 
 Ozi keeps Pi state under `<OZI_HOME>/agents/ozi` and defaults its data root to `<OZI_HOME>/harness`. An empty root receives the initial delegation prompt and skills directory; existing roots are preserved. The Pi instance's Ozi data root setting accepts an absolute alternate root. The harness rereads `system.md` and optional `adhd.md` each turn and discovers that root's skills. T3's Pi adapter supplies the GUI MCP tools; background text helpers retain the Ozi extension and disable tools. Inbox hooks, self-repair and completion checks remain separate tickets.
+
+## G1 progress
+
+Simulator and emulator support is removed across the server, contracts, providers, web and mobile clients. Browser streaming remains independent of devices. All providers, including ACP, remain available. Project-free chats and the project, git, worktree, diff and pull-request removals remain unimplemented.

@@ -2,7 +2,7 @@ import { useAtomValue } from "@effect/atom-react";
 import { parseScopedThreadKey, scopedThreadKey } from "@t3tools/client-runtime/environment";
 import { PREVIEW_STREAM_BASE_PATH } from "@t3tools/client-runtime/preview/server-browser-stream";
 import { createPreviewEnvironmentAtoms } from "@t3tools/client-runtime/state/preview";
-import { resolveDeviceHubAccess } from "@t3tools/client-runtime/state/deviceHubAccess";
+import { resolvePreviewStreamAccess } from "@t3tools/client-runtime/state/preview-stream-access";
 import type {
   EnvironmentId,
   PreviewEvent,
@@ -152,7 +152,10 @@ const previewStreamAccessAtom = Atom.family((environmentId: EnvironmentId) =>
       );
       const notBefore = get(previewStreamNotBeforeAtom(environmentId));
       if (prepared === null) return Effect.never;
-      const resolve = resolveDeviceHubAccess({ prepared, hubBasePath: PREVIEW_STREAM_BASE_PATH });
+      const resolve = resolvePreviewStreamAccess({
+        prepared,
+        hubBasePath: PREVIEW_STREAM_BASE_PATH,
+      });
       // A recompute interrupts the wait, so only the newest retry resolves.
       const wait = notBefore - Date.now();
       return wait > 0 ? Effect.andThen(Effect.sleep(wait), resolve) : resolve;

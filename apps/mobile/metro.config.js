@@ -16,7 +16,6 @@ const licenseGeneratorSource = path.join(
   "third-party-licenses.ts",
 );
 const escapedWorkspaceRoot = workspaceRoot.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-const generatedDeviceStreamRoot = path.join(__dirname, ".generated", "device-stream");
 const generatedPreviewStreamRoot = path.join(__dirname, ".generated", "preview-stream");
 
 config.watchFolders = [...new Set([...(config.watchFolders ?? []), workspaceRoot])];
@@ -33,7 +32,6 @@ config.resolver = {
   extraNodeModules: {
     ...config.resolver?.extraNodeModules,
     "@t3tools/mobile-third-party-licenses": generatedLicenseModuleRoot,
-    "@t3tools/mobile-device-stream": generatedDeviceStreamRoot,
     "@t3tools/mobile-preview-stream": generatedPreviewStreamRoot,
   },
 };
@@ -71,29 +69,21 @@ async function generateMobileThirdPartyLicenses() {
 }
 
 async function prepareStreamScripts() {
-  const { generateDeviceStreamScript, generatePreviewStreamScript } = await import(
-    pathToFileURL(path.join(__dirname, "scripts", "generate-device-stream.mts")).href
+  const { generatePreviewStreamScript } = await import(
+    pathToFileURL(path.join(__dirname, "scripts", "generate-preview-stream.mts")).href
   );
-  const generateAll = () =>
-    Promise.all([generateDeviceStreamScript(), generatePreviewStreamScript()]);
-  await generateAll();
+  await generatePreviewStreamScript();
   if (process.env.NODE_ENV !== "production") {
     let rebuild = Promise.resolve();
     for (const [directory, files, generate] of [
-      [
-        "apps/mobile/src/features/devices",
-        ["device-stream.browser.ts"],
-        generateDeviceStreamScript,
-      ],
       [
         "apps/mobile/src/features/browser",
         ["preview-stream.browser.ts"],
         generatePreviewStreamScript,
       ],
-      ["packages/client-runtime/src/device", ["stream.ts", "hubAccess.ts"], generateAll],
       [
         "packages/client-runtime/src/preview",
-        ["serverBrowserStream.ts"],
+        ["serverBrowserStream.ts", "streamAccess.ts"],
         generatePreviewStreamScript,
       ],
     ]) {

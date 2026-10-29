@@ -5,10 +5,9 @@ import { Platform } from "react-native";
 import { useAdaptiveWorkspaceLayout } from "../layout/AdaptiveWorkspaceLayout";
 
 export type ThreadInspectorTarget = {
-  readonly type: "thread" | "device";
+  readonly type: "thread";
   readonly environmentId: string;
   readonly threadId: string;
-  readonly deviceKey?: string;
 };
 
 export const ThreadInspectorNavigationContext = createContext<

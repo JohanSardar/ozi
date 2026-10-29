@@ -27,7 +27,6 @@ import { SymbolView } from "../../components/ui/AppSymbol";
 import { ControlPill } from "../../components/ui/ControlPill";
 import { NATIVE_LIQUID_GLASS_SUPPORTED } from "../../native/native-glass";
 import { BrowserPreviewButton } from "../browser/browser-preview-button";
-import { DevicePreviewButton } from "../devices/device-preview-button";
 import type { FloatingWorkingStatus } from "./floating-working-status";
 import { ShimmeringWorkContent } from "./thread-work-log";
 import { useVisibleSecondClock } from "./use-visible-second-clock";
@@ -68,7 +67,6 @@ export const FLOATING_WORKING_CONTROL_COVERAGE = CONTROL_OVERLAY_OFFSET + CONTRO
 export function FloatingWorkingControl(props: {
   readonly colorScheme: "light" | "dark";
   readonly status: FloatingWorkingStatus | null;
-  readonly devicePreview: { readonly count: number; readonly onPress: () => void } | null;
   readonly browserPreview: { readonly count: number; readonly onPress: () => void } | null;
   readonly showScrollToEnd: boolean;
   readonly onScrollToEnd: () => void;
@@ -88,7 +86,7 @@ export function FloatingWorkingControl(props: {
       : null;
   const [agentsWidth, setAgentsWidth] = useState(0);
   const hasQueue = props.queuedCount > 0;
-  const hasPreview = props.devicePreview !== null || props.browserPreview !== null;
+  const hasPreview = props.browserPreview !== null;
   const [previewWidth, setPreviewWidth] = useState(0);
   const agents = props.agents;
   const hasAgents = agents !== null;
@@ -152,11 +150,7 @@ export function FloatingWorkingControl(props: {
     return null;
   }
 
-  const previewCompact =
-    hasStatus ||
-    hasAgents ||
-    hasQueue ||
-    (props.devicePreview !== null && props.browserPreview !== null);
+  const previewCompact = hasStatus || hasAgents || hasQueue;
   const statusInteractive =
     props.status?.kind === "connection" ||
     props.status?.kind === "child-input" ||
@@ -217,9 +211,7 @@ export function FloatingWorkingControl(props: {
           onLayout={(event) => setPreviewWidth(settleWidth(event.nativeEvent.layout.width))}
         >
           {hasStatus ? <View className="h-4 w-px bg-border" /> : null}
-          {props.devicePreview !== null ? (
-            <DevicePreviewButton {...props.devicePreview} compact={previewCompact} />
-          ) : null}
+
           {props.browserPreview !== null ? (
             <BrowserPreviewButton {...props.browserPreview} compact={previewCompact} />
           ) : null}

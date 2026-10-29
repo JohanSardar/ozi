@@ -132,19 +132,7 @@ it("opens a completion link in the parent inspector", () => {
   });
 });
 
-it("switches between subagents and devices in the same parent route", () => {
-  using screen = setup(false);
-  screen.open({ type: "thread", environmentId: screen.source.environmentId, threadId: "child" });
-  const inspector = { type: "device", ...screen.source } as const;
-  screen.open(inspector);
-  expect(screen.state.routes).toHaveLength(2);
-  expect(screen.state.routes.at(-1)).toMatchObject({
-    key: screen.parentKey,
-    params: { ...screen.source, inspector },
-  });
-});
-
-it.each(["thread", "device"] as const)(
+it.each(["thread"] as const)(
   "keeps the parent when a maximized child opens a %s preview",
   (type) => {
     using screen = setup(false, true);

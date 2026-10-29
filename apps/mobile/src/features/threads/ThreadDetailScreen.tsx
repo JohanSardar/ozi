@@ -1,4 +1,3 @@
-import { useOpenThreadInspector } from "./thread-inspector-navigation";
 import { useSidebarWorkspaceTabs } from "../workspace/useSystemWorkspaceTabBar";
 import { useWorkspaceTabs } from "../workspace/WorkspaceTabsContext";
 import {
@@ -132,9 +131,7 @@ import {
   type LayoutVariant,
 } from "../../lib/layout";
 import { editPendingThreadMessage } from "../../state/edit-pending-thread-message";
-import { deviceEnvironment } from "../../state/device";
-import { useEnvironmentQuery } from "../../state/query";
-import { threadDevicePreviews } from "../devices/threadDevicePreviews";
+
 import { ThreadBrowserFloat } from "../browser/ThreadBrowserFloat";
 import { useThreadServerBrowserTabs } from "../../state/preview";
 import type { QueuedThreadMessage } from "../../state/thread-outbox-model";
@@ -365,27 +362,8 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
   if (sidebarSearchActive && composerOwnsKeyboard) setComposerOwnsKeyboard(false);
   const navigation = useNavigation();
   const openLinkedThread = useOpenLinkedThread();
-  const openInspector = useOpenThreadInspector();
   const { session: voiceInputSession } = useGlobalVoiceInput();
   const reportedModelSelection = useThreadReportedModelSelection(props.selectedThreadDetailRef);
-  const deviceState = useEnvironmentQuery(
-    deviceEnvironment.state({ environmentId: props.environmentId, input: {} }),
-  );
-  const devicePreviews = threadDevicePreviews(deviceState.data, props.selectedThread.id);
-  const openDevicePreview = () => {
-    Keyboard.dismiss();
-    if (
-      openInspector(
-        { environmentId: props.environmentId, threadId: props.selectedThread.id },
-        { type: "device", environmentId: props.environmentId, threadId: props.selectedThread.id },
-      )
-    )
-      return;
-    navigation.navigate("ThreadDevicePreview", {
-      environmentId: props.environmentId,
-      threadId: props.selectedThread.id,
-    });
-  };
   const browserTabs = useThreadServerBrowserTabs({
     environmentId: props.environmentId,
     threadId: props.selectedThread.id,
@@ -718,7 +696,6 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
     showWorkingControl ||
     queuedCount > 0 ||
     agentsSegment !== null ||
-    devicePreviews.length > 0 ||
     browserTabs.tabs.length > 0 ||
     props.connectionStateLabel !== "connected" ||
     props.queuedMessages.length > 0 ||
@@ -1387,11 +1364,6 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
                     colorScheme={isDarkMode ? "dark" : "light"}
                     status={floatingStatus}
                     lift={floatingControlLift}
-                    devicePreview={
-                      devicePreviews.length > 0
-                        ? { count: devicePreviews.length, onPress: openDevicePreview }
-                        : null
-                    }
                     browserPreview={
                       browserTabs.tabs.length > 0
                         ? { count: browserTabs.tabs.length, onPress: () => openBrowserPreview() }

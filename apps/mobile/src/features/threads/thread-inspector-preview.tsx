@@ -5,7 +5,7 @@ import {
   useNavigation,
   type StaticScreenProps,
 } from "@react-navigation/native";
-import { EnvironmentId, ThreadId } from "@t3tools/contracts";
+
 import { type ReactNode } from "react";
 import { View } from "react-native";
 
@@ -16,7 +16,6 @@ import { createV5StackNavigator } from "../../native/createV5StackNavigator";
 import { NativeStackScreenOptions } from "../../native/StackHeader";
 import { WorkspaceSlotOptionsContext } from "../../native/v5-workspace-context";
 import { useMobileNavigationTheme } from "../../lib/useMobileNavigationTheme";
-import { DevicePreviewScreen } from "../devices/DevicePreviewRouteScreen";
 import {
   WorkspaceContentWidthContext,
   WorkspaceSettledContentWidthContext,
@@ -85,29 +84,12 @@ export function ThreadInspectorPreview(props: {
   const focused = useIsFocused();
   const theme = useMobileNavigationTheme();
   const { target } = props;
-  const maximizeDevice = (deviceKey: string | null) => {
-    props.onOpen({ ...target, deviceKey: deviceKey ?? undefined });
-    navigation.navigate("ThreadDevicePreview", {
-      environmentId: target.environmentId,
-      threadId: target.threadId,
-      deviceKey: deviceKey ?? undefined,
-    });
-  };
   if (!focused) return null;
   return (
     <ThreadInspectorNavigationContext value={props.onOpen}>
       <InspectorContentScope>
         <NativeInspectorContent>
-          {target.type === "device" ? (
-            <DevicePreviewScreen
-              key={`${target.environmentId}:${target.threadId}`}
-              environmentId={EnvironmentId.make(target.environmentId)}
-              threadId={ThreadId.make(target.threadId)}
-              initialDeviceKey={target.deviceKey}
-              onClose={props.onClose}
-              onMaximize={maximizeDevice}
-            />
-          ) : (
+          {
             <View className="flex-1 bg-screen">
               <NavigationIndependentTree>
                 <NavigationContainer theme={theme} onUnhandledAction={navigation.dispatch}>
@@ -134,7 +116,7 @@ export function ThreadInspectorPreview(props: {
                 </NavigationContainer>
               </NavigationIndependentTree>
             </View>
-          )}
+          }
         </NativeInspectorContent>
       </InspectorContentScope>
     </ThreadInspectorNavigationContext>

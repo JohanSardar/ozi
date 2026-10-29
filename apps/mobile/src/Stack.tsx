@@ -58,7 +58,6 @@ import {
 import { ReviewCommentComposerSheet } from "./features/review/ReviewCommentComposerSheet";
 import { ReviewSheet } from "./features/review/ReviewSheet";
 import { ThreadTerminalRouteScreen } from "./features/terminal/ThreadTerminalRouteScreen";
-import { DevicePreviewRouteScreen } from "./features/devices/DevicePreviewRouteScreen";
 import { BrowserPreviewRouteScreen } from "./features/browser/BrowserPreviewRouteScreen";
 import { GitBranchesSheet } from "./features/threads/git/GitBranchesSheet";
 import { GitCommitSheet } from "./features/threads/git/GitCommitSheet";
@@ -806,17 +805,6 @@ const RootStackConfig = createWorkspaceStackNavigator({
       options: {
         ...THREAD_HEADER_OPTIONS,
         presentation: "fullScreenModal",
-      },
-    }),
-    ThreadDevicePreview: createNativeStackScreen({
-      screen: DevicePreviewRouteScreen,
-      linking: `${THREAD_LINKING_PREFIX}/devices`,
-      options: {
-        presentation: "fullScreenModal",
-        headerShown: false,
-        gestureEnabled: false,
-        autoHideHomeIndicator: true,
-        navigationBarHidden: true,
       },
     }),
     ThreadBrowserPreview: createNativeStackScreen({
