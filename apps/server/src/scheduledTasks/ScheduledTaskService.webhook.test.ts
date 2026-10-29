@@ -21,10 +21,8 @@ import * as SqlClient from "effect/sql/SqlClient";
 import * as TestClock from "effect/testing/TestClock";
 import * as Tracer from "effect/Tracer";
 
-import * as ThreadLaunchService from "../orchestration-v2/ThreadLaunchService.ts";
 import * as ThreadManagementService from "../orchestration-v2/ThreadManagementService.ts";
 import * as SecretRequests from "../secrets/SecretRequests.ts";
-import * as ManagedProjectFolders from "../project/ManagedProjectFolders.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import * as Scheduler from "../scheduling/Scheduler.ts";
 import * as ScheduledTaskService from "./ScheduledTaskService.ts";
@@ -116,7 +114,9 @@ const waitForSpan = <A, E, R>(work: Effect.Effect<A, E, R>, name: string) =>
 const drainPendingDispatch = (workers: Map<string, Effect.Effect<void>>) =>
   waitForSpan(workers.get("webhook-coalescing")!, "ScheduledTaskService.dispatchPendingWebhook");
 
-type LaunchInput = ThreadLaunchService.ThreadLaunchInput;
+type SendInput = Parameters<
+  ThreadManagementService.ThreadManagementService["Service"]["sendToThread"]
+>[0];
 
 const webhookTaskInput = (overrides: Record<string, unknown> = {}) =>
   decodeUpsertInput({
@@ -126,6 +126,7 @@ const webhookTaskInput = (overrides: Record<string, unknown> = {}) =>
     enabled: true,
     schedule: { type: "webhook" },
     projectId: "project-webhook",
+    threadId: "thread-webhook",
     workspaceStrategy: { type: "root" },
     modelSelection: { instanceId: "codex", model: "gpt-5.4" },
     runtimeMode: "full-access",
@@ -155,7 +156,7 @@ const requestFor = (
 const withService = <A, E>(
   body: (input: {
     readonly service: ScheduledTaskService.ScheduledTaskService["Service"];
-    readonly launches: Queue.Queue<LaunchInput>;
+    readonly launches: Queue.Queue<SendInput>;
     readonly sql: SqlClient.SqlClient;
     readonly secretsByRef: Map<string, string>;
   }) => Effect.Effect<A, E, never>,
@@ -168,14 +169,14 @@ const withService = <A, E>(
     readonly completedLaunches?: Set<string>;
     readonly failLaunches?: { remaining: number };
     readonly gate?: Deferred.Deferred<void>;
-    readonly gateForTask?: (input: LaunchInput) => Deferred.Deferred<void> | undefined;
+    readonly gateForTask?: (input: SendInput) => Deferred.Deferred<void> | undefined;
     readonly hookBaseUrl?: string;
     readonly sql?: SqlClient.SqlClient;
     readonly workers?: Map<string, Effect.Effect<void>>;
   } = {},
 ) =>
   Effect.gen(function* () {
-    const launches = yield* Queue.unbounded<LaunchInput>();
+    const launches = yield* Queue.unbounded<SendInput>();
     const secretsByRef = new Map<string, string>();
     const layerDependencies = Layer.mergeAll(
       options.frameGate === undefined && options.onFrame === undefined
@@ -208,8 +209,9 @@ const withService = <A, E>(
                 options.workers!.set(name, work.pipe(Effect.provideContext(context), Effect.orDie));
               }),
           }),
-      Layer.mock(ThreadLaunchService.ThreadLaunchService)({
-        launch: (input) =>
+      Layer.mock(ThreadManagementService.ThreadManagementService)({
+        getThreadShell: () => Effect.succeed({ projectId: "project-webhook", deletedAt: null, archivedAt: null } as never),
+        sendToThread: (input) =>
           Effect.suspend(() => {
             if (options.completedLaunches?.has(input.commandId))
               return Effect.succeed({ threadId: "thread-1", resumed: false } as never);
@@ -230,11 +232,6 @@ const withService = <A, E>(
             );
           }),
       }),
-      Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({
-        namedProjectsRoot: "/projects",
-        isScratchProject: () => Effect.succeed(false),
-      }),
-      Layer.mock(ThreadManagementService.ThreadManagementService)({}),
       Layer.mock(SecretRequests.SecretRequests)({
         consume: ({ ref }) => {
           const value = secretsByRef.get(ref);
@@ -280,7 +277,7 @@ it.effect("dispatches exactly the rendered prompt and logs the delivery", () =>
       const launched = yield* Queue.take(launches);
       const framed =
         /^Review this PR: <(webhook-data-[0-9a-f]{12})>https:\/\/github\.com\/org\/repo\/pull\/45<\/\1>\n\nText between <\1> and <\/\1> was copied from the webhook request\./;
-      const frame = framed.exec(launched.initialMessage?.text ?? "")?.[1];
+      const frame = framed.exec(launched.text ?? "")?.[1];
       assert.isDefined(frame);
       assert.equal(
         launched.commandId,
@@ -298,10 +295,10 @@ it.effect("dispatches exactly the rendered prompt and logs the delivery", () =>
         deliveryId: deliveries[0]!.id,
       });
       assert.equal(delivery.body, new TextDecoder().decode(pullRequestBody));
-      assert.equal(delivery.renderedPrompt, launched.initialMessage?.text);
+      assert.equal(delivery.renderedPrompt, launched.text);
 
       yield* service.triggerWebhook(requestFor(task));
-      const next = framed.exec((yield* Queue.take(launches)).initialMessage?.text ?? "")?.[1];
+      const next = framed.exec((yield* Queue.take(launches)).text ?? "")?.[1];
       assert.isDefined(next);
       assert.notEqual(next, frame);
     }),
@@ -316,10 +313,10 @@ it.effect("gives webhook tasks the configured public URL", () =>
         const token = task.webhook!.path.split("/").at(-1);
         assert.equal(
           task.webhook?.url,
-          `https://relay.example.com/v1/hooks/0123456789abcdef/scheduled-task%3Ahook/${token}`,
+          `https://hooks.example.com/api/hooks/scheduled-task%3Ahook/${token}`,
         );
       }),
-    { hookBaseUrl: "https://relay.example.com/v1/hooks/0123456789abcdef" },
+    { hookBaseUrl: "https://hooks.example.com/api/hooks" },
   ),
 );
 
@@ -904,7 +901,7 @@ it.effect.each([1, 3])(
           yield* workers.get("webhook-coalescing")!;
           const launched = yield* Queue.take(launches);
           assert.equal(
-            (launched.initialMessage!.text.match(new RegExp(`>${count}<`, "g")) ?? []).length,
+            (launched.text.match(new RegExp(`>${count}<`, "g")) ?? []).length,
             3,
           );
           yield* workers.get("webhook-coalescing")!;
@@ -1288,7 +1285,7 @@ it.effect.each([119_000, 120_000])(
           const delivery = (yield* service.listWebhookDeliveries({ id: task.id })).deliveries[0]!;
           if (length === 119_000) {
             const launch = yield* Queue.take(launches);
-            assert.isAbove(launch.initialMessage!.text.length, 120_000);
+            assert.isAbove(launch.text.length, 120_000);
             assert.equal(delivery.outcome, "accepted");
             const detail = yield* service.getWebhookDelivery({
               id: task.id,
@@ -1341,7 +1338,7 @@ it.effect.each([1, 11])(
           );
           yield* TestClock.adjust("10 seconds");
           yield* drainPendingDispatch(workers);
-          assert.include((yield* Queue.take(launches)).initialMessage!.text, `>${count}<`);
+          assert.include((yield* Queue.take(launches)).text, `>${count}<`);
           const retry = yield* service.triggerWebhook(request(count));
           assert.equal(retry._tag === "accepted" && retry.outcome, "duplicate");
           assert.equal((yield* sql`SELECT 1 FROM scheduled_task_webhook_pending`).length, 0);
@@ -1395,7 +1392,7 @@ it.effect("failed windows release every member's replay key and relay claim", ()
         assert.equal(retry._tag === "accepted" && retry.outcome, "accepted");
         yield* TestClock.adjust("10 seconds");
         yield* drainPendingDispatch(workers);
-        assert.include((yield* Queue.take(launches)).initialMessage!.text, "B11");
+        assert.include((yield* Queue.take(launches)).text, "B11");
         assert.equal((yield* service.list()).tasks[0]!.runCount, 2);
       }),
     { workers, failLaunches: { remaining: 1 } },
@@ -1554,7 +1551,7 @@ it.effect("removes a window with a render defect and dispatches the task's next 
         yield* service.triggerWebhook(request("good-render", '{"deep":"next window"}'));
         yield* TestClock.adjust("10 seconds");
         yield* drainPendingDispatch(workers);
-        assert.include((yield* Queue.take(launches)).initialMessage!.text, "next window");
+        assert.include((yield* Queue.take(launches)).text, "next window");
         assert.equal(yield* Queue.size(launches), 0);
         assert.equal((yield* sql`SELECT 1 FROM scheduled_task_webhook_pending`).length, 0);
         assert.equal(
@@ -1663,7 +1660,7 @@ it.effect.each([false, true])(
           workers,
           completedLaunches,
           gateForTask: (input) =>
-            input.initialMessage?.text.includes(">immediate<") ? gate : undefined,
+            input.text.includes(">immediate<") ? gate : undefined,
         },
       );
     });
@@ -1733,7 +1730,7 @@ it.effect("checks filters after the signature and max age, and runs only matchin
 
       const matched = yield* service.triggerWebhook(delivery("pull_request", "opened"));
       assert.deepInclude(matched, { _tag: "accepted", outcome: "accepted" });
-      assert.include((yield* Queue.take(launches)).initialMessage?.text ?? "", "pull/45");
+      assert.include((yield* Queue.take(launches)).text ?? "", "pull/45");
 
       const deliveries = (yield* service.listWebhookDeliveries({
         id: task.id,
@@ -1876,7 +1873,7 @@ it.effect("filters run before replay and coalescing without claiming ignored del
         });
         yield* TestClock.adjust("10 seconds");
         yield* drainPendingDispatch(workers);
-        assert.include((yield* Queue.take(launches)).initialMessage!.text, "latest");
+        assert.include((yield* Queue.take(launches)).text, "latest");
         assert.equal(yield* Queue.size(launches), 0);
       }),
     { workers },

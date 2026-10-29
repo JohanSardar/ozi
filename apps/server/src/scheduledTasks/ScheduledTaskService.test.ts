@@ -23,10 +23,8 @@ import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
 import * as TestClock from "effect/testing/TestClock";
 
-import * as ThreadLaunchService from "../orchestration-v2/ThreadLaunchService.ts";
 import * as ThreadManagementService from "../orchestration-v2/ThreadManagementService.ts";
 import * as SecretRequests from "../secrets/SecretRequests.ts";
-import * as ManagedProjectFolders from "../project/ManagedProjectFolders.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import * as ScheduledTaskService from "./ScheduledTaskService.ts";
 
@@ -51,7 +49,7 @@ const insertRow = (
     enabled: row.enabled,
     schedule_json: row.scheduleJson ?? '{"type":"interval","everyMs":60000}',
     project_id: "project:test",
-    thread_id: null,
+    thread_id: "thread:test",
     workspace_strategy_json: '{"type":"root"}',
     model_selection_json: '{"instanceId":"codex","model":"gpt-5"}',
     runtime_mode: "full-access",
@@ -189,8 +187,8 @@ it.effect(
             Layer.provideMerge(
               ScheduledTaskService.layer,
               Layer.mergeAll(
-                Layer.mock(ThreadLaunchService.ThreadLaunchService)({
-                  launch: () =>
+                Layer.mock(ThreadManagementService.ThreadManagementService)({
+                  sendToThread: () =>
                     Ref.updateAndGet(dispatched, (n) => n + 1).pipe(
                       Effect.andThen((n) =>
                         n === 4
@@ -202,11 +200,6 @@ it.effect(
                       Effect.andThen(Effect.die(new Error("test launch failure"))),
                     ),
                 }),
-                Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({
-                  namedProjectsRoot: "/projects",
-                  isScratchProject: () => Effect.succeed(false),
-                }),
-                Layer.mock(ThreadManagementService.ThreadManagementService)({}),
                 Layer.mock(SecretRequests.SecretRequests)({}),
                 NodeCrypto.layer,
                 Scheduler.layer,
@@ -282,8 +275,8 @@ it.effect(
             Layer.provideMerge(
               ScheduledTaskService.layer,
               Layer.mergeAll(
-                Layer.mock(ThreadLaunchService.ThreadLaunchService)({
-                  launch: () =>
+                Layer.mock(ThreadManagementService.ThreadManagementService)({
+                  sendToThread: () =>
                     Ref.updateAndGet(dispatched, (n) => n + 1).pipe(
                       Effect.andThen((n) =>
                         n === 1
@@ -299,11 +292,6 @@ it.effect(
                       Effect.andThen(Effect.die(new Error("test launch failure"))),
                     ),
                 }),
-                Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({
-                  namedProjectsRoot: "/projects",
-                  isScratchProject: () => Effect.succeed(false),
-                }),
-                Layer.mock(ThreadManagementService.ThreadManagementService)({}),
                 Layer.mock(SecretRequests.SecretRequests)({}),
                 NodeCrypto.layer,
                 Scheduler.layer,
@@ -346,8 +334,8 @@ it.effect("thread cleanup notifies subscribers and a finishing run cannot recrea
     const layer = ScheduledTaskService.layer.pipe(
       Layer.provide(
         Layer.mergeAll(
-          Layer.mock(ThreadLaunchService.ThreadLaunchService)({}),
           Layer.mock(ThreadManagementService.ThreadManagementService)({
+            getThreadShell: () => Effect.succeed({ projectId: "project:test", deletedAt: null, archivedAt: null } as never),
             sendToThread: () =>
               Deferred.succeed(started, undefined).pipe(
                 Effect.andThen(Deferred.await(release)),
@@ -355,10 +343,6 @@ it.effect("thread cleanup notifies subscribers and a finishing run cannot recrea
               ),
           }),
           Layer.mock(SecretRequests.SecretRequests)({}),
-          Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({
-            namedProjectsRoot: "/projects",
-            isScratchProject: () => Effect.succeed(false),
-          }),
           NodeCrypto.layer,
           Scheduler.layer,
         ),
@@ -409,11 +393,10 @@ it.effect("a bound run follows its thread when promotion moves it mid-send", () 
     const promoted = ProjectId.make("project:promoted");
     const sends = yield* Ref.make<Array<{ projectId: ProjectId; commandId: string }>>([]);
     // Rebind lands first, then the promotion commits between the shell read and the retry.
-    const shellProjects = yield* Ref.make([scratch, promoted]);
+    const shellProjects = yield* Ref.make([promoted, scratch, promoted]);
     const layer = ScheduledTaskService.layer.pipe(
       Layer.provide(
         Layer.mergeAll(
-          Layer.mock(ThreadLaunchService.ThreadLaunchService)({}),
           Layer.mock(ThreadManagementService.ThreadManagementService)({
             sendToThread: (input) =>
               Ref.updateAndGet(sends, (all) => [
@@ -433,15 +416,11 @@ it.effect("a bound run follows its thread when promotion moves it mid-send", () 
               ),
             getThreadShell: () =>
               Ref.modify(shellProjects, ([next, ...rest]) => [
-                { projectId: next ?? promoted } as never,
+                { projectId: next ?? promoted, deletedAt: null, archivedAt: null } as never,
                 rest,
               ]),
           }),
           Layer.mock(SecretRequests.SecretRequests)({}),
-          Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({
-            namedProjectsRoot: "/projects",
-            isScratchProject: () => Effect.succeed(false),
-          }),
           NodeCrypto.layer,
           Scheduler.layer,
         ),
