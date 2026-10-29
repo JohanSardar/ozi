@@ -1,3 +1,5 @@
+import { inboxCheckStep } from "@t3tools/provider-core/server/inboxCheck";
+import * as InboxChecks from "../../tickets/InboxChecks.ts";
 import * as DocumentText from "../../provider/DocumentText.ts";
 import { makeProviderTextDeltaCoalescer } from "./ProviderTextDeltaCoalescer.ts";
 import { claudeTaskOutputRoot, tailClaudeTaskOutput } from "./ClaudeTaskOutputTail.ts";
@@ -4343,6 +4345,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
   adapterOptions: ClaudeAdapterV2Options,
 ) {
   const mcpSessions = yield* McpProviderSessions.McpProviderSessions;
+  const inboxChecks = yield* Effect.serviceOption(InboxChecks.InboxChecks);
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
   const serverSettings = yield* Effect.serviceOption(ServerSettings.ServerSettingsService);
   const { attachmentsDir, fileSystem, path, crypto, idAllocator, queryRunner } = adapterOptions;
@@ -9922,6 +9925,144 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             ...(appendSystemPromptFileText === undefined ? {} : { appendSystemPromptFileText }),
             ...(toolSearchOverride === undefined ? {} : { toolSearchOverride }),
           });
+          if (Option.isSome(inboxChecks) && mcpSession !== undefined) {
+            queryOptions.hooks = {
+              Stop: [
+                {
+                  hooks: [
+                    async (hook) => {
+                      if (hook.hook_event_name !== "Stop" || hook.stop_hook_active) return {};
+                      await runPromise(
+                        Effect.gen(function* () {
+                          const context = yield* Ref.get(activeTurn);
+                          if (
+                            context === null ||
+                            (yield* Ref.get(interruptedTurns)).has(context.providerTurnId)
+                          )
+                            return;
+                          const check = yield* inboxChecks.value.prepare({
+                            source: mcpSession,
+                            sessionId: input.providerSessionId,
+                            messageId: context.input.message.messageId,
+                            runId: context.input.runId,
+                          });
+                          const nativeItemId = `inbox-check:${context.input.runId}:${context.providerTurnId}`;
+                          const startedAt = yield* DateTime.now;
+                          const base = {
+                            id: idAllocator.derive.turnItemFromProviderItem({
+                              driver: CLAUDE_PROVIDER,
+                              nativeItemId,
+                            }),
+                            threadId: context.input.threadId,
+                            runId: context.input.runId,
+                            nodeId: context.input.rootNodeId,
+                            providerThreadId: context.input.providerThread.id,
+                            providerTurnId: context.providerTurnId,
+                            ordinal: yield* resolveItemOrdinal(context, nativeItemId),
+                            startedAt,
+                            updatedAt: startedAt,
+                          };
+                          const emit = Effect.fn("ClaudeInboxCheck.emit")(function* (
+                            status: "running" | "completed" | "failed",
+                          ) {
+                            yield* emitProviderEvent({
+                              type: "turn_item.updated",
+                              driver: CLAUDE_PROVIDER,
+                              turnItem: inboxCheckStep(
+                                { ...base, updatedAt: yield* DateTime.now },
+                                check.filed.size,
+                                status,
+                              ),
+                            });
+                          });
+                          yield* emit("running");
+                          const resumeSessionAt = context.nativeMessageCursor ?? context.promptUuid;
+                          if (resumeSessionAt === null) {
+                            yield* emit("failed");
+                            yield* check.close;
+                            return;
+                          }
+                          const run = Effect.scoped(
+                            Effect.gen(function* () {
+                              const {
+                                sessionId: _sessionId,
+                                resume: _resume,
+                                resumeSessionAt: _resumeAt,
+                                onUserDialog: _onDialog,
+                                supportedDialogKinds: _dialogKinds,
+                                ...forkOptions
+                              } = queryOptions;
+                              const forkQuery = yield* queryRunner.open({
+                                threadId: context.input.threadId,
+                                providerSessionId: input.providerSessionId,
+                                options: {
+                                  ...forkOptions,
+                                  resume: hook.session_id,
+                                  forkSession: true,
+                                  resumeSessionAt,
+                                  model: compileClaudeModelSelection(context.input.modelSelection)
+                                    .apiModelId,
+                                  hooks: {},
+                                  tools: [],
+                                  permissionMode: "default",
+                                  allowDangerouslySkipPermissions: false,
+                                  mcpServers: claudeMcpQueryOverrides({
+                                    mcpSession: check.config,
+                                    readOnlySandbox: false,
+                                  }).mcpServers!,
+                                  allowedTools: [
+                                    "ticket_create",
+                                    "ticket_update",
+                                    "ticket_close",
+                                    "ticket_list",
+                                  ].map((name) => `mcp__t3-code__${name}`),
+                                  disallowedTools: [],
+                                  canUseTool: async () => ({
+                                    behavior: "deny",
+                                    message: "Inbox checks may only use ticket tools.",
+                                  }),
+                                  env: { ...queryOptions.env, ENABLE_TOOL_SEARCH: "false" },
+                                  settings: { disableAllHooks: true },
+                                },
+                              });
+                              yield* Effect.addFinalizer(() => forkQuery.close.pipe(Effect.ignore));
+                              yield* forkQuery.offer({
+                                type: "user",
+                                session_id: hook.session_id,
+                                parent_tool_use_id: null,
+                                message: { role: "user", content: check.prompt },
+                              });
+                              yield* forkQuery.messages.pipe(
+                                Stream.takeUntil((message) => message.type === "result"),
+                                Stream.runForEach((message) =>
+                                  message.type === "result" && message.is_error
+                                    ? Effect.fail(queryRunnerError(undefined, "inboxCheck"))
+                                    : Effect.void,
+                                ),
+                              );
+                            }),
+                          ).pipe(
+                            Effect.timeout("2 minutes"),
+                            Effect.matchEffect({
+                              onFailure: () => emit("failed"),
+                              onSuccess: () => emit("completed"),
+                            }),
+                            Effect.ensuring(check.close),
+                          );
+                          yield* run.pipe(Effect.forkIn(sessionScope));
+                        }).pipe(
+                          Effect.catchCause((cause) =>
+                            Effect.logWarning("Inbox check could not start", { cause }),
+                          ),
+                        ),
+                      );
+                      return {};
+                    },
+                  ],
+                },
+              ],
+            };
+          }
           const querySession = yield* queryRunner
             .open({
               threadId: turnInput.threadId,

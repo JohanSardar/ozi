@@ -10,6 +10,13 @@ import { TicketToolkit } from "./tools.ts";
 const callerOrigin = Effect.gen(function* () {
   const scope = yield* McpInvocationContext.McpInvocationContext;
   const { thread } = yield* McpInvocationContext.requireThreadScope(scope, "Ticket tools");
+  if (thread.inboxCheck !== undefined) {
+    return {
+      threadId: thread.threadId,
+      sessionId: thread.inboxCheck.sessionId,
+      messageId: thread.inboxCheck.messageId,
+    };
+  }
   const { projection, caller } = yield* readThread(thread.threadId, [
     "runs",
     "providerThreads",
@@ -42,20 +49,23 @@ const callerOrigin = Effect.gen(function* () {
 });
 
 export const layer = McpToolAccess.toLayer(TicketToolkit, {
-  ticket_create: McpToolAccess.actsAsCaller((input) =>
+  ticket_create: McpToolAccess.actsOnTickets((input) =>
     Effect.gen(function* () {
       const tickets = yield* Tickets.Tickets;
       const origin = yield* callerOrigin;
-      return yield* tickets.create({ ...input, ...origin });
+      const ticket = yield* tickets.create({ ...input, ...origin });
+      const scope = yield* McpInvocationContext.McpInvocationContext;
+      scope.thread?.inboxCheck?.filed.add(ticket.id);
+      return ticket;
     }),
   ),
-  ticket_update: McpToolAccess.actsAsCaller((input) =>
+  ticket_update: McpToolAccess.actsOnTickets((input) =>
     Effect.gen(function* () {
       const tickets = yield* Tickets.Tickets;
       return yield* tickets.update(input);
     }),
   ),
-  ticket_close: McpToolAccess.actsAsCaller((input) =>
+  ticket_close: McpToolAccess.actsOnTickets((input) =>
     Effect.gen(function* () {
       const tickets = yield* Tickets.Tickets;
       const origin = yield* callerOrigin;

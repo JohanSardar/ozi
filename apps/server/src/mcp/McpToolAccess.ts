@@ -137,6 +137,20 @@ export const actsAsCaller = <P, A, E, R>(handle: (params: P) => Effect.Effect<A,
     undefined,
   );
 
+export const actsOnTickets = <P, A, E, R>(handle: (params: P) => Effect.Effect<A, E, R>) =>
+  declare(
+    (params: P) =>
+      requireThreadCaller.pipe(
+        Effect.andThen(refuseReadOnlyClient),
+        Effect.andThen(loadCaller()),
+        Effect.tap((context) =>
+          context.scope.thread?.inboxCheck === undefined ? assertLiveCaller(context) : Effect.void,
+        ),
+        Effect.flatMap(() => handle(params)),
+      ),
+    undefined,
+  );
+
 /**
  * Changes something that belongs to no thread, such as a pending upload or a
  * scheduled task. Work a linked environment started may not: none of it
