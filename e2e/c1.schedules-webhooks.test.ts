@@ -46,7 +46,14 @@ const rpc = async (tag: string, payload: unknown) => {
   return new Promise<any>((resolve, reject) => {
     const receive = (raw: unknown) => {
       const frame = JSON.parse(String(raw));
-      if (frame.requestId !== id || frame._tag !== "Exit") return;
+      if (frame.requestId !== id) return;
+      if (frame._tag === "Chunk") {
+        socket.off("message", receive);
+        socket.send(JSON.stringify({ _tag: "Interrupt", requestId: id }));
+        resolve(frame.values[0]);
+        return;
+      }
+      if (frame._tag !== "Exit") return;
       socket.off("message", receive);
       if (frame.exit._tag === "Success") resolve(frame.exit.value);
       else reject(new Error(JSON.stringify(frame.exit)));
@@ -137,7 +144,7 @@ const messages = async () =>
     role: string;
     text: string;
   }>;
-const delivered = async (text: string) => {
+const delivered = async (text: string | RegExp) => {
   try {
     await expect
       .poll(
@@ -147,7 +154,7 @@ const delivered = async (text: string) => {
             .map((message) => message.text),
         { timeout: 15_000 },
       )
-      .toContain(text);
+      .toContainEqual(typeof text === "string" ? text : expect.stringMatching(text));
   } catch (cause) {
     throw new Error(
       JSON.stringify({
@@ -312,8 +319,12 @@ it("c1.webhooks: URL tokens, raw HMAC, filters, rotation, replay expiry and fixe
   await advance("6s");
   expect((await post("b", 2)).outcome).toBe("coalesced");
   await advance("4s");
-  await delivered("C1 hook 2");
-  expect((await messages()).some((message) => message.text === "C1 hook 1")).toBe(false);
+  await delivered(/^C1 hook <(webhook-data-[a-f0-9]+)>2<\/\1>\n\n.*untrusted data\.$/s);
+  expect(
+    (await messages()).some((message) =>
+      /^C1 hook <(webhook-data-[a-f0-9]+)>1<\/\1>/.test(message.text),
+    ),
+  ).toBe(false);
   const deliveries = await rpc("scheduledTasks.listWebhookDeliveries", {
     id: task.id,
     acceptAnyOutcome: true,
@@ -340,7 +351,7 @@ it("c1.webhooks: URL tokens, raw HMAC, filters, rotation, replay expiry and fixe
   await advance("8d");
   expect((await post("a", 3)).outcome).toBe("accepted");
   await advance("10s");
-  await delivered("C1 hook 3");
+  await delivered(/^C1 hook <(webhook-data-[a-f0-9]+)>3<\/\1>\n\n.*untrusted data\.$/s);
   await cli("schedule", "rm", task.id, "--json");
 });
 
@@ -356,7 +367,7 @@ it("c1.public-url: unsigned CLI webhooks omit the public URL without configurati
   );
   expect(task.webhookUrl).toBeUndefined();
   expect(task.webhookSignature).toBe("none");
-  const { tasks } = await rpc("scheduledTasks.list", {});
+  const { tasks } = await rpc("scheduledTasks.subscribe", {});
   const saved = tasks.find((entry: any) => entry.id === task.scheduledTaskId);
   expect(
     (
@@ -367,6 +378,6 @@ it("c1.public-url: unsigned CLI webhooks omit the public URL without configurati
       })
     ).status,
   ).toBe(202);
-  await delivered("C1 unsigned delivered");
+  await delivered(/^C1 unsigned <(webhook-data-[a-f0-9]+)>delivered<\/\1>\n\n.*untrusted data\.$/s);
   await cli("schedule", "rm", task.scheduledTaskId, "--json");
 });
