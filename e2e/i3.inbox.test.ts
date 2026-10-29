@@ -246,10 +246,9 @@ describe("i3.inbox", () => {
   });
 
   it("i4.transcript: the session transcript link opens the ticket's chat", async () => {
-    await inbox
-      .getByRole("article", { name: "Pay the passport fee?" })
-      .getByRole("button", { name: "Open details" })
-      .click();
+    await inbox.getByRole("tab", { name: "Archive" }).click();
+    await inbox.getByRole("searchbox", { name: "Search archive" }).fill("");
+    await inbox.getByRole("button", { name: /^Pay the passport fee\? Replied/ }).click();
     const window = page.getByRole("dialog", { name: "Pay the passport fee?" });
     await window.getByRole("button", { name: /^Session transcript/ }).click();
     await window.waitFor({ state: "detached" });
@@ -257,8 +256,6 @@ describe("i3.inbox", () => {
   });
 
   it("i4.archived: archived tickets open in the window with how they cleared", async () => {
-    await inbox.getByRole("tab", { name: "Archive" }).click();
-    await inbox.getByRole("searchbox", { name: "Search archive" }).fill("");
     await inbox.getByRole("button", { name: /Pick a restaurant/ }).click();
     const window = page.getByRole("dialog", { name: "Pick a restaurant" });
     expect(await text(window.locator("header"))).toMatch(

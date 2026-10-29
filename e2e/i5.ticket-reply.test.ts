@@ -82,6 +82,27 @@ describe("i5.ticket-reply", () => {
       .waitFor();
   };
 
+  const file = () =>
+    ozi(
+      "ticket",
+      "create",
+      "--input",
+      JSON.stringify({
+        threadId: dentist,
+        group: "Decide",
+        title: "Pick a dentist slot",
+        need: "Choose Tuesday or Wednesday.",
+        summary: "Dr Berg has two free slots next week.",
+        choices: [
+          { label: "Tuesday", detail: "Tue 14:00" },
+          { label: "Wednesday", detail: "Wed 09:30" },
+        ],
+        markdown: "The clinic holds a slot for one day.",
+        attachments: [],
+        htmlPages: [],
+      }),
+    );
+
   beforeAll(async () => {
     directory = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "ozi-i5-"));
     home = NodePath.join(directory, ".ozi");
@@ -160,27 +181,7 @@ describe("i5.ticket-reply", () => {
     await run("project", "add", project);
     dentist = (await ozi("thread", "start", project, "Book the dentist")).threadId;
     friday = (await ozi("thread", "start", project, "Plan Friday")).threadId;
-    ticketId = (
-      await ozi(
-        "ticket",
-        "create",
-        "--input",
-        JSON.stringify({
-          threadId: dentist,
-          group: "Decide",
-          title: "Pick a dentist slot",
-          need: "Choose Tuesday or Wednesday.",
-          summary: "Dr Berg has two free slots next week.",
-          choices: [
-            { label: "Tuesday", detail: "Tue 14:00" },
-            { label: "Wednesday", detail: "Wed 09:30" },
-          ],
-          markdown: "The clinic holds a slot for one day.",
-          attachments: [],
-          htmlPages: [],
-        }),
-      )
-    ).id;
+    ticketId = (await file()).id;
     await page.getByRole("treeitem", { name: /^Settled/ }).click();
     await page.getByRole("treeitem", { name: /Plan Friday/ }).click();
     await page.getByText("Fake reply: Plan Friday", { exact: true }).waitFor();
@@ -210,6 +211,7 @@ describe("i5.ticket-reply", () => {
   });
 
   it("i5.window: a reply sent from the ticket window closes it and goes into the current chat", async () => {
+    await file();
     await inbox.getByRole("button", { name: "Open details" }).click();
     const dialog = page.getByRole("dialog");
     await dialog.getByText(/^Your reply goes to .+ with this ticket attached$/).waitFor();
@@ -222,9 +224,11 @@ describe("i5.ticket-reply", () => {
   });
 
   it("i5.archive: an archived ticket replies into the current chat too", async () => {
-    await inbox.getByRole("button", { name: "Got it" }).click();
     await inbox.getByRole("tab", { name: "Archive" }).click();
-    await inbox.getByRole("button", { name: /Pick a dentist slot/ }).click();
+    await inbox
+      .getByRole("button", { name: /Pick a dentist slot/ })
+      .first()
+      .click();
     const box = page
       .getByRole("dialog")
       .getByRole("textbox", { name: "Reply to Pick a dentist slot" });
@@ -238,7 +242,10 @@ describe("i5.ticket-reply", () => {
   it("i5.new-chat: replying from a new chat starts that chat", async () => {
     await page.getByRole("button", { name: "New thread" }).first().click();
     await page.waitForURL(/\/draft\//);
-    await inbox.getByRole("button", { name: /Pick a dentist slot/ }).click();
+    await inbox
+      .getByRole("button", { name: /Pick a dentist slot/ })
+      .first()
+      .click();
     const dialog = page.getByRole("dialog");
     await dialog.getByText("Your reply goes to New chat with this ticket attached").waitFor();
     const box = dialog.getByRole("textbox", { name: "Reply to Pick a dentist slot" });
