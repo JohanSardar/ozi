@@ -2,6 +2,7 @@ import * as HostProcess from "@t3tools/shared/HostProcess";
 import * as Console from "effect/Console";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
+import * as Schema from "effect/Schema";
 import * as Terminal from "effect/Terminal";
 import { Command, Flag, GlobalFlag, Prompt } from "effect/cli";
 import { FetchHttpClient } from "effect/http";
@@ -13,12 +14,20 @@ import type * as ServerConfig from "../config.ts";
 import * as ProcessRunner from "../processRunner.ts";
 import { projectLocationFlags, resolveCliAuthConfig } from "./config.ts";
 import { resolveEntryPath } from "./invocation.ts";
+import { encodeJson } from "./remote.ts";
 
-export const layer = (config: ServerConfig.ServerConfig["Service"]) =>
+export const layer = (
+  config: ServerConfig.ServerConfig["Service"],
+  options?: {
+    readonly unitFile?: string;
+    readonly currentRuntime?: boolean;
+  },
+) =>
   BootService.layer({
     baseDir: config.baseDir,
     logsDir: config.logsDir,
     cliVersion: packageJson.version,
+    ...options,
   }).pipe(Layer.provide(ProcessRunner.layer), Layer.provide(FetchHttpClient.layer));
 
 export type ServiceReconcileResult =
@@ -104,16 +113,38 @@ function formatServiceStatus(status: BootService.BootServiceStatus, cliVersion: 
 }
 
 const runServiceCommand = Effect.fn("cli.service.run")(function* <A, E, R>(
-  flags: { readonly baseDir: Parameters<typeof resolveCliAuthConfig>[0]["baseDir"] },
+  flags: {
+    readonly baseDir: Parameters<typeof resolveCliAuthConfig>[0]["baseDir"];
+    readonly unitFile?: string;
+    readonly currentRuntime?: boolean;
+  },
   run: Effect.Effect<A, E, R>,
 ) {
   const logLevel = yield* GlobalFlag.LogLevel;
   const config = yield* resolveCliAuthConfig(flags, logLevel);
-  return yield* run.pipe(Effect.provide(layer(config)));
+  return yield* run.pipe(Effect.provide(layer(config, flags)));
 });
 
-const serviceReconcileFlags = {
+const serviceLocationFlags = {
   ...projectLocationFlags,
+  unitFile: Flag.String("unit").pipe(
+    Flag.withSchema(Schema.String.check(Schema.isPattern(/^[A-Za-z0-9][A-Za-z0-9_-]*\.service$/))),
+    Flag.withDescription(
+      "Systemd user unit filename. Use a distinct name for an isolated install.",
+    ),
+    Flag.withDefault(BootService.BOOT_SERVICE_UNIT_FILE),
+  ),
+  json: Flag.Boolean("json").pipe(Flag.withDefault(false)),
+};
+
+const serviceReconcileFlags = {
+  ...serviceLocationFlags,
+  currentRuntime: Flag.Boolean("current-runtime").pipe(
+    Flag.withDescription(
+      "Use this installed CLI or source checkout instead of downloading a release. Keep its files in place.",
+    ),
+    Flag.withDefault(false),
+  ),
   allowDowngrade: Flag.Boolean("allow-downgrade").pipe(
     Flag.withDescription("Allow replacing a newer installed service with this older CLI version."),
     Flag.withDefault(false),
@@ -127,6 +158,10 @@ const serviceInstallCommand = Command.make("install", serviceReconcileFlags).pip
       flags,
       Effect.gen(function* () {
         const result = yield* reconcileService({ allowDowngrade: flags.allowDowngrade });
+        if (flags.json) {
+          yield* Console.log(yield* encodeJson(result));
+          return;
+        }
         if (!result.changed) {
           yield* Console.log(
             `Ozi service is already installed with ozi@${packageJson.version} (${yield* resolveEntryPath}).`,
@@ -150,6 +185,10 @@ const serviceUpdateCommand = Command.make("update", serviceReconcileFlags).pipe(
           "`ozi service update` is deprecated: run `ozi update` to move to a newer release, or `ozi service install` to repair the service. Repairing now.",
         );
         const result = yield* reconcileService({ allowDowngrade: flags.allowDowngrade });
+        if (flags.json) {
+          yield* Console.log(yield* encodeJson(result));
+          return;
+        }
         if (!result.changed) {
           yield* Console.log(
             `Ozi service is already using ozi@${packageJson.version} (${yield* resolveEntryPath}).`,
@@ -162,7 +201,7 @@ const serviceUpdateCommand = Command.make("update", serviceReconcileFlags).pipe(
   ),
 );
 
-const serviceRestartCommand = Command.make("restart", projectLocationFlags).pipe(
+const serviceRestartCommand = Command.make("restart", serviceLocationFlags).pipe(
   Command.withDescription(
     "Restart the background service. Picks up a version installed by `ozi update` that was not restarted at the time.",
   ),
@@ -173,6 +212,10 @@ const serviceRestartCommand = Command.make("restart", projectLocationFlags).pipe
         const service = yield* BootService.BootService;
         const status = yield* service.status;
         const outcome = yield* service.restart;
+        if (flags.json) {
+          yield* Console.log(yield* encodeJson({ outcome }));
+          return;
+        }
         const onVersion =
           status.installedVersion === undefined ? "" : ` on ozi@${status.installedVersion}`;
         yield* Console.log(
@@ -187,7 +230,7 @@ const serviceRestartCommand = Command.make("restart", projectLocationFlags).pipe
   ),
 );
 
-const serviceUninstallCommand = Command.make("uninstall", projectLocationFlags).pipe(
+const serviceUninstallCommand = Command.make("uninstall", serviceLocationFlags).pipe(
   Command.withDescription("Stop and remove the Ozi background service."),
   Command.withHandler((flags) =>
     runServiceCommand(
@@ -195,20 +238,29 @@ const serviceUninstallCommand = Command.make("uninstall", projectLocationFlags).
       Effect.gen(function* () {
         const service = yield* BootService.BootService;
         const removed = yield* service.uninstall;
-        yield* Console.log(removed ? "Removed the Ozi service." : "Ozi service is not installed.");
+        yield* Console.log(
+          flags.json
+            ? yield* encodeJson({ removed })
+            : removed
+              ? "Removed the Ozi service."
+              : "Ozi service is not installed.",
+        );
       }),
     ),
   ),
 );
 
-const serviceStatusCommand = Command.make("status", projectLocationFlags).pipe(
+const serviceStatusCommand = Command.make("status", serviceLocationFlags).pipe(
   Command.withDescription("Show whether the Ozi background service is installed."),
   Command.withHandler((flags) =>
     runServiceCommand(
       flags,
       Effect.gen(function* () {
         const service = yield* BootService.BootService;
-        yield* Console.log(formatServiceStatus(yield* service.status, packageJson.version));
+        const status = yield* service.status;
+        yield* Console.log(
+          flags.json ? yield* encodeJson(status) : formatServiceStatus(status, packageJson.version),
+        );
       }),
     ),
   ),

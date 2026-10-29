@@ -39,6 +39,12 @@ The work in `ui-redesign.md`, split into tickets. A ticket starts when everythin
 
 F1 implementation: Ozi identities, isolated checkout dev homes with no live-state seeding, neutral blue icons, inherited notices, Ozi agent rules, and a single typecheck/lint workflow. Internal packages and MCP namespaces stay upstream-named; MCP renaming belongs to G2.
 
+C4 implementation: one-time CLI pairing with owner-only saved sessions, remote
+thread access and disconnect; JSON service management with isolated unit names
+and the current source runtime; [headless Linux deployment](headless-linux.md).
+Inherited direct network, Tailscale Serve and desktop SSH transports remain.
+Scenarios live in `e2e/c4.remote-service.test.ts`.
+
 L4 implementation: the radius scale tops out at 8px; pills became 6–8px rectangles; status dots became spinners or plain labels; forced capitals became sentence case. `e2e/l4.look.test.ts` checks the radius tokens and fails on pills, coloured dots and forced capitals anywhere in the web app. Screenshots: [working](screenshots/l4-working-dark.png), [chat dark](screenshots/l4-chat-dark.png), [chat light](screenshots/l4-chat-light.png), [settings](screenshots/l4-settings-dark.png), [theme editor](screenshots/l4-theme-editor-light.png).
 
 L3 implementation: the composer keeps T3's steer, queue, stop and attachment behaviour with the prototype's look. While a turn runs, the placeholder reads "Steer, or ⌘Enter to queue…", a hint shows which key steers and which queues, and the stop button is the dark square shown when the composer is empty. Queued messages are dashed, right-aligned bubbles with a Queued label, Send now, Edit and remove. `e2e/l3.composer.test.ts` drives the web client against a real server and a fake Pi through steer, queue, stop, send now and image, video and file attachments. Screenshots: [working with a queued message](screenshots/l3-working-queued.png), [attachments while steering](screenshots/l3-attachments-steer.png).

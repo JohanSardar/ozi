@@ -3,7 +3,7 @@ import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import { Argument, Command } from "effect/cli";
+import { Command } from "effect/cli";
 import * as CliError from "effect/cli/CliError";
 
 import * as NetService from "@t3tools/shared/Net";
@@ -13,9 +13,8 @@ import { authCommand } from "./cli/auth.ts";
 import { environmentCommand } from "./cli/environment.ts";
 import { appCommand } from "./cli/app.ts";
 import { browserCommand } from "./cli/browser.ts";
-import { connectCommand } from "./cli/connect.ts";
+import { connectCommand, disconnectCommand } from "./cli/remote.ts";
 import { pairCommand } from "./cli/pair.ts";
-import { hasCloudPublicConfig } from "./cloud/publicConfig.ts";
 import { extendConnectionAttemptTimeout, keepOutboundFetchOnHttp1 } from "./outboundHttp.ts";
 import { sharedServerCommandFlags } from "./cli/config.ts";
 import { projectCommand } from "./cli/project.ts";
@@ -35,31 +34,7 @@ import { triageCommand } from "./cli/triage.ts";
 
 const layerCliRuntime = Layer.mergeAll(NodeServices.layer, NetService.layer);
 
-const connectPublicConfigMissingMessage =
-  "Ozi Connect commands are unavailable: this build is missing Ozi Connect public configuration.";
-
-class ConnectPublicConfigMissingError extends CliError.UserError {
-  override get message() {
-    return connectPublicConfigMissingMessage;
-  }
-}
-
-const connectUnavailableCommand = Command.make("connect", {
-  command: Argument.String("command").pipe(Argument.variadic),
-}).pipe(
-  Command.withDescription("Ozi Connect is unavailable in builds without public configuration."),
-  Command.unlisted,
-  Command.withHandler(() =>
-    Effect.fail(
-      new CliError.ShowHelp({
-        commandPath: ["ozi", "connect"],
-        errors: [new ConnectPublicConfigMissingError({ cause: connectPublicConfigMissingMessage })],
-      }),
-    ),
-  ),
-);
-
-export const makeCli = ({ cloudEnabled = hasCloudPublicConfig } = {}) =>
+export const makeCli = (_options?: { readonly cloudEnabled?: boolean }) =>
   Command.make("ozi", { ...sharedServerCommandFlags }).pipe(
     Command.withDescription("Run the Ozi server."),
     Command.withHandler(runDefaultServerCommand),
@@ -94,7 +69,8 @@ export const makeCli = ({ cloudEnabled = hasCloudPublicConfig } = {}) =>
       traceCommand,
       doctorCommand,
       triageCommand,
-      cloudEnabled ? connectCommand : connectUnavailableCommand,
+      connectCommand,
+      disconnectCommand,
     ]),
   );
 

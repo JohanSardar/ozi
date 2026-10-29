@@ -101,7 +101,7 @@ export function renderBootServiceUnit(plan: BootServicePlan): string {
     "Type=simple",
     "WorkingDirectory=%h",
     `Environment=OZI_HOME=${quoteSystemdValue(plan.baseDir)}`,
-    `Environment=${BOOT_SERVICE_UNIT_ENV}=${BOOT_SERVICE_UNIT_FILE}`,
+    `Environment=${BOOT_SERVICE_UNIT_ENV}=${plan.unitPath.split("/").at(-1)}`,
     `ExecStart=${plan.program.map(quoteSystemdValue).join(" ")}`,
     // Let the launcher mark an explicit stop before it signals the server.
     // systemd still SIGKILLs the whole cgroup if graceful shutdown times out.
@@ -206,14 +206,9 @@ export interface BootServiceManager {
 function systemdManager(input: {
   readonly path: Path.Path;
   readonly homeDir: string;
+  readonly unitFile: string;
 }): BootServiceManager {
-  const unitPath = input.path.join(
-    input.homeDir,
-    ".config",
-    "systemd",
-    "user",
-    BOOT_SERVICE_UNIT_FILE,
-  );
+  const unitPath = input.path.join(input.homeDir, ".config", "systemd", "user", input.unitFile);
   const prepareActivation = [
     {
       step: "reloading systemd user units",
@@ -223,7 +218,7 @@ function systemdManager(input: {
     {
       step: "enabling the service",
       command: "systemctl",
-      args: ["--user", "enable", BOOT_SERVICE_UNIT_FILE],
+      args: ["--user", "enable", input.unitFile],
     },
   ];
   return {
@@ -234,7 +229,7 @@ function systemdManager(input: {
       {
         step: "stopping the installed service",
         command: "systemctl",
-        args: ["--user", "stop", BOOT_SERVICE_UNIT_FILE],
+        args: ["--user", "stop", input.unitFile],
         timeout: STOP_STEP_TIMEOUT,
       },
     ],
@@ -243,14 +238,14 @@ function systemdManager(input: {
       {
         step: "starting the service",
         command: "systemctl",
-        args: ["--user", "restart", BOOT_SERVICE_UNIT_FILE],
+        args: ["--user", "restart", input.unitFile],
       },
     ],
     restart: [
       {
         step: "restarting the service after a failed update",
         command: "systemctl",
-        args: ["--user", "restart", BOOT_SERVICE_UNIT_FILE],
+        args: ["--user", "restart", input.unitFile],
       },
     ],
     handoff: [
@@ -258,14 +253,14 @@ function systemdManager(input: {
       {
         step: "restarting the service",
         command: "systemctl",
-        args: ["--user", "restart", "--no-block", BOOT_SERVICE_UNIT_FILE],
+        args: ["--user", "restart", "--no-block", input.unitFile],
       },
     ],
     deactivate: [
       {
         step: "stopping the service",
         command: "systemctl",
-        args: ["--user", "disable", "--now", BOOT_SERVICE_UNIT_FILE],
+        args: ["--user", "disable", "--now", input.unitFile],
         timeout: STOP_STEP_TIMEOUT,
       },
     ],
@@ -353,12 +348,13 @@ function selectBootServiceManager(input: {
   readonly uid: number | undefined;
   readonly path: Path.Path;
   readonly environmentPath: string;
+  readonly unitFile: string;
 }): BootServiceManager | undefined {
   if (input.homeDir === "") {
     return undefined;
   }
   if (input.platform === "linux") {
-    return systemdManager({ path: input.path, homeDir: input.homeDir });
+    return systemdManager({ path: input.path, homeDir: input.homeDir, unitFile: input.unitFile });
   }
   if (input.platform === "darwin" && input.uid !== undefined) {
     return launchdManager({
@@ -518,7 +514,10 @@ export const make = Effect.fn("cloud.boot_service.make")(function* (input: {
   readonly logsDir: string;
   readonly cliVersion: string;
   readonly host?: BootServiceHost;
+  readonly unitFile?: string;
+  readonly currentRuntime?: boolean;
 }) {
+  const unitFile = input.unitFile ?? BOOT_SERVICE_UNIT_FILE;
   const hostExecPath = yield* HostProcess.ExecutablePath;
   const platform = yield* HostProcess.Platform;
   const arch = yield* HostProcess.Architecture;
@@ -530,8 +529,7 @@ export const make = Effect.fn("cloud.boot_service.make")(function* (input: {
   const homeDir = yield* Config.String("HOME").pipe(Config.withDefault(""));
   const installerPath = yield* Config.String("PATH").pipe(Config.withDefault(""));
   const runningInsideService =
-    (yield* Config.String(BOOT_SERVICE_UNIT_ENV).pipe(Config.withDefault(""))) ===
-    BOOT_SERVICE_UNIT_FILE;
+    (yield* Config.String(BOOT_SERVICE_UNIT_ENV).pipe(Config.withDefault(""))) === unitFile;
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const runner = yield* ProcessRunner.ProcessRunner;
@@ -563,6 +561,7 @@ export const make = Effect.fn("cloud.boot_service.make")(function* (input: {
     uid,
     path,
     environmentPath,
+    unitFile,
   });
   const unitPath = detectedManager?.unitPath ?? "";
   const logPath = path.join(input.logsDir, BOOT_SERVICE_LOG_FILE);
@@ -672,8 +671,8 @@ export const make = Effect.fn("cloud.boot_service.make")(function* (input: {
     if (includeService && succeeded(manager)) {
       const [enabled, active] = yield* Effect.all(
         [
-          probe("systemctl", ["--user", "is-enabled", BOOT_SERVICE_UNIT_FILE]),
-          probe("systemctl", ["--user", "is-active", BOOT_SERVICE_UNIT_FILE]),
+          probe("systemctl", ["--user", "is-enabled", unitFile]),
+          probe("systemctl", ["--user", "is-active", unitFile]),
         ],
         { concurrency: "unbounded" },
       );
@@ -719,58 +718,79 @@ export const make = Effect.fn("cloud.boot_service.make")(function* (input: {
       yield* requireSystemdPrerequisites.pipe(Effect.tapError(logFailure));
     }
 
-    yield* ensurePinnedRuntimeInstalled({
-      baseDir: input.baseDir,
-      version: input.cliVersion,
-      fs,
-      path,
-      runner,
-      httpClient,
-      platform,
-      arch,
-      releaseBaseUrl,
-      validate: (runtime) =>
-        runner
-          .run({
-            command: pinnedRuntimeCommand(runtime).command,
-            args: [...pinnedRuntimeCommand(runtime).args, "--version"],
-            timeout: Duration.seconds(30),
-          })
-          .pipe(
-            Effect.mapError(
-              (cause) =>
-                new PinnedRuntimeInstallError({
-                  step: "verifying the pinned ozi runtime",
-                  cause,
-                }),
-            ),
-            Effect.flatMap((result) => {
-              const reportedVersion = /\bv(\S+)\s*$/.exec(result.stdout)?.[1];
-              return result.code === 0 && reportedVersion === input.cliVersion
-                ? Effect.void
-                : Effect.fail(
-                    new PinnedRuntimeInstallError({
-                      step: "verifying the pinned ozi runtime",
-                      exitCode: Number(result.code),
-                      stdoutLength: result.stdout.length,
-                      stderrLength: result.stderr.length,
-                    }),
-                  );
-            }),
-          ),
-    }).pipe(
-      Effect.mapError((error) =>
-        error._tag === "PinnedRuntimeInstallError"
-          ? new BootServiceCommandError({
-              step: error.step,
-              exitCode: error.exitCode,
-              stdoutLength: error.stdoutLength,
-              stderrLength: error.stderrLength,
-              cause: error,
+    if (input.currentRuntime) {
+      if (platform !== "linux" && platform !== "darwin") {
+        return yield* new BootServiceUnsupportedError({ platform });
+      }
+      const arguments_ = yield* HostProcess.Arguments;
+      const executable = yield* HostProcess.IsExecutable;
+      const command = executable ? [hostExecPath] : [hostExecPath, arguments_[1] ? path.resolve(arguments_[1]) : ""];
+      if (!executable && !command[1])
+        return yield* new BootServiceInstallError({ cause: "No CLI entry path" });
+      if (path.resolve(command[0]!) !== path.resolve(runtimePaths.entryPath)) {
+        const quote = (value: string) => "'" + value.replaceAll("'", "'\"'\"'") + "'";
+        yield* writeDurably(
+          runtimePaths.entryPath,
+          `#!/bin/sh\nexec ${command.map(quote).join(" ")} "$@"\n`,
+        );
+        yield* fs
+          .chmod(runtimePaths.entryPath, 0o700)
+          .pipe(Effect.mapError((cause) => new BootServiceInstallError({ cause })));
+      }
+      yield* writeDurably(runtimePaths.sentinelPath, input.cliVersion);
+    } else
+      yield* ensurePinnedRuntimeInstalled({
+        baseDir: input.baseDir,
+        version: input.cliVersion,
+        fs,
+        path,
+        runner,
+        httpClient,
+        platform,
+        arch,
+        releaseBaseUrl,
+        validate: (runtime) =>
+          runner
+            .run({
+              command: pinnedRuntimeCommand(runtime).command,
+              args: [...pinnedRuntimeCommand(runtime).args, "--version"],
+              timeout: Duration.seconds(30),
             })
-          : new BootServiceInstallError({ cause: error }),
-      ),
-    );
+            .pipe(
+              Effect.mapError(
+                (cause) =>
+                  new PinnedRuntimeInstallError({
+                    step: "verifying the pinned ozi runtime",
+                    cause,
+                  }),
+              ),
+              Effect.flatMap((result) => {
+                const reportedVersion = /\bv(\S+)\s*$/.exec(result.stdout)?.[1];
+                return result.code === 0 && reportedVersion === input.cliVersion
+                  ? Effect.void
+                  : Effect.fail(
+                      new PinnedRuntimeInstallError({
+                        step: "verifying the pinned ozi runtime",
+                        exitCode: Number(result.code),
+                        stdoutLength: result.stdout.length,
+                        stderrLength: result.stderr.length,
+                      }),
+                    );
+              }),
+            ),
+      }).pipe(
+        Effect.mapError((error) =>
+          error._tag === "PinnedRuntimeInstallError"
+            ? new BootServiceCommandError({
+                step: error.step,
+                exitCode: error.exitCode,
+                stdoutLength: error.stdoutLength,
+                stderrLength: error.stderrLength,
+                cause: error,
+              })
+            : new BootServiceInstallError({ cause: error }),
+        ),
+      );
     const installed = yield* fs
       .exists(unitPath)
       .pipe(Effect.mapError((cause) => new BootServiceInstallError({ cause })));
@@ -795,6 +815,9 @@ export const make = Effect.fn("cloud.boot_service.make")(function* (input: {
         "--base-dir",
         // systemd expands $VAR in arguments (not in the executable path).
         input.baseDir.replaceAll("$", () => "$$"),
+        "--unit",
+        unitFile,
+        ...(input.currentRuntime ? ["--current-runtime"] : []),
         ...(options?.allowDowngrade === true ? ["--allow-downgrade"] : []),
       ]);
       return { ...plan, handedOff: true };
@@ -917,8 +940,8 @@ export const make = Effect.fn("cloud.boot_service.make")(function* (input: {
         ? yield* Effect.map(
             Effect.all(
               [
-                probe("systemctl", ["--user", "is-enabled", BOOT_SERVICE_UNIT_FILE]),
-                probe("systemctl", ["--user", "is-active", BOOT_SERVICE_UNIT_FILE]),
+                probe("systemctl", ["--user", "is-enabled", unitFile]),
+                probe("systemctl", ["--user", "is-active", unitFile]),
               ],
               { concurrency: "unbounded" },
             ),
@@ -1015,4 +1038,6 @@ export const layer = (input: {
   readonly logsDir: string;
   readonly cliVersion: string;
   readonly host?: BootServiceHost;
+  readonly unitFile?: string;
+  readonly currentRuntime?: boolean;
 }) => Layer.effect(BootService, make(input));

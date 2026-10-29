@@ -29,8 +29,9 @@ import { Argument, Command, Flag, GlobalFlag } from "effect/cli";
 import * as EnvironmentAuth from "../auth/EnvironmentAuth.ts";
 import * as ServerConfig from "../config.ts";
 import { mcpToolSession, type McpToolSession } from "../mcp/AcpMcpStdioBridge.ts";
-import { readPersistedServerRuntimeState } from "../serverRuntimeState.ts";
+import { isProcessAlive, readPersistedServerRuntimeState } from "../serverRuntimeState.ts";
 import { projectLocationFlags, resolveCliAuthConfig } from "./config.ts";
+import { readRemoteConnection, RemoteConnectionError } from "./remote.ts";
 
 /**
  * Short enough that a run which stops to ask the user something is noticed
@@ -210,8 +211,25 @@ const withThreadTools = Effect.fn("cli.thread.withThreadTools")(function* <A, E,
   const config = yield* resolveCliAuthConfig(flags, logLevel);
   return yield* Effect.gen(function* () {
     const runtimeState = yield* readPersistedServerRuntimeState(config.serverRuntimeStatePath);
-    if (Option.isNone(runtimeState)) {
-      return yield* new ThreadServerNotRunningError({ baseDir: config.baseDir });
+    if (Option.isNone(runtimeState) || !isProcessAlive(runtimeState.value.pid)) {
+      const remote = yield* readRemoteConnection(Option.some(config.baseDir));
+      if (Option.isNone(remote)) {
+        return yield* new ThreadServerNotRunningError({ baseDir: config.baseDir });
+      }
+      const session = yield* mcpToolSession({
+        endpoint: new URL("/mcp", remote.value.origin).href,
+        authorization: `Bearer ${remote.value.token}`,
+        clientName: "ozi-cli",
+      }).pipe(
+        Effect.mapError(
+          () =>
+            new RemoteConnectionError({
+              message:
+                "Remote connection failed. Check the server and run `ozi connect <pairing-url>` again if access expired or was revoked.",
+            }),
+        ),
+      );
+      return yield* run(makeThreadTools(session, remote.value.origin));
     }
     const origin = runtimeState.value.origin;
     const environmentAuth = yield* EnvironmentAuth.EnvironmentAuth;
