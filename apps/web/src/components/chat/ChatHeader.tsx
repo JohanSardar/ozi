@@ -20,6 +20,7 @@ import {
 } from "react";
 import { isTrailingDoubleClick } from "../Sidebar.logic";
 import { Badge } from "../ui/badge";
+import { Spinner } from "../ui/spinner";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { toastManager } from "../ui/toast";
 import { useThreadActionMenu } from "~/hooks/useThreadActionMenu";
@@ -38,6 +39,7 @@ import {
 } from "../WorkspaceBreadcrumb";
 import { observeResize } from "~/lib/observeResize";
 import { cn } from "~/lib/utils";
+import { tickTextContent } from "~/lib/tickTextContent";
 import { textDirection } from "~/textDirection";
 import { useClientSettings } from "../../hooks/useSettings";
 import { GuestShareIndicator } from "./GuestShareControls";
@@ -47,6 +49,7 @@ interface ChatHeaderProps {
   activeThreadId: ThreadId;
   activeThreadTitle: string;
   activeThreadLinkOrigin?: string | null | undefined;
+  workStartedAt: string | null;
   isServerThread: boolean;
   activeProject: EnvironmentProject | null;
   parentThreadLink: { threadId: ThreadId; title: string } | null;
@@ -73,6 +76,7 @@ export const ChatHeader = memo(function ChatHeader({
   activeThreadId,
   activeThreadTitle,
   activeThreadLinkOrigin,
+  workStartedAt,
   isServerThread,
   activeProject,
   parentThreadLink,
@@ -411,6 +415,20 @@ export const ChatHeader = memo(function ChatHeader({
               <TooltipPopup side="top">{activeThreadTitle}</TooltipPopup>
             </Tooltip>
           )}
+          {renamingTitle === null && workStartedAt !== null ? (
+            <span className="ms-2 inline-flex shrink-0 items-center gap-2 text-muted-foreground text-xs tabular-nums">
+              <Spinner size="xs" aria-hidden />
+              <span
+                ref={tickTextContent((nowMs) => {
+                  const seconds = Math.max(
+                    0,
+                    Math.floor((nowMs - Date.parse(workStartedAt)) / 1000),
+                  );
+                  return `Working ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
+                }, true)}
+              />
+            </span>
+          ) : null}
           {renamingTitle === null && activeThreadLinkOrigin ? (
             <Tooltip>
               <TooltipTrigger render={<Badge variant="info" size="sm" />}>
