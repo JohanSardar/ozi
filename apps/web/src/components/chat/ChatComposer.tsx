@@ -248,6 +248,7 @@ import type {
   PendingUserInput,
 } from "../../session-logic";
 import {
+  alternateComposerDispatchAction,
   resolveComposerDispatchMode,
   type ComposerDispatchMode,
 } from "@t3tools/client-runtime/state/composer-dispatch";
@@ -1156,6 +1157,28 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   )
     ? "steer"
     : settings.followUpBehavior;
+  const sendRequiresModifier = composerRequiresModifier(settings.sendShortcut, prompt);
+  const alternateSendShortcutLabel = shortcutLabelForCommand(
+    keybindings,
+    "composer.sendAlternate",
+    {
+      context: {
+        composerFocus: true,
+        draftThreadRoute: routeKind === "draft",
+        turnRunning: true,
+        composerRequiresModifier: sendRequiresModifier,
+      },
+    },
+  );
+  const runningSendHint =
+    phase === "running" &&
+    !isCompacting &&
+    !sendRequiresModifier &&
+    !isEditingQueuedMessage &&
+    pendingUserInputs.length === 0 &&
+    alternateSendShortcutLabel
+      ? `Enter ${followUpBehavior}s · ${alternateSendShortcutLabel} ${alternateComposerDispatchAction(followUpBehavior)}s`
+      : null;
   const composerSuggestionsVisible = composerMenuOpen;
   const composerSuggestionListVisible = composerSuggestionsVisible && composerMenuItems.length > 0;
   const activePendingUserInput = pendingUserInputs[0] ?? null;
@@ -3375,7 +3398,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                               ? "Choose a project above to start a thread"
                               : showProviderUnavailable
                                 ? "Enable a provider in Settings to send a message"
-                                : DEFAULT_COMPOSER_PLACEHOLDER
+                                : runningSendHint
+                                  ? `${followUpBehavior === "queue" ? "Queue" : "Steer"}, or ${alternateSendShortcutLabel} to ${alternateComposerDispatchAction(followUpBehavior)}…`
+                                  : DEFAULT_COMPOSER_PLACEHOLDER
                     }
                     disabled={
                       projectSelectionRequired ||
@@ -3446,6 +3471,11 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                   >
                     {composerControls}
                   </div>
+                  {runningSendHint ? (
+                    <span className="hidden shrink-0 whitespace-nowrap text-xs text-muted-foreground/70 sm:inline">
+                      {runningSendHint}
+                    </span>
+                  ) : null}
                   <ComposerFooterPrimaryActions
                     compact={isComposerPrimaryActionsCompact}
                     canOperateThread={canOperateThread}
@@ -3459,21 +3489,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                     canInterrupt={canInterrupt}
                     followUpBehavior={followUpBehavior}
                     canSteer={!isCompacting}
-                    alternateShortcutLabel={shortcutLabelForCommand(
-                      keybindings,
-                      "composer.sendAlternate",
-                      {
-                        context: {
-                          composerFocus: true,
-                          draftThreadRoute: routeKind === "draft",
-                          turnRunning: true,
-                          composerRequiresModifier: composerRequiresModifier(
-                            settings.sendShortcut,
-                            prompt,
-                          ),
-                        },
-                      },
-                    )}
+                    alternateShortcutLabel={alternateSendShortcutLabel}
                     showPlanFollowUpPrompt={
                       pendingUserInputs.length === 0 && showPlanFollowUpPrompt
                     }

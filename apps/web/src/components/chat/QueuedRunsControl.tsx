@@ -16,8 +16,8 @@ import {
   CalendarClockIcon,
   ChevronDownIcon,
   Clock3Icon,
+  CornerUpRightIcon,
   MessagesSquareIcon,
-  PencilIcon,
   XIcon,
 } from "lucide-react";
 import * as DateTime from "effect/DateTime";
@@ -261,6 +261,12 @@ export function QueuedRunsControl({
                 timestampFormat={props.timestampFormat}
                 onOpenThread={props.onOpenThread}
               >
+                {isEditing ? null : (
+                  <span className="me-1 flex items-center gap-1 px-1">
+                    <Clock3Icon aria-hidden className="size-3" />
+                    {item.pending ? "Saving" : "Queued"}
+                  </span>
+                )}
                 {canSend && !isEditing ? (
                   <>
                     <Tooltip>
@@ -275,7 +281,7 @@ export function QueuedRunsControl({
                             }
                           }}
                         >
-                          <ArrowUpIcon />
+                          {workflow?.canSendNow ? <ArrowUpIcon /> : <CornerUpRightIcon />}
                           Send now
                         </Button>
                       </TooltipTrigger>
@@ -284,12 +290,6 @@ export function QueuedRunsControl({
                       </TooltipPopup>
                     </Tooltip>
                   </>
-                ) : null}
-                {item.pending ? (
-                  <span className="flex items-center gap-1 px-1">
-                    <Clock3Icon aria-hidden className="size-3" />
-                    Saving
-                  </span>
                 ) : null}
                 {isEditing ? (
                   <>
@@ -309,7 +309,7 @@ export function QueuedRunsControl({
                       {/* The span keeps the tooltip, and its reason, on a disabled button. */}
                       <TooltipTrigger render={<span className="flex shrink-0" />}>
                         <Button
-                          size="icon-xs"
+                          size="xs"
                           variant="ghost-muted"
                           aria-label="Edit queued message"
                           disabled={
@@ -329,7 +329,7 @@ export function QueuedRunsControl({
                             }
                           }}
                         >
-                          <PencilIcon />
+                          Edit
                         </Button>
                       </TooltipTrigger>
                       <TooltipPopup>
