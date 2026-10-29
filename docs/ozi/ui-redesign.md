@@ -88,3 +88,7 @@ Ozi keeps Pi state under `<OZI_HOME>/agents/ozi` and defaults its data root to `
 ## G1 progress
 
 Simulator and emulator support is removed across the server, contracts, providers, web and mobile clients. Browser streaming remains independent of devices. All providers, including ACP, remain available. Project-free chats and the project, git, worktree, diff and pull-request removals remain unimplemented.
+
+## I3 inbox panel
+
+The inbox is a fixed right column beside every chat from 1024px wide (340px, 404px from 1280px); top-right workspace controls move left by its width. It reads `tickets.subscribe` live: open tickets in group order, then by most recent update. The row's chat is the origin chat's title and its age is the creation time. The open ticket stays open until it clears, then the ticket that takes its place opens; clicking an open row closes it. Got it closes the ticket as acknowledged. Choices, keys 1–4 (one per shown choice, outside text fields), the reply box (Enter) and Open details call hooks that I6, I5 and I4 implement. Working lists each chat's pending subagent tasks and opens the worker. The archive subscribes with the server's search and shows how each ticket cleared, its chat and the clearance age.

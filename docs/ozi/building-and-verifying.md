@@ -49,3 +49,7 @@ In the shared browser, a newly paired dev app selected Ozi by default. A real Cl
 ## G1 device checkpoint
 
 `e2e/g1.removal.test.ts` starts an isolated real server and uses the public CLI and ACP stdio bridge to verify that orchestration tools remain while device tools are absent. The scenario passed in 4.7 seconds. Targeted checks covered contracts, client runtime, server, web, mobile, provider core, ACP, Cursor, Muse, OpenCode, scripts and evals. The paired dev GUI loaded Browser settings without console errors: [devices removed](screenshots/g1-browser-without-devices.png). The rest of G1 remains unfinished.
+
+## I3 baseline evidence
+
+`e2e/i3.inbox.test.ts` starts the checkout's dev runner in a temporary home, creates chats and tickets over the authenticated WebSocket and drives the web client with Playwright Chromium. It covers groups and counts with a live arrival, the first row open with need, summary, numbered choices and actions, Got it archiving and opening the next, and archive search. The file takes about 25 seconds: setup is dev server start and Vite's first transform of the web app; each `ozi` CLI call costs about 2.6 seconds of runtime start, so setup uses only `auth` and `pair`, in parallel. The E2E hook ceiling equals the 30-second test ceiling. Running jobs need a live provider, so Working was checked in the dev app: a real Claude turn delegated a worker that showed under Working until its task ended. Inbox, Got it and archive search were also used there by hand.
