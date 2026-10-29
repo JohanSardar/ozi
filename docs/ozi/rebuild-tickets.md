@@ -39,4 +39,6 @@ The work in `ui-redesign.md`, split into tickets. A ticket starts when everythin
 
 F1 implementation: Ozi identities, isolated checkout dev homes with no live-state seeding, neutral blue icons, inherited notices, Ozi agent rules, and a single typecheck/lint workflow. Internal packages and MCP namespaces stay upstream-named; MCP renaming belongs to G2.
 
+G3 WIP: desktop dev and Playwright launch support are implemented but not verified end to end. Resume on the Linux server under Xvfb; fix the startup error, verify live reload and record full startup timings and screenshots. Native macOS inset screenshots remain outstanding; never launch Electron on personal Macs. See `building-and-verifying.md` for partial measurements.
+
 Open: the current build's external to-dos (M4) are not in the redesign spec.

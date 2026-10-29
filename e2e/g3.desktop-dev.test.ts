@@ -3,13 +3,14 @@ import * as NodeEvents from "node:events";
 import * as NodeFSP from "node:fs/promises";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
+import * as NodeUtil from "node:util";
 import { _electron, type ElectronApplication } from "playwright-core";
-import { expect, it } from "vite-plus/test";
-import { measure } from "./g3.measure.ts";
+import { expect, it, onTestFinished } from "vite-plus/test";
 
 const root = NodePath.resolve(import.meta.dirname, "..");
+const exec = NodeUtil.promisify(NodeChildProcess.execFile);
 
-it("g3.desktop-dev: Electron starts on Xvfb, clicks, reloads and reserves the window controls inset", async () => {
+it("G3.desktop-dev: Electron starts, clicks, reloads and reserves native window controls", async () => {
   const home = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "ozi-g3-"));
   const source = NodePath.join(root, "apps/web/src/components/NoProjectsHero.tsx");
   const original = await NodeFSP.readFile(source, "utf8");
@@ -24,7 +25,7 @@ it("g3.desktop-dev: Electron starts on Xvfb, clicks, reloads and reserves the wi
     RAYON_NUM_THREADS: "2",
     OZI_TELEMETRY_ENABLED: "false",
   };
-  const started = measure();
+  const started = performance.now();
   const dev = NodeChildProcess.spawn(
     process.execPath,
     ["scripts/dev-runner.ts", "dev:desktop", "--home-dir", NodePath.join(home, ".ozi")],
@@ -32,6 +33,21 @@ it("g3.desktop-dev: Electron starts on Xvfb, clicks, reloads and reserves the wi
   );
   let app: ElectronApplication | undefined;
   let output = "";
+  onTestFinished(async () => {
+    const forceStop = setTimeout(() => app?.process().kill("SIGKILL"), 5000).unref();
+    try {
+      await app?.close();
+    } finally {
+      clearTimeout(forceStop);
+      if (dev.pid !== undefined && dev.exitCode === null) {
+        const exited = NodeEvents.once(dev, "exit", { signal: AbortSignal.timeout(5000) });
+        process.kill(-dev.pid, "SIGTERM");
+        await exited.catch(() => dev.kill("SIGKILL"));
+      }
+      await NodeFSP.writeFile(source, original);
+      await NodeFSP.rm(home, { recursive: true, force: true });
+    }
+  });
   dev.stderr.on("data", (chunk) => {
     output += String(chunk);
   });
@@ -44,21 +60,21 @@ it("g3.desktop-dev: Electron starts on Xvfb, clicks, reloads and reserves the wi
     }>((resolve, reject) => {
       dev.stdout.on("data", (chunk) => {
         output += String(chunk);
-        if (process.env.OZI_G3_DEBUG) console.log(String(chunk));
         const match = output.match(/\[desktop-dev\] ready (.+)\n/);
         if (match?.[1]) resolve(JSON.parse(match[1]));
       });
       dev.once("error", reject);
       dev.once("exit", (code) => reject(new Error(`Dev exited ${code}: ${output}`)));
     });
-    const preparedMs = Math.round(measure() - started);
+    const preparedMs = Math.round(performance.now() - started);
+    console.log(JSON.stringify({ preparedMs }));
     expect(launch.env.OZI_HOME).toBe(NodePath.join(home, ".ozi"));
     expect(launch.env).not.toHaveProperty("VITE_HTTP_URL");
     expect(launch.env).not.toHaveProperty("VITE_WS_URL");
-    const electronStarted = measure();
+    const electronStarted = performance.now();
     app = await _electron.launch({
       executablePath: launch.electronPath,
-      args: [...launch.args, "--ozone-platform=x11"],
+      args: [...launch.args, ...(process.platform === "linux" ? ["--ozone-platform=x11"] : [])],
       cwd: launch.cwd,
       env: Object.fromEntries(
         Object.entries({ ...env, ...launch.env }).filter(
@@ -72,31 +88,45 @@ it("g3.desktop-dev: Electron starts on Xvfb, clicks, reloads and reserves the wi
       output += String(chunk);
     });
     const page = await app.firstWindow();
+    page.on("pageerror", (error) => {
+      output += `\n${error.stack}`;
+    });
     page.setDefaultTimeout(15_000);
     await page.getByText("What should we work on?", { exact: true }).waitFor();
-    const readyMs = Math.round(measure() - started);
+    const readyMs = Math.round(performance.now() - started);
     console.log(
       JSON.stringify({
         preparedMs,
         readyMs,
-        electronMs: Math.round(measure() - electronStarted),
+        electronMs: Math.round(performance.now() - electronStarted),
       }),
     );
-    expect(await app.evaluate(({ app }) => app.getPath("userData"))).toContain(home);
+    expect(await app.evaluate(({ app }) => app.getPath("userData"))).toBe(
+      NodePath.join(home, ".ozi", "userdata", "electron"),
+    );
     expect(await page.evaluate(() => typeof window.desktopBridge)).toBe("object");
     const screenshotDir = process.env.OZI_G3_SCREENSHOT_DIR ?? home;
     await NodeFSP.mkdir(screenshotDir, { recursive: true });
     await page.screenshot({ path: NodePath.join(screenshotDir, "g3-desktop.png") });
+    if (process.platform === "darwin") {
+      const sourceId = await app.evaluate(({ BrowserWindow }) =>
+        BrowserWindow.getAllWindows()[0]!.getMediaSourceId(),
+      );
+      await exec("screencapture", [
+        "-x", "-o", "-l", sourceId.split(":")[1]!,
+        NodePath.join(screenshotDir, "g3-macos-window.png"),
+      ]);
+    }
     await page.getByRole("button", { name: "Settings", exact: true }).click();
-    await page.getByRole("button", { name: "Appearance", exact: true }).waitFor();
+    await page.getByText("Appearance", { exact: true }).waitFor();
     await page.screenshot({ path: NodePath.join(screenshotDir, "g3-settings.png") });
     await page.keyboard.press("Escape");
     await page.getByText("What should we work on?", { exact: true }).waitFor();
-    const reloadStarted = measure();
+    const reloadStarted = performance.now();
     await NodeFSP.writeFile(source, original.replace("What should we work on?", "G3 live reload"));
     await page.getByText("G3 live reload", { exact: true }).waitFor();
     console.log(
-      JSON.stringify({ rendererReloadMs: Math.round(measure() - reloadStarted) }),
+      JSON.stringify({ rendererReloadMs: Math.round(performance.now() - reloadStarted) }),
     );
     await NodeFSP.writeFile(source, original);
     await page.getByText("What should we work on?", { exact: true }).waitFor();
@@ -106,26 +136,27 @@ it("g3.desktop-dev: Electron starts on Xvfb, clicks, reloads and reserves the wi
       await app.evaluate(({ BrowserWindow }, factor) => {
         BrowserWindow.getAllWindows()[0]?.webContents.setZoomFactor(factor);
       }, zoom);
-      await page.evaluate((inset) => {
-        document
-          .querySelectorAll<HTMLElement>("[data-slot='sidebar-wrapper'], [data-app-sidebar]")
-          .forEach((element) =>
-            element.style.setProperty("--workspace-controls-left", `${inset}px`),
-          );
-      }, 90 / zoom);
-      const brand = await page.getByRole("link", { name: "Go to threads" }).boundingBox();
-      expect(brand?.x).toBeGreaterThanOrEqual(90 / zoom);
+      if (process.platform === "darwin") {
+        for (const control of [
+          page.getByRole("link", { name: "Go to threads" }),
+          page.getByRole("button", { name: "Toggle main sidebar", exact: true }).filter({ visible: true }),
+        ]) {
+          await expect.poll(async () => (await control.boundingBox())?.x).toBeGreaterThanOrEqual(90 / zoom);
+        }
+        await page.reload();
+        await page.getByText("What should we work on?", { exact: true }).waitFor();
+        await expect.poll(async () =>
+          (await page.getByRole("link", { name: "Go to threads" }).boundingBox())?.x,
+        ).toBeGreaterThanOrEqual(90 / zoom);
+      }
     }
   } catch (error) {
-    throw new Error(`${String(error)}\n${output.slice(-12000)}`, { cause: error });
-  } finally {
-    await NodeFSP.writeFile(source, original);
-    await app?.close();
-    if (dev.pid !== undefined && dev.exitCode === null) {
-      const exited = NodeEvents.once(dev, "exit");
-      process.kill(-dev.pid, "SIGTERM");
-      await exited;
+    for (const page of app?.windows() ?? []) {
+      output += `\n${page.url()}\n${await page.locator("body").innerText({ timeout: 1000 }).catch(String)}`;
+      if (process.env.OZI_G3_SCREENSHOT_DIR) {
+        await page.screenshot({ path: NodePath.join(process.env.OZI_G3_SCREENSHOT_DIR, "g3-failure.png"), timeout: 1000 }).catch(() => undefined);
+      }
     }
-    await NodeFSP.rm(home, { recursive: true, force: true });
+    throw new Error(`${String(error)}\n${output.slice(-12000)}`, { cause: error });
   }
-});
+}, 120_000);
