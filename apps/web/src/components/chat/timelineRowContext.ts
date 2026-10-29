@@ -5,6 +5,7 @@ import type {
   WorktreeSetupSnapshot,
 } from "@t3tools/contracts";
 import {
+  type AssistantCitation,
   type EnvironmentId,
   type MessageId,
   type OrchestrationV2TurnItem,
@@ -50,6 +51,7 @@ export interface TimelineRowSharedState {
     | ((requestId: RuntimeRequestId, decision: ProviderApprovalDecision) => Promise<unknown>)
     | undefined;
   citationRequest: AssistantCitationTarget | null;
+  onCiteAssistantText: ((citation: AssistantCitation) => boolean) | undefined;
   listRef: React.RefObject<LegendListRef | null>;
   timestampFormat: TimestampFormat;
   routeThreadKey: string;

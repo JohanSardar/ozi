@@ -131,7 +131,6 @@ import {
   useAttachmentUploadStore,
 } from "../../lib/attachmentUploadQueue";
 import { attachmentUploadBlockReason } from "../../lib/attachmentUploadState";
-import type { AssistantCitationSourceAnchor } from "~/lib/assistantTextSelection";
 import { shortcutLabelForCommand } from "../../keybindings";
 import {
   type TerminalContextDraft,
@@ -146,7 +145,6 @@ import {
   shouldUseCompactComposerFooter,
 } from "../composerFooterLayout";
 import {
-  type ComposerCitationCommentRequest,
   type ComposerPromptEditorHandle,
   ComposerPromptEditorTiptap as ComposerPromptEditor,
 } from "../ComposerPromptEditorTiptap";
@@ -229,6 +227,7 @@ import { observeResize } from "~/lib/observeResize";
 const isEnvironmentRequestInvalidError = Schema.is(EnvironmentRequestInvalidError);
 import { toastManager } from "../ui/toast";
 import { PlayIcon } from "lucide-react";
+import { ComposerReplyQuote } from "./ComposerReplyQuote";
 import { proposedPlanTitle } from "@t3tools/shared/proposedPlanText";
 import { hasProviderSetup } from "./ProviderStatusBanner";
 import { type AppModelOption, getAppModelOptionsForInstance } from "../../modelSelection";
@@ -298,10 +297,7 @@ export interface ChatComposerHandle {
     options?: { ensureLeadingBoundary?: boolean; clipboardData?: DataTransfer },
   ) => boolean;
   pasteTextAtEnd: (text: string, options?: { bypassAutoAttachment?: boolean }) => boolean;
-  citeAssistantText: (
-    citation: AssistantCitation,
-    sourceAnchor: AssistantCitationSourceAnchor,
-  ) => boolean;
+  citeAssistantText: (citation: AssistantCitation) => boolean;
   openModelPicker: () => void;
   stepReasoningEffort: (direction: 1 | -1) => void;
   toggleModelPicker: () => void;
@@ -1012,6 +1008,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const isSoftwareKeyboardOpen = useSoftwareKeyboardOpen();
   const [isComposerFocused, setIsComposerFocused] = useState(false);
   const [composerSubmissionError, setComposerSubmissionError] = useState<string | null>(null);
+  const [replyQuote, setReplyQuote] = useState<AssistantCitation | null>(null);
+  const activeReplyQuote = replyQuote?.threadId === activeThreadId ? replyQuote : null;
   const [providerInputSubmissionError, setProviderInputSubmissionError] = useState<string | null>(
     null,
   );
@@ -1748,11 +1746,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       expectedText?: string;
       expandedCursorAfterReplace?: number;
       focusEditorAfterReplace?: boolean;
-      citationComment?: {
-        start: number;
-        sourceAnchor: AssistantCitationSourceAnchor;
-        insertedSpaces: ComposerCitationCommentRequest["insertedSpaces"];
-      };
     },
   ): boolean => {
     if (
@@ -1781,15 +1774,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       nextCursor,
       isLiteralPendingAnswer,
     );
-    if (options?.citationComment) {
-      composerEditorRef.current?.requestCitationComment({
-        previousValue: currentText,
-        value: next.text,
-        citationStart: options.citationComment.start,
-        sourceAnchor: options.citationComment.sourceAnchor,
-        insertedSpaces: options.citationComment.insertedSpaces,
-      });
-    }
     promptRef.current = next.text;
     const activePendingQuestion = activePendingProgress?.activeQuestion;
     if (activePendingQuestion && activePendingUserInput) {
@@ -2097,6 +2081,10 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       });
       return;
     }
+    const promptWithoutReply = promptRef.current;
+    if (activeReplyQuote && !activePendingProgress) {
+      promptRef.current = `${formatAssistantCitationForComposer(activeReplyQuote)}${promptWithoutReply}`;
+    }
     const submission = submitComposerDraft({
       prompt: promptRef.current,
       submissionTarget: activePendingProgress ? "pending-user-input" : "provider-turn",
@@ -2118,7 +2106,11 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       },
     });
     setComposerSubmissionError(submission.validationMessage);
-    if (!submission.didDispatch) return;
+    if (!submission.didDispatch) {
+      promptRef.current = promptWithoutReply;
+      return;
+    }
+    if (!activePendingProgress) setReplyQuote(null);
     onTypingGuardSend();
     if (shouldBlurMobileComposerOnSubmit()) {
       blurMobileComposerAfterSend();
@@ -2377,7 +2369,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     position: "cursor" | "end",
     options?: {
       ensureLeadingBoundary?: boolean;
-      citationCommentAnchor?: AssistantCitationSourceAnchor;
       clipboardData?: DataTransfer;
     },
   ): boolean => {
@@ -2385,8 +2376,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       text.length === 0 ||
       activePendingIsResponding ||
       (pendingUserInputs.length > 0 && !activePendingProgress?.activeQuestion) ||
-      projectSelectionRequired ||
-      (options?.citationCommentAnchor && !composerEditorRef.current)
+      projectSelectionRequired
     ) {
       return false;
     }
@@ -2400,21 +2390,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       cursor > 0 &&
       !/\s/.test(prompt[cursor - 1] ?? "");
     const rangeEnd = extendReplacementRangeForTrailingSpace(prompt, cursor, text);
-    return applyPromptReplacement(
-      cursor,
-      rangeEnd,
-      needsLeadingSpace ? ` ${text}` : text,
-      options?.citationCommentAnchor
-        ? {
-            citationComment: {
-              start: cursor + (needsLeadingSpace ? 1 : 0),
-              sourceAnchor: options.citationCommentAnchor,
-              insertedSpaces: { before: needsLeadingSpace, after: rangeEnd === cursor },
-            },
-            focusEditorAfterReplace: false,
-          }
-        : undefined,
-    );
+    return applyPromptReplacement(cursor, rangeEnd, needsLeadingSpace ? ` ${text}` : text);
   };
   const insertComposerTextStable = useStableCallback(insertComposerText);
 
@@ -2829,12 +2805,12 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         focusComposer();
         return true;
       },
-      citeAssistantText: (citation, sourceAnchor) =>
-        insertComposerTextStable(
-          formatAssistantCitationForComposer(citation, citation.comment),
-          "cursor",
-          { ensureLeadingBoundary: true, citationCommentAnchor: sourceAnchor },
-        ),
+      citeAssistantText: (citation) => {
+        if (pendingUserInputs.length > 0 || projectSelectionRequired) return false;
+        setReplyQuote(citation);
+        focusComposer();
+        return true;
+      },
       openModelPicker: openModelPickerStable,
       stepReasoningEffort: (direction) => {
         if (noProviderAvailable || pendingUserInputs.length > 0 || isEditingQueuedMessage) {
@@ -3341,6 +3317,13 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
               {composerAttachmentMediaRow}
 
               {composerAttachmentFileList}
+
+              {activeReplyQuote && pendingUserInputs.length === 0 ? (
+                <ComposerReplyQuote
+                  citation={activeReplyQuote}
+                  onRemove={() => setReplyQuote(null)}
+                />
+              ) : null}
 
               <div className="relative">
                 {previewFile ? (

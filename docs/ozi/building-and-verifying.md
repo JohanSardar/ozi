@@ -24,6 +24,8 @@ How a feature gets built and checked the first time. Delegation prompts carry th
 
 F1 isolation and CLI scenarios: `vp test run --root e2e`. They use temporary git checkouts and worktrees, with ambient live-home sentinels. No provider transport is needed for identity checks.
 
+Web-client scenarios start Vite, a real server and Chromium; one run takes 20–30 seconds on the shared machine, so the E2E timeout is 60 seconds.
+
 ## CI
 
 Typecheck and lint only.
