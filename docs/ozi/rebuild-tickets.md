@@ -39,4 +39,6 @@ The work in `ui-redesign.md`, split into tickets. A ticket starts when everythin
 
 F1 implementation: Ozi identities, isolated checkout dev homes with no live-state seeding, neutral blue icons, inherited notices, Ozi agent rules, and a single typecheck/lint workflow. Internal packages and MCP namespaces stay upstream-named; MCP renaming belongs to G2.
 
+L4 implementation: the radius scale tops out at 8px; pills became 6–8px rectangles; status dots became spinners or plain labels; forced capitals became sentence case; the composer stop button uses the message action colour. `e2e/l4.look.test.ts` checks the radius tokens and fails on pills, coloured dots and forced capitals anywhere in the web app. Screenshots: [working](screenshots/l4-working-dark.png), [chat dark](screenshots/l4-chat-dark.png), [chat light](screenshots/l4-chat-light.png), [settings](screenshots/l4-settings-dark.png), [theme editor](screenshots/l4-theme-editor-light.png).
+
 Open: the current build's external to-dos (M4) are not in the redesign spec.
