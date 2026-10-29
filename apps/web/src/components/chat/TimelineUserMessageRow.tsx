@@ -35,7 +35,9 @@ import {
   MessagesSquareIcon,
   Redo2Icon,
   Undo2Icon,
+  CornerUpLeftIcon,
 } from "lucide-react";
+import { collectAssistantCitations } from "@t3tools/shared/assistantCitations";
 import { Link as LinkIconNode } from "lucide";
 import { Button, InlineButton } from "../ui/button";
 import { useAssetUrlRefresh, useAssetUrls, useAssetUrlState } from "../../assets/assetUrls";
@@ -823,20 +825,30 @@ const UserMessageBody = memo(function UserMessageBody(props: {
   markdownCwd: string | undefined;
 }) {
   const ctx = use(TimelineRowCtx);
-  if (props.text.length === 0) {
-    return null;
-  }
+  const [reply] = collectAssistantCitations(props.text);
+  const quote = reply?.start === 0 ? reply : null;
+  const text = quote ? props.text.slice(quote.end).trimStart() : props.text;
   return (
-    <ChatMarkdown
-      text={props.text}
-      cwd={props.markdownCwd}
-      threadRef={ctx.threadRef ?? undefined}
-      skills={props.skills}
-      className="text-foreground"
-      lineBreaks
-      parseRawHtml={false}
-      renderContextReference={props.renderContextReference}
-      headingLevelOffset={MESSAGE_HEADING_LEVEL}
-    />
+    <>
+      {quote ? (
+        <div className="mb-2 flex items-start gap-2 rounded-md bg-foreground/6 px-2.5 py-1.5 text-muted-foreground text-xs">
+          <CornerUpLeftIcon aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+          <p className="line-clamp-3 min-w-0">“{quote.citation.text}”</p>
+        </div>
+      ) : null}
+      {text.length === 0 ? null : (
+        <ChatMarkdown
+          text={text}
+          cwd={props.markdownCwd}
+          threadRef={ctx.threadRef ?? undefined}
+          skills={props.skills}
+          className="text-foreground"
+          lineBreaks
+          parseRawHtml={false}
+          renderContextReference={props.renderContextReference}
+          headingLevelOffset={MESSAGE_HEADING_LEVEL}
+        />
+      )}
+    </>
   );
 });

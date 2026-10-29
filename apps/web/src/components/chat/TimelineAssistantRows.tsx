@@ -1,10 +1,10 @@
 import { shouldPreserveAssistantLineBreaks } from "@t3tools/shared/markdownPipeline";
-import { type RunId } from "@t3tools/contracts";
+import { ASSISTANT_CITATION_MAX_TEXT_LENGTH, type RunId } from "@t3tools/contracts";
 import { canForkProjectedAssistantItem } from "@t3tools/client-runtime/state/thread-workflows";
 import { memo, use, useState } from "react";
 import { type ChatMessage, type TurnDiffSummary } from "../../types";
 import ChatMarkdown from "../ChatMarkdown";
-import { GitForkIcon } from "lucide-react";
+import { CornerUpLeftIcon, GitForkIcon } from "lucide-react";
 import { Button } from "../ui/button";
 import { ProposedPlanCard } from "./ProposedPlanCard";
 import { HtmlRenderFrame } from "./HtmlRenderFrame";
@@ -17,6 +17,7 @@ import { AssistantCitationSource } from "./AssistantCitationSource";
 import { resolveAssistantMessageCopyState } from "./MessagesTimeline.logic";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { cn } from "~/lib/utils";
+import { captureAssistantTextRange } from "~/lib/assistantTextSelection";
 import { useUiStateStore } from "~/uiStateStore";
 import { formatChatTimestampTooltip, formatDayAwareTimestamp } from "../../timestampFormat";
 import { useV2ItemSupport } from "../../state/v2ItemSupport";
@@ -178,6 +179,7 @@ function AssistantMessageMeta({
         showCopyButton={showCopyButton}
         streaming={copyStreaming}
       />
+      {message.streaming ? null : <AssistantReplyButton message={message} />}
       {projectedItem?.item.type === "assistant_message" ? (
         <AssistantForkButton projectedItem={projectedItem} />
       ) : null}
@@ -192,6 +194,37 @@ function AssistantMessageMeta({
         </Tooltip>
       )}
     </div>
+  );
+}
+
+function AssistantReplyButton({ message }: { message: ChatMessage }) {
+  const { onCiteAssistantText, threadRef } = use(TimelineRowCtx);
+  if (!onCiteAssistantText || !threadRef) return null;
+  const reply = () => {
+    const source = document.querySelector<HTMLElement>(
+      `[data-assistant-citation-source="${CSS.escape(message.id)}"][data-assistant-citation-thread="${CSS.escape(threadRef.threadId)}"]`,
+    );
+    const viewport = source?.closest<HTMLElement>("[data-assistant-citation-viewport]");
+    if (!source || !viewport) return;
+    const range = document.createRange();
+    range.selectNodeContents(source);
+    const captured = captureAssistantTextRange(viewport, range);
+    if (!captured) return;
+    const text = captured.selector.text.slice(0, ASSISTANT_CITATION_MAX_TEXT_LENGTH);
+    onCiteAssistantText({
+      version: 1,
+      ...threadRef,
+      messageId: message.id,
+      ...captured.selector,
+      text,
+      end: captured.selector.start + text.length,
+    });
+  };
+  return (
+    <Button type="button" size="xs" variant="ghost-muted" onClick={reply}>
+      <CornerUpLeftIcon className="size-3" />
+      Reply
+    </Button>
   );
 }
 

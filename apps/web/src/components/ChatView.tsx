@@ -114,7 +114,6 @@ import { type SetStateAction, use, useEffect, useLayoutEffect, useRef, useState 
 import { BackgroundThreadContext } from "./chat/backgroundThread";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { assistantCitationFromLocation } from "../lib/assistantCitationNavigation";
-import type { AssistantCitationSourceAnchor } from "~/lib/assistantTextSelection";
 import { useStore } from "zustand";
 import { shallow } from "zustand/vanilla/shallow";
 import { useShallow } from "zustand/react/shallow";
@@ -615,16 +614,13 @@ export default function ChatView(props: ChatViewProps) {
   const composerFilesRef = useRef<ComposerFileAttachment[]>([]);
   const composerTerminalContextsRef = useRef<TerminalContextDraft[]>([]);
   const branchToolbarRef = useRef<BranchToolbarHandle>(null);
-  const citeAssistantText = (
-    citation: AssistantCitation,
-    sourceAnchor: AssistantCitationSourceAnchor,
-  ) => {
-    const inserted = composerRef.current?.citeAssistantText(citation, sourceAnchor) ?? false;
+  const citeAssistantText = (citation: AssistantCitation) => {
+    const inserted = composerRef.current?.citeAssistantText(citation) ?? false;
     if (!inserted) {
       toastManager.add({
         type: "warning",
         title: "The composer is not ready",
-        description: "Try citing the selection after the connection or pending input is resolved.",
+        description: "Try replying after the connection or pending input is resolved.",
       });
     }
     return inserted;
@@ -3218,6 +3214,7 @@ export default function ChatView(props: ChatViewProps) {
             isServerThread={isServerThread}
             activeThreadTitle={activeThread.title}
             activeThreadLinkOrigin={activeThreadShell?.linkOrigin?.label ?? null}
+            workStartedAt={isWorking ? (activeWorkStartedAt ?? null) : null}
             activeProject={activeProject ?? null}
             parentThreadLink={headerParentThreadLink}
             onOpenThread={onOpenRelatedThreadStable}
