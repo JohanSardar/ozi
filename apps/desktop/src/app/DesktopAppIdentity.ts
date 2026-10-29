@@ -82,9 +82,9 @@ export const make = Effect.gen(function* () {
     return commitHash;
   });
 
-  const userDataPath = environment.isDevelopment
-    ? Effect.succeed(environment.path.join(environment.stateDir, "electron"))
-    : DesktopUserData.resolveUserDataPath(environment).pipe(Effect.provide(userDataContext));
+  const userDataPath = DesktopUserData.resolveUserDataPath(environment).pipe(
+    Effect.provide(userDataContext),
+  );
 
   const configure = Effect.gen(function* () {
     const commitHash = yield* resolveAboutCommitHash;

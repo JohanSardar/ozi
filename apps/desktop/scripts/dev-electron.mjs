@@ -43,7 +43,9 @@ const watchedDirectories = [
     ]),
   },
   { directory: "../server/src", recursive: true },
-  { directory: "../../packages", recursive: true },
+  ...NodeFS.readdirSync(NodePath.join(desktopDir, "../../packages"))
+    .map((name) => ({ directory: `../../packages/${name}/src`, recursive: true }))
+    .filter(({ directory }) => NodeFS.existsSync(NodePath.join(desktopDir, directory))),
 ];
 const forcedShutdownTimeoutMs = 1_500;
 const restartDebounceMs = 120;
@@ -64,7 +66,8 @@ await waitForResources({
 
 const childEnv = { ...process.env };
 delete childEnv.ELECTRON_RUN_AS_NODE;
-const devProtocolClient = resolveDevProtocolClient();
+const automation = process.env.OZI_DESKTOP_AUTOMATION === "1";
+const devProtocolClient = automation ? null : resolveDevProtocolClient();
 if (devProtocolClient) {
   childEnv.OZI_DESKTOP_APP_USER_MODEL_ID = devProtocolClient.appBundleId;
   childEnv.OZI_DESKTOP_PROTOCOL_REGISTRATION_MANAGED = "1";
@@ -214,7 +217,7 @@ async function shutdown(exitCode) {
   process.exit(exitCode);
 }
 
-if (process.env.OZI_DESKTOP_AUTOMATION === "1") {
+if (automation) {
   console.log(
     `[desktop-dev] ready ${JSON.stringify({
       cwd: desktopDir,
@@ -230,7 +233,7 @@ if (process.env.OZI_DESKTOP_AUTOMATION === "1") {
           "OZI_TELEMETRY_ENABLED",
         ].map((name) => [name, childEnv[name]]),
       ),
-      ...resolveElectronLaunchCommand(["dist-electron/main.cjs"]),
+      ...resolveElectronLaunchCommand(["dist-electron/main.cjs"], { useLauncher: false }),
     })}`,
   );
 } else {

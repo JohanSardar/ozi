@@ -15,12 +15,31 @@ How a feature gets built and checked the first time. Delegation prompts carry th
 - Any step that takes more than about 10 s is investigated: find why and speed it up (cache, watch mode, a narrower command), or report why it can't be.
 - Real-model turns are the slow part. Run behaviour checks in parallel across checkouts instead of one after another.
 
+## Desktop dev
+
+`pnpm dev:desktop` runs Vite, watches the Electron entries and starts the server from TypeScript with the host Node. Renderer edits use Vite HMR; server, shared-package and Electron edits restart the desktop app. The checkout's `.ozi/userdata/electron` holds the profile and instance lock. XDG data stays beneath `.ozi/desktop`.
+
+For Playwright, run `OZI_DESKTOP_AUTOMATION=1 pnpm dev:desktop`. The `[desktop-dev] ready` JSON line supplies `cwd`, `electronPath`, `args` and `env` for `_electron.launch`. This leaves app lifecycle control to Playwright and bypasses the macOS protocol launcher. Remove `ELECTRON_RUN_AS_NODE` from the launch environment.
+
+Do not launch Electron on personal Macs: the current dev app opens “Keychain Not Found” dialogs. Desktop driving continues only on the Linux server under Xvfb. Keep test-only keychain switches behind a dev/test flag and never override `HOME`; isolate with `OZI_HOME` and Electron's user data directory.
+
+On Linux, install Xvfb, xauth, Electron's GTK, NSS, ALSA, GBM and X11 libraries, plus a compiler, pkg-config and `libsecret-1-dev`. Launch Electron with `--password-store=basic` behind the automation flag. The current WIP test still needs that switch. Use an X11 virtual display:
+
+```sh
+xvfb-run --auto-servernum -s '-screen 0 1440x1000x24' vp test run --root e2e g3.desktop-dev.test.ts
+xvfb-run --auto-servernum -s '-screen 0 1440x1000x24' pnpm dev:desktop
+```
+
+The G3 scenario is intended to drive the real Electron app and server with a temporary data root, capture the UI and change a renderer source file to check HMR, then restore it. It also contains macOS assertions for the native 90-point window-controls inset at 80%, 100% and 150% zoom after reload. These assertions have not passed; do not run them on personal Macs. `OZI_G3_SCREENSHOT_DIR` retains screenshots.
+
+G3 WIP measurements: warm dev preparation reached `[desktop-dev] ready` in 2.456–2.763 s on macOS and 7.095 s in a local Linux ARM64 container under Xvfb (2 CPUs, 4 GB RAM). These measure preparation for Playwright launch, not an interactive desktop. Full startup and renderer reload times remain unmeasured. The macOS run stalled; the Linux run reached “Ozi failed to start”. No valid native-controls screenshots were obtained, and the Linux server has not been verified. Desktop, scripts and web targeted typechecks passed before the final launcher/test changes; final typecheck and lint remain pending.
+
 ## Verifying a new feature
 
 1. **E2E**: the feature's scenarios in one test file, with fake providers.
 2. **Real behaviour**: open the dev app in a browser, pair, and give real Ozi (Pi with Opus on the subscription) the scenario through the composer. Check the reply, the inbox and the workers against what the scenario expects, take screenshots, and attach them to the PR. Agents use T3's shared browser tools (open, click, type, screenshot, read the page; one tab per agent, watchable in the browser panel) or Playwright.
 3. **Second look**: for bigger features, another agent reruns the scenario before merging.
-4. **Desktop-only details** (window buttons, dock badge): the GUI repo's T3 v0.1.5 desktop dev mode under a virtual display, driven by Playwright's Electron support; the Mac gives the final look. Not yet verified: today's repo has no desktop dev mode.
+4. **Desktop-only details** (window buttons, dock badge): use desktop dev mode under Xvfb on the Linux server, driven by Playwright's Electron support. G3 is WIP: startup, live reload and screenshots remain unverified. Native macOS window-controls verification is suspended because launches open keychain dialogs on personal machines.
 
 F1 isolation and CLI scenarios: `vp test run --root e2e`. They use temporary git checkouts and worktrees, with ambient live-home sentinels. No provider transport is needed for identity checks.
 

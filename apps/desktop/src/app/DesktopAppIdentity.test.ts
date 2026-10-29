@@ -159,18 +159,20 @@ describe("DesktopAppIdentity", () => {
     ),
   );
 
-  it.effect("keeps using the legacy development profile", () =>
+  it.effect("isolates the development profile under its state directory", () =>
     withIdentity(
       Effect.gen(function* () {
         const identity = yield* DesktopAppIdentity.DesktopAppIdentity;
         assert.equal(
           yield* identity.resolveUserDataPath,
-          "/Users/alice/Library/Application Support/Ozi Dev",
+          "/tmp/ozi-dev/userdata/electron",
         );
       }),
       {
         legacyPathExists: true,
-        environment: { env: { VITE_DEV_SERVER_URL: "http://localhost:5173" } },
+        environment: {
+          env: { VITE_DEV_SERVER_URL: "http://localhost:5173", OZI_HOME: "/tmp/ozi-dev" },
+        },
       },
     ),
   );
