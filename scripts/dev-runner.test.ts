@@ -6,12 +6,9 @@ import * as NodePath from "node:path";
 import * as NetService from "@t3tools/shared/Net";
 import * as HostProcess from "@t3tools/shared/HostProcess";
 import { assert, describe, it } from "@effect/vitest";
-import * as ByteSize from "effect/ByteSize";
 import * as ConfigProvider from "effect/ConfigProvider";
 import * as Effect from "effect/Effect";
-import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
-import * as Logger from "effect/Logger";
 import * as Path from "effect/Path";
 import * as PlatformError from "effect/PlatformError";
 import * as Sink from "effect/Sink";
@@ -56,7 +53,7 @@ function mockProcess(exit: number | PlatformError.PlatformError) {
 
 const devServerInput = {
   mode: "dev:server",
-  t3Home: "/tmp/t3code-dev-runner",
+  t3Home: "/tmp/ozi-dev-runner",
   browser: undefined,
   autoBootstrapProjectFromCwd: undefined,
   logWebSocketEvents: undefined,
@@ -74,7 +71,7 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
     it.effect("forwards the reusable auth token to web dev and removes it for desktop", () =>
       Effect.gen(function* () {
         const input = {
-          baseEnv: { T3CODE_DEV_AUTH_TOKEN: "reusable-dev-auth-token-that-is-long-enough" },
+          baseEnv: { OZI_DEV_AUTH_TOKEN: "reusable-dev-auth-token-that-is-long-enough" },
           serverOffset: 0,
           webOffset: 0,
           t3Home: undefined,
@@ -88,8 +85,8 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
         const web = yield* createDevRunnerEnv({ ...input, mode: "dev" });
         const desktop = yield* createDevRunnerEnv({ ...input, mode: "dev:desktop" });
 
-        assert.equal(web.T3CODE_DEV_AUTH_TOKEN, input.baseEnv.T3CODE_DEV_AUTH_TOKEN);
-        assert.equal(desktop.T3CODE_DEV_AUTH_TOKEN, undefined);
+        assert.equal(web.OZI_DEV_AUTH_TOKEN, input.baseEnv.OZI_DEV_AUTH_TOKEN);
+        assert.equal(desktop.OZI_DEV_AUTH_TOKEN, undefined);
       }),
     );
 
@@ -110,11 +107,11 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
         const byDefault = yield* createDevRunnerEnv({ ...input, baseEnv: {} });
         const optedIn = yield* createDevRunnerEnv({
           ...input,
-          baseEnv: { T3CODE_TELEMETRY_ENABLED: "true" },
+          baseEnv: { OZI_TELEMETRY_ENABLED: "true" },
         });
 
-        assert.equal(byDefault.T3CODE_TELEMETRY_ENABLED, "false");
-        assert.equal(optedIn.T3CODE_TELEMETRY_ENABLED, "true");
+        assert.equal(byDefault.OZI_TELEMETRY_ENABLED, "false");
+        assert.equal(optedIn.OZI_TELEMETRY_ENABLED, "true");
       }),
     );
 
@@ -123,8 +120,8 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
         const env = yield* createDevRunnerEnv({
           mode: "dev",
           baseEnv: {
-            T3_SERVICE_LAUNCHER_CONTEXT: '{"childVersion":"9.9.9"}',
-            T3_BOOT_SERVICE_UNIT: "t3code.service",
+            OZI_SERVICE_LAUNCHER_CONTEXT: '{"childVersion":"9.9.9"}',
+            OZI_BOOT_SERVICE_UNIT: "ozi.service",
           },
           serverOffset: 0,
           webOffset: 0,
@@ -137,8 +134,8 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
           devUrl: undefined,
         });
 
-        assert.equal(env.T3_SERVICE_LAUNCHER_CONTEXT, undefined);
-        assert.equal(env.T3_BOOT_SERVICE_UNIT, undefined);
+        assert.equal(env.OZI_SERVICE_LAUNCHER_CONTEXT, undefined);
+        assert.equal(env.OZI_BOOT_SERVICE_UNIT, undefined);
       }),
     );
 
@@ -165,8 +162,8 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
 
           assert.equal(env.VITE_HTTP_URL, undefined);
           assert.equal(env.VITE_WS_URL, undefined);
-          assert.equal(env.T3CODE_PORT, "13773");
-          assert.equal(env.T3CODE_SINGLE_ORIGIN_DEV, "1");
+          assert.equal(env.OZI_PORT, "13773");
+          assert.equal(env.OZI_SINGLE_ORIGIN_DEV, "1");
         }),
     );
 
@@ -392,11 +389,11 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
       });
     });
 
-    it.effect("ignores an ambient T3CODE_HOME when no home is resolved", () =>
+    it.effect("ignores an ambient OZI_HOME when no home is resolved", () =>
       Effect.gen(function* () {
         const env = yield* createDevRunnerEnv({
           mode: "dev",
-          baseEnv: { T3CODE_HOME: "/home/user/.t3" },
+          baseEnv: { OZI_HOME: "/home/user/.ozi" },
           serverOffset: 0,
           webOffset: 0,
           t3Home: undefined,
@@ -408,7 +405,7 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
           devUrl: undefined,
         });
 
-        assert.equal(env.T3CODE_HOME, undefined);
+        assert.equal(env.OZI_HOME, NodePath.resolve(import.meta.dirname, "..", ".ozi"));
       }),
     );
 
@@ -443,7 +440,7 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
     // A shared origin means a remote browser, where unbundled dev's
     // per-module waterfall pays a tailnet round trip per import level. The
     // runner defaults bundled dev on for the spawned stack, but only
-    // defaults: an explicit T3CODE_BUNDLED_DEV (even "0") must pass through.
+    // defaults: an explicit OZI_BUNDLED_DEV (even "0") must pass through.
     describe("--share spawn wiring", () => {
       const shareSpawned = (input: {
         readonly ambientBundledDev?: string | undefined;
@@ -506,17 +503,17 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
               HostProcess.Environment,
               input.ambientBundledDev === undefined
                 ? {}
-                : { T3CODE_BUNDLED_DEV: input.ambientBundledDev },
+                : { OZI_BUNDLED_DEV: input.ambientBundledDev },
             ),
           );
 
           return { env: captured, vpArgs, tailscaleCalls };
         });
 
-      it.effect("keeps an explicit T3CODE_BUNDLED_DEV=0 opt-out", () =>
+      it.effect("keeps an explicit OZI_BUNDLED_DEV=0 opt-out", () =>
         Effect.gen(function* () {
           const { env } = yield* shareSpawned({ ambientBundledDev: "0" });
-          assert.equal(env?.T3CODE_BUNDLED_DEV, "0");
+          assert.equal(env?.OZI_BUNDLED_DEV, "0");
         }),
       );
 
@@ -524,13 +521,13 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
         Effect.gen(function* () {
           const { env, vpArgs, tailscaleCalls } = yield* shareSpawned({ built: true });
           assert.include(vpArgs, "dev:built");
-          assert.equal(env?.T3CODE_BUILT_DEV, "1");
-          assert.equal(env?.T3CODE_BUNDLED_DEV, undefined);
+          assert.equal(env?.OZI_BUILT_DEV, "1");
+          assert.equal(env?.OZI_BUNDLED_DEV, undefined);
           assert.equal(env?.VITE_DEV_SERVER_URL, `https://host.example.ts.net:${env?.PORT}/`);
           const serve = tailscaleCalls.find((args) => args.includes("--bg"));
           assert.deepEqual(serve?.slice(-2), [
             `--https=${env?.PORT}`,
-            `http://127.0.0.1:${env?.T3CODE_PORT}`,
+            `http://127.0.0.1:${env?.OZI_PORT}`,
           ]);
         }),
       );
@@ -539,7 +536,7 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
         Effect.gen(function* () {
           const { env, tailscaleCalls } = yield* shareSpawned({ built: true, host: "::1" });
           const serve = tailscaleCalls.find((args) => args.includes("--bg"));
-          assert.equal(serve?.at(-1), `http://[::1]:${env?.T3CODE_PORT}`);
+          assert.equal(serve?.at(-1), `http://[::1]:${env?.OZI_PORT}`);
         }),
       );
 
@@ -548,7 +545,7 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
           const { env, vpArgs, tailscaleCalls } = yield* shareSpawned({});
           assert.include(vpArgs, "dev");
           assert.notInclude(vpArgs, "dev:built");
-          assert.equal(env?.T3CODE_BUNDLED_DEV, "1");
+          assert.equal(env?.OZI_BUNDLED_DEV, "1");
           const serve = tailscaleCalls.find((args) => args.includes("--bg"));
           assert.equal(serve?.at(-1), `http://localhost:${env?.PORT}`);
         }),
@@ -609,7 +606,7 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
       });
     });
 
-    describe("t3 home precedence", () => {
+    describe("Ozi home precedence", () => {
       const makeWorktree = Effect.acquireRelease(
         Effect.sync(() => {
           const root = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "t3-devrunner-"));
@@ -645,15 +642,15 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
             Effect.provide(Layer.mergeAll(emptyConfigLayer, netServiceLayer, spawnerLayer)),
             Effect.provideService(HostProcess.Platform, "linux"),
             Effect.provideService(HostProcess.WorkingDirectory, input.cwd),
-            // No ~/.t3 here, so these runs never seed from this machine's install.
+            // No ~/.ozi here, so these runs never seed from this machine's install.
             Effect.provideService(HostProcess.HomeDirectory, input.cwd),
             Effect.provideService(
               HostProcess.Environment,
-              input.ambientHome === undefined ? {} : { T3CODE_HOME: input.ambientHome },
+              input.ambientHome === undefined ? {} : { OZI_HOME: input.ambientHome },
             ),
           );
 
-          return captured?.T3CODE_HOME;
+          return captured?.OZI_HOME;
         });
 
       it.effect("prefers an explicit --home-dir over the worktree default", () =>
@@ -663,7 +660,7 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
           const home = yield* spawnedHome({
             t3Home: "/tmp/explicit-home",
             cwd: root,
-            ambientHome: "/home/user/.t3",
+            ambientHome: "/home/user/.ozi",
           });
           assert.equal(home, path.resolve("/tmp/explicit-home"));
         }).pipe(Effect.scoped),
@@ -676,155 +673,34 @@ it.layer(NodeServices.layer)("dev-runner", (it) => {
           const home = yield* spawnedHome({
             t3Home: "   ",
             cwd: root,
-            ambientHome: "/home/user/.t3",
+            ambientHome: "/home/user/.ozi",
           });
-          assert.equal(home, path.join(path.resolve(root), ".t3"));
+          assert.equal(home, path.join(path.resolve(root), ".ozi"));
         }).pipe(Effect.scoped),
       );
 
-      it.effect("prefers the worktree .t3 over an ambient T3CODE_HOME", () =>
+      it.effect("prefers the worktree .ozi over an ambient OZI_HOME", () =>
         Effect.gen(function* () {
           const path = yield* Path.Path;
           const root = yield* makeWorktree;
           const home = yield* spawnedHome({
             t3Home: undefined,
             cwd: root,
-            ambientHome: "/home/user/.t3",
+            ambientHome: "/home/user/.ozi",
           });
-          assert.equal(home, path.join(path.resolve(root), ".t3"));
+          assert.equal(home, path.join(path.resolve(root), ".ozi"));
         }).pipe(Effect.scoped),
       );
 
-      it.effect("seeds a worktree database from ~/.t3 only when it has none", () =>
-        Effect.gen(function* () {
-          const path = yield* Path.Path;
-          const root = yield* makeWorktree;
-          const home = path.join(root, "home");
-          NodeFS.mkdirSync(path.join(home, ".t3", "userdata"), { recursive: true });
-          NodeFS.writeFileSync(path.join(home, ".t3", "userdata", "statev2.sqlite"), "");
-
-          const spawnedArgs = (seed: boolean | undefined) =>
-            Effect.gen(function* () {
-              const spawned: Array<ReadonlyArray<string>> = [];
-              const spawnerLayer = Layer.succeed(
-                ChildProcessSpawner.ChildProcessSpawner,
-                ChildProcessSpawner.make((command) => {
-                  spawned.push(
-                    (command as unknown as { readonly args: ReadonlyArray<string> }).args,
-                  );
-                  return Effect.succeed(mockProcess(0));
-                }),
-              );
-              yield* runDevRunnerWithInput({ ...devServerInput, t3Home: undefined, seed }).pipe(
-                Effect.provide(Layer.mergeAll(emptyConfigLayer, netServiceLayer, spawnerLayer)),
-                Effect.provideService(HostProcess.Platform, "linux"),
-                Effect.provideService(HostProcess.WorkingDirectory, root),
-                Effect.provideService(HostProcess.HomeDirectory, home),
-                Effect.provideService(HostProcess.Environment, {}),
-              );
-              return spawned.filter((args) =>
-                args.some((arg) => arg.endsWith("migrate-dev-db.ts")),
-              );
-            });
-
-          assert.deepStrictEqual(yield* spawnedArgs(false), []);
-          const [seedArgs] = yield* spawnedArgs(undefined);
-          assert.includeMembers([...(seedArgs ?? [])], ["--base-dir", path.join(root, ".t3")]);
-
-          // Either database means the worktree already has data.
-          for (const name of ["state.sqlite", "statev2.sqlite"]) {
-            const file = path.join(root, ".t3", "userdata", name);
-            NodeFS.mkdirSync(path.dirname(file), { recursive: true });
-            NodeFS.writeFileSync(file, "");
-            assert.deepStrictEqual(yield* spawnedArgs(undefined), []);
-            NodeFS.rmSync(file);
-          }
-        }).pipe(Effect.scoped),
-      );
-
-      it.effect.each([
-        { sourceBytes: 500 * 1024 * 1024 - 1, shouldSeed: true },
-        { sourceBytes: 500 * 1024 * 1024, shouldSeed: true },
-        { sourceBytes: 500 * 1024 * 1024 + 1, shouldSeed: false },
-      ])(
-        "checks source size before seeding an empty worktree: $sourceBytes bytes",
-        ({ sourceBytes, shouldSeed }) =>
-          Effect.gen(function* () {
-            const fs = yield* FileSystem.FileSystem;
-            const path = yield* Path.Path;
-            const root = yield* makeWorktree;
-            const home = path.join(root, "home");
-            const source = path.join(home, ".t3", "userdata", "statev2.sqlite");
-            NodeFS.mkdirSync(path.dirname(source), { recursive: true });
-            NodeFS.writeFileSync(source, "");
-            const spawned: Array<ReadonlyArray<string>> = [];
-            const warnings: Array<string> = [];
-            const spawnerLayer = Layer.succeed(
-              ChildProcessSpawner.ChildProcessSpawner,
-              ChildProcessSpawner.make((command) => {
-                spawned.push((command as unknown as { readonly args: ReadonlyArray<string> }).args);
-                return Effect.succeed(mockProcess(0));
-              }),
-            );
-
-            yield* runDevRunnerWithInput({ ...devServerInput, t3Home: undefined }).pipe(
-              Effect.provide([
-                emptyConfigLayer,
-                netServiceLayer,
-                spawnerLayer,
-                Logger.layer([
-                  Logger.make((options) => {
-                    if (options.logLevel === "Warn") warnings.push(String(options.message));
-                  }),
-                ]),
-              ]),
-              Effect.provideService(FileSystem.FileSystem, {
-                ...fs,
-                stat: (file) =>
-                  fs
-                    .stat(file)
-                    .pipe(
-                      Effect.map((info) =>
-                        file === source ? { ...info, size: ByteSize.bytes(sourceBytes) } : info,
-                      ),
-                    ),
-              }),
-              Effect.provideService(HostProcess.Platform, "linux"),
-              Effect.provideService(HostProcess.WorkingDirectory, root),
-              Effect.provideService(HostProcess.HomeDirectory, home),
-              Effect.provideService(HostProcess.Environment, {}),
-            );
-
-            assert.equal(
-              spawned.some((args) => args.some((arg) => arg.endsWith("migrate-dev-db.ts"))),
-              shouldSeed,
-            );
-            assert.deepStrictEqual(spawned.at(-1), [
-              "run",
-              "--filter=t3",
-              "dev",
-              ...devServerInput.runArgs,
-            ]);
-            if (shouldSeed) {
-              assert.deepStrictEqual(warnings, []);
-            } else {
-              assert.lengthOf(warnings, 1);
-              assert.include(warnings[0]!, source);
-              assert.include(warnings[0]!, "skipping automatic database seeding");
-              assert.include(warnings[0]!, "vp run migrate-dev-db");
-            }
-          }).pipe(Effect.scoped),
-      );
-
-      it.effect("falls back to an ambient T3CODE_HOME outside a worktree", () =>
+      it.effect("uses the runner checkout outside a git checkout", () =>
         Effect.gen(function* () {
           const path = yield* Path.Path;
           const home = yield* spawnedHome({
             t3Home: undefined,
             cwd: NodeOS.tmpdir(),
-            ambientHome: "/home/user/.t3",
+            ambientHome: "/home/user/.ozi",
           });
-          assert.equal(home, path.resolve("/home/user/.t3"));
+          assert.equal(home, path.resolve(import.meta.dirname, "..", ".ozi"));
         }),
       );
     });

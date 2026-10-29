@@ -56,7 +56,7 @@ const make = Effect.gen(function* () {
   const limit = Effect.fn("NativeClients.limit")(function* (writing: boolean) {
     const allowed = yield* r2(() =>
       (writing ? bindings.storeLimit : bindings.readLimit).limit({
-        key: writing ? "t3code:native-store" : "t3code:native-read",
+        key: writing ? "ozi:native-store" : "ozi:native-read",
       }),
     );
     if (!allowed.success)
@@ -129,14 +129,14 @@ const make = Effect.gen(function* () {
         });
       }
       if (operation === "create") {
-        const digest = request.headers.get("x-t3-digest") ?? "";
+        const digest = request.headers.get("x-ozi-digest") ?? "";
         if (!digestPattern.test(digest))
           return yield* new NativeClientsError({ status: 400, reason: "invalid_digest" });
         if (yield* r2(() => bindings.CLIENTS.head(key))) {
           yield* Effect.annotateCurrentSpan({ "native.result": "exists" });
           return Response.json({ exists: true });
         }
-        const buildMs = request.headers.get("x-t3-build-ms") ?? "";
+        const buildMs = request.headers.get("x-ozi-build-ms") ?? "";
         const upload = yield* r2(() =>
           bindings.CLIENTS.createMultipartUpload(key, {
             customMetadata: {

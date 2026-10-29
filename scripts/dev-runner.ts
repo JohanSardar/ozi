@@ -1,11 +1,9 @@
 #!/usr/bin/env node
 
-import * as NodeOS from "node:os";
-
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as NetService from "@t3tools/shared/Net";
-import { resolveGitWorktreePath, resolveWorktreeT3Home } from "@t3tools/shared/devHome";
+import { resolveGitWorktreePath, resolveCheckoutOziHome } from "@t3tools/shared/devHome";
 import * as HostProcess from "@t3tools/shared/HostProcess";
 import { resolveSpawnCommand } from "@t3tools/shared/shell";
 import * as Config from "effect/Config";
@@ -41,8 +39,6 @@ const FETCH_BAD_PORTS = new Set([
 ]);
 // Dev binds loopback; other interfaces cannot establish port availability.
 const DEV_PORT_PROBE_HOSTS = ["127.0.0.1", "::1"] as const;
-// Migration prunes after copying, so large sources also need an automatic-seeding limit.
-const LARGE_DEV_DATABASE_BYTES = 500 * 1024 * 1024;
 
 /** Only loopback and wildcard binds keep the loopback proxy target reachable. */
 export function isProxiableBindHost(host: string): boolean {
@@ -59,20 +55,16 @@ export function isProxiableBindHost(host: string): boolean {
   );
 }
 
-export const DEFAULT_T3_HOME = Effect.map(Effect.service(Path.Path), (path) =>
-  path.join(NodeOS.homedir(), ".t3"),
-);
-
 const MODE_ARGS = {
   dev: [
     "run",
     "--filter=@t3tools/contracts",
     "--filter=@t3tools/web",
-    "--filter=t3",
+    "--filter=ozi",
     "--parallel",
     "dev",
   ],
-  "dev:server": ["run", "--filter=t3", "dev"],
+  "dev:server": ["run", "--filter=ozi", "dev"],
   "dev:web": ["run", "--filter=@t3tools/web", "dev"],
   "dev:desktop": ["run", "--filter=@t3tools/desktop", "--filter=@t3tools/web", "dev"],
 } as const satisfies Record<string, ReadonlyArray<string>>;
@@ -82,13 +74,13 @@ const MODE_ARGS = {
 const BUILT_DEV_ARGS = [
   "run",
   "--filter=@t3tools/web",
-  "--filter=t3",
+  "--filter=ozi",
   "--parallel",
   "dev:built",
 ] as const;
 
 type DevMode = keyof typeof MODE_ARGS;
-// Only backend ports honor --host/T3CODE_HOST; web ports stay loopback.
+// Only backend ports honor --host/OZI_HOST; web ports stay loopback.
 type PortAvailabilityCheck<R = never> = (
   port: number,
   role?: "server" | "web",
@@ -115,7 +107,7 @@ export class DevRunnerConfigurationError extends Schema.TaggedError<DevRunnerCon
 export class DevRunnerInvalidPortOffsetError extends Schema.TaggedError<DevRunnerInvalidPortOffsetError>()(
   "DevRunnerInvalidPortOffsetError",
   {
-    configKey: Schema.Literal("T3CODE_PORT_OFFSET"),
+    configKey: Schema.Literal("OZI_PORT_OFFSET"),
     portOffset: Schema.Number,
     minimum: Schema.Number,
   },
@@ -216,8 +208,8 @@ const optionalIntegerConfig = (name: string): Config.Config<number | undefined> 
     Config.map((value) => Option.getOrUndefined(value)),
   );
 const OffsetConfig = Config.all({
-  portOffset: optionalIntegerConfig("T3CODE_PORT_OFFSET"),
-  devInstance: optionalStringConfig("T3CODE_DEV_INSTANCE"),
+  portOffset: optionalIntegerConfig("OZI_PORT_OFFSET"),
+  devInstance: optionalStringConfig("OZI_DEV_INSTANCE"),
 });
 
 export function resolveOffset(config: {
@@ -232,7 +224,7 @@ export function resolveOffset(config: {
     if (config.portOffset < 0) {
       return Effect.fail(
         new DevRunnerInvalidPortOffsetError({
-          configKey: "T3CODE_PORT_OFFSET",
+          configKey: "OZI_PORT_OFFSET",
           portOffset: config.portOffset,
           minimum: 0,
         }),
@@ -240,7 +232,7 @@ export function resolveOffset(config: {
     }
     return Effect.succeed({
       offset: config.portOffset,
-      source: `T3CODE_PORT_OFFSET=${config.portOffset}`,
+      source: `OZI_PORT_OFFSET=${config.portOffset}`,
     });
   }
 
@@ -249,12 +241,12 @@ export function resolveOffset(config: {
     if (/^\d+$/.test(seed)) {
       return Effect.succeed({
         offset: Number(seed),
-        source: `numeric T3CODE_DEV_INSTANCE=${seed}`,
+        source: `numeric OZI_DEV_INSTANCE=${seed}`,
       });
     }
 
     const offset = ((Hash.string(seed) >>> 0) % MAX_HASH_OFFSET) + 1;
-    return Effect.succeed({ offset, source: `hashed T3CODE_DEV_INSTANCE=${seed}` });
+    return Effect.succeed({ offset, source: `hashed OZI_DEV_INSTANCE=${seed}` });
   }
 
   const worktreePath = config.worktreePath?.trim();
@@ -276,7 +268,7 @@ const resolveBaseDir = Effect.fn("dev-runner.resolveBaseDir")(function* (
     return path.resolve(configured);
   }
 
-  return yield* DEFAULT_T3_HOME;
+  return path.join(import.meta.dirname, "..", ".ozi");
 });
 
 interface CreateDevRunnerEnvInput {
@@ -320,23 +312,19 @@ export const createDevRunnerEnv = Effect.fn("dev-runner.createDevRunnerEnv")(fun
       `http://${isDesktopMode ? DESKTOP_DEV_LOOPBACK_HOST : "localhost"}:${webPort}`,
   };
 
-  if (configuredBaseDir !== undefined) {
-    output.T3CODE_HOME = resolvedBaseDir;
-  } else {
-    delete output.T3CODE_HOME;
-  }
+  output.OZI_HOME = resolvedBaseDir;
 
   // Managed T3 service shells leak launcher variables that make dev servers fail version checks.
   // Dev-runner servers are never launcher-managed (serviceLauncherClient.ts resolveStartup).
-  delete output.T3_SERVICE_LAUNCHER_CONTEXT;
-  delete output.T3_BOOT_SERVICE_UNIT;
+  delete output.OZI_SERVICE_LAUNCHER_CONTEXT;
+  delete output.OZI_BOOT_SERVICE_UNIT;
 
   // Each worktree has its own state, so a dev server would count as a new
   // install of the developer's real accounts. Set it explicitly to opt in.
-  output.T3CODE_TELEMETRY_ENABLED = baseEnv.T3CODE_TELEMETRY_ENABLED ?? "false";
+  output.OZI_TELEMETRY_ENABLED = baseEnv.OZI_TELEMETRY_ENABLED ?? "false";
 
   if (!isDesktopMode) {
-    output.T3CODE_PORT = String(serverPort);
+    output.OZI_PORT = String(serverPort);
     // An inherited HOST pins Vite's HMR socket via explicitHost in apps/web/vite.config.ts.
     // Only desktop mode should set it.
     delete output.HOST;
@@ -350,58 +338,58 @@ export const createDevRunnerEnv = Effect.fn("dev-runner.createDevRunnerEnv")(fun
       // which merges `.env`/`.env.local` *under* this env, so a developer
       // with either URL in their `.env` would get it back and silently lose
       // single-origin mode.
-      output.T3CODE_SINGLE_ORIGIN_DEV = "1";
+      output.OZI_SINGLE_ORIGIN_DEV = "1";
     } else {
       output.VITE_HTTP_URL = `http://localhost:${serverPort}`;
       output.VITE_WS_URL = `ws://localhost:${serverPort}`;
-      delete output.T3CODE_SINGLE_ORIGIN_DEV;
+      delete output.OZI_SINGLE_ORIGIN_DEV;
     }
   } else {
-    output.T3CODE_PORT = String(serverPort);
+    output.OZI_PORT = String(serverPort);
     output.VITE_HTTP_URL = `http://${DESKTOP_DEV_LOOPBACK_HOST}:${serverPort}`;
     output.VITE_WS_URL = `ws://${DESKTOP_DEV_LOOPBACK_HOST}:${serverPort}`;
     // Desktop pins the renderer to loopback on purpose; an ambient marker
     // must not make Vite drop those URLs.
-    delete output.T3CODE_SINGLE_ORIGIN_DEV;
-    delete output.T3CODE_MODE;
-    delete output.T3CODE_NO_BROWSER;
-    delete output.T3CODE_HOST;
-    delete output.T3CODE_DEV_AUTH_TOKEN;
+    delete output.OZI_SINGLE_ORIGIN_DEV;
+    delete output.OZI_MODE;
+    delete output.OZI_NO_BROWSER;
+    delete output.OZI_HOST;
+    delete output.OZI_DEV_AUTH_TOKEN;
   }
 
   if (!isDesktopMode && host !== undefined) {
-    output.T3CODE_HOST = host;
+    output.OZI_HOST = host;
   }
 
   if (!isDesktopMode) {
-    output.T3CODE_NO_BROWSER = browser === true ? "0" : "1";
+    output.OZI_NO_BROWSER = browser === true ? "0" : "1";
   }
 
   if (autoBootstrapProjectFromCwd !== undefined) {
-    output.T3CODE_AUTO_BOOTSTRAP_PROJECT_FROM_CWD = autoBootstrapProjectFromCwd ? "1" : "0";
+    output.OZI_AUTO_BOOTSTRAP_PROJECT_FROM_CWD = autoBootstrapProjectFromCwd ? "1" : "0";
   } else {
-    delete output.T3CODE_AUTO_BOOTSTRAP_PROJECT_FROM_CWD;
+    delete output.OZI_AUTO_BOOTSTRAP_PROJECT_FROM_CWD;
   }
 
   if (logWebSocketEvents !== undefined) {
-    output.T3CODE_LOG_WS_EVENTS = logWebSocketEvents ? "1" : "0";
+    output.OZI_LOG_WS_EVENTS = logWebSocketEvents ? "1" : "0";
   } else {
-    delete output.T3CODE_LOG_WS_EVENTS;
+    delete output.OZI_LOG_WS_EVENTS;
   }
 
   if (mode === "dev") {
-    output.T3CODE_MODE = "web";
-    delete output.T3CODE_DESKTOP_WS_URL;
+    output.OZI_MODE = "web";
+    delete output.OZI_DESKTOP_WS_URL;
   }
 
   if (mode === "dev:server" || mode === "dev:web") {
-    output.T3CODE_MODE = "web";
-    delete output.T3CODE_DESKTOP_WS_URL;
+    output.OZI_MODE = "web";
+    delete output.OZI_DESKTOP_WS_URL;
   }
 
   if (isDesktopMode) {
     output.HOST = DESKTOP_DEV_LOOPBACK_HOST;
-    delete output.T3CODE_DESKTOP_WS_URL;
+    delete output.OZI_DESKTOP_WS_URL;
   }
 
   return output;
@@ -601,59 +589,13 @@ const runRepoScript = Effect.fn("dev-runner.runRepoScript")(function* (
   }
 });
 
-/**
- * The first start in a worktree seeds its empty database from a small live database
- * and warms the web dependency cache. Each step checks for its own output, so
- * later starts skip it.
- */
 const prepareFirstStart = Effect.fn("dev-runner.prepareFirstStart")(function* (input: {
   readonly mode: DevMode;
-  readonly seed: boolean;
-  readonly worktreeHome: string | undefined;
   readonly env: NodeJS.ProcessEnv;
 }) {
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
   const exists = (file: string) => fs.exists(file).pipe(Effect.orElseSucceed(() => false));
-
-  if (input.worktreeHome !== undefined && input.mode !== "dev:web") {
-    const stateDir = path.join(input.worktreeHome, "userdata");
-    for (const name of ["statev2.sqlite", "state.sqlite"]) {
-      const file = path.join(stateDir, name);
-      const info = yield* fs.stat(file).pipe(Effect.option);
-      if (Option.isSome(info) && Number(info.value.size) > LARGE_DEV_DATABASE_BYTES) {
-        yield* Effect.logWarning(
-          `[dev-runner] ${file} is ${Math.round(Number(info.value.size) / 1024 / 1024)} MB. With the dev server stopped, \`vp run migrate-dev-db\` rebuilds statev2.sqlite as a small copy of recent data.`,
-        );
-      }
-    }
-    const source = path.join(yield* HostProcess.HomeDirectory, ".t3", "userdata", "statev2.sqlite");
-    // A V1 state.sqlite counts as data too: the server imports it only while
-    // statev2.sqlite is missing, so seeding would hide it.
-    if (
-      input.seed &&
-      !(yield* exists(path.join(stateDir, "statev2.sqlite"))) &&
-      !(yield* exists(path.join(stateDir, "state.sqlite")))
-    ) {
-      const info = yield* fs.stat(source).pipe(Effect.option);
-      if (Option.isSome(info)) {
-        if (Number(info.value.size) > LARGE_DEV_DATABASE_BYTES) {
-          yield* Effect.logWarning(
-            `[dev-runner] ${source} exceeds 500 MiB; skipping automatic database seeding and starting with an empty database. Run \`vp run migrate-dev-db\` manually with dev stopped if needed; it may use substantial disk space before pruning.`,
-          );
-        } else {
-          yield* Effect.logInfo(
-            `[dev-runner] seeding ${input.worktreeHome} from ${source} (read-only). --no-seed or T3CODE_DEV_SEED=0 skips this.`,
-          );
-          yield* runRepoScript(
-            "apps/server/scripts/migrate-dev-db.ts",
-            ["--base-dir", input.worktreeHome, "--source", source],
-            input.env,
-          );
-        }
-      }
-    }
-  }
 
   const repoRoot = path.dirname(import.meta.dirname);
   if (
@@ -675,7 +617,6 @@ interface DevRunnerCliInput {
   readonly devUrl: URL | undefined;
   readonly dryRun: boolean;
   readonly share: boolean;
-  readonly seed?: boolean | undefined;
   readonly built: boolean;
   readonly runArgs: ReadonlyArray<string>;
 }
@@ -687,7 +628,7 @@ export const runDevRunnerWithInput = Effect.fn("dev-runner.runDevRunnerWithInput
     Effect.mapError(
       (cause) =>
         new DevRunnerConfigurationError({
-          configKeys: ["T3CODE_PORT_OFFSET", "T3CODE_DEV_INSTANCE"],
+          configKeys: ["OZI_PORT_OFFSET", "OZI_DEV_INSTANCE"],
           cause,
         }),
     ),
@@ -723,16 +664,16 @@ export const runDevRunnerWithInput = Effect.fn("dev-runner.runDevRunnerWithInput
 
   const hostEnvironment = yield* HostProcess.Environment;
   // A dev server started inside a worktree defaults to that worktree's own
-  // (gitignored) `.t3` — see @t3tools/shared/devHome for why this must
-  // outrank an ambient T3CODE_HOME. `--home-dir` still wins.
-  const worktreeHome = yield* resolveWorktreeT3Home(yield* HostProcess.WorkingDirectory);
+  // (gitignored) `.ozi` — see @t3tools/shared/devHome for why this must
+  // outrank an ambient OZI_HOME. `--home-dir` still wins.
+  const worktreeHome = yield* resolveCheckoutOziHome(yield* HostProcess.WorkingDirectory);
   // Trim before choosing: `--home-dir ""` is not a selection, and treating it
   // as one would skip the worktree default and land on the shared home —
   // exactly the outcome this precedence exists to prevent.
   const resolvedT3Home =
     (input.t3Home?.trim() || undefined) ??
     worktreeHome ??
-    (hostEnvironment.T3CODE_HOME?.trim() || undefined);
+    (yield* Path.Path).join(import.meta.dirname, "..", ".ozi");
   const env = yield* createDevRunnerEnv({
     mode: input.mode,
     baseEnv: hostEnvironment,
@@ -751,10 +692,10 @@ export const runDevRunnerWithInput = Effect.fn("dev-runner.runDevRunnerWithInput
     serverOffset !== offset || webOffset !== offset
       ? ` selectedOffset(server=${serverOffset},web=${webOffset})`
       : "";
-  const baseDir = env.T3CODE_HOME ?? (yield* DEFAULT_T3_HOME);
+  const baseDir = yield* resolveBaseDir(env.OZI_HOME);
 
   yield* Effect.logInfo(
-    `[dev-runner] mode=${input.mode} source=${source}${selectionSuffix} serverPort=${String(env.T3CODE_PORT)} webPort=${String(env.PORT)} baseDir=${baseDir}`,
+    `[dev-runner] mode=${input.mode} source=${source}${selectionSuffix} serverPort=${String(env.OZI_PORT)} webPort=${String(env.PORT)} baseDir=${baseDir}`,
   );
 
   // Before the share block: --dry-run only resolves and prints. Sharing would
@@ -786,7 +727,7 @@ export const runDevRunnerWithInput = Effect.fn("dev-runner.runDevRunnerWithInput
           ...(input.built
             ? {
                 localTarget: {
-                  port: Number(env.T3CODE_PORT),
+                  port: Number(env.OZI_PORT),
                   host: ["::1", "[::1]"].includes(input.host?.trim() ?? "") ? "[::1]" : "127.0.0.1",
                 },
               }
@@ -820,10 +761,7 @@ export const runDevRunnerWithInput = Effect.fn("dev-runner.runDevRunnerWithInput
         // The app is reached from the tailnet origin. Vite already allows
         // *.ts.net hosts; the backend needs the origin for credentialed
         // requests that bypass the proxy (desktop renderer, direct calls).
-        env.T3CODE_DEV_ALLOWED_ORIGINS = [
-          env.T3CODE_DEV_ALLOWED_ORIGINS,
-          new URL(shared.url).origin,
-        ]
+        env.OZI_DEV_ALLOWED_ORIGINS = [env.OZI_DEV_ALLOWED_ORIGINS, new URL(shared.url).origin]
           .filter((entry) => entry && entry.length > 0)
           .join(",");
         if (input.devUrl === undefined) {
@@ -831,13 +769,13 @@ export const runDevRunnerWithInput = Effect.fn("dev-runner.runDevRunnerWithInput
         }
         if (input.built) {
           built = true;
-          env.T3CODE_BUILT_DEV = "1";
-        } else if (env.T3CODE_BUNDLED_DEV === undefined) {
+          env.OZI_BUILT_DEV = "1";
+        } else if (env.OZI_BUNDLED_DEV === undefined) {
           // A shared origin serves a remote browser, where unbundled dev's
           // per-module requests each pay a tailnet round trip — a cold module
           // graph takes minutes to first paint. Bundled dev collapses that to a
           // few chunk requests.
-          env.T3CODE_BUNDLED_DEV = "1";
+          env.OZI_BUNDLED_DEV = "1";
         }
         yield* Effect.logInfo(`[dev-runner] shared on tailnet: ${shared.url}`);
       } else if (input.built) {
@@ -851,8 +789,6 @@ export const runDevRunnerWithInput = Effect.fn("dev-runner.runDevRunnerWithInput
   // After sharing, so the warm step sees the same bundled-dev env as Vite.
   yield* prepareFirstStart({
     mode: input.mode,
-    seed: input.seed !== false,
-    worktreeHome: baseDir === worktreeHome ? worktreeHome : undefined,
     env,
   });
 
@@ -911,7 +847,7 @@ const devRunnerCli = Command.make("dev-runner", {
   ),
   t3Home: Flag.String("home-dir").pipe(
     Flag.withDescription(
-      "Explicit T3 Code data directory; runtime state is stored under userdata (equivalent to T3CODE_HOME). Inside a git worktree this defaults to that worktree's own .t3 so dev state stays off the shared home.",
+      "Explicit Ozi data directory; runtime state is stored under userdata (equivalent to OZI_HOME). In any git checkout this defaults to that checkout's own .ozi so dev state stays off the shared home.",
     ),
     Flag.optional,
     Flag.map(Option.getOrUndefined),
@@ -922,23 +858,23 @@ const devRunnerCli = Command.make("dev-runner", {
   ),
   autoBootstrapProjectFromCwd: Flag.Boolean("auto-bootstrap-project-from-cwd").pipe(
     Flag.withDescription(
-      "Auto-bootstrap toggle (equivalent to T3CODE_AUTO_BOOTSTRAP_PROJECT_FROM_CWD).",
+      "Auto-bootstrap toggle (equivalent to OZI_AUTO_BOOTSTRAP_PROJECT_FROM_CWD).",
     ),
-    Flag.withFallbackConfig(optionalBooleanConfig("T3CODE_AUTO_BOOTSTRAP_PROJECT_FROM_CWD")),
+    Flag.withFallbackConfig(optionalBooleanConfig("OZI_AUTO_BOOTSTRAP_PROJECT_FROM_CWD")),
   ),
   logWebSocketEvents: Flag.Boolean("log-websocket-events").pipe(
-    Flag.withDescription("WebSocket event logging toggle (equivalent to T3CODE_LOG_WS_EVENTS)."),
+    Flag.withDescription("WebSocket event logging toggle (equivalent to OZI_LOG_WS_EVENTS)."),
     Flag.withAlias("log-ws-events"),
-    Flag.withFallbackConfig(optionalBooleanConfig("T3CODE_LOG_WS_EVENTS")),
+    Flag.withFallbackConfig(optionalBooleanConfig("OZI_LOG_WS_EVENTS")),
   ),
   host: Flag.String("host").pipe(
-    Flag.withDescription("Server host/interface override (forwards to T3CODE_HOST)."),
-    Flag.withFallbackConfig(optionalStringConfig("T3CODE_HOST")),
+    Flag.withDescription("Server host/interface override (forwards to OZI_HOST)."),
+    Flag.withFallbackConfig(optionalStringConfig("OZI_HOST")),
   ),
   port: Flag.Int("port").pipe(
     Flag.withSchema(Schema.Int.check(Schema.isBetween({ minimum: 1, maximum: 65535 }))),
-    Flag.withDescription("Server port override (forwards to T3CODE_PORT)."),
-    Flag.withFallbackConfig(optionalPortConfig("T3CODE_PORT")),
+    Flag.withDescription("Server port override (forwards to OZI_PORT)."),
+    Flag.withFallbackConfig(optionalPortConfig("OZI_PORT")),
   ),
   devUrl: Flag.String("dev-url").pipe(
     Flag.withSchema(Schema.URLFromString),
@@ -957,12 +893,6 @@ const devRunnerCli = Command.make("dev-runner", {
       "Publish the web dev server on this machine's tailnet over HTTPS (via `tailscale serve`) and print the pairing URL for it. Removed again on exit.",
     ),
     Flag.withDefault(false),
-  ),
-  seed: Flag.Boolean("seed").pipe(
-    Flag.withDescription(
-      "Seed an empty worktree database from ~/.t3 on first start (read-only, via migrate-dev-db) if the source is at most 500 MiB. On by default; --no-seed or T3CODE_DEV_SEED=0 skips it.",
-    ),
-    Flag.withFallbackConfig(optionalBooleanConfig("T3CODE_DEV_SEED")),
   ),
   built: Flag.Boolean("built").pipe(
     Flag.withDescription(

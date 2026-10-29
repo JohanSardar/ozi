@@ -154,8 +154,8 @@ const discovered = (
     environmentId: EnvironmentId.make(id),
     label,
     endpoint: {
-      httpBaseUrl: `https://${id}.t3.example`,
-      wsBaseUrl: `wss://${id}.t3.example`,
+      httpBaseUrl: `https://${id}.ozi.example`,
+      wsBaseUrl: `wss://${id}.ozi.example`,
       providerKind: "cloudflare_tunnel",
     },
     linkedAt: "2026-10-01T00:00:00.000Z",
@@ -167,8 +167,8 @@ const discovered = (
       : Option.some({
           environmentId: EnvironmentId.make(id),
           endpoint: {
-            httpBaseUrl: `https://${id}.t3.example`,
-            wsBaseUrl: `wss://${id}.t3.example`,
+            httpBaseUrl: `https://${id}.ozi.example`,
+            wsBaseUrl: `wss://${id}.ozi.example`,
             providerKind: "cloudflare_tunnel",
           },
           status: "online",
@@ -221,7 +221,7 @@ describe("linkableMachines", () => {
     ]);
   });
 
-  it("reaches a machine saved only over T3 Connect at its Connect address", () => {
+  it("reaches a machine saved only over Ozi Connect at its Connect address", () => {
     const here = presentation("environment-here", "Here", { saved: ["http://localhost:3773"] });
     const box = presentation("environment-box", "Box");
     const [listed] = linkableMachines({
@@ -230,7 +230,7 @@ describe("linkableMachines", () => {
       links: [],
       connect: new Map([[box.environmentId, discovered(box.environmentId, "Box")]]),
     });
-    expect(listed?.urls).toEqual(["https://environment-box.t3.example"]);
+    expect(listed?.urls).toEqual(["https://environment-box.ozi.example"]);
     // Until discovery has found it, there is no address to offer.
     expect(
       linkableMachines({
@@ -257,7 +257,7 @@ describe("linkableMachines", () => {
     expect(listed?.urls).toEqual([
       "https://vps.ts.net",
       "http://192.168.1.20:3773",
-      "https://environment-vps.t3.example",
+      "https://environment-vps.ozi.example",
     ]);
   });
 
@@ -282,7 +282,7 @@ describe("linkableMachines", () => {
     ]);
   });
 
-  it("offers machines only on T3 Connect after the saved ones, at their Connect address", () => {
+  it("offers machines only on Ozi Connect after the saved ones, at their Connect address", () => {
     const here = presentation("environment-here", "Here", { saved: ["http://localhost:3773"] });
     const vps = presentation("environment-vps", "VPS", { saved: ["https://vps.ts.net"] });
     const listed = linkableMachines({
@@ -309,7 +309,7 @@ describe("linkableMachines", () => {
       connected: false,
       connectOnly: true,
       linked: false,
-      urls: ["https://environment-mini.t3.example"],
+      urls: ["https://environment-mini.ozi.example"],
     });
     expect(listed[2]).toMatchObject({ machine: "server", linked: true });
   });

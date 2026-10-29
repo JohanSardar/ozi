@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vite-plus/test";
 
 import {
-  T3_MCP_TOOL_NAMES,
+  OZI_MCP_TOOL_NAMES,
   resolveT3McpSummaryAction,
   resolveT3McpToolDefinition,
   resolveT3McpToolPresentation,
@@ -9,7 +9,7 @@ import {
 
 describe("resolveT3McpToolPresentation", () => {
   it("recognizes every T3 tool across provider prefixes and completion suffixes", () => {
-    for (const tool of T3_MCP_TOOL_NAMES) {
+    for (const tool of OZI_MCP_TOOL_NAMES) {
       const presentation = resolveT3McpToolPresentation(tool);
       for (const prefix of [
         "mcp__t3-code__",
@@ -17,9 +17,9 @@ describe("resolveT3McpToolPresentation", () => {
         "mcp__t3code__",
         "T3-code.",
         "t3_code/",
-        "t3code:",
+        "ozi:",
         "mcp_t3-code_",
-        "T3 Code ",
+        "Ozi ",
         "t3-code · ",
       ]) {
         expect(resolveT3McpToolPresentation(`${prefix}${tool} completed`), tool).toEqual(

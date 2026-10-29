@@ -76,7 +76,7 @@ export interface McpClientSession {
   readonly sessionId: AuthSessionId;
   readonly label: string;
   readonly access: AuthMcpClientAccess;
-  /** Another T3 Code environment's link, whose work here stays within it. */
+  /** Another Ozi environment's link, whose work here stays within it. */
   readonly peerLink: boolean;
 }
 
@@ -557,7 +557,7 @@ export class EnvironmentAuth extends Context.Service<
       request: HttpServerRequest.HttpServerRequest,
     ) => Effect.Effect<AuthenticatedSession, ServerAuthCredentialError | ServerAuthInternalError>;
   }
->()("t3/auth/EnvironmentAuth") {}
+>()("ozi/auth/EnvironmentAuth") {}
 
 type BootstrapExchangeResult = {
   readonly response: AuthBrowserSessionResult;

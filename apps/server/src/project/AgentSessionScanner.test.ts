@@ -70,7 +70,7 @@ const layerScannerTest = (input: ScannerTestInput) =>
         }),
         ServerConfig.layerTest(
           input.claudeHomePath,
-          input.configBaseDir ?? { prefix: "t3code-scanner-config-" },
+          input.configBaseDir ?? { prefix: "ozi-scanner-config-" },
         ),
         layerProjectStore(input.importedWorkspaceRoots ?? []),
       ),
@@ -158,9 +158,9 @@ const makeFileIdentityFixture = Effect.fn("AgentSessionScanner.test.makeFileIden
     const fileSystem = yield* FileSystem.FileSystem;
     const nowMs = Date.parse("2026-08-24T12:00:00.000Z");
     yield* TestClock.setTime(nowMs);
-    const claudeHomePath = yield* makeTempDir("t3code-large-id-claude-");
-    const codexHomePath = yield* makeTempDir("t3code-large-id-codex-");
-    const workspace = yield* makeTempDir("t3code-large-id-workspace-");
+    const claudeHomePath = yield* makeTempDir("ozi-large-id-claude-");
+    const codexHomePath = yield* makeTempDir("ozi-large-id-codex-");
+    const workspace = yield* makeTempDir("ozi-large-id-workspace-");
     const filePath = path.join(
       codexHomePath,
       "sessions",
@@ -238,10 +238,10 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
     it.effect("reads Claude project cwds from transcripts, newest first", () =>
       Effect.gen(function* () {
         const path = yield* Path.Path;
-        const claudeHomePath = yield* makeTempDir("t3code-claude-home-");
-        const codexHomePath = yield* makeTempDir("t3code-codex-home-");
-        const olderWorkspace = yield* makeTempDir("t3code-workspace-older-");
-        const newerWorkspace = yield* makeTempDir("t3code-workspace-newer-");
+        const claudeHomePath = yield* makeTempDir("ozi-claude-home-");
+        const codexHomePath = yield* makeTempDir("ozi-codex-home-");
+        const olderWorkspace = yield* makeTempDir("ozi-workspace-older-");
+        const newerWorkspace = yield* makeTempDir("ozi-workspace-newer-");
 
         yield* writeTranscript({
           filePath: path.join(claudeHomePath, "projects", "-slug-older", "a.jsonl"),
@@ -287,9 +287,9 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
     it.effect("merges the same cwd seen by both agents and flags imported projects", () =>
       Effect.gen(function* () {
         const path = yield* Path.Path;
-        const claudeHomePath = yield* makeTempDir("t3code-claude-home-");
-        const codexHomePath = yield* makeTempDir("t3code-codex-home-");
-        const workspace = yield* makeTempDir("t3code-workspace-");
+        const claudeHomePath = yield* makeTempDir("ozi-claude-home-");
+        const codexHomePath = yield* makeTempDir("ozi-codex-home-");
+        const workspace = yield* makeTempDir("ozi-workspace-");
 
         yield* writeTranscript({
           filePath: path.join(claudeHomePath, "projects", "-slug", "a.jsonl"),
@@ -334,10 +334,10 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
       Effect.gen(function* () {
         const path = yield* Path.Path;
         const fileSystem = yield* FileSystem.FileSystem;
-        const claudeHomePath = yield* makeTempDir("t3code-claude-home-");
-        const codexHomePath = yield* makeTempDir("t3code-codex-home-");
-        const workspace = yield* makeTempDir("t3code-workspace-");
-        const linkParent = yield* makeTempDir("t3code-scanner-links-");
+        const claudeHomePath = yield* makeTempDir("ozi-claude-home-");
+        const codexHomePath = yield* makeTempDir("ozi-codex-home-");
+        const workspace = yield* makeTempDir("ozi-workspace-");
+        const linkParent = yield* makeTempDir("ozi-scanner-links-");
         const workspaceAlias = path.join(linkParent, "workspace-alias");
         yield* fileSystem.symlink(workspace, workspaceAlias);
 
@@ -366,9 +366,9 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
       Effect.gen(function* () {
         const path = yield* Path.Path;
         const fileSystem = yield* FileSystem.FileSystem;
-        const claudeHomePath = yield* makeTempDir("t3code-claude-home-");
-        const codexHomePath = yield* makeTempDir("t3code-codex-home-");
-        const workspace = yield* makeTempDir("t3code-workspace-");
+        const claudeHomePath = yield* makeTempDir("ozi-claude-home-");
+        const codexHomePath = yield* makeTempDir("ozi-codex-home-");
+        const workspace = yield* makeTempDir("ozi-workspace-");
         const workspaceAlias = path.join(
           path.dirname(workspace),
           path.basename(workspace).toUpperCase(),
@@ -414,11 +414,11 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
       Effect.gen(function* () {
         const path = yield* Path.Path;
         const fileSystem = yield* FileSystem.FileSystem;
-        const claudeHomePath = yield* makeTempDir("t3code-claude-home-");
-        const codexHomePath = yield* makeTempDir("t3code-codex-home-");
-        const backingUpper = yield* makeTempDir("t3code-backing-upper-");
-        const backingLower = yield* makeTempDir("t3code-backing-lower-");
-        const aliasParent = yield* makeTempDir("t3code-case-aliases-");
+        const claudeHomePath = yield* makeTempDir("ozi-claude-home-");
+        const codexHomePath = yield* makeTempDir("ozi-codex-home-");
+        const backingUpper = yield* makeTempDir("ozi-backing-upper-");
+        const backingLower = yield* makeTempDir("ozi-backing-lower-");
+        const aliasParent = yield* makeTempDir("ozi-case-aliases-");
         const upperWorkspace = path.join(aliasParent, "Repo");
         const lowerWorkspace = path.join(aliasParent, "repo");
 
@@ -458,13 +458,13 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
     it.effect("uses explicit default-slot homes instead of the fixture homes", () =>
       Effect.gen(function* () {
         const path = yield* Path.Path;
-        const claudeHomePath = yield* makeTempDir("t3code-claude-legacy-");
-        const codexHomePath = yield* makeTempDir("t3code-codex-legacy-");
-        const claudeInstanceHome = yield* makeTempDir("t3code-claude-instance-");
-        const codexInstanceHome = yield* makeTempDir("t3code-codex-instance-");
-        const legacyWorkspace = yield* makeTempDir("t3code-workspace-legacy-");
-        const claudeWorkspace = yield* makeTempDir("t3code-workspace-claude-");
-        const codexWorkspace = yield* makeTempDir("t3code-workspace-codex-");
+        const claudeHomePath = yield* makeTempDir("ozi-claude-legacy-");
+        const codexHomePath = yield* makeTempDir("ozi-codex-legacy-");
+        const claudeInstanceHome = yield* makeTempDir("ozi-claude-instance-");
+        const codexInstanceHome = yield* makeTempDir("ozi-codex-instance-");
+        const legacyWorkspace = yield* makeTempDir("ozi-workspace-legacy-");
+        const claudeWorkspace = yield* makeTempDir("ozi-workspace-claude-");
+        const codexWorkspace = yield* makeTempDir("ozi-workspace-codex-");
 
         yield* writeTranscript({
           filePath: path.join(claudeHomePath, "projects", "-legacy", "session.jsonl"),
@@ -514,11 +514,11 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
     it.effect("scans each distinct home across multiple instances once", () =>
       Effect.gen(function* () {
         const path = yield* Path.Path;
-        const claudeHomePath = yield* makeTempDir("t3code-claude-home-");
-        const codexHomePath = yield* makeTempDir("t3code-codex-home-");
-        const otherCodexHome = yield* makeTempDir("t3code-codex-other-");
-        const workspace = yield* makeTempDir("t3code-workspace-");
-        const otherWorkspace = yield* makeTempDir("t3code-workspace-other-");
+        const claudeHomePath = yield* makeTempDir("ozi-claude-home-");
+        const codexHomePath = yield* makeTempDir("ozi-codex-home-");
+        const otherCodexHome = yield* makeTempDir("ozi-codex-other-");
+        const workspace = yield* makeTempDir("ozi-workspace-");
+        const otherWorkspace = yield* makeTempDir("ozi-workspace-other-");
 
         for (const [home, cwd] of [
           [codexHomePath, workspace],
@@ -557,12 +557,12 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
     it.effect("honors provider instance home directory environment variables", () =>
       Effect.gen(function* () {
         const path = yield* Path.Path;
-        const claudeHomePath = yield* makeTempDir("t3code-claude-legacy-");
-        const codexHomePath = yield* makeTempDir("t3code-codex-legacy-");
-        const claudeEnvironmentHome = yield* makeTempDir("t3code-claude-env-");
-        const codexEnvironmentHome = yield* makeTempDir("t3code-codex-env-");
-        const claudeWorkspace = yield* makeTempDir("t3code-workspace-claude-");
-        const codexWorkspace = yield* makeTempDir("t3code-workspace-codex-");
+        const claudeHomePath = yield* makeTempDir("ozi-claude-legacy-");
+        const codexHomePath = yield* makeTempDir("ozi-codex-legacy-");
+        const claudeEnvironmentHome = yield* makeTempDir("ozi-claude-env-");
+        const codexEnvironmentHome = yield* makeTempDir("ozi-codex-env-");
+        const claudeWorkspace = yield* makeTempDir("ozi-workspace-claude-");
+        const codexWorkspace = yield* makeTempDir("ozi-workspace-codex-");
 
         yield* writeTranscript({
           filePath: path.join(claudeEnvironmentHome, "projects", "-actual", "session.jsonl"),
@@ -611,12 +611,12 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
     it.effect("does not scan provider instances disabled by the envelope or config", () =>
       Effect.gen(function* () {
         const path = yield* Path.Path;
-        const claudeHomePath = yield* makeTempDir("t3code-claude-home-");
-        const codexHomePath = yield* makeTempDir("t3code-codex-home-");
-        const envelopeDisabledHome = yield* makeTempDir("t3code-codex-disabled-envelope-");
-        const configDisabledHome = yield* makeTempDir("t3code-codex-disabled-config-");
-        const envelopeWorkspace = yield* makeTempDir("t3code-workspace-disabled-envelope-");
-        const configWorkspace = yield* makeTempDir("t3code-workspace-disabled-config-");
+        const claudeHomePath = yield* makeTempDir("ozi-claude-home-");
+        const codexHomePath = yield* makeTempDir("ozi-codex-home-");
+        const envelopeDisabledHome = yield* makeTempDir("ozi-codex-disabled-envelope-");
+        const configDisabledHome = yield* makeTempDir("ozi-codex-disabled-config-");
+        const envelopeWorkspace = yield* makeTempDir("ozi-workspace-disabled-envelope-");
+        const configWorkspace = yield* makeTempDir("ozi-workspace-disabled-config-");
 
         for (const [home, workspace, session] of [
           [envelopeDisabledHome, envelopeWorkspace, "envelope-disabled"],
@@ -652,8 +652,8 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
     it.effect("drops candidates whose directory no longer exists", () =>
       Effect.gen(function* () {
         const path = yield* Path.Path;
-        const claudeHomePath = yield* makeTempDir("t3code-claude-home-");
-        const codexHomePath = yield* makeTempDir("t3code-codex-home-");
+        const claudeHomePath = yield* makeTempDir("ozi-claude-home-");
+        const codexHomePath = yield* makeTempDir("ozi-codex-home-");
 
         yield* writeTranscript({
           filePath: path.join(claudeHomePath, "projects", "-slug", "a.jsonl"),
@@ -670,10 +670,10 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
     it.effect("excludes the home directory, temporary root, and T3 data directory", () =>
       Effect.gen(function* () {
         const path = yield* Path.Path;
-        const claudeHomePath = yield* makeTempDir("t3code-claude-home-");
-        const codexHomePath = yield* makeTempDir("t3code-codex-home-");
-        const configBaseDir = yield* makeTempDir("t3code-scanner-base-");
-        const workspace = yield* makeTempDir("t3code-workspace-");
+        const claudeHomePath = yield* makeTempDir("ozi-claude-home-");
+        const codexHomePath = yield* makeTempDir("ozi-codex-home-");
+        const configBaseDir = yield* makeTempDir("ozi-scanner-base-");
+        const workspace = yield* makeTempDir("ozi-workspace-");
 
         for (const [index, cwd] of [
           NodeOS.homedir(),
@@ -697,11 +697,11 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
     it.effect("excludes T3-managed worktree sandboxes", () =>
       Effect.gen(function* () {
         const path = yield* Path.Path;
-        const claudeHomePath = yield* makeTempDir("t3code-claude-home-");
-        const codexHomePath = yield* makeTempDir("t3code-codex-home-");
+        const claudeHomePath = yield* makeTempDir("ozi-claude-home-");
+        const codexHomePath = yield* makeTempDir("ozi-codex-home-");
         const fileSystem = yield* FileSystem.FileSystem;
 
-        const worktreeCwd = path.join(claudeHomePath, ".t3", "worktrees", "t3code", "wt-1");
+        const worktreeCwd = path.join(claudeHomePath, ".ozi", "worktrees", "ozi", "wt-1");
         yield* fileSystem.makeDirectory(worktreeCwd, { recursive: true });
         yield* writeTranscript({
           filePath: path.join(claudeHomePath, "projects", "-slug", "a.jsonl"),
@@ -719,18 +719,18 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
       Effect.gen(function* () {
         const path = yield* Path.Path;
         const fileSystem = yield* FileSystem.FileSystem;
-        const claudeHomePath = yield* makeTempDir("t3code-claude-home-");
-        const codexHomePath = yield* makeTempDir("t3code-codex-home-");
-        const repo = yield* makeTempDir("t3code-workspace-repo-");
-        const worktree = yield* makeTempDir("t3code-workspace-worktree-");
-        const plain = yield* makeTempDir("t3code-workspace-plain-");
-        const noRemote = yield* makeTempDir("t3code-workspace-noremote-");
-        const submodule = yield* makeTempDir("t3code-workspace-submodule-");
+        const claudeHomePath = yield* makeTempDir("ozi-claude-home-");
+        const codexHomePath = yield* makeTempDir("ozi-codex-home-");
+        const repo = yield* makeTempDir("ozi-workspace-repo-");
+        const worktree = yield* makeTempDir("ozi-workspace-worktree-");
+        const plain = yield* makeTempDir("ozi-workspace-plain-");
+        const noRemote = yield* makeTempDir("ozi-workspace-noremote-");
+        const submodule = yield* makeTempDir("ozi-workspace-submodule-");
 
         yield* fileSystem.makeDirectory(path.join(repo, ".git"));
         yield* fileSystem.writeFileString(
           path.join(repo, ".git", "config"),
-          '[core]\n\tbare = false\n[remote "origin"]\n\turl = git@github.com:pingdotgg/t3code.git\n\tfetch = +refs/heads/*:refs/remotes/origin/*\n',
+          '[core]\n\tbare = false\n[remote "origin"]\n\turl = git@github.com:JohanSardar/ozi.git\n\tfetch = +refs/heads/*:refs/remotes/origin/*\n',
         );
         const worktreeGitDir = path.join(repo, ".git", "worktrees", "wt");
         yield* fileSystem.makeDirectory(worktreeGitDir, { recursive: true });
@@ -776,7 +776,7 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
           { path: plain, git: null },
           {
             path: repo,
-            git: { remoteKey: "github.com/pingdotgg/t3code", repository: "pingdotgg/t3code" },
+            git: { remoteKey: "github.com/JohanSardar/ozi", repository: "JohanSardar/ozi" },
           },
         ]);
       }),
@@ -790,19 +790,19 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
           const fileSystem = yield* FileSystem.FileSystem;
           const nowMs = Date.parse("2026-08-24T12:00:00.000Z");
           yield* TestClock.setTime(nowMs);
-          const claudeHomePath = yield* makeTempDir("t3code-claude-home-");
-          const codexHomePath = yield* makeTempDir("t3code-codex-home-");
-          const configBaseDir = yield* makeTempDir("t3code-scanner-base-");
-          const bare = yield* makeTempDir("t3code-workspace-bare-");
+          const claudeHomePath = yield* makeTempDir("ozi-claude-home-");
+          const codexHomePath = yield* makeTempDir("ozi-codex-home-");
+          const configBaseDir = yield* makeTempDir("ozi-scanner-base-");
+          const bare = yield* makeTempDir("ozi-workspace-bare-");
           const bareGitDir = path.join(bare, ".git");
           yield* fileSystem.makeDirectory(bareGitDir);
           yield* fileSystem.writeFileString(
             path.join(bareGitDir, "config"),
-            '[core] bare = "true" ; bare repository\n[remote "origin"]\nurl = git@github.com:pingdotgg/t3code.git\n',
+            '[core] bare = "true" ; bare repository\n[remote "origin"]\nurl = git@github.com:JohanSardar/ozi.git\n',
           );
           const dev = path.join(bare, "dev");
           const prod = path.join(bare, "prod");
-          const managed = path.join(configBaseDir, "worktrees", "t3code", "sandbox");
+          const managed = path.join(configBaseDir, "worktrees", "ozi", "sandbox");
           for (const [index, cwd] of [bare, dev, prod, managed].entries()) {
             if (cwd !== bare) {
               const gitDir = path.join(bareGitDir, "worktrees", path.basename(cwd));
@@ -836,7 +836,7 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
 
           const input = { claudeHomePath, codexHomePath, configBaseDir };
           const result = yield* runScan(input);
-          const git = { remoteKey: "github.com/pingdotgg/t3code", repository: "pingdotgg/t3code" };
+          const git = { remoteKey: "github.com/JohanSardar/ozi", repository: "JohanSardar/ozi" };
           expect(
             result.candidates.map((candidate) => ({ path: candidate.path, git: candidate.git })),
           ).toEqual([
@@ -851,38 +851,40 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
         }),
     );
 
-    it.effect("excludes sandboxes under the configured worktrees dir without .t3 in the path", () =>
-      Effect.gen(function* () {
-        const path = yield* Path.Path;
-        const claudeHomePath = yield* makeTempDir("t3code-claude-home-");
-        const codexHomePath = yield* makeTempDir("t3code-codex-home-");
-        const configBaseDir = yield* makeTempDir("t3code-scanner-base-");
-        const fileSystem = yield* FileSystem.FileSystem;
+    it.effect(
+      "excludes sandboxes under the configured worktrees dir without .ozi in the path",
+      () =>
+        Effect.gen(function* () {
+          const path = yield* Path.Path;
+          const claudeHomePath = yield* makeTempDir("ozi-claude-home-");
+          const codexHomePath = yield* makeTempDir("ozi-codex-home-");
+          const configBaseDir = yield* makeTempDir("ozi-scanner-base-");
+          const fileSystem = yield* FileSystem.FileSystem;
 
-        const worktreeCwd = path.join(configBaseDir, "worktrees", "t3code", "wt-2");
-        yield* fileSystem.makeDirectory(worktreeCwd, { recursive: true });
-        yield* writeTranscript({
-          filePath: path.join(claudeHomePath, "projects", "-slug", "a.jsonl"),
-          contents: claudeSessionLine(worktreeCwd),
-          mtimeMs: Date.parse("2026-01-01T00:00:00.000Z"),
-        });
+          const worktreeCwd = path.join(configBaseDir, "worktrees", "ozi", "wt-2");
+          yield* fileSystem.makeDirectory(worktreeCwd, { recursive: true });
+          yield* writeTranscript({
+            filePath: path.join(claudeHomePath, "projects", "-slug", "a.jsonl"),
+            contents: claudeSessionLine(worktreeCwd),
+            mtimeMs: Date.parse("2026-01-01T00:00:00.000Z"),
+          });
 
-        const result = yield* runScan({ claudeHomePath, codexHomePath, configBaseDir });
+          const result = yield* runScan({ claudeHomePath, codexHomePath, configBaseDir });
 
-        expect(result.candidates).toEqual([]);
-      }),
+          expect(result.candidates).toEqual([]);
+        }),
     );
 
     it.effect("excludes sandboxes reached through a symlink into the worktrees dir", () =>
       Effect.gen(function* () {
         const path = yield* Path.Path;
-        const claudeHomePath = yield* makeTempDir("t3code-claude-home-");
-        const codexHomePath = yield* makeTempDir("t3code-codex-home-");
-        const configBaseDir = yield* makeTempDir("t3code-scanner-base-");
-        const linkParent = yield* makeTempDir("t3code-scanner-links-");
+        const claudeHomePath = yield* makeTempDir("ozi-claude-home-");
+        const codexHomePath = yield* makeTempDir("ozi-codex-home-");
+        const configBaseDir = yield* makeTempDir("ozi-scanner-base-");
+        const linkParent = yield* makeTempDir("ozi-scanner-links-");
         const fileSystem = yield* FileSystem.FileSystem;
 
-        const worktreeCwd = path.join(configBaseDir, "worktrees", "t3code", "wt-3");
+        const worktreeCwd = path.join(configBaseDir, "worktrees", "ozi", "wt-3");
         yield* fileSystem.makeDirectory(worktreeCwd, { recursive: true });
         const symlinkCwd = path.join(linkParent, "innocent-project");
         yield* fileSystem.symlink(worktreeCwd, symlinkCwd);
@@ -901,9 +903,9 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
     it.effect("finds the cwd on a later line when the first records carry none", () =>
       Effect.gen(function* () {
         const path = yield* Path.Path;
-        const claudeHomePath = yield* makeTempDir("t3code-claude-home-");
-        const codexHomePath = yield* makeTempDir("t3code-codex-home-");
-        const workspace = yield* makeTempDir("t3code-workspace-");
+        const claudeHomePath = yield* makeTempDir("ozi-claude-home-");
+        const codexHomePath = yield* makeTempDir("ozi-codex-home-");
+        const workspace = yield* makeTempDir("ozi-workspace-");
 
         const contents = `{"type":"file-history-snapshot","messageId":"m1"}\n{"type":"queue-operation","operation":"enqueue"}\n${claudeSessionLine(workspace)}`;
         yield* writeTranscript({
@@ -921,9 +923,9 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
     it.effect("reads a complete transcript record at the exact chunk boundary", () =>
       Effect.gen(function* () {
         const path = yield* Path.Path;
-        const claudeHomePath = yield* makeTempDir("t3code-claude-home-");
-        const codexHomePath = yield* makeTempDir("t3code-codex-home-");
-        const workspace = yield* makeTempDir("t3code-workspace-");
+        const claudeHomePath = yield* makeTempDir("ozi-claude-home-");
+        const codexHomePath = yield* makeTempDir("ozi-codex-home-");
+        const workspace = yield* makeTempDir("ozi-workspace-");
         const record = claudeSessionLine(workspace).split("\n")[0]!;
         const prefix = '{"padding":"';
         const suffix = `",${record.slice(1)}`;
@@ -945,9 +947,9 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
     it.effect("skips malformed transcripts without failing the scan", () =>
       Effect.gen(function* () {
         const path = yield* Path.Path;
-        const claudeHomePath = yield* makeTempDir("t3code-claude-home-");
-        const codexHomePath = yield* makeTempDir("t3code-codex-home-");
-        const workspace = yield* makeTempDir("t3code-workspace-");
+        const claudeHomePath = yield* makeTempDir("ozi-claude-home-");
+        const codexHomePath = yield* makeTempDir("ozi-codex-home-");
+        const workspace = yield* makeTempDir("ozi-workspace-");
 
         yield* writeTranscript({
           filePath: path.join(claudeHomePath, "projects", "-broken", "a.jsonl"),
@@ -988,10 +990,10 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
         const path = yield* Path.Path;
         const nowMs = Date.parse("2026-08-24T12:00:00.000Z");
         yield* TestClock.setTime(nowMs);
-        const claudeHomePath = yield* makeTempDir("t3code-claude-home-");
-        const codexHomePath = yield* makeTempDir("t3code-codex-home-");
-        const workspace = yield* makeTempDir("t3code-workspace-");
-        const otherWorkspace = yield* makeTempDir("t3code-workspace-other-");
+        const claudeHomePath = yield* makeTempDir("ozi-claude-home-");
+        const codexHomePath = yield* makeTempDir("ozi-codex-home-");
+        const workspace = yield* makeTempDir("ozi-workspace-");
+        const otherWorkspace = yield* makeTempDir("ozi-workspace-other-");
 
         const claudeTranscript = (cwd: string, sessionId: string) =>
           `${JSON.stringify({
@@ -1076,10 +1078,10 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
         const path = yield* Path.Path;
         const nowMs = Date.parse("2026-08-24T12:00:00.000Z");
         yield* TestClock.setTime(nowMs);
-        const claudeHomePath = yield* makeTempDir("t3code-claude-home-");
-        const codexHomePath = yield* makeTempDir("t3code-codex-home-");
-        const customHome = yield* makeTempDir("t3code-codex-custom-");
-        const workspace = yield* makeTempDir("t3code-workspace-");
+        const claudeHomePath = yield* makeTempDir("ozi-claude-home-");
+        const codexHomePath = yield* makeTempDir("ozi-codex-home-");
+        const customHome = yield* makeTempDir("ozi-codex-custom-");
+        const workspace = yield* makeTempDir("ozi-workspace-");
 
         yield* writeTranscript({
           filePath: path.join(customHome, "sessions", "2026", "08", "24", "rollout-custom.jsonl"),
@@ -1117,9 +1119,9 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
         const path = yield* Path.Path;
         const nowMs = Date.parse("2026-08-24T12:00:00.000Z");
         yield* TestClock.setTime(nowMs);
-        const claudeHomePath = yield* makeTempDir("t3code-claude-home-");
-        const codexHomePath = yield* makeTempDir("t3code-codex-home-");
-        const workspace = yield* makeTempDir("t3code-workspace-");
+        const claudeHomePath = yield* makeTempDir("ozi-claude-home-");
+        const codexHomePath = yield* makeTempDir("ozi-codex-home-");
+        const workspace = yield* makeTempDir("ozi-workspace-");
         const subagentSources = [
           { subagent: { thread_spawn: { parent_thread_id: "session-100", depth: 1 } } },
           { subagent: "review" },
@@ -1178,9 +1180,9 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
         const path = yield* Path.Path;
         const nowMs = Date.parse("2026-08-24T12:00:00.000Z");
         yield* TestClock.setTime(nowMs);
-        const claudeHomePath = yield* makeTempDir("t3code-claude-home-");
-        const codexHomePath = yield* makeTempDir("t3code-codex-home-");
-        const workspace = yield* makeTempDir("t3code-workspace-");
+        const claudeHomePath = yield* makeTempDir("ozi-claude-home-");
+        const codexHomePath = yield* makeTempDir("ozi-codex-home-");
+        const workspace = yield* makeTempDir("ozi-workspace-");
         const contents = [
           encodeTranscriptRecord({
             type: "session_meta",
@@ -1222,9 +1224,9 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
         const path = yield* Path.Path;
         const nowMs = Date.parse("2026-08-24T12:00:00.000Z");
         yield* TestClock.setTime(nowMs);
-        const claudeHomePath = yield* makeTempDir("t3code-record-budget-claude-");
-        const codexHomePath = yield* makeTempDir("t3code-record-budget-codex-");
-        const workspace = yield* makeTempDir("t3code-record-budget-workspace-");
+        const claudeHomePath = yield* makeTempDir("ozi-record-budget-claude-");
+        const codexHomePath = yield* makeTempDir("ozi-record-budget-codex-");
+        const workspace = yield* makeTempDir("ozi-record-budget-workspace-");
         for (const [sessionId, padding, mtimeMs] of [
           ["excessive", "\n".repeat(100_001), nowMs],
           ["older", "", nowMs - 1_000],
@@ -1277,7 +1279,7 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
               const fileSystem = yield* FileSystem.FileSystem;
               const nowMs = Date.parse("2026-08-24T12:00:00.000Z");
               yield* TestClock.setTime(nowMs);
-              const fixture = yield* makeTempDir("t3code-replaced-cwd-");
+              const fixture = yield* makeTempDir("ozi-replaced-cwd-");
               const workspace = path.join(fixture, "original");
               const otherWorkspace = path.join(fixture, "other");
               const alias = path.join(fixture, "alias");
@@ -1445,9 +1447,9 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
         const path = yield* Path.Path;
         const nowMs = Date.parse("2026-08-24T12:00:00.000Z");
         yield* TestClock.setTime(nowMs);
-        const claudeHomePath = yield* makeTempDir("t3code-long-claude-");
-        const codexHomePath = yield* makeTempDir("t3code-long-codex-");
-        const workspace = yield* makeTempDir("t3code-long-workspace-");
+        const claudeHomePath = yield* makeTempDir("ozi-long-claude-");
+        const codexHomePath = yield* makeTempDir("ozi-long-codex-");
+        const workspace = yield* makeTempDir("ozi-long-workspace-");
         const record = (fields: Record<string, unknown>) =>
           encodeTranscriptRecord({ sessionId: "first-session", ...fields });
         const toolResult = record({
@@ -1512,9 +1514,9 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
         const fileSystem = yield* FileSystem.FileSystem;
         const nowMs = Date.parse("2026-08-24T12:00:00.000Z");
         yield* TestClock.setTime(nowMs);
-        const claudeHomePath = yield* makeTempDir("t3code-claude-home-");
-        const codexHomePath = yield* makeTempDir("t3code-codex-home-");
-        const workspace = yield* makeTempDir("t3code-workspace-");
+        const claudeHomePath = yield* makeTempDir("ozi-claude-home-");
+        const codexHomePath = yield* makeTempDir("ozi-codex-home-");
+        const workspace = yield* makeTempDir("ozi-workspace-");
         const transcriptPath = path.join(
           codexHomePath,
           "sessions",
@@ -1582,10 +1584,10 @@ it.layer(NodeServices.layer)("AgentSessionScanner", (it) => {
         const path = yield* Path.Path;
         const nowMs = Date.parse("2026-08-24T12:00:00.000Z");
         yield* TestClock.setTime(nowMs);
-        const claudeHomePath = yield* makeTempDir("t3code-claude-home-");
-        const codexHomePath = yield* makeTempDir("t3code-codex-home-");
-        const sharedHome = yield* makeTempDir("t3code-codex-shared-");
-        const workspace = yield* makeTempDir("t3code-workspace-");
+        const claudeHomePath = yield* makeTempDir("ozi-claude-home-");
+        const codexHomePath = yield* makeTempDir("ozi-codex-home-");
+        const sharedHome = yield* makeTempDir("ozi-codex-shared-");
+        const workspace = yield* makeTempDir("ozi-workspace-");
 
         yield* writeTranscript({
           filePath: path.join(sharedHome, "sessions", "2026", "08", "24", "rollout-shared.jsonl"),

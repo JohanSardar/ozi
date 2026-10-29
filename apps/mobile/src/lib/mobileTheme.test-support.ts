@@ -7,10 +7,10 @@ import {
   type MobileThemeVariables,
 } from "./mobileTheme";
 
-import { T3_CHAT_THEME } from "@t3tools/shared/themePalettes";
+import { OZI_CHAT_THEME } from "@t3tools/shared/themePalettes";
 
 const MOBILE_THEME_VARIABLE_NAMES = Object.keys(
-  createMobileThemeVariables(T3_CHAT_THEME.colors, "light"),
+  createMobileThemeVariables(OZI_CHAT_THEME.colors, "light"),
 ) as ReadonlyArray<MobileThemeVariable>;
 
 export function readDefaultMobileThemeVariables(

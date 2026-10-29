@@ -19,9 +19,9 @@ describe("electron development launcher", () => {
   it("uses captured values only as fallbacks for a live runner environment", () => {
     const environmentScript = makeDevelopmentEnvironmentScript({
       VITE_DEV_SERVER_URL: "http://127.0.0.1:8526",
-      T3CODE_PORT: "16566",
-      T3CODE_HOME: "/tmp/t3",
-      T3CODE_OTLP_PROTOCOL: "http/protobuf",
+      OZI_PORT: "16566",
+      OZI_HOME: "/tmp/t3",
+      OZI_OTLP_PROTOCOL: "http/protobuf",
     });
 
     assert.include(
@@ -30,7 +30,7 @@ describe("electron development launcher", () => {
     );
     assert.include(
       environmentScript,
-      "if [ -z \"${T3CODE_OTLP_PROTOCOL:-}\" ]; then export T3CODE_OTLP_PROTOCOL='http/protobuf'; fi",
+      "if [ -z \"${OZI_OTLP_PROTOCOL:-}\" ]; then export OZI_OTLP_PROTOCOL='http/protobuf'; fi",
     );
     assert.notInclude(environmentScript, "\nexport VITE_DEV_SERVER_URL=");
   });
@@ -50,7 +50,7 @@ describe("electron development launcher", () => {
     assert.notInclude(script, "VITE_DEV_SERVER_URL");
     assert.include(
       script,
-      "exec '/repo/node_modules/electron/Electron' --t3code-dev-root='/repo/apps/desktop' '/repo/apps/desktop/dist-electron/main.cjs' \"$@\"",
+      "exec '/repo/node_modules/electron/Electron' --ozi-dev-root='/repo/apps/desktop' '/repo/apps/desktop/dist-electron/main.cjs' \"$@\"",
     );
   });
 
@@ -76,18 +76,18 @@ describe("electron development launcher", () => {
 
   it("keeps the native Electron executable name inside the branded macOS bundle", () => {
     const paths = resolveMacLauncherPaths(
-      "/repo/apps/desktop/.electron-runtime/T3 Code (Dev).app",
-      "T3 Code (Dev)",
+      "/repo/apps/desktop/.electron-runtime/Ozi Dev.app",
+      "Ozi Dev",
     );
 
-    assert.equal(paths.launcherExecutableName, "T3 Code (Dev) Launcher");
+    assert.equal(paths.launcherExecutableName, "Ozi Dev Launcher");
     assert.equal(
       paths.launcherBinaryPath,
-      "/repo/apps/desktop/.electron-runtime/T3 Code (Dev).app/Contents/MacOS/T3 Code (Dev) Launcher",
+      "/repo/apps/desktop/.electron-runtime/Ozi Dev.app/Contents/MacOS/Ozi Dev Launcher",
     );
     assert.equal(
       paths.runtimeElectronBinaryPath,
-      "/repo/apps/desktop/.electron-runtime/T3 Code (Dev).app/Contents/MacOS/Electron",
+      "/repo/apps/desktop/.electron-runtime/Ozi Dev.app/Contents/MacOS/Electron",
     );
 
     const script = makeDevelopmentLauncherScript({
@@ -98,7 +98,7 @@ describe("electron development launcher", () => {
     });
     assert.include(
       script,
-      "exec '/repo/apps/desktop/.electron-runtime/T3 Code (Dev).app/Contents/MacOS/Electron'",
+      "exec '/repo/apps/desktop/.electron-runtime/Ozi Dev.app/Contents/MacOS/Electron'",
     );
     assert.notInclude(script, "node_modules/electron");
   });
@@ -159,14 +159,14 @@ it
     "/tmp/t3-feature.one [two](three)+?^${four}|back\\slash*/apps/desktop",
   ])("dev cleanup matches only the literal root argument: %s", async (desktopDir) => {
   const pattern = await startupCleanupPattern(desktopDir);
-  const flag = `--t3code-dev-root=${desktopDir}`;
+  const flag = `--ozi-dev-root=${desktopDir}`;
   const argvCases = [
     [flag],
     [flag, "main.cjs"],
     [flag.replace(".one", "Xone")],
     [`${flag}-two`],
     [`prefix${flag}`],
-    [`--t3code-dev-root=/other${desktopDir}`],
+    [`--ozi-dev-root=/other${desktopDir}`],
   ];
   const children = [];
   try {

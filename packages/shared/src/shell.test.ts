@@ -60,10 +60,10 @@ const withWindowsEnvironmentMocks = <A, E, R>(
 
 describe("readEnvironmentFromLoginShell", () => {
   // Opt in with an explicit binary, like the provider live probes; CI need not install Nu.
-  it.runIf(process.env.T3_TEST_NU_PATH !== undefined)(
+  it.runIf(process.env.OZI_TEST_NU_PATH !== undefined)(
     "captures Nushell PATH and multiline values without external tools",
     () => {
-      const shell = process.env.T3_TEST_NU_PATH!;
+      const shell = process.env.OZI_TEST_NU_PATH!;
       const home = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "t3-nu-env-"));
       try {
         const toolPath = NodePath.join(home, "nu tools", "bin");
@@ -116,12 +116,12 @@ describe("readEnvironmentFromLoginShell", () => {
       ) => string
     >(() =>
       [
-        "__T3CODE_ENV_PATH_START__",
+        "__OZI_ENV_PATH_START__",
         "/a:/b",
-        "__T3CODE_ENV_PATH_END__",
-        "__T3CODE_ENV_SSH_AUTH_SOCK_START__",
+        "__OZI_ENV_PATH_END__",
+        "__OZI_ENV_SSH_AUTH_SOCK_START__",
         "/tmp/secretive.sock",
-        "__T3CODE_ENV_SSH_AUTH_SOCK_END__",
+        "__OZI_ENV_SSH_AUTH_SOCK_END__",
       ].join("\n"),
     );
 
@@ -141,11 +141,11 @@ describe("readEnvironmentFromLoginShell", () => {
       ) => string
     >(() =>
       [
-        "__T3CODE_ENV_PATH_START__",
+        "__OZI_ENV_PATH_START__",
         "/a:/b",
-        "__T3CODE_ENV_PATH_END__",
-        "__T3CODE_ENV_SSH_AUTH_SOCK_START__",
-        "__T3CODE_ENV_SSH_AUTH_SOCK_END__",
+        "__OZI_ENV_PATH_END__",
+        "__OZI_ENV_SSH_AUTH_SOCK_START__",
+        "__OZI_ENV_SSH_AUTH_SOCK_END__",
       ].join("\n"),
     );
 
@@ -162,11 +162,9 @@ describe("readEnvironmentFromLoginShell", () => {
         options: { encoding: "utf8"; timeout: number },
       ) => string
     >(() =>
-      [
-        "__T3CODE_ENV_CUSTOM_VAR_START__",
-        "  first\nsecond  ",
-        "__T3CODE_ENV_CUSTOM_VAR_END__",
-      ].join("\n"),
+      ["__OZI_ENV_CUSTOM_VAR_START__", "  first\nsecond  ", "__OZI_ENV_CUSTOM_VAR_END__"].join(
+        "\n",
+      ),
     );
 
     expect(readEnvironmentFromLoginShell("/bin/zsh", ["CUSTOM_VAR"], execFile)).toEqual({
@@ -295,7 +293,7 @@ describe("readEnvironmentFromWindowsShell", () => {
         ) => string
       >(
         () =>
-          "__T3CODE_ENV_PATH_START__\nC:\\Users\\testuser\\AppData\\Roaming\\npm\n__T3CODE_ENV_PATH_END__\n",
+          "__OZI_ENV_PATH_START__\nC:\\Users\\testuser\\AppData\\Roaming\\npm\n__OZI_ENV_PATH_END__\n",
       );
 
       expect(
@@ -323,7 +321,7 @@ describe("readEnvironmentFromWindowsShell", () => {
         ) => string
       >(
         () =>
-          "__T3CODE_ENV_FNM_DIR_START__\r\nC:\\Users\\testuser\\AppData\\Roaming\\fnm\r\n__T3CODE_ENV_FNM_DIR_END__\r\n",
+          "__OZI_ENV_FNM_DIR_START__\r\nC:\\Users\\testuser\\AppData\\Roaming\\fnm\r\n__OZI_ENV_FNM_DIR_END__\r\n",
       );
 
       expect(
@@ -344,7 +342,7 @@ describe("readEnvironmentFromWindowsShell", () => {
           args: ReadonlyArray<string>,
           options: { encoding: "utf8"; timeout: number },
         ) => string
-      >(() => "__T3CODE_ENV_PATH_START__\nC:\\Tools\n__T3CODE_ENV_PATH_END__\n");
+      >(() => "__OZI_ENV_PATH_START__\nC:\\Tools\n__OZI_ENV_PATH_END__\n");
 
       expect(
         yield* readEnvironmentFromWindowsShell(["PATH"], { loadProfile: true }, (...args) =>
@@ -374,7 +372,7 @@ describe("readEnvironmentFromWindowsShell", () => {
         if (file === "pwsh.exe") {
           throw new Error("spawn pwsh.exe ENOENT");
         }
-        return "__T3CODE_ENV_PATH_START__\nC:\\Tools\n__T3CODE_ENV_PATH_END__\n";
+        return "__OZI_ENV_PATH_START__\nC:\\Tools\n__OZI_ENV_PATH_END__\n";
       });
 
       expect(

@@ -1127,7 +1127,7 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
                   .createWorktree({
                     cwd,
                     refName,
-                    ...(action === "worktree add -b" ? { newRefName: "t3/new-thread" } : {}),
+                    ...(action === "worktree add -b" ? { newRefName: "ozi/new-thread" } : {}),
                     path: path.join(cwd, "worktree"),
                   })
                   .pipe(Effect.flip);
@@ -2747,7 +2747,7 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
           "GIT_TERMINAL_PROMPT",
           "SSH_ASKPASS",
           "SSH_ASKPASS_REQUIRE",
-          "T3_TEST_SSH_ASKPASS_LOG",
+          "OZI_TEST_SSH_ASKPASS_LOG",
         ] as const;
         const previousEnv = new Map(envKeys.map((key) => [key, process.env[key]]));
 
@@ -2762,7 +2762,7 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
           process.env.GIT_TERMINAL_PROMPT = "1";
           process.env.SSH_ASKPASS = "ssh-askpass";
           process.env.SSH_ASKPASS_REQUIRE = "force";
-          process.env.T3_TEST_SSH_ASKPASS_LOG = sshLogPath;
+          process.env.OZI_TEST_SSH_ASKPASS_LOG = sshLogPath;
 
           yield* (yield* GitVcsDriver.GitVcsDriver).statusDetails(cwd);
 
@@ -3809,7 +3809,7 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
       Effect.gen(function* () {
         const cwd = yield* makeTmpDir();
         yield* git(cwd, ["init"]);
-        yield* git(cwd, ["remote", "add", "origin", "https://github.com/pingdotgg/t3code.git"]);
+        yield* git(cwd, ["remote", "add", "origin", "https://github.com/JohanSardar/ozi.git"]);
         yield* git(cwd, ["config", "remote.origin.promisor", "true"]);
         yield* git(cwd, ["config", "remote.origin.partialclonefilter", "blob:none"]);
         const driver = yield* GitVcsDriver.GitVcsDriver;
@@ -3817,7 +3817,7 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
         const reused = yield* driver.ensureRemote({
           cwd,
           preferredName: "origin",
-          url: "git@github.com:pingdotgg/t3code.git",
+          url: "git@github.com:JohanSardar/ozi.git",
         });
         assert.equal(reused, "origin");
         const added = yield* driver.ensureRemote({
@@ -4007,40 +4007,40 @@ it.layer(layerTest)("GitVcsDriver core integration", (it) => {
         yield* initRepoWithCommit(cwd);
         const driver = yield* GitVcsDriver.GitVcsDriver;
 
-        yield* git(cwd, ["remote", "add", "origin", "https://github.com/pingdotgg/t3code.git"]);
+        yield* git(cwd, ["remote", "add", "origin", "https://github.com/JohanSardar/ozi.git"]);
 
         const reusedForSsh = yield* driver.ensureRemote({
           cwd,
           preferredName: "pingdotgg",
-          url: "git@github.com:pingdotgg/t3code.git",
+          url: "git@github.com:JohanSardar/ozi.git",
         });
         assert.equal(reusedForSsh, "origin");
 
         const reusedForSshScheme = yield* driver.ensureRemote({
           cwd,
           preferredName: "pingdotgg",
-          url: "ssh://git@github.com/pingdotgg/t3code",
+          url: "ssh://git@github.com/JohanSardar/ozi",
         });
         assert.equal(reusedForSshScheme, "origin");
 
         const reusedForBareSshScheme = yield* driver.ensureRemote({
           cwd,
           preferredName: "pingdotgg",
-          url: "ssh://github.com/pingdotgg/t3code",
+          url: "ssh://github.com/JohanSardar/ozi",
         });
         assert.equal(reusedForBareSshScheme, "origin");
 
         const reusedForSshPort = yield* driver.ensureRemote({
           cwd,
           preferredName: "pingdotgg",
-          url: "ssh://git@github.com:22/pingdotgg/t3code",
+          url: "ssh://git@github.com:22/JohanSardar/ozi",
         });
         assert.equal(reusedForSshPort, "origin");
 
         const reusedForSshWithPort = yield* driver.ensureRemote({
           cwd,
           preferredName: "pingdotgg",
-          url: "ssh://git@github.com:22/pingdotgg/t3code.git",
+          url: "ssh://git@github.com:22/JohanSardar/ozi.git",
         });
         assert.equal(reusedForSshWithPort, "origin");
 

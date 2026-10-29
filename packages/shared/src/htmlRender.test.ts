@@ -99,7 +99,7 @@ describe("readHtmlRenderImageRequest", () => {
   it("accepts http(s) and inline image URLs in an open-image notification", () => {
     const image = (params: unknown) => ({
       jsonrpc: "2.0",
-      method: "t3/notifications/open-image",
+      method: "ozi/notifications/open-image",
       params,
     });
     expect(

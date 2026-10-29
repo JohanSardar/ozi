@@ -62,3 +62,9 @@ Three columns: chats, conversation, inbox.
 ## Later
 
 Multiple bots (personas, each its own harness) in the sidebar, an animated bot avatar, mobile layout.
+
+## F1 foundation
+
+The GUI uses the public `ozi` command, `OZI_` environment variables and `~/.ozi` (`OZI_HOME`). Desktop names are Ozi Beta / Ozi Dev, app IDs com.ozi.app / com.ozi.app.dev, profiles and schemes ozi / ozi-dev. No T3 homes, environment variables or profiles are read or migrated. T3 Code's MIT notice and “Forked from T3 Code” credit remain. Internal `@t3tools/*` package names remain. MCP names stay upstream-named until G2.
+
+`pnpm dev` resolves every git checkout to its own `.ozi`, derives ports from the checkout path and never seeds from installed state. The GUI stores runtime data beneath `.ozi/userdata`; the harness's separate data repository is outside F1. CI runs typecheck and lint only; release and deployment workflows are removed.

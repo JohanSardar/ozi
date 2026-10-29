@@ -85,7 +85,7 @@ it.layer(NodeServices.layer)("ServerEnvironmentLive", (it) => {
       yield* fs.writeFileString(entry, "");
       yield* fs.writeFileString(
         `${prefix}/lib/node_modules/t3/package.json`,
-        '{"name":"t3","version":"0.0.45","bin":{"t3":"./dist/bin.mjs"}}',
+        '{"name":"ozi","version":"0.0.45","bin":{"ozi":"./dist/bin.mjs"}}',
       );
       yield* fs.symlink(entry, `${prefix}/bin/t3`);
       const config = yield* makeServerConfig(baseDir);

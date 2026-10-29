@@ -6,7 +6,7 @@ import { cachedTestTasks } from "./scripts/lib/cached-tests.ts";
 
 const TEST_EXCLUDE = [
   "**/.repos/**",
-  "**/.t3/**",
+  "**/.ozi/**",
   "**/node_modules/**",
   "**/dist/**",
   "**/dist-electron/**",
@@ -88,7 +88,7 @@ const taskCacheConfig = {
 export default defineConfig({
   run: {
     cache: taskCacheConfig,
-    tasks: cachedTestTasks(process.env.T3_CACHED_TESTS),
+    tasks: cachedTestTasks(process.env.OZI_CACHED_TESTS),
   },
   resolve: {
     alias: {
@@ -362,7 +362,7 @@ export default defineConfig({
         rules: { "t3code/no-global-process-runtime": "off" },
       },
       {
-        // The `t3` npm launcher is published as plain, dependency-free Node.
+        // The `ozi` npm launcher is published as plain, dependency-free Node.
         files: ["scripts/npm-launcher/**"],
         rules: {
           "t3code/no-global-process-runtime": "off",

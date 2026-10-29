@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // @effect-diagnostics nodeBuiltinImport:off preferSchemaOverJson:off - owns Metro and writes result files.
 /**
- * Drives the T3 Code iOS dev client on one simulator against an isolated server with scripted
+ * Drives the Ozi iOS dev client on one simulator against an isolated server with scripted
  * replies, and grades app behavior from the dev-only probe and server state. See README.md.
  */
 import * as NodeChildProcess from "node:child_process";
@@ -56,7 +56,7 @@ const startMetro = Effect.fn("run.startMetro")(function* (host: string, out: str
             CI: "1",
             // Lazily fetched chunks sometimes arrive broken on pool emulators and throw SyntaxErrors.
             EXPO_NO_METRO_LAZY: "1",
-            EXPO_PUBLIC_T3_BEHAVIOR_PROBE: "1",
+            EXPO_PUBLIC_OZI_BEHAVIOR_PROBE: "1",
             REACT_NATIVE_PACKAGER_HOSTNAME: host,
           },
         },

@@ -1201,7 +1201,7 @@ function ThreadAutomationMessageRow(props: {
   );
 }
 
-/** Leads with why T3 Code compacted, when it did so without being asked. */
+/** Leads with why Ozi compacted, when it did so without being asked. */
 function compactionLabel(label: string, title: string | undefined) {
   return title !== undefined && label.startsWith("Context compacted")
     ? title + label.slice("Context compacted".length)
@@ -1601,9 +1601,9 @@ function renderFeedEntry(
           className="mb-5 items-end"
           {...(enterAnimated ? { entering: FadeInUp.duration(220) } : {})}
         >
-          {presentation.attribution === "t3code" ? (
+          {presentation.attribution === "ozi" ? (
             <Text className="mb-1 pr-1 font-t3-medium text-2xs text-foreground-muted opacity-60">
-              Sent by T3 Code
+              Sent by Ozi
             </Text>
           ) : null}
           {presentation.guestName !== undefined ? (

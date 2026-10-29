@@ -172,7 +172,7 @@ const layerTools = Layer.mergeAll(
       cloneRepository: (input) =>
         Effect.succeed({
           cwd: input.destinationPath,
-          remoteUrl: "https://github.com/pingdotgg/t3code.git",
+          remoteUrl: "https://github.com/JohanSardar/ozi.git",
           repository: null,
         }),
     }),
@@ -206,7 +206,7 @@ const clientScope = (
   environmentId: EnvironmentId.make("environment:box"),
   requestNamespace: `client:${sessionId}`,
   thread: undefined,
-  client: { sessionId, label: `T3 Code · ${sessionId}`, access, linked },
+  client: { sessionId, label: `Ozi · ${sessionId}`, access, linked },
   capabilities: new Set(["orchestration", "worktree", "pull-requests"]),
   issuedAt: 0,
 });
@@ -279,7 +279,7 @@ it.layer(Layer.provideMerge(layerTools, layerOrchestration))("work a link starts
       const shell = yield* projections.getThreadShell(launched);
       assert.deepEqual(shell?.linkOrigin, {
         sessionId: "laptop",
-        label: "T3 Code · laptop",
+        label: "Ozi · laptop",
         access: "auto",
       });
 
@@ -388,7 +388,7 @@ it.layer(Layer.provideMerge(layerTools, layerOrchestration))("work a link starts
       const launched = yield* launch(trusted, "Started from the desk");
       assert.deepEqual((yield* projections.getThreadShell(launched))?.linkOrigin, {
         sessionId: "trusted",
-        label: "T3 Code · trusted",
+        label: "Ozi · trusted",
         access: "full-access",
       });
 

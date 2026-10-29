@@ -72,7 +72,7 @@ const readField = (stdout: string, field: string) => {
   return line.slice(field.length + 1).trim();
 };
 
-const SERVER_ENTRY_SOURCE = '#!/bin/sh\necho "t3code wsl runtime test server 0.0.0"\n';
+const SERVER_ENTRY_SOURCE = '#!/bin/sh\necho "ozi wsl runtime test server 0.0.0"\n';
 
 describe("WSL runtime cache", () => {
   it.each([
@@ -105,8 +105,8 @@ describe.skipIf(posixShellRunner === null)("WSL runtime install script (executed
         "work=$(mktemp -d)",
         'stage="$work/stage/t3-0.0.0-linux-x64"',
         'mkdir -p "$stage/node_modules/node-pty/build/Release" "$work/home"',
-        `printf '%s' ${sh(serverEntry)} > "$stage/t3"`,
-        'chmod +x "$stage/t3"',
+        `printf '%s' ${sh(serverEntry)} > "$stage/ozi"`,
+        'chmod +x "$stage/ozi"',
         `printf '%s' 'pty-native-payload' > "$stage/node_modules/node-pty/build/Release/pty.node"`,
         `tar -czf "$work/wsl-runtime.tar.gz" -C "$work/stage" t3-0.0.0-linux-x64`,
         `printf 'work:%s\\n' "$work"`,
@@ -132,9 +132,9 @@ describe.skipIf(posixShellRunner === null)("WSL runtime install script (executed
       archivePath,
       archiveSha,
       runtimeId,
-      runtimeParent: `${work}/home/.t3/wsl-runtime`,
-      runtimeRoot: `${work}/home/.t3/wsl-runtime/${runtimeId}`,
-      serverEntry: `${work}/home/.t3/wsl-runtime/${runtimeId}/t3`,
+      runtimeParent: `${work}/home/.ozi/wsl-runtime`,
+      runtimeRoot: `${work}/home/.ozi/wsl-runtime/${runtimeId}`,
+      serverEntry: `${work}/home/.ozi/wsl-runtime/${runtimeId}/ozi`,
       installScript,
       install: (archive?: string, sha?: string) => runShell(installScript(archive, sha)),
     };
@@ -242,7 +242,7 @@ describe.skipIf(posixShellRunner === null)("WSL runtime install script (executed
         "set -eu",
         `printf '%s' ${sh(brokenEntry)} > ${sh(fixture.serverEntry)}`,
         `chmod +x ${sh(fixture.serverEntry)}`,
-        `sha256sum ${sh(fixture.serverEntry)} | cut -d ' ' -f 1 > ${sh(`${fixture.runtimeRoot}/.t3code-wsl-runtime-ready`)}`,
+        `sha256sum ${sh(fixture.serverEntry)} | cut -d ' ' -f 1 > ${sh(`${fixture.runtimeRoot}/.ozi-wsl-runtime-ready`)}`,
       ].join("\n"),
     );
     expect(corrupt.status, corrupt.stderr).toBe(0);
@@ -280,9 +280,9 @@ describe.skipIf(posixShellRunner === null)("WSL runtime install script (executed
         ': > "$work/tar-calls"',
         'PATH="$work/bin:$PATH"',
         "export PATH",
-        `cat > "$work/install.sh" <<'T3CODE_INSTALL_SCRIPT'`,
+        `cat > "$work/install.sh" <<'OZI_INSTALL_SCRIPT'`,
         fixture.installScript(),
-        "T3CODE_INSTALL_SCRIPT",
+        "OZI_INSTALL_SCRIPT",
         // Keep runtime roots out of both racers' argv so their /proc scans cannot match themselves.
         'sh "$work/install.sh" > "$work/first.out" 2>&1 &',
         "first=$!",
@@ -354,13 +354,13 @@ describe.skipIf(posixShellRunner === null)("WSL runtime install script (executed
         "set -eu",
         `runtime_parent=${sh(fixture.runtimeParent)}`,
         'mkdir -p "$runtime_parent/sha256-current" "$runtime_parent/sha256-previous"',
-        'printf ready > "$runtime_parent/sha256-current/.t3code-wsl-runtime-ready"',
-        'printf ready > "$runtime_parent/sha256-previous/.t3code-wsl-runtime-ready"',
+        'printf ready > "$runtime_parent/sha256-current/.ozi-wsl-runtime-ready"',
+        'printf ready > "$runtime_parent/sha256-previous/.ozi-wsl-runtime-ready"',
         `touch -d "10 minutes ago" ${sh(fixture.runtimeRoot)}`,
         'touch -d "1 minute ago" "$runtime_parent/sha256-previous"',
-        `cat > ${sh(`${fixture.work}/select.sh`)} <<'T3CODE_SELECT_SCRIPT'`,
+        `cat > ${sh(`${fixture.work}/select.sh`)} <<'OZI_SELECT_SCRIPT'`,
         fixture.installScript(),
-        "T3CODE_SELECT_SCRIPT",
+        "OZI_SELECT_SCRIPT",
         `sh ${sh(`${fixture.work}/select.sh`)}`,
         `HOME=${sh(`${fixture.work}/home`)}`,
         "export HOME",
@@ -378,9 +378,9 @@ describe.skipIf(posixShellRunner === null)("WSL runtime install script (executed
         "set -eu",
         "work=$(mktemp -d)",
         'home="$work/home"',
-        'runtime_parent="$home/.t3/wsl-runtime"',
+        'runtime_parent="$home/.ozi/wsl-runtime"',
         'mkdir -p "$runtime_parent"',
-        'make_ready() { mkdir -p "$runtime_parent/$1"; printf ready > "$runtime_parent/$1/.t3code-wsl-runtime-ready"; }',
+        'make_ready() { mkdir -p "$runtime_parent/$1"; printf ready > "$runtime_parent/$1/.ozi-wsl-runtime-ready"; }',
         "make_ready sha256-current",
         "make_ready sha256-previous",
         "make_ready sha256-active",
@@ -391,7 +391,7 @@ describe.skipIf(posixShellRunner === null)("WSL runtime install script (executed
         'touch -d "4 minutes ago" "$runtime_parent/sha256-active"',
         'touch -d "3 minutes ago" "$runtime_parent/sha256-old"',
         'touch -d "2 minutes ago" "$runtime_parent/sha256-locked"',
-        holdRuntimeBusy('"$runtime_parent/sha256-active/t3"'),
+        holdRuntimeBusy('"$runtime_parent/sha256-active/ozi"'),
         holdInstallLock('"$runtime_parent/.sha256-locked.install.lock"'),
         `HOME="$home"`,
         "export HOME",

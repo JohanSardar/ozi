@@ -19,9 +19,9 @@ export function createDebugLogger(namespace: string): DebugLogger {
       return;
     }
     if (data === undefined) {
-      console.log(`[t3-${namespace}] ${event}`);
+      console.log(`[ozi-${namespace}] ${event}`);
     } else {
-      console.log(`[t3-${namespace}] ${event}`, data);
+      console.log(`[ozi-${namespace}] ${event}`, data);
     }
   };
   return { isEnabled, log };

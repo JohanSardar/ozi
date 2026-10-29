@@ -67,8 +67,8 @@ export interface McpToolSession {
 }
 
 /**
- * One initialized MCP session over T3 Code's HTTP endpoint, terminated when
- * the scope closes. Used by the ACP terminal fallback and `t3 thread`.
+ * One initialized MCP session over Ozi's HTTP endpoint, terminated when
+ * the scope closes. Used by the ACP terminal fallback and `ozi thread`.
  */
 export const mcpToolSession = (
   options: McpToolSessionOptions,
@@ -102,7 +102,7 @@ export const mcpToolSession = (
     if (!response.ok) {
       yield* discardResponseBody(response);
       return yield* Effect.fail(
-        new AcpMcpBridgeError(`T3 Code MCP endpoint responded with HTTP ${response.status}.`),
+        new AcpMcpBridgeError(`Ozi MCP endpoint responded with HTTP ${response.status}.`),
       );
     }
     const payloads = yield* Stream.runCollect(responsePayloads(response, bridgeError));
@@ -122,7 +122,7 @@ export const mcpToolSession = (
     if (envelope === null || envelope.error !== undefined) {
       return yield* Effect.fail(
         new AcpMcpBridgeError(
-          `T3 Code MCP ${method} failed${envelope?.error === undefined ? "." : `: ${JSON.stringify(envelope.error)}`}`,
+          `Ozi MCP ${method} failed${envelope?.error === undefined ? "." : `: ${JSON.stringify(envelope.error)}`}`,
         ),
       );
     }
@@ -230,7 +230,7 @@ export function runAcpMcpStdioBridge(options: AcpMcpStdioBridgeOptions): Effect.
           if (envelope.id !== undefined) {
             yield* respondWithError(
               envelope.id,
-              `T3 Code MCP endpoint responded with HTTP ${response.status}.`,
+              `Ozi MCP endpoint responded with HTTP ${response.status}.`,
             );
           }
           return yield* discardResponseBody(response);
@@ -244,7 +244,7 @@ export function runAcpMcpStdioBridge(options: AcpMcpStdioBridgeOptions): Effect.
             const error = Cause.squash(cause);
             return respondWithError(
               envelope.id,
-              `T3 Code MCP bridge request failed: ${error instanceof Error ? error.message : String(error)}`,
+              `Ozi MCP bridge request failed: ${error instanceof Error ? error.message : String(error)}`,
             );
           }),
         ),
@@ -324,10 +324,12 @@ export async function runAcpMcpCliFastPath(
   command: "acp-mcp-bridge" | "acp-mcp-call",
   args: ReadonlyArray<string>,
 ): Promise<void> {
-  const endpoint = process.env.T3_ACP_MCP_ENDPOINT;
-  const authorization = process.env.T3_ACP_MCP_AUTHORIZATION;
+  const endpoint = process.env.OZI_ACP_MCP_ENDPOINT;
+  const authorization = process.env.OZI_ACP_MCP_AUTHORIZATION;
   if (endpoint === undefined || authorization === undefined) {
-    process.stderr.write(`${command} requires T3_ACP_MCP_ENDPOINT and T3_ACP_MCP_AUTHORIZATION.\n`);
+    process.stderr.write(
+      `${command} requires OZI_ACP_MCP_ENDPOINT and OZI_ACP_MCP_AUTHORIZATION.\n`,
+    );
     process.exitCode = 2;
     return;
   }

@@ -92,7 +92,7 @@ it.effect("writes credentials for the supplied deployed worker endpoint", () =>
   Effect.gen(function* () {
     const fs = yield* FileSystem.FileSystem;
     const home = yield* fs.makeTempDirectoryScoped();
-    const endpoint = "https://preview-cache.example/projects/t3code";
+    const endpoint = "https://preview-cache.example/projects/ozi";
     const file = yield* WriterRegistry.WriterRegistry.pipe(
       Effect.flatMap((registry) => registry.update("maria", false, endpoint, true)),
       Effect.provide(

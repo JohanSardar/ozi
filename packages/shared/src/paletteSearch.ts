@@ -211,7 +211,7 @@ function matchToken(
     // A token that opens with punctuation (".ts") brings its own boundary, as in messages.
     if (field.wordStarts[index] || ownBoundary) {
       // Whole when the match ends where a word ends: "t3c" is a prefix of
-      // "t3code", ".ts" whole in "index.ts" but a prefix in "parser.tsx".
+      // "ozi", ".ts" whole in "index.ts" but a prefix in "parser.tsx".
       const end = index + token.length;
       const whole =
         end >= field.text.length ||
@@ -235,7 +235,7 @@ function matchToken(
     if (joined) return joined;
   }
   if ((best !== null && best.score > MID_WORD) || !typos || token.length < 3) return best;
-  // Numbers skip typos to keep pull requests distinct. Words with digits ("t3code") do not.
+  // Numbers skip typos to keep pull requests distinct. Words with digits ("ozi") do not.
   if (LETTER.test(token)) {
     for (let index = 0; index < field.text.length; index++) {
       if (!field.wordStarts[index]) continue;

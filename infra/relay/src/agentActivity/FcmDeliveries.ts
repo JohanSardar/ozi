@@ -135,7 +135,7 @@ export class FcmDeliveries extends Context.Service<
       | EnvironmentLinks.EnvironmentLinkUserListPersistenceError
     >;
   }
->()("t3code-relay/agentActivity/FcmDeliveries") {}
+>()("ozi-relay/agentActivity/FcmDeliveries") {}
 
 const make = Effect.gen(function* () {
   const config = yield* RelayConfiguration.RelayConfiguration;

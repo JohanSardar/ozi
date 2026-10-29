@@ -420,7 +420,7 @@ export const EnvironmentConnectReachabilityCause = Schema.Literals([
 ]);
 export type EnvironmentConnectReachabilityCause = typeof EnvironmentConnectReachabilityCause.Type;
 
-/** Whether other devices can reach this environment through its T3 Connect tunnel. */
+/** Whether other devices can reach this environment through its Ozi Connect tunnel. */
 export const EnvironmentConnectReachability = Schema.Union([
   Schema.Struct({
     status: Schema.Literal("reachable"),
@@ -456,7 +456,7 @@ export function formatConnectReachable(
  * Sections of docs/user/t3-connect-troubleshooting.md. Each is the GitHub anchor of a
  * heading there; the test fails when a heading is renamed without updating this list.
  */
-export const T3_CONNECT_TROUBLESHOOTING_SECTIONS = [
+export const OZI_CONNECT_TROUBLESHOOTING_SECTIONS = [
   "the-hosts-tunnel-is-offline",
   "port-7844-is-blocked-on-the-host",
   "the-tunnel-works-but-t3-code-does-not-answer",
@@ -467,11 +467,11 @@ export const T3_CONNECT_TROUBLESHOOTING_SECTIONS = [
   "the-host-runs-an-older-t3-code",
   "t3-connect-returned-an-error",
 ] as const;
-export type T3ConnectTroubleshootingSection = (typeof T3_CONNECT_TROUBLESHOOTING_SECTIONS)[number];
+export type T3ConnectTroubleshootingSection = (typeof OZI_CONNECT_TROUBLESHOOTING_SECTIONS)[number];
 
 /** Clients, the CLI, and server logs link here as "More info". */
 export function t3ConnectTroubleshootingUrl(section: T3ConnectTroubleshootingSection): string {
-  return `https://github.com/pingdotgg/t3code/blob/main/docs/user/t3-connect-troubleshooting.md#${section}`;
+  return `https://github.com/JohanSardar/ozi/blob/main/docs/user/t3-connect-troubleshooting.md#${section}`;
 }
 
 const REACHABILITY_SECTION = {
@@ -526,7 +526,7 @@ export const AuthOtherClientSessionsRevokeResult = Schema.Struct({
 export type AuthOtherClientSessionsRevokeResult = typeof AuthOtherClientSessionsRevokeResult.Type;
 
 class EnvironmentMetadataHttpApi extends HttpApiGroup.make("metadata").add(
-  HttpApiEndpoint.get("descriptor", "/.well-known/t3/environment", {
+  HttpApiEndpoint.get("descriptor", "/.well-known/ozi/environment", {
     success: ExecutionEnvironmentDescriptor,
   }),
 ) {}

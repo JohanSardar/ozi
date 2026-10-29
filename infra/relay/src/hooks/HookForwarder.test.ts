@@ -59,7 +59,7 @@ const readyAllocation: ManagedEndpointAllocations.ManagedEndpointAllocation = {
   environmentId,
   hostname: "env.example.test",
   tunnelId: "tunnel-id",
-  tunnelName: `t3coderelay-managedendpoint-dev-${endpointKey}`,
+  tunnelName: `ozirelay-managedendpoint-dev-${endpointKey}`,
   dnsRecordId: "dns-record-id",
   readyAt: "2026-05-25T00:00:00.000Z",
   tunnelReleasedAt: null,
@@ -251,14 +251,14 @@ describe("HookForwarder", () => {
       yield* harness.send(
         new Request(hookUrl("hook-1/tok"), {
           method: "POST",
-          headers: { "x-t3-relay-delivery": "forged", "x-t3-relay-delivery-id": "forged" },
+          headers: { "x-ozi-relay-delivery": "forged", "x-ozi-relay-delivery-id": "forged" },
           body: "{}",
         }),
       );
       const sent = harness.sent[0]!;
       const payload = yield* verifyRelayJwt({
         publicKey: mintKeys.publicKey,
-        token: sent.headers["x-t3-relay-delivery"]!,
+        token: sent.headers["x-ozi-relay-delivery"]!,
         typ: RELAY_HOOK_DELIVERY_TYP,
         issuer: settings.relayIssuer,
         audience: `t3-env:${environmentId}`,
@@ -267,10 +267,10 @@ describe("HookForwarder", () => {
       expect(payload).toMatchObject({
         environmentId,
         hookId: "hook-1",
-        deliveryId: sent.headers["x-t3-relay-delivery-id"],
-        receivedAt: sent.headers["x-t3-relay-received-at"],
+        deliveryId: sent.headers["x-ozi-relay-delivery-id"],
+        receivedAt: sent.headers["x-ozi-relay-received-at"],
       });
-      expect(sent.headers["x-t3-relay-delivery-id"]).not.toBe("forged");
+      expect(sent.headers["x-ozi-relay-delivery-id"]).not.toBe("forged");
     }),
   );
 
@@ -545,7 +545,7 @@ describe("HookForwarder", () => {
           new Request(hookUrl("%68ook-1/tok%2Fen", "?a=1"), {
             method: "POST",
             body,
-            headers: { "x-t3-relay-delivery-id": "forged", "x-sig": "s" },
+            headers: { "x-ozi-relay-delivery-id": "forged", "x-sig": "s" },
           }),
         );
         expect(response.status).toBe(202);
@@ -556,7 +556,7 @@ describe("HookForwarder", () => {
         expect([...(hook?.body ?? [])]).toEqual([0, 255, 10]);
         expect(hook?.headers["x-sig"]).toBe("s");
         expect(hook?.hookKey).toBe("hook-1");
-        expect(hook?.headers["x-t3-relay-delivery-id"]).toBeUndefined();
+        expect(hook?.headers["x-ozi-relay-delivery-id"]).toBeUndefined();
         expect(hook?.id).not.toBe("forged");
       }),
     );

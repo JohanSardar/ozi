@@ -223,7 +223,7 @@ it.effect("does not charge authenticated budgets for anonymous or malformed requ
       ),
       { waitUntil: () => {} },
     );
-    expect(limit.mock.calls).toEqual([[{ key: "t3code:telemetry" }], [{ key: "t3code:blob" }]]);
+    expect(limit.mock.calls).toEqual([[{ key: "ozi:telemetry" }], [{ key: "ozi:blob" }]]);
   }).pipe(
     Effect.provide(
       Cache.layer.pipe(

@@ -86,9 +86,9 @@ function tool(
   return { displayName, labels, icon, summaryAction };
 }
 
-const T3_MCP_SERVER_ALIASES = new Set(["t3-code", "t3_code", "t3code"]);
+const OZI_MCP_SERVER_ALIASES = new Set(["t3-code", "t3_code", "t3code"]);
 
-const T3_MCP_TOOLS: Readonly<Record<string, T3McpToolDefinition>> = {
+const OZI_MCP_TOOLS: Readonly<Record<string, T3McpToolDefinition>> = {
   link_pull_request: tool(
     ["Link", "Linking", "Linked", "a pull request"],
     "link-pr",
@@ -360,7 +360,7 @@ const T3_MCP_TOOLS: Readonly<Record<string, T3McpToolDefinition>> = {
   html_render: tool(["Render", "Rendering", "Rendered", "an HTML page"], "html-render"),
 };
 
-export const T3_MCP_TOOL_NAMES: ReadonlySet<string> = new Set(Object.keys(T3_MCP_TOOLS));
+export const OZI_MCP_TOOL_NAMES: ReadonlySet<string> = new Set(Object.keys(OZI_MCP_TOOLS));
 
 function normalizeT3McpToolLabel(value: string): string {
   return value.replace(/\s+(?:complete|completed)\s*$/i, "").trim();
@@ -374,7 +374,7 @@ function resolveT3McpToolName(value: string): string | null {
     const { server, tool } = mcpMatch.groups;
     return server !== undefined &&
       tool !== undefined &&
-      T3_MCP_SERVER_ALIASES.has(server.toLowerCase())
+      OZI_MCP_SERVER_ALIASES.has(server.toLowerCase())
       ? tool
       : null;
   }
@@ -388,11 +388,11 @@ function resolveT3McpToolName(value: string): string | null {
 
   const prefixed = /^(?:mcp[-_]{1,2})?t3[-_ ]?code(?:__|[-_.:/ ])(?<tool>.+)$/i.exec(label);
   const candidate = prefixed?.groups?.tool ?? label;
-  if (Object.hasOwn(T3_MCP_TOOLS, candidate)) return candidate;
+  if (Object.hasOwn(OZI_MCP_TOOLS, candidate)) return candidate;
   // OpenCode 2 thread prefixes can contain underscores; choose the longest known tool-name suffix.
   if (!/^t3-code-/i.test(label)) return null;
   let longest: string | null = null;
-  for (const tool of Object.keys(T3_MCP_TOOLS)) {
+  for (const tool of Object.keys(OZI_MCP_TOOLS)) {
     if (label.endsWith(`_${tool}`) && tool.length > (longest?.length ?? 0)) longest = tool;
   }
   return longest;
@@ -400,7 +400,7 @@ function resolveT3McpToolName(value: string): string | null {
 
 export function resolveT3McpToolId(toolName: string | null | undefined): string | null {
   const name = toolName == null ? null : resolveT3McpToolName(toolName);
-  return name !== null && Object.hasOwn(T3_MCP_TOOLS, name) ? name : null;
+  return name !== null && Object.hasOwn(OZI_MCP_TOOLS, name) ? name : null;
 }
 
 type SummaryInput = Readonly<Record<string, unknown>>;
@@ -425,12 +425,12 @@ export function resolveT3McpToolDefinition(
   input?: unknown,
 ): T3McpToolDefinition | null {
   const name = toolName == null ? null : resolveT3McpToolName(toolName);
-  if (name === null || !Object.hasOwn(T3_MCP_TOOLS, name)) return null;
+  if (name === null || !Object.hasOwn(OZI_MCP_TOOLS, name)) return null;
   const action = asSummaryInput(input)?.action;
   const actionTool = typeof action === "string" ? ACTION_TOOLS[name]?.(action) : undefined;
-  return actionTool !== undefined && Object.hasOwn(T3_MCP_TOOLS, actionTool)
-    ? T3_MCP_TOOLS[actionTool]!
-    : T3_MCP_TOOLS[name]!;
+  return actionTool !== undefined && Object.hasOwn(OZI_MCP_TOOLS, actionTool)
+    ? OZI_MCP_TOOLS[actionTool]!
+    : OZI_MCP_TOOLS[name]!;
 }
 
 /** Tools whose summary depends on which fields a call sets. */

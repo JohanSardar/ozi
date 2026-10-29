@@ -14,10 +14,10 @@
       (() => {
         const LIGHT_BACKGROUND = "#ffffff";
         const DARK_BACKGROUND = "#000000";
-        const CUSTOM_THEMES_STORAGE_KEY = "t3code:themes:v1";
-        const THEME_FOLLOW_SYSTEM_STORAGE_KEY = "t3code:theme-follow-system";
-        const THEME_APPEARANCE_MODE_STORAGE_KEY = "t3code:theme-appearance-mode";
-        const THEME_HALVES_STORAGE_KEY = "t3code:theme-halves:v1";
+        const CUSTOM_THEMES_STORAGE_KEY = "ozi:themes:v1";
+        const THEME_FOLLOW_SYSTEM_STORAGE_KEY = "ozi:theme-follow-system";
+        const THEME_APPEARANCE_MODE_STORAGE_KEY = "ozi:theme-appearance-mode";
+        const THEME_HALVES_STORAGE_KEY = "ozi:theme-halves:v1";
         const SPLASH_COLORS = {
           light: {
             background: "#ffffff",
@@ -213,7 +213,7 @@
         };
 
         try {
-          const storedTheme = window.localStorage.getItem("t3code:theme");
+          const storedTheme = window.localStorage.getItem("ozi:theme");
           const prefersDark = window.matchMedia("(prefers-color-scheme: dark)").matches;
           const LEGACY_THEME_IDS = {
             "t3-chat-dark": "t3-chat",
@@ -668,13 +668,13 @@
         white-space: nowrap;
       }
     </style>
-    <title>T3 Code (Beta)</title>
+    <title>Ozi Beta</title>
   </head>
   <body>
     <div id="root">
       <div id="boot-shell">
-        <div id="boot-shell-card" aria-label="T3 Code splash screen">
-          <img id="boot-shell-logo" src="/apple-touch-icon.png" alt="T3 Code" />
+        <div id="boot-shell-card" aria-label="Ozi splash screen">
+          <img id="boot-shell-logo" src="/apple-touch-icon.png" alt="Ozi" />
         </div>
       </div>
     </div>

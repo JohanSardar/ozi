@@ -9,8 +9,8 @@ it("accepts signed stacked PR telemetry without granting cache writes or trustin
   try {
     const { publicKey, privateKey } = await generateKeyPair("RS256");
     const scope = {
-      scope_id: "t3code",
-      endpoint: "https://cache.example/projects/t3code",
+      scope_id: "ozi",
+      endpoint: "https://cache.example/projects/ozi",
       repository_id: "123",
       repository_owner_id: "456",
       branch: "refs/heads/main",
@@ -48,14 +48,14 @@ it("accepts signed stacked PR telemetry without granting cache writes or trustin
     };
     expect(
       await authorizeCacheWrite(
-        request(await token("123", "https://ci-reader:secret@cache.example/projects/t3code")),
+        request(await token("123", "https://ci-reader:secret@cache.example/projects/ozi")),
         allowed,
         keys,
       ),
     ).toMatchObject({ repository_id: "123" });
     await expect(
       authorizeCacheWrite(
-        request(await token("123", "https://ci-reader:secret@other.example/projects/t3code")),
+        request(await token("123", "https://ci-reader:secret@other.example/projects/ozi")),
         allowed,
         keys,
       ),

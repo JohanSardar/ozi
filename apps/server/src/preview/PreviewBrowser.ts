@@ -133,7 +133,7 @@ export class PreviewBrowser extends Context.Service<
     >;
     readonly installed: Effect.Effect<Option.Option<string>>;
   }
->()("t3/preview/PreviewBrowser") {}
+>()("ozi/preview/PreviewBrowser") {}
 
 export interface PreviewBrowserOptions {
   readonly baseDir: string;

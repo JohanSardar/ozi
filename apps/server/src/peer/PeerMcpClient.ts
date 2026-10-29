@@ -17,7 +17,7 @@ import * as HttpClientRequest from "effect/http/HttpClientRequest";
 import * as McpInvocationContext from "../mcp/McpInvocationContext.ts";
 import * as PeerLinks from "./PeerLinks.ts";
 
-/** The only MCP protocol version a T3 Code `/mcp` registers. */
+/** The only MCP protocol version a Ozi `/mcp` registers. */
 const PROTOCOL_VERSION = "2025-06-18";
 
 /** The limits a call carries to the peer: the calling agent's modes here. */
@@ -43,7 +43,7 @@ export class PeerMcpClient extends Context.Service<
       readonly success: S;
     }) => Effect.Effect<S["Type"], OrchestratorMcpFailure>;
   }
->()("t3/peer/PeerMcpClient") {}
+>()("ozi/peer/PeerMcpClient") {}
 
 const ToolCallResponse = Schema.Struct({
   result: Schema.optional(
@@ -127,7 +127,7 @@ const make = Effect.gen(function* () {
         params: {
           protocolVersion: PROTOCOL_VERSION,
           capabilities: {},
-          clientInfo: { name: "t3code-peer", version: "1" },
+          clientInfo: { name: "ozi-peer", version: "1" },
         },
       },
       limitHeader,

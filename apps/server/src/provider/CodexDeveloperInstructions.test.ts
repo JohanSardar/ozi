@@ -1,6 +1,6 @@
 import * as NodeAssert from "node:assert/strict";
 
-import { T3_CODE_DEVICE_TOOL_INSTRUCTIONS } from "@t3tools/provider-core/server/orchestrationInstructions";
+import { OZI_CODE_DEVICE_TOOL_INSTRUCTIONS } from "@t3tools/provider-core/server/orchestrationInstructions";
 import { describe, it } from "vite-plus/test";
 
 import {
@@ -83,9 +83,9 @@ describe("Codex device context", () => {
       buildCodexAdditionalContext({ model: "gpt-6.1-sol" }, { browser: true, device }).t3_code_tools
         ?.value ?? "";
 
-    NodeAssert.ok(tools(true).includes(T3_CODE_DEVICE_TOOL_INSTRUCTIONS));
+    NodeAssert.ok(tools(true).includes(OZI_CODE_DEVICE_TOOL_INSTRUCTIONS));
     NodeAssert.ok(!tools(true).includes("ToolSearch"));
-    NodeAssert.ok(!tools(false).includes("## T3 Code devices"));
+    NodeAssert.ok(!tools(false).includes("## Ozi devices"));
   });
 });
 

@@ -37,4 +37,6 @@ The work in `ui-redesign.md`, split into tickets. A ticket starts when everythin
 | H3  | The harness ships the Pi inbox plugin                                                                                               | H      | H2, P3     | 5    |
 | C6  | Real-agent parity run against the current build, then cutover of the live server                                                    | GUI, H | all        | 6    |
 
+F1 implementation: Ozi identities, isolated checkout dev homes with no live-state seeding, neutral blue icons, inherited notices, Ozi agent rules, and a single typecheck/lint workflow. Internal packages and MCP namespaces stay upstream-named; MCP renaming belongs to G2.
+
 Open: the current build's external to-dos (M4) are not in the redesign spec.

@@ -84,7 +84,7 @@ export const servePeer = <E, R>(
       (httpEffect) =>
         Effect.gen(function* () {
           const request = yield* HttpServerRequest.HttpServerRequest;
-          if (request.url.startsWith("/.well-known/t3/environment")) {
+          if (request.url.startsWith("/.well-known/ozi/environment")) {
             yield* Ref.update(probes, (count) => count + 1);
           }
           const authorization = request.headers.authorization;
@@ -140,7 +140,7 @@ export const servePeer = <E, R>(
         .listSessions()
         .pipe(
           Effect.map((sessions) =>
-            sessions.filter((session) => session.client.label?.startsWith("T3 Code · ")),
+            sessions.filter((session) => session.client.label?.startsWith("Ozi · ")),
           ),
         ),
     };

@@ -49,7 +49,7 @@ export class AgentActivityPublisher extends Context.Service<
       LiveActivities.LiveActivityIdleTargetListPersistenceError
     >;
   }
->()("t3code-relay/agentActivity/AgentActivityPublisher") {}
+>()("ozi-relay/agentActivity/AgentActivityPublisher") {}
 
 const make = Effect.gen(function* () {
   const rows = yield* AgentActivityRows.AgentActivityRows;

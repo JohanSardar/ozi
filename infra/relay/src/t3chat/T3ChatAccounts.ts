@@ -70,7 +70,7 @@ export class T3ChatAccounts extends Context.Service<
       readonly userId: string;
     }) => Effect.Effect<void, T3ChatNotConfigured | T3ChatRequestFailed>;
   }
->()("t3code-relay/t3chat/T3ChatAccounts") {}
+>()("ozi-relay/t3chat/T3ChatAccounts") {}
 
 /** Token format shared with T3 Chat: `<base64url JSON payload>.<base64url HMAC-SHA256>`. */
 export const signLinkToken = (
