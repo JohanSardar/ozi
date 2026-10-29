@@ -69,6 +69,22 @@ The GUI uses the public `ozi` command, `OZI_` environment variables and `~/.ozi`
 
 `pnpm dev` resolves every git checkout to its own `.ozi`, derives ports from the checkout path and never seeds from installed state. The GUI stores runtime data beneath `.ozi/userdata`; the harness's separate data repository is outside F1. CI runs typecheck and lint only; release and deployment workflows are removed.
 
+## C4 remote hosting
+
+Direct pairing, Tailscale HTTPS and desktop-managed SSH reuse T3's connection
+transports. `ozi connect <pairing-url> --json` exchanges a one-time link and saves
+an owner-only MCP bearer session through the existing OAuth flow; `disconnect`
+removes it. `--access` can restrict the CLI to read-only pairing scopes. Thread commands use a live
+local server first, otherwise the saved remote. The terminal and inbox CLI arrive
+in C2. Revoked or expired sessions require pairing again.
+
+`ozi service install|status|restart|uninstall` accepts `--json` and a Linux
+`--unit <name.service>` for separate installs. `install --current-runtime` keeps
+the current executable or checkout as the service runtime and preserves the
+installer's PATH. macOS tests service contracts without starting any service;
+the opt-in Linux E2E uses a unique temporary unit and data home. See [headless Linux](headless-linux.md) for
+source deployment, direct network, Tailscale and SSH recipes.
+
 ## I1 ticket storage
 
 Tickets live in the GUI server's existing SQLite database. `tickets.create`, `tickets.update`, `tickets.close`, `tickets.get`, `tickets.list` and `tickets.subscribe` use shared contracts; reads require orchestration read access and mutations require orchestration operate access. Subscriptions send an initial filtered snapshot and fresh snapshots after committed changes. Reconnecting starts with the persisted current state. Lists default to open tickets; `status: "archived"` or `"all"`, `chatId` and case-insensitive literal `search` filter the archive and inbox. Search covers title, need, summary and markdown.

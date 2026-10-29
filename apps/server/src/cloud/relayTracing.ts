@@ -21,13 +21,6 @@ const relayLayer = (resource: Omit<RelayTracing.RelayClientTracingResource, "ser
     ),
   );
 
-export const layerHeadlessRelayClient = relayLayer({
-  serviceName: "ozi-server",
-  runtime: "node",
-  attributes: nodeProcessRuntimeAttributes(),
-  client: "headless-cli",
-});
-
 export const layerServerRelayBroker = relayLayer({
   serviceName: "ozi-server",
   runtime: "node",

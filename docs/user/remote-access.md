@@ -3,46 +3,11 @@
 Connect a phone, browser, or another desktop app to Ozi running on a different
 machine. That machine must stay running and reachable while you work.
 
-## Ozi Connect
+## Rebuild deployment
 
-Ozi Connect makes an environment available to your other devices without setting
-up router forwarding. In the desktop app on the host, open **Settings →
-Sharing & access**, sign in, and enable **Ozi Connect** for that environment.
-
-For a command-line host, run:
-
-```bash
-ozi connect
-```
-
-Follow the sign-in instructions. Setup offers a
-[background service](./background-service.md); if you decline it, start the
-server with `ozi serve`. Saving your sign-in alone does not make the machine
-reachable.
-
-On your other device, sign in to the same Ozi Connect account and choose the
-environment. On the app.t3.codes home page with no computer added yet, signing
-in adds compatible computers linked to your account. Over SSH, the CLI prints a
-browser link and a short code. Open the link on any device, confirm the code
-matches, and approve. The CLI continues on its own, so you do not need to forward
-an OAuth callback port.
-
-Ozi Connect renews access credentials when needed without disconnecting a healthy
-connection. Pull request diffs and provider settings keep working after the
-previous credential expires. A failed renewal affects that request; it does not
-disconnect an otherwise healthy conversation.
-
-### More machines with T3 Chat
-
-Each Ozi Connect account can link up to 3 machines. Phones and browsers do not
-count. A paid T3 Chat plan raises the limit to 10 machines with Pro, or 100 with
-Premier.
-
-To link T3 Chat, open your account menu on the web or desktop app, go to
-**T3 Chat**, and select **Link T3 Chat**. Sign in to T3 Chat in the window that
-opens and approve. The new limit applies the next time you add a machine. If you
-cancel or downgrade T3 Chat, machines you already linked stay linked, but you
-cannot add more until you are under the limit again.
+Use the [headless Linux recipe](../ozi/headless-linux.md) for the current rebuild,
+including `ozi connect <pairing-url>`, Tailscale, SSH and an isolated systemd unit.
+Remote access uses your server's reachable address and one-time pairing links.
 
 ## Pair over a LAN or private network
 
@@ -173,7 +138,7 @@ If that port is already in use, choose another with
 
 ### Hosted web app
 
-[app.t3.codes](http://localhost:3773) needs an HTTPS endpoint. It connects directly
+A self-hosted web client served over HTTPS needs an HTTPS endpoint. It connects directly
 to your server; a hosted pairing link does not make an unreachable backend
 reachable or convert HTTP to HTTPS.
 
@@ -364,41 +329,8 @@ link to change a client's permissions.
 local changes. Add `filesystem:write` to allow editing files or saving plans to
 the workspace. These scopes control direct file access from the client.
 
-To remove an environment from Ozi Connect, open your account menu's **Ozi Connect**
-page, or **Settings → Ozi Connect** on mobile, and choose **Deregister**. This
-revokes its cloud access and frees its host space even when the environment is
-offline or has been wiped. When Ozi Connect rejects a host's link, the host
-shows that it was removed from Ozi Connect. To link it again, turn on
-**Ozi Connect** in **Settings → Sharing & access** on a desktop host, or run
-`ozi connect link` on a command-line host and then restart Ozi there. A
-command-line host that released its tunnel when it last stopped may link itself
-again on its next start; run `ozi connect unlink` on that host to keep it off.
-Removing an environment from a device's connection settings only forgets it on
-that device; it stays registered to your account.
-
-When idle tunnel cleanup is enabled, Ozi Connect removes a linked environment's
-tunnel after it stays offline for several minutes. The environment stays linked
-and keeps the same address. When the host starts again or wakes, Ozi Connect
-creates a replacement tunnel on its own. You do not need to pair again. Cleanup
-usually runs five to ten minutes after the tunnel goes down.
-
-Ozi Connect also removes the tunnel of an environment running an older version of
-Ozi once it has been offline for seven days. That environment shows a message
-asking you to update. Start Ozi on that computer and update it to the latest
-version; it reconnects at the same address without pairing again.
-
-On a command-line host, `ozi connect unlink` disables exposure while retaining
-your login; `ozi connect logout` also clears that login. Background-service
-[removal](./background-service.md#manage-the-service) is separate.
-
 Treat pairing URLs and authorization codes as passwords. Do not include them in
 screenshots, logs, or bug reports.
-
-## Ozi Connect troubleshooting
-
-When a Ozi Connect connection fails, see
-[Ozi Connect troubleshooting](./ozi-connect-troubleshooting.md). It explains each
-error, where the problem is, and how to fix it.
 
 ## Using the Desktop App as a Remote Only
 

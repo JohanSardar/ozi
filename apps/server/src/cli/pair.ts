@@ -72,7 +72,7 @@ export class NoRunningServerError extends Schema.TaggedError<NoRunningServerErro
       ...(this.inLinkedWorktree
         ? ["In a linked worktree, pass --base-dir to pair with a server outside it."]
         : []),
-      "Start one with `npx ozi serve`, or connect this machine with Ozi Connect: `npx ozi connect`.",
+      "Start one with `ozi serve`, then run `ozi pair`.",
     ].join("\n");
   }
 }

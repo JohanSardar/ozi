@@ -85,3 +85,22 @@ In the shared browser, a newly paired dev app selected Ozi by default. A real Cl
 ## I3 baseline evidence
 
 `e2e/i3.inbox.test.ts` starts the checkout's dev runner in a temporary home, creates chats and tickets over the authenticated WebSocket and drives the web client with Playwright Chromium. It covers groups and counts with a live arrival, the first row open with need, summary, numbered choices and actions, Got it archiving and opening the next, and archive search. The file takes about 25 seconds: setup is dev server start and Vite's first transform of the web app; each `ozi` CLI call costs about 2.6 seconds of runtime start, so setup uses only `auth` and `pair`, in parallel. The E2E hook ceiling equals the 30-second test ceiling. Running jobs need a live provider, so Working was checked in the dev app: a real Claude turn delegated a worker that showed under Working until its task ended. Inbox, Got it and archive search were also used there by hand.
+
+## C4 baseline evidence
+
+The remote E2E uses a real server, SQLite and separate client homes. It covers
+single-use pairing, owner-only session storage, remote thread reads, expiry,
+revocation, reconnect, restricted scopes, disconnect and local-server precedence.
+The file takes about a minute because each CLI call starts the Effect runtime.
+Server startup is its own scenario under the standard E2E timeout.
+The initial remote run passed all five scenarios. After rebasing, startup and
+pairing passed; later scenarios hit process deadlines under host load. An
+independent `ozi --help` took 33.9 seconds with 4.5 seconds of CPU time.
+The Linux acceptance run must refresh the complete remote result.
+The 56 service and Tailscale contract tests passed on macOS using temporary files
+and injected host/process boundaries; no live service manager was invoked.
+
+The dev web client paired with a second isolated backend and showed it as
+Connected in [Environments](screenshots/c4-remote.png). Both servers were stopped
+afterward. Live Linux lifecycle and two-machine routes remain the orchestrator's
+acceptance check in [the deployment recipe](headless-linux.md).

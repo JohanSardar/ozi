@@ -151,6 +151,12 @@ const makeHarness = Effect.fn("test.make_boot_service_harness")(function* (
     cliVersion = "1.2.3",
     serviceBaseDir = baseDir,
     insideService = false,
+    options: {
+      readonly unitFile?: string;
+      readonly currentRuntime?: boolean;
+      readonly executable?: boolean;
+      readonly entryPath?: string;
+    } = {},
   ) =>
     Effect.gen(function* () {
       const paths = pinnedRuntimePaths(path, serviceBaseDir, cliVersion, platform);
@@ -162,6 +168,8 @@ const makeHarness = Effect.fn("test.make_boot_service_harness")(function* (
         logsDir: path.join(serviceBaseDir, "userdata", "logs"),
         cliVersion,
         host: { execPath: "/usr/bin/ozi" },
+        ...(options.unitFile === undefined ? {} : { unitFile: options.unitFile }),
+        ...(options.currentRuntime === undefined ? {} : { currentRuntime: options.currentRuntime }),
       });
     }).pipe(
       Effect.provideService(ProcessRunner.ProcessRunner, runner),
@@ -170,6 +178,11 @@ const makeHarness = Effect.fn("test.make_boot_service_harness")(function* (
           Layer.succeed(HostProcess.Platform, platform),
           Layer.succeed(HostProcess.UserId, 501),
           Layer.succeed(HostProcess.ExecutablePath, "/usr/bin/ozi"),
+          Layer.succeed(HostProcess.IsExecutable, options.executable ?? true),
+          Layer.succeed(HostProcess.Arguments, [
+            "/usr/bin/ozi",
+            options.entryPath ?? "/checkout/apps/server/src/bin.ts",
+          ]),
           Layer.succeed(
             HttpClient.HttpClient,
             HttpClient.make(() => Effect.die("no release download expected")),
@@ -181,7 +194,9 @@ const makeHarness = Effect.fn("test.make_boot_service_harness")(function* (
                 ...(environmentPath === undefined || environmentPath === ""
                   ? {}
                   : { PATH: environmentPath }),
-                ...(insideService ? { OZI_BOOT_SERVICE_UNIT: "ozi.service" } : {}),
+                ...(insideService
+                  ? { OZI_BOOT_SERVICE_UNIT: options.unitFile ?? "ozi.service" }
+                  : {}),
               },
             }),
           ),
@@ -204,6 +219,59 @@ const makeHarness = Effect.fn("test.make_boot_service_harness")(function* (
 });
 
 it.layer(NodeServices.layer)("boot service install", (it) => {
+  it.effect("c4.source-service: source runtime and named unit survive the service lifecycle", () =>
+    Effect.gen(function* () {
+      const { makeService, fs, runtime, commands, baseDir } = yield* makeHarness();
+      const service = yield* makeService(undefined, "1.2.3", undefined, false, {
+        unitFile: "ozi-c4.service",
+        currentRuntime: true,
+        executable: false,
+        entryPath: "/checkout with 'quotes'/$source/bin.ts",
+      });
+      const plan = yield* service.install();
+      const path = yield* Path.Path;
+      expect(plan.unitPath).toBe(
+        path.join(path.dirname(baseDir), ".config/systemd/user/ozi-c4.service"),
+      );
+      expect(yield* fs.readFileString(runtime.entryPath)).toBe(
+        "#!/bin/sh\nexec '/usr/bin/ozi' '/checkout with '\"'\"'quotes'\"'\"'/$source/bin.ts' \"$@\"\n",
+      );
+      expect((yield* fs.stat(runtime.entryPath)).mode & 0o777).toBe(0o700);
+      expect(yield* fs.readFileString(plan.unitPath)).toContain(
+        "Environment=OZI_BOOT_SERVICE_UNIT=ozi-c4.service",
+      );
+      expect(yield* fs.readFileString(plan.unitPath)).toContain("Environment=PATH=");
+      expect(yield* service.status).toMatchObject({ installed: true, current: true, problems: [] });
+      expect(yield* service.restart).toBe("restarted");
+      expect(yield* service.uninstall).toBe(true);
+      expect((yield* service.status).installed).toBe(false);
+      expect(commands).toContain("systemctl --user disable --now ozi-c4.service");
+      expect(commands.some((command) => command.endsWith(" ozi.service"))).toBe(false);
+    }),
+  );
+
+  it.effect("c4.unit-safety: custom systemd names cannot select a Mac launch agent", () =>
+    Effect.gen(function* () {
+      const { makeService, commands } = yield* makeHarness("darwin");
+      const error = yield* makeService(undefined, "1.2.3", undefined, false, {
+        unitFile: "ozi-c4.service",
+      }).pipe(Effect.flip);
+      expect(error).toMatchObject({ _tag: "BootServiceUnitError", problem: "requires-systemd" });
+      expect(commands).toEqual([]);
+    }),
+  );
+
+  it.effect("c4.unit-safety: invalid unit names fail before calling the manager", () =>
+    Effect.gen(function* () {
+      const { makeService, commands } = yield* makeHarness();
+      const error = yield* makeService(undefined, "1.2.3", undefined, false, {
+        unitFile: "../ozi.service",
+      }).pipe(Effect.flip);
+      expect(error).toMatchObject({ _tag: "BootServiceUnitError", problem: "invalid-name" });
+      expect(commands).toEqual([]);
+    }),
+  );
+
   it.effect(
     "fails before installing files or validating a runtime when lingering needs an administrator",
     () =>
@@ -486,11 +554,12 @@ it.layer(NodeServices.layer)("boot service install", (it) => {
       }),
   );
 
-  it.effect("install with start=false keeps the marker when a later write fails", () =>
+  it.effect("c4.unit-safety: an occupied unit path fails before changing launcher state", () =>
     Effect.gen(function* () {
       const { service, fs, statePath, makeService } = yield* makeHarness();
       const path = yield* Path.Path;
       yield* service.install();
+      const before = yield* fs.readFileString(statePath);
       const newer = yield* makeService(undefined, "1.2.4");
       const unitPath = (yield* service.status).unitPath;
       yield* fs.remove(unitPath);
@@ -501,7 +570,8 @@ it.layer(NodeServices.layer)("boot service install", (it) => {
       expect(error._tag).toBe("BootServiceInstallError");
       expect(
         yield* fs.exists(path.join(path.dirname(statePath), SERVICE_RESTART_PENDING_FILE)),
-      ).toBe(true);
+      ).toBe(false);
+      expect(yield* fs.readFileString(statePath)).toBe(before);
     }),
   );
 
@@ -600,6 +670,14 @@ it.layer(NodeServices.layer)("boot service install", (it) => {
 
       const other = yield* makeService(undefined, "1.2.3", path.join(otherHome, ".ozi"));
       expect(yield* other.restart).toBe("skipped");
+      expect(yield* other.uninstall.pipe(Effect.flip)).toMatchObject({
+        _tag: "BootServiceUnitError",
+        problem: "different-home",
+      });
+      expect(yield* other.install().pipe(Effect.flip)).toMatchObject({
+        _tag: "BootServiceUnitError",
+        problem: "different-home",
+      });
       expect(commands.filter((command) => command.startsWith("systemctl "))).toEqual([]);
     }),
   );
@@ -639,6 +717,8 @@ it.layer(NodeServices.layer)("boot service install", (it) => {
         "install",
         "--base-dir",
         path.join(home, "T3 Data 100%", "$${UNSET}", "$$literal"),
+        "--unit",
+        "ozi.service",
         "--allow-downgrade",
       ]);
 
