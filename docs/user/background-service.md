@@ -3,6 +3,11 @@
 On Linux and macOS, Ozi can run as a service for your user so you do not need
 to keep a terminal open.
 
+For the source rebuild, use the [headless Linux recipe](../ozi/headless-linux.md).
+It documents `--current-runtime`, separate homes and unit names, JSON commands,
+and direct, Tailscale and SSH access. The release-download instructions below
+apply only to published builds.
+
 ## Manage the service
 
 Install the `ozi` CLI first ([Install Ozi](./install.md#command-line)), then

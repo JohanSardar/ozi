@@ -34,7 +34,7 @@ import { triageCommand } from "./cli/triage.ts";
 
 const layerCliRuntime = Layer.mergeAll(NodeServices.layer, NetService.layer);
 
-export const makeCli = (_options?: { readonly cloudEnabled?: boolean }) =>
+export const makeCli = () =>
   Command.make("ozi", { ...sharedServerCommandFlags }).pipe(
     Command.withDescription("Run the Ozi server."),
     Command.withHandler(runDefaultServerCommand),

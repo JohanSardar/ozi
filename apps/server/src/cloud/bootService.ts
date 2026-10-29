@@ -9,6 +9,7 @@ import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
+import * as Runtime from "effect/Runtime";
 import { HttpClient } from "effect/http";
 import * as Schema from "effect/Schema";
 
@@ -34,6 +35,10 @@ import {
 
 const BOOT_SERVICE_NAME = "ozi";
 export const BOOT_SERVICE_UNIT_FILE = `${BOOT_SERVICE_NAME}.service`;
+export const BootServiceUnitFile = Schema.String.check(
+  Schema.isPattern(/^[A-Za-z0-9][A-Za-z0-9_-]*\.service$/),
+);
+const decodeUnitFile = Schema.decodeEffect(BootServiceUnitFile);
 // `.service` suffix keeps the label distinct from the desktop app's bundle id
 // (com.ozi.app), so launchd and TCC records never collide.
 export const BOOT_SERVICE_LAUNCHD_LABEL = "com.ozi.app.service";
@@ -84,6 +89,7 @@ export interface BootServicePlan {
   readonly baseDir: string;
   readonly logPath: string;
   readonly unitPath: string;
+  readonly environmentPath?: string;
   /** The manager accepted a detached install; its outcome is written to `logPath`. */
   readonly handedOff?: boolean;
 }
@@ -101,6 +107,9 @@ export function renderBootServiceUnit(plan: BootServicePlan): string {
     "Type=simple",
     "WorkingDirectory=%h",
     `Environment=OZI_HOME=${quoteSystemdValue(plan.baseDir)}`,
+    ...(plan.environmentPath === undefined
+      ? []
+      : [`Environment=PATH=${quoteSystemdValue(plan.environmentPath)}`]),
     `Environment=${BOOT_SERVICE_UNIT_ENV}=${plan.unitPath.split("/").at(-1)}`,
     `ExecStart=${plan.program.map(quoteSystemdValue).join(" ")}`,
     // Let the launcher mark an explicit stop before it signals the server.
@@ -371,8 +380,23 @@ export class BootServiceUnsupportedError extends Schema.TaggedError<BootServiceU
   "BootServiceUnsupportedError",
   { platform: Schema.String },
 ) {
+  override readonly [Runtime.errorReported] = false;
   override get message(): string {
     return `Background setup supports Linux with systemd and macOS with launchd; this machine reports '${this.platform}'.`;
+  }
+}
+
+export class BootServiceUnitError extends Schema.TaggedError<BootServiceUnitError>()(
+  "BootServiceUnitError",
+  { problem: Schema.Literals(["invalid-name", "requires-systemd", "different-home"]) },
+) {
+  override readonly [Runtime.errorReported] = false;
+  override get message(): string {
+    return this.problem === "invalid-name"
+      ? "Use a simple unit name ending in .service."
+      : this.problem === "requires-systemd"
+        ? "A custom --unit requires Linux with systemd."
+        : "The selected unit serves another Ozi home. Use its matching --home or choose another --unit.";
   }
 }
 
@@ -386,6 +410,7 @@ export class BootServiceCommandError extends Schema.TaggedError<BootServiceComma
     cause: Schema.optional(Schema.Defect()),
   },
 ) {
+  override readonly [Runtime.errorReported] = false;
   override get message(): string {
     return this.exitCode === undefined
       ? `Background setup failed while ${this.step}.`
@@ -397,6 +422,7 @@ export class BootServiceInstallError extends Schema.TaggedError<BootServiceInsta
   "BootServiceInstallError",
   { cause: Schema.Defect() },
 ) {
+  override readonly [Runtime.errorReported] = false;
   override get message(): string {
     return "Could not set up the Ozi background service.";
   }
@@ -415,7 +441,7 @@ type BootServiceProblem = typeof BootServiceProblem.Type;
 export function formatBootServiceProblem(problem: BootServiceProblem): string {
   switch (problem) {
     case "user-manager-unavailable":
-      return "Cannot reach the systemd user manager. Run `systemctl --user status` in a login session for the service user. Install your distribution's systemd user-session support if it is missing; do not run T3 with sudo.";
+      return "Cannot reach the systemd user manager. Run `systemctl --user status` in a login session for the service user. Install your distribution's systemd user-session support if it is missing; do not run Ozi with sudo.";
     case "linger-unavailable":
       return 'Cannot check whether this user can run services after logout. Run `loginctl show-user "$(id -un)" --property=Linger` and check that systemd-logind is available.';
     case "linger-disabled":
@@ -433,6 +459,7 @@ export class BootServicePrerequisiteError extends Schema.TaggedError<BootService
   "BootServicePrerequisiteError",
   { problem: BootServiceProblem, cause: Schema.optional(Schema.Defect()) },
 ) {
+  override readonly [Runtime.errorReported] = false;
   override get message(): string {
     return `[${this.problem}] ${formatBootServiceProblem(this.problem)}`;
   }
@@ -442,6 +469,7 @@ export class BootServiceUpdatePendingError extends Schema.TaggedError<BootServic
   "BootServiceUpdatePendingError",
   {},
 ) {
+  override readonly [Runtime.errorReported] = false;
   override get message(): string {
     return "A remote server update is still pending. Wait for it to finish, then retry.";
   }
@@ -454,6 +482,7 @@ export class BootServiceDowngradeRefusedError extends Schema.TaggedError<BootSer
     targetVersion: Schema.String,
   },
 ) {
+  override readonly [Runtime.errorReported] = false;
   override get message(): string {
     return `Refusing to replace ozi@${this.installedVersion} with older ozi@${this.targetVersion}. Run the command again with --allow-downgrade to continue.`;
   }
@@ -461,6 +490,7 @@ export class BootServiceDowngradeRefusedError extends Schema.TaggedError<BootSer
 
 export type BootServiceError =
   | BootServiceUnsupportedError
+  | BootServiceUnitError
   | BootServiceCommandError
   | BootServiceInstallError
   | BootServicePrerequisiteError
@@ -519,7 +549,15 @@ export const make = Effect.fn("cloud.boot_service.make")(function* (input: {
 }) {
   const unitFile = input.unitFile ?? BOOT_SERVICE_UNIT_FILE;
   const hostExecPath = yield* HostProcess.ExecutablePath;
+  const runtimeArguments = yield* HostProcess.Arguments;
+  const runtimeIsExecutable = yield* HostProcess.IsExecutable;
   const platform = yield* HostProcess.Platform;
+  yield* decodeUnitFile(unitFile).pipe(
+    Effect.mapError(() => new BootServiceUnitError({ problem: "invalid-name" })),
+  );
+  if (platform !== "linux" && unitFile !== BOOT_SERVICE_UNIT_FILE) {
+    return yield* new BootServiceUnitError({ problem: "requires-systemd" });
+  }
   const arch = yield* HostProcess.Architecture;
   const uid = yield* HostProcess.UserId;
   const httpClient = yield* HttpClient.HttpClient;
@@ -592,6 +630,7 @@ export const make = Effect.fn("cloud.boot_service.make")(function* (input: {
     baseDir: input.baseDir,
     logPath,
     unitPath,
+    environmentPath,
   };
 
   const requireManager = Effect.suspend(() =>
@@ -705,11 +744,30 @@ export const make = Effect.fn("cloud.boot_service.make")(function* (input: {
     if (remaining[0]) return yield* new BootServicePrerequisiteError({ problem: remaining[0] });
   });
 
+  const matchingUnitExists = Effect.gen(function* () {
+    const exists = yield* fs.exists(unitPath);
+    if (!exists) return false;
+    const contents = yield* fs.readFileString(unitPath);
+    const installedHome = bootServiceBaseDirOf(contents);
+    if (
+      installedHome === undefined ||
+      path.resolve(installedHome) !== path.resolve(input.baseDir)
+    ) {
+      return yield* new BootServiceUnitError({ problem: "different-home" });
+    }
+    return true;
+  }).pipe(
+    Effect.mapError((cause) =>
+      cause._tag === "PlatformError" ? new BootServiceInstallError({ cause }) : cause,
+    ),
+  );
+
   const install = Effect.fn("cloud.boot_service.install")(function* (options?: {
     readonly allowDowngrade?: boolean;
     readonly start?: boolean;
   }) {
     const manager = yield* requireManager;
+    const installed = yield* matchingUnitExists;
     yield* fs
       .makeDirectory(input.logsDir, { recursive: true })
       .pipe(Effect.mapError((cause) => new BootServiceInstallError({ cause })));
@@ -722,10 +780,10 @@ export const make = Effect.fn("cloud.boot_service.make")(function* (input: {
       if (platform !== "linux" && platform !== "darwin") {
         return yield* new BootServiceUnsupportedError({ platform });
       }
-      const arguments_ = yield* HostProcess.Arguments;
-      const executable = yield* HostProcess.IsExecutable;
-      const command = executable ? [hostExecPath] : [hostExecPath, arguments_[1] ? path.resolve(arguments_[1]) : ""];
-      if (!executable && !command[1])
+      const command = runtimeIsExecutable
+        ? [hostExecPath]
+        : [hostExecPath, runtimeArguments[1] ? path.resolve(runtimeArguments[1]) : ""];
+      if (!runtimeIsExecutable && !command[1])
         return yield* new BootServiceInstallError({ cause: "No CLI entry path" });
       if (path.resolve(command[0]!) !== path.resolve(runtimePaths.entryPath)) {
         const quote = (value: string) => "'" + value.replaceAll("'", "'\"'\"'") + "'";
@@ -791,9 +849,6 @@ export const make = Effect.fn("cloud.boot_service.make")(function* (input: {
             : new BootServiceInstallError({ cause: error }),
         ),
       );
-    const installed = yield* fs
-      .exists(unitPath)
-      .pipe(Effect.mapError((cause) => new BootServiceInstallError({ cause })));
     // With start=false, changing startup-only files is safe except during a remote update,
     // when the launcher also writes its state file.
     const start = options?.start !== false;
@@ -969,12 +1024,7 @@ export const make = Effect.fn("cloud.boot_service.make")(function* (input: {
 
   const uninstall: BootService["Service"]["uninstall"] = Effect.gen(function* () {
     const manager = yield* requireManager;
-    if (
-      !(yield* fs
-        .exists(unitPath)
-        .pipe(Effect.mapError((cause) => new BootServiceInstallError({ cause }))))
-    )
-      return false;
+    if (!(yield* matchingUnitExists)) return false;
     yield* runSteps(manager.deactivate);
     yield* fs
       .remove(unitPath)

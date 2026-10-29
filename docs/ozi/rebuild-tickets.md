@@ -44,6 +44,10 @@ thread access and disconnect; JSON service management with isolated unit names
 and the current source runtime; [headless Linux deployment](headless-linux.md).
 Inherited direct network, Tailscale Serve and desktop SSH transports remain.
 Scenarios live in `e2e/c4.remote-service.test.ts`.
+The live systemd scenario requires Linux and `OZI_C4_SYSTEMD_E2E=1` in a
+disposable user account. macOS verifies service contracts without invoking a
+service manager; the Linux lifecycle and two-machine routes remain the
+orchestrator's acceptance check.
 
 L4 implementation: the radius scale tops out at 8px; pills became 6–8px rectangles; status dots became spinners or plain labels; forced capitals became sentence case. `e2e/l4.look.test.ts` checks the radius tokens and fails on pills, coloured dots and forced capitals anywhere in the web app. Screenshots: [working](screenshots/l4-working-dark.png), [chat dark](screenshots/l4-chat-dark.png), [chat light](screenshots/l4-chat-light.png), [settings](screenshots/l4-settings-dark.png), [theme editor](screenshots/l4-theme-editor-light.png).
 

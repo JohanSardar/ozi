@@ -31,7 +31,7 @@ import * as ServerConfig from "../config.ts";
 import { mcpToolSession, type McpToolSession } from "../mcp/AcpMcpStdioBridge.ts";
 import { isProcessAlive, readPersistedServerRuntimeState } from "../serverRuntimeState.ts";
 import { projectLocationFlags, resolveCliAuthConfig } from "./config.ts";
-import { readRemoteConnection, RemoteConnectionError } from "./remote.ts";
+import { readRemoteConnection, RemoteConnectionError, reportRemoteErrors } from "./remote.ts";
 
 /**
  * Short enough that a run which stops to ask the user something is noticed
@@ -204,14 +204,14 @@ export type ThreadTools = ReturnType<typeof makeThreadTools>;
  * outside agent does, and revokes that session when the command ends.
  */
 const withThreadTools = Effect.fn("cli.thread.withThreadTools")(function* <A, E, R>(
-  flags: { readonly baseDir: Option.Option<string> },
+  flags: { readonly baseDir: Option.Option<string>; readonly json: boolean },
   run: (tools: ThreadTools) => Effect.Effect<A, E, R>,
 ) {
   const logLevel = yield* GlobalFlag.LogLevel;
   const config = yield* resolveCliAuthConfig(flags, logLevel);
-  return yield* Effect.gen(function* () {
-    const runtimeState = yield* readPersistedServerRuntimeState(config.serverRuntimeStatePath);
-    if (Option.isNone(runtimeState) || !isProcessAlive(runtimeState.value.pid)) {
+  const runtimeState = yield* readPersistedServerRuntimeState(config.serverRuntimeStatePath);
+  if (Option.isNone(runtimeState) || !isProcessAlive(runtimeState.value.pid)) {
+    return yield* Effect.gen(function* () {
       const remote = yield* readRemoteConnection(Option.some(config.baseDir));
       if (Option.isNone(remote)) {
         return yield* new ThreadServerNotRunningError({ baseDir: config.baseDir });
@@ -222,15 +222,27 @@ const withThreadTools = Effect.fn("cli.thread.withThreadTools")(function* <A, E,
         clientName: "ozi-cli",
       }).pipe(
         Effect.mapError(
-          () =>
+          (cause) =>
             new RemoteConnectionError({
               message:
                 "Remote connection failed. Check the server and run `ozi connect <pairing-url>` again if access expired or was revoked.",
+              cause,
             }),
         ),
       );
-      return yield* run(makeThreadTools(session, remote.value.origin));
-    }
+      return yield* run(makeThreadTools(session, remote.value.origin)).pipe(
+        Effect.catchTags({
+          ThreadServerUnreachableError: (cause) =>
+            new RemoteConnectionError({
+              message:
+                "Remote connection failed. Check the server and run `ozi connect <pairing-url>` again if access expired or was revoked.",
+              cause,
+            }),
+        }),
+      );
+    }).pipe(Effect.scoped, reportRemoteErrors(flags.json));
+  }
+  return yield* Effect.gen(function* () {
     const origin = runtimeState.value.origin;
     const environmentAuth = yield* EnvironmentAuth.EnvironmentAuth;
     const issued = yield* Effect.acquireRelease(

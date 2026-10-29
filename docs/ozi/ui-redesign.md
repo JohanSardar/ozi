@@ -73,14 +73,16 @@ The GUI uses the public `ozi` command, `OZI_` environment variables and `~/.ozi`
 
 Direct pairing, Tailscale HTTPS and desktop-managed SSH reuse T3's connection
 transports. `ozi connect <pairing-url> --json` exchanges a one-time link and saves
-an owner-only CLI session; `disconnect` removes it. Thread commands use a live
+an owner-only MCP bearer session through the existing OAuth flow; `disconnect`
+removes it. `--access` can restrict the CLI to read-only pairing scopes. Thread commands use a live
 local server first, otherwise the saved remote. The terminal and inbox CLI arrive
 in C2. Revoked or expired sessions require pairing again.
 
 `ozi service install|status|restart|uninstall` accepts `--json` and a Linux
 `--unit <name.service>` for separate installs. `install --current-runtime` keeps
-the current executable or checkout as the service runtime. Service tests use a
-unique temporary unit and data home. See [headless Linux](headless-linux.md) for
+the current executable or checkout as the service runtime and preserves the
+installer's PATH. macOS tests service contracts without starting any service;
+the opt-in Linux E2E uses a unique temporary unit and data home. See [headless Linux](headless-linux.md) for
 source deployment, direct network, Tailscale and SSH recipes.
 
 ## I1 ticket storage

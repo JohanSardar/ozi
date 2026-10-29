@@ -138,7 +138,7 @@ If that port is already in use, choose another with
 
 ### Hosted web app
 
-[app.t3.codes](http://localhost:3773) needs an HTTPS endpoint. It connects directly
+A self-hosted web client served over HTTPS needs an HTTPS endpoint. It connects directly
 to your server; a hosted pairing link does not make an unreachable backend
 reachable or convert HTTP to HTTPS.
 
@@ -329,41 +329,8 @@ link to change a client's permissions.
 local changes. Add `filesystem:write` to allow editing files or saving plans to
 the workspace. These scopes control direct file access from the client.
 
-To remove an environment from Ozi Connect, open your account menu's **Ozi Connect**
-page, or **Settings → Ozi Connect** on mobile, and choose **Deregister**. This
-revokes its cloud access and frees its host space even when the environment is
-offline or has been wiped. When Ozi Connect rejects a host's link, the host
-shows that it was removed from Ozi Connect. To link it again, turn on
-**Ozi Connect** in **Settings → Sharing & access** on a desktop host, or run
-`ozi connect link` on a command-line host and then restart Ozi there. A
-command-line host that released its tunnel when it last stopped may link itself
-again on its next start; run `ozi connect unlink` on that host to keep it off.
-Removing an environment from a device's connection settings only forgets it on
-that device; it stays registered to your account.
-
-When idle tunnel cleanup is enabled, Ozi Connect removes a linked environment's
-tunnel after it stays offline for several minutes. The environment stays linked
-and keeps the same address. When the host starts again or wakes, Ozi Connect
-creates a replacement tunnel on its own. You do not need to pair again. Cleanup
-usually runs five to ten minutes after the tunnel goes down.
-
-Ozi Connect also removes the tunnel of an environment running an older version of
-Ozi once it has been offline for seven days. That environment shows a message
-asking you to update. Start Ozi on that computer and update it to the latest
-version; it reconnects at the same address without pairing again.
-
-On a command-line host, `ozi connect unlink` disables exposure while retaining
-your login; `ozi connect logout` also clears that login. Background-service
-[removal](./background-service.md#manage-the-service) is separate.
-
 Treat pairing URLs and authorization codes as passwords. Do not include them in
 screenshots, logs, or bug reports.
-
-## Ozi Connect troubleshooting
-
-When a Ozi Connect connection fails, see
-[Ozi Connect troubleshooting](./ozi-connect-troubleshooting.md). It explains each
-error, where the problem is, and how to fix it.
 
 ## Using the Desktop App as a Remote Only
 

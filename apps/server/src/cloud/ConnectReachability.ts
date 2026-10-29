@@ -152,7 +152,7 @@ export function classifyReachability(
 }
 
 /** The loud diagnosis the CLI prints and the server logs. */
-export function formatReachabilityFailure(result: Unreachable): string {
+function formatReachabilityFailure(result: Unreachable): string {
   return [
     "✕ Ozi Connect is NOT reachable from other devices",
     `  ${result.reason}`,

@@ -2,7 +2,6 @@ import * as HostProcess from "@t3tools/shared/HostProcess";
 import * as Console from "effect/Console";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import * as Schema from "effect/Schema";
 import * as Terminal from "effect/Terminal";
 import { Command, Flag, GlobalFlag, Prompt } from "effect/cli";
 import { FetchHttpClient } from "effect/http";
@@ -27,7 +26,8 @@ export const layer = (
     baseDir: config.baseDir,
     logsDir: config.logsDir,
     cliVersion: packageJson.version,
-    ...options,
+    ...(options?.unitFile === undefined ? {} : { unitFile: options.unitFile }),
+    ...(options?.currentRuntime === undefined ? {} : { currentRuntime: options.currentRuntime }),
   }).pipe(Layer.provide(ProcessRunner.layer), Layer.provide(FetchHttpClient.layer));
 
 export type ServiceReconcileResult =
@@ -117,18 +117,35 @@ const runServiceCommand = Effect.fn("cli.service.run")(function* <A, E, R>(
     readonly baseDir: Parameters<typeof resolveCliAuthConfig>[0]["baseDir"];
     readonly unitFile?: string;
     readonly currentRuntime?: boolean;
+    readonly json: boolean;
   },
   run: Effect.Effect<A, E, R>,
 ) {
   const logLevel = yield* GlobalFlag.LogLevel;
   const config = yield* resolveCliAuthConfig(flags, logLevel);
-  return yield* run.pipe(Effect.provide(layer(config, flags)));
+  return yield* run.pipe(
+    Effect.provide(layer(config, flags)),
+    Effect.tapError((error) =>
+      Effect.gen(function* () {
+        const message = error instanceof Error ? error.message : "Service command failed.";
+        yield* Console.error(
+          flags.json
+            ? yield* encodeJson({
+                code:
+                  error instanceof Error && "_tag" in error ? error._tag : "ServiceCommandError",
+                message,
+              })
+            : message,
+        );
+      }),
+    ),
+  );
 });
 
 const serviceLocationFlags = {
   ...projectLocationFlags,
   unitFile: Flag.String("unit").pipe(
-    Flag.withSchema(Schema.String.check(Schema.isPattern(/^[A-Za-z0-9][A-Za-z0-9_-]*\.service$/))),
+    Flag.withSchema(BootService.BootServiceUnitFile),
     Flag.withDescription(
       "Systemd user unit filename. Use a distinct name for an isolated install.",
     ),
@@ -181,9 +198,11 @@ const serviceUpdateCommand = Command.make("update", serviceReconcileFlags).pipe(
     runServiceCommand(
       flags,
       Effect.gen(function* () {
-        yield* Console.log(
-          "`ozi service update` is deprecated: run `ozi update` to move to a newer release, or `ozi service install` to repair the service. Repairing now.",
-        );
+        if (!flags.json) {
+          yield* Console.log(
+            "`ozi service update` is deprecated: run `ozi update` to move to a newer release, or `ozi service install` to repair the service. Repairing now.",
+          );
+        }
         const result = yield* reconcileService({ allowDowngrade: flags.allowDowngrade });
         if (flags.json) {
           yield* Console.log(yield* encodeJson(result));
@@ -340,6 +359,7 @@ export const recoverServiceOnboardingOffer = <R>(
         Console.log(`Skipping background setup: ${error.message}`).pipe(
           Effect.as("skipped" as const),
         ),
+      BootServiceUnitError: reportServiceSetupFailure,
       BootServiceCommandError: reportServiceSetupFailure,
       BootServiceInstallError: reportServiceSetupFailure,
       BootServicePrerequisiteError: reportServiceSetupFailure,
