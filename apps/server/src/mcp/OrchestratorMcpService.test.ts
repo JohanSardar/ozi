@@ -2246,7 +2246,7 @@ describe("OrchestratorMcpService provider resolution", () => {
       Effect.gen(function* () {
         const upserted = yield* Ref.make(0);
         const listed = yield* OrchestratorMcpService.OrchestratorMcpService.pipe(
-          Effect.flatMap((mcp) => mcp.listScheduledTasks(supervisedClient, { projectId })),
+          Effect.flatMap((mcp) => mcp.listScheduledTasks(supervisedClient, {})),
           Effect.provide(
             service(
               [
@@ -2282,7 +2282,7 @@ describe("OrchestratorMcpService provider resolution", () => {
                 },
                 client: undefined,
               },
-              { projectId },
+              {},
             ),
           ),
           Effect.provide(
@@ -2326,7 +2326,7 @@ describe("OrchestratorMcpService provider resolution", () => {
                 ...supervisedClient,
                 client: { sessionId: "scheduled", label: "Claude Code", access: "read-only" },
               },
-              { projectId },
+              {},
             ),
           ),
           Effect.provide(service([task({})], null, upserted)),
@@ -2347,7 +2347,7 @@ describe("OrchestratorMcpService provider resolution", () => {
         const mcp = yield* OrchestratorMcpService.OrchestratorMcpService.pipe(
           Effect.provide(layer),
         );
-        const listed = yield* mcp.listScheduledTasks(supervisedClient, { projectId });
+        const listed = yield* mcp.listScheduledTasks(supervisedClient, {});
         assert.equal(listed.tasks[0]?.webhookUrl, undefined);
         const error = yield* mcp
           .updateScheduledTask(supervisedClient, {
@@ -2360,7 +2360,7 @@ describe("OrchestratorMcpService provider resolution", () => {
       }),
     );
 
-    it.effect("reports a saved task even when its bound thread cannot be read", () =>
+    it.effect("rejects edits when its target chat cannot be read", () =>
       Effect.gen(function* () {
         const upserted = yield* Ref.make(0);
         const bound = task({ threadId: boundThreadId });
@@ -2403,13 +2403,14 @@ describe("OrchestratorMcpService provider resolution", () => {
             ),
           ),
         );
-        const updated = yield* mcp.updateScheduledTask(supervisedClient, {
-          scheduledTaskId: bound.id,
-          prompt: "Something else",
-        });
-        assert.equal(yield* Ref.get(upserted), 1);
-        assert.equal(updated.scheduledTaskId, bound.id);
-        assert.equal(updated.webhookUrl, undefined);
+        const error = yield* mcp
+          .updateScheduledTask(supervisedClient, {
+            scheduledTaskId: bound.id,
+            prompt: "Something else",
+          })
+          .pipe(Effect.flip);
+        assert.equal(yield* Ref.get(upserted), 0);
+        assert.equal(error.code, "orchestration_error");
       }),
     );
   });

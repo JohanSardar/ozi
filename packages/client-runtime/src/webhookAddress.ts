@@ -18,7 +18,7 @@ export function webhookAddress(
     return {
       address: endpoint.path,
       copyable: false,
-      note: "Link this environment to Ozi Connect for a public URL.",
+      note: "Set OZI_PUBLIC_URL or serve --public-url for a public URL.",
     };
   }
   const url = new URL(endpoint.path, httpBaseUrl);
@@ -26,7 +26,7 @@ export function webhookAddress(
     address: url.href,
     copyable: true,
     note: isLocalLoopbackHost(url.hostname)
-      ? "Only this computer can call this address. Link Ozi Connect for a public URL."
-      : "Works wherever this environment's address is reachable, for example over Tailscale or your own proxy. Link Ozi Connect for a public URL.",
+      ? "Only this computer can call this address. Set OZI_PUBLIC_URL or serve --public-url for a public URL."
+      : "Works wherever this environment's address is reachable, for example over Tailscale or your own proxy. Set OZI_PUBLIC_URL or serve --public-url for a public URL.",
   };
 }

@@ -19,6 +19,7 @@ import { extendConnectionAttemptTimeout, keepOutboundFetchOnHttp1 } from "./outb
 import { sharedServerCommandFlags } from "./cli/config.ts";
 import { projectCommand } from "./cli/project.ts";
 import { ticketCommand } from "./cli/ticket.ts";
+import { scheduleCommand, schedulesCommand, testClockCommand } from "./cli/schedule.ts";
 import { threadCommand } from "./cli/thread.ts";
 import { runDefaultServerCommand, serveCommand, startCommand } from "./cli/server.ts";
 import { updateCommand } from "./cli/update.ts";
@@ -37,7 +38,7 @@ const layerCliRuntime = Layer.mergeAll(NodeServices.layer, NetService.layer);
 export const makeCli = () =>
   Command.make("ozi", { ...sharedServerCommandFlags }).pipe(
     Command.withDescription("Run the Ozi server."),
-    Command.withHandler(runDefaultServerCommand),
+    Command.withHandler((flags) => runDefaultServerCommand(flags)),
     Command.withSubcommands([
       Command.make("help").pipe(
         Command.withDescription("Show command help."),
@@ -57,6 +58,9 @@ export const makeCli = () =>
       projectCommand,
       threadCommand,
       ticketCommand,
+      scheduleCommand,
+      schedulesCommand,
+      testClockCommand,
       serviceCommand,
       updateCommand,
       uninstallCommand,

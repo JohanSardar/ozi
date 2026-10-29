@@ -7,6 +7,7 @@ import * as Scope from "effect/Scope";
 import * as Semaphore from "effect/Semaphore";
 
 import { forkParked } from "../serverActivation.ts";
+import * as ScheduleClock from "./ScheduleClock.ts";
 
 export class Scheduler extends Context.Service<
   Scheduler,
@@ -19,6 +20,7 @@ export class Scheduler extends Context.Service<
 >()("ozi/scheduling/Scheduler") {}
 
 const make = Effect.gen(function* () {
+  const clock = yield* ScheduleClock.ScheduleClock;
   const sources = yield* Ref.make(new Map<symbol, Effect.Effect<void>>());
   const register: Scheduler["Service"]["register"] = Effect.fn("Scheduler.register")(function* <
     E,
@@ -54,7 +56,9 @@ const make = Effect.gen(function* () {
   const tick = Ref.get(sources).pipe(
     Effect.flatMap((current) => Effect.forEach(current.values(), (run) => run, { discard: true })),
   );
-  yield* forkParked(Effect.sleep("5 seconds").pipe(Effect.andThen(tick), Effect.forever));
+  yield* clock.onAdvance(tick);
+  if (!clock.enabled)
+    yield* forkParked(Effect.sleep("5 seconds").pipe(Effect.andThen(tick), Effect.forever));
   return Scheduler.of({ register });
 });
 

@@ -25,6 +25,7 @@ import * as Schema from "effect/Schema";
 import * as Stdio from "effect/Stdio";
 import * as Stream from "effect/Stream";
 import { Argument, Command, Flag, GlobalFlag } from "effect/cli";
+import { FetchHttpClient, HttpClient, HttpClientRequest, HttpClientResponse } from "effect/http";
 
 import * as EnvironmentAuth from "../auth/EnvironmentAuth.ts";
 import * as ServerConfig from "../config.ts";
@@ -173,13 +174,29 @@ const toolFailureDetail = (result: typeof ToolResult.Type) => {
   });
 };
 
-const makeThreadTools = (session: McpToolSession, origin: string) => {
+const makeThreadTools = (session: McpToolSession, origin: string, token: string) => {
   const unexpected = (tool: string) =>
     new ThreadToolFailedError({
       tool,
       detail: `The server sent an unexpected ${tool} result. Update the ozi CLI to match the server.`,
     });
   return {
+    post: Effect.fn("cli.thread.post")(function* <S extends Schema.Decoder<unknown>>(
+      path: string,
+      body: unknown,
+      schema: S,
+    ) {
+      const request = yield* HttpClientRequest.post(new URL(path, origin).href).pipe(
+        HttpClientRequest.bearerToken(token),
+        HttpClientRequest.bodyJson(body),
+      );
+      return yield* request.pipe(
+        HttpClient.execute,
+        Effect.flatMap(HttpClientResponse.filterStatusOk),
+        Effect.flatMap(HttpClientResponse.schemaBodyJson(schema)),
+        Effect.provide(FetchHttpClient.layer),
+      );
+    }),
     call: Effect.fn("cli.thread.callTool")(function* <S extends Schema.Decoder<unknown>>(
       tool: string,
       args: Readonly<Record<string, unknown>>,
@@ -198,15 +215,15 @@ const makeThreadTools = (session: McpToolSession, origin: string) => {
     }),
   };
 };
-export type ThreadTools = ReturnType<typeof makeThreadTools>;
+export type ThreadTools = Pick<ReturnType<typeof makeThreadTools>, "call">;
 
 /**
  * Signs in as a short-lived MCP client of the running server, the same way an
  * outside agent does, and revokes that session when the command ends.
  */
-const withThreadTools = Effect.fn("cli.thread.withThreadTools")(function* <A, E, R>(
+export const withThreadTools = Effect.fn("cli.thread.withThreadTools")(function* <A, E, R>(
   flags: { readonly baseDir: Option.Option<string>; readonly json: boolean },
-  run: (tools: ThreadTools) => Effect.Effect<A, E, R>,
+  run: (tools: ReturnType<typeof makeThreadTools>) => Effect.Effect<A, E, R>,
 ) {
   const logLevel = yield* GlobalFlag.LogLevel;
   const config = yield* resolveCliAuthConfig(flags, logLevel);
@@ -231,7 +248,7 @@ const withThreadTools = Effect.fn("cli.thread.withThreadTools")(function* <A, E,
             }),
         ),
       );
-      return yield* run(makeThreadTools(session, remote.value.origin)).pipe(
+      return yield* run(makeThreadTools(session, remote.value.origin, remote.value.token)).pipe(
         Effect.mapError((cause) =>
           isThreadServerUnreachableError(cause)
             ? new RemoteConnectionError({
@@ -264,7 +281,7 @@ const withThreadTools = Effect.fn("cli.thread.withThreadTools")(function* <A, E,
       authorization: `Bearer ${issued.token}`,
       clientName: "t3-thread-cli",
     }).pipe(Effect.mapError((cause) => new ThreadServerUnreachableError({ origin, cause })));
-    return yield* run(makeThreadTools(session, origin));
+    return yield* run(makeThreadTools(session, origin, issued.token));
   }).pipe(
     Effect.scoped,
     Effect.provide(
@@ -354,7 +371,7 @@ const readTimeline = Effect.fn("cli.thread.readTimeline")(function* (
         threadId,
         view,
         limit: READ_PAGE_LIMIT,
-        runLimit: 1,
+        runLimit: view === "messages" ? READ_PAGE_LIMIT : 1,
         ...(afterPosition === undefined ? {} : { afterPosition }),
       },
       OrchestratorMcpThreadReadResult,

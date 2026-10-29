@@ -132,3 +132,13 @@ A passive, persisted `Answered: ‹title›: ‹choice›` line appears in the c
 ## I5 ticket replies
 
 A reply from a row, the window or the archive goes into the chat shown behind the inbox, through T3's turn start with the default follow-up behaviour (steer or queue while the agent works). On a new chat it starts that chat, titled after the ticket. The message carries a `ticket` context record: the bubble shows a quiet quote, "↩ ‹title› · ‹need›", above the reply. The agent receives the ticket's title, group, need, summary, choices, details and files, who filed it (chat, or worker for a chat) and when, whether it is still open, an absolute transcript link, and the ticket, thread, chat, worker, job, session and message IDs, with a note to read the filing session with `t3_thread_read`. Replying does not clear the ticket; clearing belongs to I7.
+
+## C1 schedules and webhooks
+
+Scheduled tasks target an existing chat and queue prompts using its current agent and model. Settings → Scheduled tasks selects the chat, with interval (at least one minute), local time and weekday, and webhook schedules. No run creates a new chat. Pause, run now, delete, URL rotation and delivery inspection use T3's scheduled-task service.
+
+`ozi schedule add --chat <id> --prompt <text>` takes exactly one of `--every <duration>`, `--at HH:MM [--days 0-6,…]`, or `--webhook`. Durations use `ms`, `s`, `m`, `h`, `d` or `w`. Webhooks keep URL tokens, optional raw-byte HMAC-SHA256 (`--secret-ref`), repeated JSON `--filter`, seven-day `--replay-key` retention and fixed `--coalesce-key` / `--coalesce-window` windows. External senders POST; the GUI runs no watchers. `ozi schedules`, `schedule pause`, `resume`, `run` and `rm` support `--json`.
+
+`serve --public-url` overrides `OZI_PUBLIC_URL`. An HTTP(S) base URL produces `<base>/api/hooks/<id>/<token>`; without it, agent and CLI results omit `webhookUrl`. Settings can copy the directly reachable server URL and explain how to configure a public one. Signing secrets stay write-only. Dispatch success records delivery, not completion of the agent's work.
+
+Only explicit `OZI_TEST_CLOCK=<ISO instant>` enables the isolated scheduler clock and hidden `test-clock --advance <duration>` CLI endpoint. Normal servers use the local clock.
