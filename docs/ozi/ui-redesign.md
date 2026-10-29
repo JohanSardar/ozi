@@ -100,3 +100,9 @@ Open details, and any archive row, opens the ticket in T3's dialog over the app 
 ## L5 handoff line
 
 Each job the main agent delegates shows in its chat as one line: the job title, then "waiting on you" while the job has an open ticket, else its state (queued, working, waiting, idle, done, failed, stopped). The line stays visible when the turn folds. Clicking it switches the inbox to its ticket and opens it, or opens the worker when there is no open ticket. The worker's completion notice adds no second line. Provider-native subagents keep T3's rows inside the work log.
+
+## I2 ticket tools
+
+The shared MCP server registers `ticket_create`, `ticket_update`, `ticket_close` and `ticket_list` for every provider, including delegated workers. Create accepts ticket content; update accepts its ID and content changes; close accepts its ID. No tool accepts origin or clearance IDs. The server derives the thread from its authenticated MCP credential, the provider session from its bound provider thread, and the latest user message in its active run (or its last run with background work). Queued messages are excluded. I1 resolves chat, job, worker and transcript links. Content updates preserve that origin; close records an agent clearance using the caller's user message. Agents decide which acknowledgement warrants closure.
+
+List accepts the I1 status, search and chat filters. All four tools require an in-app thread credential; writes also require that provider to own a live run or background task. Pi exposes all four ticket tools directly, including through the Claude subscription bridge; other providers use their existing MCP discovery. Other MCP tools and the server name remain unchanged until G2.
