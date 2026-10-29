@@ -519,7 +519,9 @@ const resolvePrimaryStartConfig = Effect.fn("desktop.backendConfiguration.resolv
     };
 
     return {
-      executablePath: process.execPath,
+      executablePath: environment.isDevelopment
+        ? Option.getOrElse(environment.devNodePath, () => process.execPath)
+        : process.execPath,
       // Packaged builds have a separate cache; --require prevents cache settings leaking to provider subprocesses.
       args: [
         ...(environment.isPackaged ? ["--require", environment.compileCachePath] : []),

@@ -40,6 +40,7 @@ export const DesktopConfig = Config.all({
   t3Home: trimmedString("OZI_HOME"),
   devServerUrl: Config.URL("VITE_DEV_SERVER_URL").pipe(Config.option),
   appUserModelIdOverride: trimmedString("OZI_DESKTOP_APP_USER_MODEL_ID"),
+  devNodePath: trimmedString("OZI_DESKTOP_DEV_NODE_PATH"),
   devRemoteT3ServerEntryPath: trimmedString("OZI_DEV_REMOTE_SERVER_ENTRY_PATH"),
   configuredBackendPort: Config.Port("OZI_PORT").pipe(Config.option),
   commitHashOverride: trimmedString("OZI_COMMIT_HASH"),

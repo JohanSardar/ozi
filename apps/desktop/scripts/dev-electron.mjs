@@ -1,6 +1,5 @@
 import * as NodeChildProcess from "node:child_process";
 import * as NodeFS from "node:fs";
-import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 
 import {
@@ -28,7 +27,6 @@ const requiredFiles = [
   "dist-electron/snapShot/GlobalShiftShortcutWorker.cjs",
   "dist-electron/snapShot/RegionSnapShotWorker.cjs",
   "dist-electron/snapShot/SnapShotAccessibilityWorker.cjs",
-  "../server/dist/bin.mjs",
 ];
 const watchedDirectories = [
   { directory: "dist-electron", files: new Set(["main.cjs", "preload.cjs"]) },
@@ -44,14 +42,12 @@ const watchedDirectories = [
       "SnapShotAccessibilityWorker.cjs",
     ]),
   },
-  { directory: "../server/dist", files: new Set(["bin.mjs"]) },
+  { directory: "../server/src", recursive: true },
+  { directory: "../../packages", recursive: true },
 ];
 const forcedShutdownTimeoutMs = 1_500;
 const restartDebounceMs = 120;
-const childTreeGracePeriodMs = 1_200;
 const remoteDebuggingPort = process.env.OZI_DESKTOP_REMOTE_DEBUGGING_PORT?.trim();
-// oxlint-disable-next-line t3code/no-global-process-runtime -- Standalone dev script has no Effect runtime.
-const hostPlatform = NodeOS.platform();
 
 NodeChildProcess.execFileSync(
   process.execPath,
@@ -80,29 +76,6 @@ let currentApp = null;
 let restartQueue = Promise.resolve();
 const expectedExits = new WeakSet();
 const watchers = [];
-
-function killChildTreeByPid(pid, signal) {
-  if (hostPlatform === "win32" || typeof pid !== "number") {
-    return;
-  }
-
-  NodeChildProcess.spawnSync("pkill", [`-${signal}`, "-P", String(pid)], { stdio: "ignore" });
-}
-
-function cleanupStaleDevApps() {
-  if (hostPlatform === "win32") {
-    return;
-  }
-
-  const escapedDesktopDir = desktopDir.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  NodeChildProcess.spawnSync(
-    "pkill",
-    ["-f", "--", `(^| )--ozi-dev-root=${escapedDesktopDir}( |$)`],
-    {
-      stdio: "ignore",
-    },
-  );
-}
 
 function startApp() {
   if (shuttingDown || currentApp !== null) {
@@ -169,8 +142,6 @@ async function stopApp() {
 
     app.once("exit", finish);
     app.kill("SIGTERM");
-    killChildTreeByPid(app.pid, "TERM");
-    cleanupStaleDevApps();
 
     setTimeout(() => {
       if (settled) {
@@ -178,8 +149,6 @@ async function stopApp() {
       }
 
       app.kill("SIGKILL");
-      killChildTreeByPid(app.pid, "KILL");
-      cleanupStaleDevApps();
       finish();
     }, forcedShutdownTimeoutMs).unref();
   });
@@ -208,12 +177,15 @@ function scheduleRestart() {
 }
 
 function startWatchers() {
-  for (const { directory, files } of watchedDirectories) {
+  for (const { directory, files, recursive = false } of watchedDirectories) {
     const watcher = NodeFS.watch(
       NodePath.join(desktopDir, directory),
-      { persistent: true },
+      { persistent: true, recursive },
       (_eventType, filename) => {
-        if (typeof filename !== "string" || !files.has(filename)) {
+        if (
+          typeof filename !== "string" ||
+          (files ? !files.has(filename) : !/\.(ts|json)$/.test(filename))
+        ) {
           return;
         }
 
@@ -223,16 +195,6 @@ function startWatchers() {
 
     watchers.push(watcher);
   }
-}
-
-function killChildTree(signal) {
-  if (hostPlatform === "win32") {
-    return;
-  }
-
-  NodeChildProcess.spawnSync("pkill", [`-${signal}`, "-P", String(process.pid)], {
-    stdio: "ignore",
-  });
 }
 
 async function shutdown(exitCode) {
@@ -249,18 +211,32 @@ async function shutdown(exitCode) {
   }
 
   await stopApp();
-  killChildTree("TERM");
-  await new Promise((resolve) => {
-    setTimeout(resolve, childTreeGracePeriodMs);
-  });
-  killChildTree("KILL");
-
   process.exit(exitCode);
 }
 
-startWatchers();
-cleanupStaleDevApps();
-startApp();
+if (process.env.OZI_DESKTOP_AUTOMATION === "1") {
+  console.log(
+    `[desktop-dev] ready ${JSON.stringify({
+      cwd: desktopDir,
+      env: Object.fromEntries(
+        [
+          "XDG_CONFIG_HOME",
+          "XDG_DATA_HOME",
+          "XDG_CACHE_HOME",
+          "OZI_HOME",
+          "OZI_PORT",
+          "VITE_DEV_SERVER_URL",
+          "OZI_DESKTOP_DEV_NODE_PATH",
+          "OZI_TELEMETRY_ENABLED",
+        ].map((name) => [name, childEnv[name]]),
+      ),
+      ...resolveElectronLaunchCommand(["dist-electron/main.cjs"]),
+    })}`,
+  );
+} else {
+  startWatchers();
+  startApp();
+}
 
 process.once("SIGINT", () => {
   void shutdown(130);
