@@ -18,6 +18,11 @@ export const ticketClose = createEnvironmentRpcCommand(connectionAtomRuntime, {
   tag: WS_METHODS.ticketsClose,
 });
 
+export const ticketChoose = createEnvironmentRpcCommand(connectionAtomRuntime, {
+  label: "environment-data:tickets:choose",
+  tag: WS_METHODS.ticketsChoose,
+});
+
 export const useInboxStore = create<{
   tab: "inbox" | "archive";
   selected: { id: TicketId | null; index: number; reveal?: boolean };
