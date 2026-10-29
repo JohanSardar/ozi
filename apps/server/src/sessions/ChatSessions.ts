@@ -15,6 +15,7 @@ import {
   OrchestrationV2StoredEvent,
 } from "@t3tools/contracts";
 import { PiSettings } from "@t3tools/provider-pi/settings";
+import { bundledPiBinary } from "@t3tools/provider-pi/server";
 import * as Context from "effect/Context";
 import * as Crypto from "effect/Crypto";
 import * as DateTime from "effect/DateTime";
@@ -117,6 +118,61 @@ const make = Effect.gen(function* () {
   const uuid = () => crypto.randomUUIDv4().pipe(Effect.orDie);
   const commandId = () => uuid().pipe(Effect.map(CommandId.make));
   const load = (id: ThreadId) => threads.getThreadProjection(id);
+  type Projection = Effect.Success<ReturnType<typeof load>>;
+  type SessionMessage = Projection["messages"][number] & { sourceThreadId: ThreadId };
+  const history = Effect.fn("ChatSessions.history")(function* (
+    projection: Projection,
+  ): Effect.fn.Return<SessionMessage[], Effect.Error<ReturnType<typeof load>>> {
+    const inherited: SessionMessage[] = [];
+    const fork = projection.thread.forkedFrom;
+    if (fork?.type === "run") {
+      const source = yield* load(fork.threadId);
+      const boundary = source.runs.find((run) => run.id === fork.runId);
+      if (boundary !== undefined)
+        for (const message of yield* history(source))
+          if (
+            message.sourceThreadId !== source.thread.id ||
+            message.runId === null ||
+            source.runs.some((run) => run.id === message.runId && run.ordinal <= boundary.ordinal)
+          )
+            inherited.push(message);
+    }
+    return [
+      ...inherited,
+      ...projection.messages.map((message) => ({
+        ...message,
+        sourceThreadId: projection.thread.id,
+      })),
+    ];
+  });
+  const inherit = Effect.fn("ChatSessions.inherit")(function* (
+    threadId: ThreadId,
+    source: Projection,
+  ) {
+    const thread = (yield* load(threadId)).thread;
+    yield* sink.write({
+      events: [
+        {
+          id: EventId.make(yield* uuid()),
+          type: "thread.metadata-updated",
+          threadId,
+          occurredAt: thread.updatedAt,
+          payload: {
+            ...thread,
+            providerInstanceId: source.thread.providerInstanceId,
+            modelSelection: source.thread.modelSelection,
+            runtimeMode: source.thread.runtimeMode,
+            interactionMode: source.thread.interactionMode,
+            lineage: {
+              parentThreadId: source.thread.id,
+              relationshipToParent: "fork",
+              rootThreadId: source.thread.lineage.rootThreadId,
+            },
+          },
+        },
+      ],
+    });
+  });
   const idle = (projection: Effect.Success<ReturnType<typeof load>>) =>
     projection.runs.some((run) => ThreadManagement.isActiveRun(run) || run.status === "queued") ||
     projection.runtimeRequests.some((request) => request.status === "pending")
@@ -137,6 +193,23 @@ const make = Effect.gen(function* () {
       ? Effect.fail(new ChatSessionError({ reason: "missing_history" }))
       : Effect.succeed(file);
   };
+  const sessionContent = Effect.fn("ChatSessions.sessionContent")(function* (
+    projection: Projection,
+  ): Effect.fn.Return<string, unknown> {
+    const fork = projection.thread.forkedFrom;
+    if (projection.thread.activeProviderThreadId !== null || fork?.type !== "run")
+      return yield* fs.readFileString(yield* nativeFile(projection));
+    const parsed = yield* parseSession(yield* sessionContent(yield* load(fork.threadId)));
+    const count = (yield* history(projection)).filter((message) => message.role === "user").length;
+    const next = parsed.branch.filter((entry) => entry.message?.role === "user")[count];
+    const end = next === undefined ? parsed.branch.length : parsed.branch.indexOf(next);
+    const keep = new Set(parsed.branch.slice(0, end).map((entry) => entry.id));
+    return (
+      parsed.lines
+        .filter((_, index) => index === 0 || keep.has(parsed.entries[index]!.id))
+        .join("\n") + "\n"
+    );
+  });
   const create = Effect.fn("ChatSessions.create")(function* (input: {
     threadId?: ThreadId | undefined;
     title?: string | undefined;
@@ -145,7 +218,10 @@ const make = Effect.gen(function* () {
     fork?: boolean;
   }) {
     const source = input.threadId === undefined ? undefined : yield* load(input.threadId);
-    const projectId = source?.thread.projectId ?? (yield* folders.ensureScratchProject).projectId;
+    const projectId =
+      source?.thread.projectId ??
+      (yield* threads.listProjectThreads({ includeSubagents: false }))[0]?.projectId ??
+      (yield* folders.ensureScratchProject).projectId;
     const project = yield* projects.getById(projectId);
     const selection =
       input.modelSelection ??
@@ -160,7 +236,7 @@ const make = Effect.gen(function* () {
     if (input.content !== undefined) {
       if (provider?.driver !== "pi") return yield* new ChatSessionError({ reason: "pi_required" });
       imported = yield* parseSession(input.content);
-      const directory = path.join(config.providerStatusCacheDir, "pi-sessions");
+      const directory = path.join(config.stateDir, "pi-sessions");
       yield* fs.makeDirectory(directory, { recursive: true });
       sessionFile = path.join(directory, `${threadId}.jsonl`);
       yield* fs.writeFileString(sessionFile, input.content, { mode: 0o600 });
@@ -191,27 +267,7 @@ const make = Effect.gen(function* () {
             },
           }),
     });
-    if (input.fork && source !== undefined) {
-      const thread = (yield* load(threadId)).thread;
-      yield* sink.write({
-        events: [
-          {
-            id: EventId.make(yield* uuid()),
-            type: "thread.metadata-updated",
-            threadId,
-            occurredAt: thread.updatedAt,
-            payload: {
-              ...thread,
-              lineage: {
-                parentThreadId: source.thread.id,
-                relationshipToParent: "fork",
-                rootThreadId: source.thread.lineage.rootThreadId,
-              },
-            },
-          },
-        ],
-      });
-    }
+    if (input.fork && source !== undefined) yield* inherit(threadId, source);
     if (imported !== undefined) {
       const now = DateTime.formatIso(yield* DateTime.now);
       const messages = imported.branch.flatMap((entry) => {
@@ -249,13 +305,15 @@ const make = Effect.gen(function* () {
           (thread) => thread.lineage.relationshipToParent !== "subagent",
         );
         return {
-          sessions: [...sessions, ...archived].map((thread) => ({
-            threadId: thread.id,
-            title: thread.title,
-            parentThreadId: thread.lineage.parentThreadId,
-            updatedAt: DateTime.formatIso(thread.updatedAt),
-            archived: thread.archivedAt !== null,
-          })),
+          sessions: [...sessions, ...archived]
+            .map((thread) => ({
+              threadId: thread.id,
+              title: thread.title,
+              parentThreadId: thread.lineage.parentThreadId,
+              updatedAt: DateTime.formatIso(thread.updatedAt),
+              archived: thread.archivedAt !== null,
+            }))
+            .toSorted((a, b) => b.updatedAt.localeCompare(a.updatedAt)),
         };
       }
       if (input.action === "new") return yield* create(input);
@@ -264,7 +322,7 @@ const make = Effect.gen(function* () {
       if (input.action === "inspect")
         return {
           threadId: input.threadId,
-          messages: projection.messages
+          messages: (yield* history(projection))
             .filter((message) => message.role === "user")
             .map(({ id, text }) => ({ id, text })),
         };
@@ -290,34 +348,33 @@ const make = Effect.gen(function* () {
         return { threadId: input.threadId };
       }
       if (input.action === "clone" || input.action === "fork") {
+        const messages = yield* history(projection);
         const selected =
           input.action === "fork"
-            ? projection.messages.findIndex(
+            ? messages.findIndex(
                 (message) => message.id === input.messageId && message.role === "user",
               )
             : -1;
         if (input.action === "fork" && selected < 0)
           return yield* new ChatSessionError({ reason: "invalid_session" });
-        const before =
-          input.action === "fork" ? projection.messages.slice(0, selected) : projection.messages;
+        const before = input.action === "fork" ? messages.slice(0, selected) : messages;
         const previous = before.findLast((message) => message.runId != null);
-        const editorText =
-          input.action === "fork" ? projection.messages[selected]!.text : undefined;
-        const title = `${projection.thread.title} ${input.action === "clone" ? "copy" : "fork"}`;
+        const editorText = input.action === "fork" ? messages[selected]!.text : undefined;
+        const title = `${projection.thread.title} ${input.action}`;
         if (before.length === 0)
           return {
             ...(yield* create({ threadId: input.threadId, title, fork: true })),
             ...(editorText === undefined ? {} : { editorText }),
           };
         if (previous?.runId == null) {
-          const file = yield* nativeFile(projection);
+          const file = yield* nativeFile(yield* load(before.at(-1)!.sourceThreadId));
           let content = yield* fs.readFileString(file);
           if (input.action === "fork") {
             const parsed = yield* parseSession(content);
             const users = parsed.branch.filter(
               (entry) => entry.type === "message" && entry.message?.role === "user",
             );
-            const index = projection.messages
+            const index = messages
               .slice(0, selected)
               .filter((message) => message.role === "user").length;
             const entry = users[index];
@@ -338,33 +395,36 @@ const make = Effect.gen(function* () {
         yield* threads.dispatch({
           type: "thread.fork",
           commandId: yield* commandId(),
-          sourceThreadId: input.threadId,
+          sourceThreadId: previous.sourceThreadId,
           targetThreadId,
-          sourcePoint:
-            input.action === "clone"
-              ? { type: "latest_stable" }
-              : { type: "run", runId: previous.runId },
+          sourcePoint: { type: "run", runId: previous.runId },
           title,
           createdBy: "user",
           creationSource: "server",
         });
+        yield* inherit(targetThreadId, projection);
         return { threadId: targetThreadId, ...(editorText === undefined ? {} : { editorText }) };
       }
       if (input.action !== "export")
         return yield* new ChatSessionError({ reason: "operation_failed" });
-      const file = yield* nativeFile(projection);
-      if (input.format === "jsonl")
-        return { content: yield* fs.readFileString(file), filename: `${input.threadId}.jsonl` };
+      const content = yield* sessionContent(projection);
+      if (input.format === "jsonl") return { content, filename: `${input.threadId}.jsonl` };
       const provider = (yield* settings.getSettings).providerInstances[
         projection.thread.providerInstanceId
       ];
       const pi = yield* decodePiSettings(provider?.config ?? {});
+      const binary =
+        pi.harness === "ozi" && (!pi.binaryPath || pi.binaryPath === "pi")
+          ? bundledPiBinary
+          : pi.binaryPath || "pi";
       return yield* Effect.scoped(
         Effect.gen(function* () {
           const directory = yield* fs.makeTempDirectoryScoped({ prefix: "ozi-export-" });
+          const file = path.join(directory, "session.jsonl");
+          yield* fs.writeFileString(file, content, { mode: 0o600 });
           const output = path.join(directory, "session.html");
           const process = yield* spawner.spawn(
-            ChildProcess.make(pi.binaryPath || "pi", ["--export", file, output], {
+            ChildProcess.make(binary, ["--no-extensions", "--export", file, output], {
               stdin: "ignore",
               stdout: "ignore",
               stderr: "ignore",

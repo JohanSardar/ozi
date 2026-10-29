@@ -39,7 +39,12 @@ if (
     const { attachConsoleStdin } = await import("./cli/consoleStdin.ts");
     attachConsoleStdin();
     if (command === "-p" || command === "--print") process.argv[2] = "print";
-    const { runCli } = await import("./binCli.ts");
-    runCli();
+    if (["session", "print", "-p", "--print", "answer"].includes(command ?? "")) {
+      const { runSessionCli } = await import("./cli/chatSessions.ts");
+      runSessionCli();
+    } else {
+      const { runCli } = await import("./binCli.ts");
+      runCli();
+    }
   }
 }

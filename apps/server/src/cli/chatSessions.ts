@@ -1,3 +1,7 @@
+import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
+import * as NodeServices from "@effect/platform-node/NodeServices";
+import * as NodeSocket from "@effect/platform-node/NodeSocket";
+import * as NetService from "@t3tools/shared/Net";
 import {
   ChatSessionResult,
   MessageId,
@@ -7,6 +11,8 @@ import {
   RuntimeRequestId,
   ProviderApprovalDecision,
   ProviderUserInputAnswers,
+  ORCHESTRATION_PROTOCOL_QUERY_PARAM,
+  ORCHESTRATION_PROTOCOL_VERSION,
 } from "@t3tools/contracts";
 import * as Console from "effect/Console";
 import * as Crypto from "effect/Crypto";
@@ -16,10 +22,10 @@ import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Runtime from "effect/Runtime";
+import * as References from "effect/References";
 import * as Schema from "effect/Schema";
 import * as Stdio from "effect/Stdio";
 import * as Stream from "effect/Stream";
-import * as Socket from "effect/socket/Socket";
 import * as RpcClient from "effect/rpc/RpcClient";
 import * as RpcSerialization from "effect/rpc/RpcSerialization";
 import { Argument, Command, Flag, GlobalFlag } from "effect/cli";
@@ -27,6 +33,7 @@ import * as EnvironmentAuth from "../auth/EnvironmentAuth.ts";
 import * as ServerConfig from "../config.ts";
 import { readPersistedServerRuntimeState } from "../serverRuntimeState.ts";
 import { baseDirFlag, resolveCliAuthConfig } from "./config.ts";
+import packageJson from "../../package.json" with { type: "json" };
 
 class SessionCliError extends Schema.TaggedError<SessionCliError>()("SessionCliError", {
   message: Schema.String,
@@ -61,18 +68,19 @@ const withClient = Effect.fn("cli.sessions.withClient")(function* <A, E, R>(
         auth.issueSession({ label: "ozi sessions CLI" }),
         (issued) => auth.revokeSession(issued.sessionId).pipe(Effect.ignore),
       );
-      const ticket = yield* auth.issueWebSocketTicket(session, { use: "rpc" });
       const url = new URL("/ws", runtime.value.origin);
       url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
-      url.searchParams.set("wsTicket", ticket.ticket);
-      url.searchParams.set("orchestrationProtocol", "2");
-      const protocol = RpcClient.layerProtocolSocket().pipe(
+      url.searchParams.set(
+        ORCHESTRATION_PROTOCOL_QUERY_PARAM,
+        String(ORCHESTRATION_PROTOCOL_VERSION),
+      );
+      const protocol = RpcClient.layerProtocolSocket({ retryTransientErrors: false }).pipe(
         Layer.provide(
           Layer.mergeAll(
             RpcSerialization.layerJson,
-            Socket.layerWebSocket(url.href).pipe(
-              Layer.provide(Socket.layerWebSocketConstructorGlobal),
-            ),
+            NodeSocket.layerWebSocket(url.href, {
+              headers: { authorization: `Bearer ${session.token}` },
+            }),
           ),
         ),
       );
@@ -81,7 +89,12 @@ const withClient = Effect.fn("cli.sessions.withClient")(function* <A, E, R>(
       }).pipe(Effect.provide(protocol));
     }),
   ).pipe(
-    Effect.provide(EnvironmentAuth.layerRuntime.pipe(Layer.provide(ServerConfig.layer(config)))),
+    Effect.provide(
+      EnvironmentAuth.layerRuntime.pipe(
+        Layer.provide(ServerConfig.layer(config)),
+        Layer.provide(Layer.succeed(References.MinimumLogLevel, "Error")),
+      ),
+    ),
   );
 });
 
@@ -452,3 +465,16 @@ export const printCommand = Command.make("print", {
     ),
   ),
 );
+
+export function runSessionCli() {
+  Command.run(
+    Command.make("ozi").pipe(
+      Command.withSubcommands([sessionCommand, printCommand, answerCommand]),
+    ),
+    { version: packageJson.version },
+  ).pipe(
+    Effect.scoped,
+    Effect.provide(Layer.mergeAll(NodeServices.layer, NetService.layer)),
+    NodeRuntime.runMain,
+  );
+}

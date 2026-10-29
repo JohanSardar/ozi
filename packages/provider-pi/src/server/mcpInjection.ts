@@ -189,6 +189,15 @@ function withoutExplicitExtensions(args: ReadonlyArray<string>): ReadonlyArray<s
       continue;
     }
     if (arg.startsWith("--extension=") || arg.startsWith("-e=")) continue;
+    if (
+      arg.startsWith("--") &&
+      !PI_ARGUMENTS_WITH_VALUES.has(arg) &&
+      !PI_ARGUMENTS_WITHOUT_VALUES.has(arg)
+    ) {
+      if (!arg.includes("=") && args[index + 1] !== undefined && !args[index + 1]!.startsWith("-"))
+        index += 1;
+      continue;
+    }
     filtered.push(arg);
   }
   return filtered;

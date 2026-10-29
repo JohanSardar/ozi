@@ -68,6 +68,7 @@ beforeAll(async () => {
     HOME: directory,
     OZI_HOME: home,
     OZI_TELEMETRY_ENABLED: "false",
+    NODE_COMPILE_CACHE: NodePath.join(directory, "compile-cache"),
     PI_CODING_AGENT_DIR: NodePath.join(directory, "pi-agent"),
     OZI_FAKE_LOG: NodePath.join(directory, "pi.log"),
   };
@@ -79,7 +80,11 @@ beforeAll(async () => {
   await NodeFSP.writeFile(
     NodePath.join(home, "userdata/settings.json"),
     JSON.stringify({
+      enableProviderUpdateChecks: false,
       providerInstances: {
+        ozi: { driver: "pi", enabled: false, config: { harness: "ozi" } },
+        codex: { driver: "codex", enabled: false },
+        claudeAgent: { driver: "claudeAgent", enabled: false },
         pi: {
           driver: "pi",
           enabled: true,
@@ -97,11 +102,19 @@ afterAll(async () => {
   if (directory) await NodeFSP.rm(directory, { recursive: true, force: true });
 });
 
-it("C3.sessions: new, clone, fork, resume and reload preserve independent Pi histories", async () => {
+const seed = async () => {
   const source = (await json("session", "new", "--title", "C3 source")).threadId;
-  const first = await json("print", "first", "--thread", source);
-  expect(JSON.parse(first.text)).toEqual({ history: [], prompt: "first" });
-  await json("print", "second", "--thread", source);
+  const printed = (await cli("print", "first", "second", "--thread", source, "--json")).stdout
+    .trim()
+    .split("\n")
+    .map((line) => JSON.parse(line));
+  expect(JSON.parse(printed[0].text)).toEqual({ history: [], prompt: "first" });
+  expect(JSON.parse(printed[1].text).history).toEqual(["first"]);
+  return source;
+};
+
+it("C3.sessions: new, clone and fork preserve independent Pi histories and lineage", async () => {
+  const source = await seed();
   const messages = (await json("session", "show", source)).messages;
   const clone = (await json("session", "clone", source)).threadId;
   const fork = await json("session", "fork", source, messages[1].id);
@@ -113,11 +126,53 @@ it("C3.sessions: new, clone, fork, resume and reload preserve independent Pi his
     "first",
     "second",
   ]);
-  const empty = await json("session", "fork", source, messages[0].id);
+  const sessions = (await json("session", "list")).sessions;
+  expect(
+    sessions.find((session: { threadId: string }) => session.threadId === clone).parentThreadId,
+  ).toBe(source);
+});
+
+it("C3.nested: fresh clones retain inherited messages when cloned and forked again", async () => {
+  const source = await seed();
+  const messages = (await json("session", "show", source)).messages;
+  const clone = (await json("session", "clone", source)).threadId;
+  expect((await json("session", "show", clone)).messages).toEqual(messages);
+  const nested = (await json("session", "clone", clone)).threadId;
+  expect(JSON.parse((await json("print", "nested", "--thread", nested)).text).history).toEqual([
+    "first",
+    "second",
+  ]);
+  const inheritedFork = await json("session", "fork", clone, messages[1].id);
+  expect(inheritedFork.editorText).toBe("second");
+  expect(
+    JSON.parse((await json("print", "inherited fork", "--thread", inheritedFork.threadId)).text)
+      .history,
+  ).toEqual(["first"]);
+});
+
+it("C3.boundaries: fork before the first message or a clone's first new message", async () => {
+  const source = await seed();
+  const clone = (await json("session", "clone", source)).threadId;
+  expect(JSON.parse((await json("print", "cloned", "--thread", clone)).text).history).toEqual([
+    "first",
+    "second",
+  ]);
+  const cloneMessages = (await json("session", "show", clone)).messages;
+  const firstOwnFork = await json("session", "fork", clone, cloneMessages[2].id);
+  expect(firstOwnFork.editorText).toBe("cloned");
+  expect(
+    JSON.parse((await json("print", "first own fork", "--thread", firstOwnFork.threadId)).text)
+      .history,
+  ).toEqual(["first", "second"]);
+  const empty = await json("session", "fork", source, cloneMessages[0].id);
   expect(empty.editorText).toBe("first");
   expect(
     JSON.parse((await json("print", "empty", "--thread", empty.threadId)).text).history,
   ).toEqual([]);
+});
+
+it("C3.reload: resume and reload retain native history across server restart", async () => {
+  const source = await seed();
   expect((await json("session", "resume", source)).threadId).toBe(source);
   await json("session", "reload", source);
   await stop();
@@ -126,10 +181,6 @@ it("C3.sessions: new, clone, fork, resume and reload preserve independent Pi his
     "first",
     "second",
   ]);
-  const sessions = (await json("session", "list")).sessions;
-  expect(
-    sessions.find((session: { threadId: string }) => session.threadId === clone).parentThreadId,
-  ).toBe(source);
 });
 
 it("C3.import-export: JSONL is copied verbatim, branches fork correctly, and imports resume after restart", async () => {
