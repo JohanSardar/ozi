@@ -207,6 +207,7 @@ const RPC_AGGREGATES = {
   [WS_METHODS.ticketsCreate]: "tickets",
   [WS_METHODS.ticketsUpdate]: "tickets",
   [WS_METHODS.ticketsClose]: "tickets",
+  [WS_METHODS.ticketsChoose]: "tickets",
   [WS_METHODS.ticketsGet]: "tickets",
   [WS_METHODS.ticketsList]: "tickets",
   [WS_METHODS.ticketsSubscribe]: "tickets",

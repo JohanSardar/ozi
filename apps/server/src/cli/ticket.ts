@@ -3,6 +3,7 @@ import {
   ORCHESTRATION_PROTOCOL_VERSION,
   ORCHESTRATION_PROTOCOL_QUERY_PARAM,
   TicketCloseInput,
+  TicketChooseInput,
   TicketCreateInput,
   TicketGetInput,
   TicketListInput,
@@ -102,6 +103,9 @@ export const ticketCommand = Command.make("ticket").pipe(
     ),
     command("update", TicketUpdateInput, (client, input) =>
       client["tickets.update"](input).pipe(Effect.flatMap(print)),
+    ),
+    command("choose", TicketChooseInput, (client, input) =>
+      client["tickets.choose"](input).pipe(Effect.flatMap(print)),
     ),
     command("close", TicketCloseInput, (client, input) =>
       client["tickets.close"](input).pipe(Effect.flatMap(print)),
