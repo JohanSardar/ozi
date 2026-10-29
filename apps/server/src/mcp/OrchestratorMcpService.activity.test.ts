@@ -454,7 +454,7 @@ it("readThread and sendToThread reach threads in other projects", async () => {
 
     const staleSchedule = yield* service
       .scheduleTask(makeScope(), {
-        projectId: foreignProjectId,
+        threadId: foreignThreadId,
         prompt: "check in later",
         schedule: { type: "interval", everyMs: 3_600_000 },
       })

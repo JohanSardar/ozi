@@ -1,8 +1,6 @@
 import {
   EnvironmentId,
   ProjectId,
-  DEFAULT_SERVER_SETTINGS,
-  type ServerConfig,
   ProviderInstanceId,
   ScheduledTaskId,
   type ScheduledTask,
@@ -15,9 +13,7 @@ import type {
 } from "../../sidebarProjectGrouping";
 import { resolveSettingsScope, type SettingsScopeSearch } from "./settingsScope";
 
-import { deriveProviderInstanceEntries } from "../../providerInstances";
 import {
-  scheduledTaskDefaultModel,
   matchesScheduledTaskScope,
   scheduleFromDraft,
   taskToDraft,
@@ -143,14 +139,6 @@ const legacyTask: ScheduledTask = {
   runCount: 0,
 };
 
-describe("editing scheduled task branch settings", () => {
-  it("keeps an omitted origin flag on the local base branch", () => {
-    const draft = taskToDraft(legacyTask);
-    expect(draft.baseRef).toBe("release");
-    expect(draft.startFromOrigin).toBe(false);
-  });
-});
-
 describe("webhook scheduled tasks", () => {
   const signature = { header: "x-signature", encoding: "base64", prefix: "" } as const;
   const webhookTask: ScheduledTask = {
@@ -255,68 +243,6 @@ describe("webhook scheduled tasks", () => {
         filters: [{ id: "f1", path: "body.action", op: "in", value: " , " }],
       }),
     ).toBeNull();
-  });
-});
-
-describe("scheduled task model defaults", () => {
-  const instanceId = ProviderInstanceId.make("codex");
-  const projectId = ProjectId.make("project");
-  const environmentSelection = {
-    instanceId,
-    model: "environment-model",
-    options: [{ id: "reasoning", value: "high" }],
-  };
-  const projectSelection = { instanceId, model: "project-model" };
-  const config = {
-    settings: { ...DEFAULT_SERVER_SETTINGS, defaultModelSelection: environmentSelection },
-    providers: [
-      {
-        instanceId,
-        driver: "codex",
-        displayName: "Codex",
-        enabled: true,
-        installed: true,
-        status: "ready",
-        auth: { status: "authenticated" },
-        models: [
-          { slug: "first-model", name: "First", isCustom: false, capabilities: null },
-          {
-            slug: "catalog-default",
-            name: "Default",
-            isDefault: true,
-            isCustom: false,
-            capabilities: null,
-          },
-          { slug: "environment-model", name: "Environment", isCustom: false, capabilities: null },
-          { slug: "project-model", name: "Project", isCustom: false, capabilities: null },
-        ],
-      },
-    ],
-  } as unknown as ServerConfig;
-  const resolve = (
-    value: ServerConfig,
-    project: { id: typeof projectId; defaultModelSelection?: typeof projectSelection } | null,
-  ) =>
-    scheduledTaskDefaultModel(
-      value.settings,
-      project,
-      deriveProviderInstanceEntries(value.providers),
-    );
-  it("uses the advertised default instead of catalog order when no default is configured", () => {
-    expect(
-      resolve({ ...config, settings: { ...config.settings, defaultModelSelection: null } }, null),
-    ).toEqual({ instanceId, model: "catalog-default" });
-  });
-  it("falls back to the environment default when the project provider is unavailable", () => {
-    expect(
-      resolve(config, {
-        id: projectId,
-        defaultModelSelection: {
-          instanceId: ProviderInstanceId.make("unavailable"),
-          model: "missing",
-        },
-      }),
-    ).toEqual(environmentSelection);
   });
 });
 

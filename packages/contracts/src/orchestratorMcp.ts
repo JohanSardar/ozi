@@ -651,7 +651,6 @@ export type OrchestratorMcpCapabilitiesResult = typeof OrchestratorMcpCapabiliti
 
 export const OrchestratorMcpScheduleTaskInput = Schema.Struct({
   environmentId: OrchestratorMcpEnvironmentTarget,
-  projectId: OrchestratorMcpProjectTarget,
   threadId: Schema.optional(
     ThreadId.annotate({ description: "Target chat. Defaults to this chat." }),
   ),
@@ -659,11 +658,6 @@ export const OrchestratorMcpScheduleTaskInput = Schema.Struct({
   schedule: OrchestratorMcpSchedule,
   title: Schema.optional(OrchestratorMcpTitle),
   enabled: Schema.optional(Schema.Boolean.annotate({ description: "Default true." })),
-  bindToCurrentThread: Schema.optional(
-    Schema.Boolean.annotate({
-      description: "Default true: runs post in this thread. False: new thread per run.",
-    }),
-  ),
   clientRequestId: Schema.optional(OrchestratorMcpClientRequestId),
 });
 export type OrchestratorMcpScheduleTaskInput = typeof OrchestratorMcpScheduleTaskInput.Type;
@@ -687,7 +681,10 @@ export const OrchestratorMcpScheduledTask = Schema.Struct({
   boundThreadId: Schema.NullOr(ThreadId),
   schedule: ScheduledTaskSchedule,
   nextRunAt: Schema.NullOr(IsoDateTime),
+  lastRunAt: Schema.NullOr(IsoDateTime),
   lastRunStatus: ScheduledTaskRunStatus,
+  lastRunError: Schema.NullOr(Schema.String),
+  runCount: NonNegativeInt,
   webhookUrl: Schema.optional(Schema.String).annotate({
     description:
       "Public URL for the sender. Absent: configure OZI_PUBLIC_URL or serve --public-url.",
@@ -723,7 +720,7 @@ export const OrchestratorMcpUpdateScheduledTaskInput = Schema.Struct({
   title: Schema.optional(OrchestratorMcpTitle),
   schedule: Schema.optional(OrchestratorMcpSchedule),
   enabled: Schema.optional(Schema.Boolean),
-  bindToCurrentThread: Schema.optional(Schema.Boolean),
+  threadId: Schema.optional(ThreadId),
 });
 export type OrchestratorMcpUpdateScheduledTaskInput =
   typeof OrchestratorMcpUpdateScheduledTaskInput.Type;

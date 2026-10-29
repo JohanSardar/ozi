@@ -252,14 +252,6 @@ function errorMessage(error: unknown): string {
   return error instanceof Error ? error.message : String(error);
 }
 
-function scheduledTaskWorkspaceStrategy(
-  boundToThread: boolean,
-): ScheduledTask["workspaceStrategy"] {
-  return boundToThread
-    ? { type: "root" }
-    : { type: "worktree", baseRef: "main", startFromOrigin: true };
-}
-
 function scheduledTaskSummary(task: ScheduledTask, mayRun: boolean): OrchestratorMcpScheduledTask {
   return {
     scheduledTaskId: task.id,
@@ -270,7 +262,10 @@ function scheduledTaskSummary(task: ScheduledTask, mayRun: boolean): Orchestrato
     boundThreadId: task.threadId,
     schedule: task.schedule,
     nextRunAt: task.nextRunAt,
+    lastRunAt: task.lastRunAt,
     lastRunStatus: task.lastRunStatus,
+    lastRunError: task.lastRunError,
+    runCount: task.runCount,
     ...(task.webhook?.url == null || !mayRun ? {} : { webhookUrl: task.webhook.url }),
     ...(task.webhook === undefined
       ? {}
@@ -1139,15 +1134,6 @@ const make = Effect.gen(function* () {
       ? Effect.void
       : assertLiveCaller(scope, parent);
 
-  const assertLiveCallerForOtherProject = (
-    scope: McpInvocationScope,
-    parent: Pick<OrchestrationV2ThreadProjection, "thread" | "runs"> | undefined,
-    projectId: ProjectId,
-  ) =>
-    parent === undefined || projectId === parent.thread.projectId
-      ? Effect.void
-      : assertLiveCaller(scope, parent);
-
   const assertLiveCaller = (
     scope: McpInvocationScope,
     parent: Pick<OrchestrationV2ThreadProjection, "thread" | "runs">,
@@ -1827,7 +1813,7 @@ const make = Effect.gen(function* () {
     scheduleTask: Effect.fn("OrchestratorMcpService.scheduleTask")(function* (scope, input) {
       const { parent, limits } = yield* loadCaller(scope);
       const threadId = input.threadId ?? parent?.thread.id;
-      if (threadId === undefined || input.bindToCurrentThread === false) {
+      if (threadId === undefined) {
         return yield* failure(
           "target_required",
           "Schedules need a target chat. Pass threadId or schedule from a chat.",
@@ -1835,7 +1821,7 @@ const make = Effect.gen(function* () {
       }
       const target = yield* loadTargetThread(threadId);
       const projectId = target.thread.projectId;
-      yield* assertLiveCallerForOtherProject(scope, parent, projectId);
+      yield* assertLiveCallerForOtherThread(scope, parent, target);
       yield* resolveRuntimeMode(limits.runtimeMode, target.thread.runtimeMode);
       yield* resolveInteractionMode(limits.interactionMode, target.thread.interactionMode);
       const modelSelection = target.thread.modelSelection;
@@ -1899,39 +1885,26 @@ const make = Effect.gen(function* () {
       function* (scope, input) {
         const { parent, limits } = yield* loadCaller(scope);
         const existing = yield* loadScheduledTask(input.scheduledTaskId, limits);
-        yield* assertLiveCallerForOtherProject(scope, parent, existing.projectId);
-        if (
-          input.bindToCurrentThread === true &&
-          (parent === undefined || parent.thread.projectId !== existing.projectId)
-        ) {
-          return yield* failure(
-            "invalid_request",
-            parent === undefined
-              ? "bindToCurrentThread needs an agent running inside a T3 thread."
-              : "bindToCurrentThread binds to this thread, which belongs to a different project.",
-          );
+        if (parent !== undefined && existing.threadId !== parent.thread.id)
+          yield* assertLiveCaller(scope, parent);
+        const threadId = input.threadId ?? existing.threadId;
+        if (threadId === null) {
+          return yield* failure("target_required", "Select a target chat for this schedule.");
         }
-        const threadId =
-          input.bindToCurrentThread === undefined
-            ? existing.threadId
-            : input.bindToCurrentThread && parent !== undefined
-              ? parent.thread.id
-              : null;
-        // Update workspace strategy on rebinding so unbound root tasks cannot run in the shared checkout.
-        const workspaceStrategy =
-          input.bindToCurrentThread === undefined
-            ? existing.workspaceStrategy
-            : scheduledTaskWorkspaceStrategy(input.bindToCurrentThread);
+        const target = yield* loadTargetThread(threadId);
+        yield* assertLiveCallerForOtherThread(scope, parent, target);
+        yield* resolveRuntimeMode(limits.runtimeMode, target.thread.runtimeMode);
+        yield* resolveInteractionMode(limits.interactionMode, target.thread.interactionMode);
         const upsertInput: ScheduledTaskUpsertInput = {
           id: existing.id,
           title: input.title ?? existing.title,
           prompt: input.prompt ?? existing.prompt,
           enabled: input.enabled ?? existing.enabled,
           schedule: input.schedule ?? existing.schedule,
-          projectId: existing.projectId,
+          projectId: target.thread.projectId,
           threadId,
-          workspaceStrategy,
-          modelSelection: existing.modelSelection,
+          workspaceStrategy: { type: "root" },
+          modelSelection: target.thread.modelSelection,
           runtimeMode: existing.runtimeMode,
           interactionMode: existing.interactionMode,
           createdBy: existing.createdBy,
@@ -1951,7 +1924,8 @@ const make = Effect.gen(function* () {
       function* (scope, input) {
         const { parent, limits } = yield* loadCaller(scope);
         const existing = yield* loadScheduledTask(input.scheduledTaskId, limits);
-        yield* assertLiveCallerForOtherProject(scope, parent, existing.projectId);
+        if (parent !== undefined && existing.threadId !== parent.thread.id)
+          yield* assertLiveCaller(scope, parent);
         yield* scheduledTasks
           .delete({ id: existing.id })
           .pipe(

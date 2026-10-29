@@ -44,12 +44,11 @@ import * as Semaphore from "effect/Semaphore";
 import * as Stream from "effect/Stream";
 import * as SqlClient from "effect/sql/SqlClient";
 
-import * as ThreadLaunchService from "../orchestration-v2/ThreadLaunchService.ts";
-import * as ManagedProjectFolders from "../project/ManagedProjectFolders.ts";
 import * as Metrics from "../observability/Metrics.ts";
 import * as ThreadManagementService from "../orchestration-v2/ThreadManagementService.ts";
 import * as SecretRequests from "../secrets/SecretRequests.ts";
 import * as Scheduler from "../scheduling/Scheduler.ts";
+import * as ScheduleClock from "../scheduling/ScheduleClock.ts";
 import { isMissedFixedTimeRun, isSameSchedule, nextScheduledRunAt } from "./Schedule.ts";
 import {
   redactHeaders,
@@ -91,27 +90,13 @@ const LEGACY_DELIVERY_OUTCOMES: ReadonlySet<string> = new Set([
 ]);
 
 interface WebhookOrigin {
-  readonly relayHookBaseUrl: string | null;
-}
-
-const ENDPOINT_KEY = /^[0-9a-f]{16}$/;
-
-export function relayHookBaseUrl(input: {
-  readonly relayUrl: string;
-  readonly tunnelName: string | undefined;
-}): string | null {
-  const endpointKey = input.tunnelName?.split("-").at(-1);
-  const relayUrl = input.relayUrl.replace(/\/+$/, "");
-  if (relayUrl === "" || endpointKey === undefined || !ENDPOINT_KEY.test(endpointKey)) {
-    return null;
-  }
-  return `${relayUrl}/v1/hooks/${endpointKey}`;
+  readonly hookBaseUrl: string | null;
 }
 
 export class ScheduledTaskWebhookOrigin extends Context.Reference<Effect.Effect<WebhookOrigin>>(
   "ozi/scheduledTasks/ScheduledTaskWebhookOrigin",
   {
-    defaultValue: () => Effect.succeed({ relayHookBaseUrl: null }),
+    defaultValue: () => Effect.succeed({ hookBaseUrl: null }),
   },
 ) {}
 
@@ -281,7 +266,7 @@ function iso(value: DateTime.DateTime): string {
   return DateTime.formatIso(DateTime.toUtc(value));
 }
 
-const localNow = DateTime.withCurrentZoneLocal(DateTime.nowInCurrentZone);
+const localNow = ScheduleClock.ScheduleClock.pipe(Effect.flatMap((clock) => clock.now));
 
 function nextRunAt(
   task: Pick<ScheduledTask, "enabled" | "schedule">,
@@ -312,7 +297,7 @@ function webhookEndpoint(
   origin: WebhookOrigin | null,
 ): ScheduledTask["webhook"] {
   if (row.webhook_token === null) return undefined;
-  const base = origin?.relayHookBaseUrl ?? null;
+  const base = origin?.hookBaseUrl ?? null;
   return {
     path: webhookPath(row.task_id, row.webhook_token),
     url: base === null ? null : `${base}/${encodeURIComponent(row.task_id)}/${row.webhook_token}`,
@@ -401,9 +386,7 @@ export const layer = Layer.effect(
   Effect.gen(function* () {
     const sql = yield* SqlClient.SqlClient;
     const crypto = yield* Crypto.Crypto;
-    const threadLaunch = yield* ThreadLaunchService.ThreadLaunchService;
     const threadManagement = yield* ThreadManagementService.ThreadManagementService;
-    const managedFolders = yield* ManagedProjectFolders.ManagedProjectFolders;
     const secretRequests = yield* SecretRequests.SecretRequests;
     const scheduler = yield* Scheduler.Scheduler;
     const readWebhookOrigin = yield* ScheduledTaskWebhookOrigin;
@@ -851,36 +834,15 @@ export const layer = Layer.effect(
             );
 
         // Capture defects and interrupts too so dispatch failures still reach markCompleted.
-        const result =
-          active.threadId === null
-            ? yield* Effect.exit(
-                threadLaunch
-                  .launch({
-                    commandId,
-                    projectId: active.projectId,
-                    title: active.title,
-                    modelSelection: active.modelSelection,
-                    runtimeMode: active.runtimeMode,
-                    interactionMode: active.interactionMode,
-                    workspaceStrategy: active.workspaceStrategy,
-                    initialMessage: {
-                      messageId,
-                      scheduledTaskId: active.id,
-                      text: prompt,
-                      attachments: [],
-                    },
-                    createdBy: active.createdBy,
-                    creationSource: active.creationSource,
-                  })
-                  .pipe(Effect.map((launched) => launched.threadId)),
-              )
-            : yield* Effect.exit(
-                // The stored selection only seeds fresh threads. A bound run
-                // follows the thread's current provider, so it passes none.
-                sendBound(ThreadId.make(active.threadId), active.projectId, 2).pipe(
-                  Effect.as(ThreadId.make(active.threadId)),
-                ),
-              );
+        const result = yield* Effect.exit(
+          Effect.gen(function* () {
+            if (active.threadId === null)
+              return yield* taskError("Select a target chat.", { taskId: active.id });
+            const threadId = ThreadId.make(active.threadId);
+            yield* sendBound(threadId, active.projectId, 2);
+            return threadId;
+          }),
+        );
 
         const runSucceeded = result._tag === "Success";
         if (webhook !== undefined && runSucceeded) yield* Ref.set(webhook.dispatched, true);
@@ -1070,7 +1032,8 @@ export const layer = Layer.effect(
     const upsert: ScheduledTaskService["Service"]["upsert"] = Effect.fn(
       "ScheduledTaskService.upsert",
     )(function* (input) {
-      if (input.threadId != null) {
+      if (input.threadId == null) return yield* taskError("Select a target chat.");
+      {
         const chat = yield* threadManagement
           .getThreadShell(input.threadId)
           .pipe(Effect.mapError((cause) => taskError("Could not load target chat.", { cause })));
@@ -1171,11 +1134,6 @@ export const layer = Layer.effect(
               return { token, secret, secretChanged };
             })
           : { token: null, secret: null, secretChanged: true };
-      const workspaceStrategy: ScheduledTask["workspaceStrategy"] =
-        input.workspaceStrategy.type === "worktree" &&
-        (yield* managedFolders.isScratchProject(input.projectId))
-          ? { type: "root" }
-          : input.workspaceStrategy;
       const scheduleUnchanged =
         existingTask !== null &&
         existingTask.enabled === input.enabled &&
@@ -1188,7 +1146,7 @@ export const layer = Layer.effect(
         schedule,
         projectId: input.projectId,
         threadId: input.threadId ?? null,
-        workspaceStrategy,
+        workspaceStrategy: { type: "root" },
         modelSelection: input.modelSelection,
         runtimeMode: input.runtimeMode,
         interactionMode: input.interactionMode,

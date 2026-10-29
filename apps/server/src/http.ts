@@ -30,6 +30,7 @@ import * as HttpApiBuilder from "effect/http-api/HttpApiBuilder";
 import { OtlpTracer, OtlpSerialization } from "effect/observability";
 
 import * as ServerConfig from "./config.ts";
+import * as ScheduleClock from "./scheduling/ScheduleClock.ts";
 import { ASSET_ROUTE_PREFIX, readMcpAppHtml, resolveAsset } from "./assets/AssetAccess.ts";
 import { sourceControlMediaResponse } from "./assets/sourceControlMediaResponse.ts";
 import { statMediaFile, streamMediaFile, type OpenMediaFile } from "./assets/MediaFile.ts";
@@ -310,6 +311,28 @@ const authenticateRawRouteWithScope =
       return yield* failEnvironmentScopeRequired(scope);
     }
   });
+
+export const layerScheduleClockRoute = HttpRouter.add(
+  "POST",
+  "/api/test-clock/advance",
+  Effect.gen(function* () {
+    const clock = yield* ScheduleClock.ScheduleClock;
+    if (!clock.enabled) return HttpServerResponse.empty({ status: 404 });
+    const request = yield* HttpServerRequest.HttpServerRequest;
+    const auth = yield* EnvironmentAuth.EnvironmentAuth;
+    const session = yield* auth.authenticateMcpClient(request);
+    if (session.access !== "full-access") return HttpServerResponse.empty({ status: 403 });
+    const body = yield* request.json.pipe(
+      Effect.flatMap(Schema.decodeUnknownEffect(Schema.Struct({ milliseconds: Schema.Number }))),
+    );
+    return yield* clock.advance(body.milliseconds).pipe(
+      Effect.map((now) => HttpServerResponse.jsonUnsafe({ now })),
+      Effect.catchTags({
+        ScheduleClockError: () => Effect.succeed(HttpServerResponse.empty({ status: 400 })),
+      }),
+    );
+  }).pipe(Effect.orElseSucceed(() => HttpServerResponse.empty({ status: 400 }))),
+);
 
 export const layerServerEnvironmentHttpApi = HttpApiBuilder.group(
   EnvironmentHttpApi,

@@ -6,10 +6,6 @@ import {
   ScheduledTaskId,
   type ScheduledTask,
   type ScheduledTaskUpsertSchedule,
-  type ModelSelection,
-  type RuntimeMode,
-  type ProviderInteractionMode,
-  type ServerSettings,
 } from "@t3tools/contracts";
 import {
   parseMaxDeliveryAge,
@@ -18,12 +14,6 @@ import {
   webhookFilterDraftsChanged,
   type WebhookFilterDraft,
 } from "@t3tools/client-runtime/scheduled-task-webhook";
-
-import {
-  resolveProjectSettings,
-  type LegacyProjectSettingsFields,
-} from "@t3tools/shared/projectSettings";
-import type { ProviderInstanceEntry } from "../../providerInstances";
 
 import type { ResolvedSettingsScope } from "./settingsScope";
 
@@ -53,7 +43,6 @@ export function validateScheduledTasksSearch(raw: Record<string, unknown>) {
 }
 
 export type ScheduleMode = "fixed" | "interval" | "webhook";
-export type WorkspaceMode = "root" | "worktree" | "existing_worktree";
 
 export interface DraftState {
   readonly editingId: string | null;
@@ -64,17 +53,7 @@ export interface DraftState {
   readonly intervalMinutes: string;
   readonly timeOfDay: string;
   readonly weekdays: ReadonlySet<number>;
-  readonly projectId: string;
   readonly threadId: string;
-  readonly workspaceMode: WorkspaceMode;
-  readonly baseRef: string;
-  readonly startFromOrigin: boolean;
-  readonly existingWorktreePath: string;
-  readonly modelKey: string;
-  readonly runtimeMode: RuntimeMode;
-  readonly interactionMode: ProviderInteractionMode;
-  /** Retain the source selection's provider options when the picker leaves instanceId:model unchanged. */
-  readonly baseModelSelection: ModelSelection | null;
   readonly signatureEnabled: boolean;
   readonly signatureHeader: string;
   readonly signatureEncoding: "hex" | "base64";
@@ -212,22 +191,7 @@ export function taskToDraft(task: ScheduledTask): DraftState {
       schedule.type === "interval" ? String(Math.max(1, schedule.everyMs / 60_000)) : "15",
     timeOfDay: schedule.type === "fixed_time" ? schedule.timeOfDay : "09:00",
     weekdays,
-    projectId: task.projectId,
     threadId: task.threadId ?? "",
-    workspaceMode: task.workspaceStrategy.type,
-    baseRef: task.workspaceStrategy.type === "worktree" ? task.workspaceStrategy.baseRef : "main",
-    startFromOrigin:
-      task.workspaceStrategy.type === "worktree"
-        ? (task.workspaceStrategy.startFromOrigin ?? false)
-        : true,
-    existingWorktreePath:
-      task.workspaceStrategy.type === "existing_worktree"
-        ? task.workspaceStrategy.worktreePath
-        : "",
-    modelKey: `${task.modelSelection.instanceId}:${task.modelSelection.model}`,
-    runtimeMode: task.runtimeMode,
-    interactionMode: task.interactionMode,
-    baseModelSelection: task.modelSelection,
     ...(schedule.type === "webhook" && schedule.signature !== null
       ? {
           signatureEnabled: true,
@@ -250,38 +214,4 @@ export function taskToDraft(task: ScheduledTask): DraftState {
     filters,
     savedFilters: filters,
   };
-}
-
-export function scheduledTaskDefaultModel(
-  settings: ServerSettings,
-  project: (LegacyProjectSettingsFields & { readonly id: ProjectId }) | null,
-  entries: readonly ProviderInstanceEntry[],
-): ModelSelection | null {
-  const available = entries.filter(
-    (entry) =>
-      entry.enabled &&
-      entry.installed &&
-      entry.isAvailable &&
-      entry.snapshot.auth.status !== "unauthenticated",
-  );
-  const configured = resolveProjectSettings(settings, project?.id ?? null, project).settings
-    .defaultModelSelection;
-  for (const selection of [configured, settings.defaultModelSelection]) {
-    if (
-      selection &&
-      available.some(
-        (entry) =>
-          entry.instanceId === selection.instanceId &&
-          entry.models.find((model) => model.slug === selection.model)?.isLegacy !== true,
-      )
-    )
-      return selection;
-  }
-  const models = available.flatMap((entry) =>
-    entry.models
-      .filter((model) => !model.isLegacy)
-      .map((model) => ({ instanceId: entry.instanceId, model })),
-  );
-  const fallback = models.find(({ model }) => model.isDefault) ?? models[0];
-  return fallback ? { instanceId: fallback.instanceId, model: fallback.model.slug } : null;
 }

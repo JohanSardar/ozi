@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-import * as readline from "node:readline";
-import * as fs from "node:fs";
-import * as path from "node:path";
+import * as NodeReadline from "node:readline";
+import * as NodeFS from "node:fs";
+import * as NodePath from "node:path";
 if (process.argv.includes("--version")) {
   console.log("1.0.0");
   process.exit(0);
@@ -17,10 +17,10 @@ const model = {
   maxTokens: 32000,
 };
 const sessionId = crypto.randomUUID();
-const sessionFile = path.join(process.cwd(), `${sessionId}.jsonl`);
+const sessionFile = NodePath.join(process.cwd(), `${sessionId}.jsonl`);
 const entries = [];
 const write = (frame) => console.log(JSON.stringify(frame));
-readline.createInterface({ input: process.stdin }).on("line", (line) => {
+NodeReadline.createInterface({ input: process.stdin }).on("line", (line) => {
   const frame = JSON.parse(line);
   const data =
     frame.type === "get_state"
@@ -67,10 +67,11 @@ readline.createInterface({ input: process.stdin }).on("line", (line) => {
     timestamp: new Date().toISOString(),
     message,
   });
-  fs.writeFileSync(sessionFile, entries.map(JSON.stringify).join("\n"));
+  NodeFS.writeFileSync(sessionFile, entries.map(JSON.stringify).join("\n"));
   write({ type: "agent_start" });
   write({ type: "message_start", message });
   write({ type: "message_end", message });
   write({ type: "turn_end", message, toolResults: [] });
   write({ type: "agent_end", messages: [message] });
+  write({ type: "agent_settled", messages: [message] });
 });

@@ -13,7 +13,7 @@ import { Argument, Command, Flag } from "effect/cli";
 import { projectLocationFlags } from "./config.ts";
 import { ThreadUsageError, withThreadTools } from "./thread.ts";
 
-const flags = { ...projectLocationFlags, json: Flag.Boolean("json") };
+const flags = { ...projectLocationFlags, json: Flag.Boolean("json").pipe(Flag.withDefault(false)) };
 const optional = (name: string) => Flag.String(name).pipe(Flag.optional);
 const duration = (value: string) => {
   const match = /^(\d+(?:\.\d+)?)(ms|s|m|h|d|w)$/.exec(value);
@@ -39,7 +39,7 @@ const add = Command.make("add", {
   every: optional("every"),
   at: optional("at"),
   days: optional("days"),
-  webhook: Flag.Boolean("webhook"),
+  webhook: Flag.Boolean("webhook").pipe(Flag.withDefault(false)),
   secretRef: optional("secret-ref"),
   filters: Flag.String("filter").pipe(Flag.atLeast(0)),
   replayKey: optional("replay-key"),
@@ -99,7 +99,13 @@ const add = Command.make("add", {
             : {
                 type: "fixed_time",
                 timeOfDay: at,
-                ...(days === undefined ? {} : { weekdays: days.split(",").map(Number) }),
+                ...(days === undefined
+                  ? {}
+                  : {
+                      weekdays: days
+                        .split(",")
+                        .map((day) => (/^[0-6]$/.test(day) ? Number(day) : NaN)),
+                    }),
               };
         const args = yield* decodeSchedule({
           threadId: input.threadId,
@@ -140,11 +146,46 @@ const action = (name: string, tool: string, schema: Schema.Decoder<unknown>) =>
     ),
   );
 
+const setEnabled = (name: string, enabled: boolean) =>
+  Command.make(name, { ...flags, id: Argument.String("id") }).pipe(
+    Command.withHandler((input) =>
+      withThreadTools(input, (tools) =>
+        tools
+          .call(
+            "schedule_task",
+            { scheduledTaskId: input.id, enabled },
+            OrchestratorMcpScheduleTaskResult,
+          )
+          .pipe(Effect.flatMap(print)),
+      ),
+    ),
+  );
+
+export const testClockCommand = Command.make("test-clock", {
+  ...flags,
+  advance: Flag.String("advance"),
+}).pipe(
+  Command.unlisted,
+  Command.withHandler((input) =>
+    withThreadTools(input, (tools) =>
+      tools
+        .post(
+          "/api/test-clock/advance",
+          { milliseconds: duration(input.advance) },
+          Schema.Struct({ now: Schema.String }),
+        )
+        .pipe(Effect.flatMap(print)),
+    ),
+  ),
+);
+
 export const scheduleCommand = Command.make("schedule").pipe(
   Command.withSubcommands([
     add,
     action("rm", "delete_scheduled_task", OrchestratorMcpDeleteScheduledTaskResult),
     action("run", "run_scheduled_task_now", RunResult),
+    setEnabled("pause", false),
+    setEnabled("resume", true),
   ]),
 );
 

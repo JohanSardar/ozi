@@ -308,6 +308,31 @@ export const resolveServerConfig = Effect.fn("config.resolveServerConfig")(funct
       },
     },
   );
+  const rawPublicUrl =
+    Option.getOrUndefined(flags.publicUrl ?? Option.none()) ??
+    Option.getOrUndefined(yield* Config.String("OZI_PUBLIC_URL").pipe(Config.option));
+  const publicUrl =
+    rawPublicUrl === undefined
+      ? undefined
+      : yield* Effect.try({
+          try: () => {
+            const url = new URL(rawPublicUrl);
+            if (
+              !["http:", "https:"].includes(url.protocol) ||
+              url.username ||
+              url.password ||
+              url.search ||
+              url.hash
+            )
+              throw new Error();
+            return url.href.replace(/\/+$/, "");
+          },
+          catch: () =>
+            new CliError.UserError({
+              cause:
+                "public-url must be an HTTP(S) base URL without credentials, query or fragment.",
+            }),
+        });
   const devUrl = Option.getOrElse(
     resolveOptionPrecedence(normalizedFlags.devUrl, Option.fromUndefinedOr(env.devUrl)),
     () => undefined,
@@ -485,9 +510,7 @@ export const resolveServerConfig = Effect.fn("config.resolveServerConfig")(funct
     ...derivedPaths,
     serverTracePath,
     host,
-    publicUrl:
-      Option.getOrUndefined(flags.publicUrl ?? Option.none()) ??
-      Option.getOrUndefined(yield* Config.String("OZI_PUBLIC_URL").pipe(Config.option)),
+    publicUrl,
     ...(privateNetworkOnly ? { privateNetworkOnly } : {}),
     staticDir,
     devUrl,

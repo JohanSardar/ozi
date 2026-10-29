@@ -19,7 +19,7 @@ import { extendConnectionAttemptTimeout, keepOutboundFetchOnHttp1 } from "./outb
 import { sharedServerCommandFlags } from "./cli/config.ts";
 import { projectCommand } from "./cli/project.ts";
 import { ticketCommand } from "./cli/ticket.ts";
-import { scheduleCommand, schedulesCommand } from "./cli/schedule.ts";
+import { scheduleCommand, schedulesCommand, testClockCommand } from "./cli/schedule.ts";
 import { threadCommand } from "./cli/thread.ts";
 import { runDefaultServerCommand, serveCommand, startCommand } from "./cli/server.ts";
 import { updateCommand } from "./cli/update.ts";
@@ -60,6 +60,7 @@ export const makeCli = () =>
       ticketCommand,
       scheduleCommand,
       schedulesCommand,
+      testClockCommand,
       serviceCommand,
       updateCommand,
       uninstallCommand,
