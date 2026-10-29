@@ -33,6 +33,14 @@ Three columns: chats, conversation, inbox.
 - Hovering or selecting assistant text offers Reply; the quote sits above the composer and goes with the message.
 - Composer as T3: one composer for new and existing chats, attachments, model and thinking picker. While the agent works, Enter steers and ⌘Enter queues; Stop shows when the composer is empty. Queued messages sit right-aligned above the composer with send now, edit and remove.
 
+### Sessions (C3)
+
+- Chats are T3 threads. Sessions in the chat header offers New chat, Clone, Fork, Reload, Pi import/export and a searchable resume list. New chat retains the current model and options with no history. Clone copies the conversation; Fork selects a user message, keeps the history before it and puts its text in the new composer's draft. The source stays unchanged.
+- Resume opens an existing thread and unarchives it. Reload releases an idle provider session; the next message resumes its native history. Clone, fork, reload and export require an idle chat.
+- Pi imports upload file content and copy it into server-owned storage. They display the active branch and resume its full native context, including tool history. JSONL export preserves Pi's file; HTML export uses Pi. Downloads and CLI output files are written on the client.
+- `ozi session new|list|show|clone|fork|resume|import|export|reload` exposes the same operations with `--json`. `fork <id> <message-id>` gets IDs from `session show`. `new` and `import` accept `--thread <id>` to inherit a chat's model, or paired `--provider` and `--model` flags. Without either they use the configured default model.
+- `ozi -p`, `ozi --print` and `ozi print` send prompts sequentially and print each run's last reply. `--thread` selects a chat; otherwise the latest chat is used, creating one if needed. Piped stdin joins the first prompt. `@file` and repeated `--file` attach files to that prompt. `--json` prints `{threadId, runId, status, text}`; `--mode json` streams stored events before each result. Failed, interrupted, cancelled or question-blocked runs exit nonzero; a question names the `ozi answer` command. The GUI has no fixed main thread; C2 owns terminal navigation.
+
 ### Inbox (right)
 
 - One inbox for every chat, with Inbox and Archive tabs.

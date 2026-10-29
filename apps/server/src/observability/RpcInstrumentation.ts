@@ -211,6 +211,8 @@ const RPC_AGGREGATES = {
   [WS_METHODS.ticketsGet]: "tickets",
   [WS_METHODS.ticketsList]: "tickets",
   [WS_METHODS.ticketsSubscribe]: "tickets",
+  [WS_METHODS.chatSessionsExecute]: "sessions",
+  [WS_METHODS.chatSessionsPrint]: "sessions",
 } as const satisfies Readonly<Record<WsRpcMethod, string>>;
 
 const RPC_SPAN_PREFIX = "ws.rpc";

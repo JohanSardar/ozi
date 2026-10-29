@@ -390,7 +390,17 @@ export const layerProduction = Layer.mergeAll(
   ),
   layerProviderContinuationWorkerProvided,
   layerAgentSessionImporterProvided,
-  ChatSessions.layer.pipe(Layer.provide(Layer.mergeAll(layerThreadManagementProvided, layerManagedProjectFoldersProvided, layerProjectService, layerEventSink))),
+  ChatSessions.layer.pipe(
+    Layer.provide(
+      Layer.mergeAll(
+        layerThreadManagementProvided,
+        layerProviderSessionManagerProvided,
+        layerManagedProjectFoldersProvided,
+        layerProjectService,
+        layerEventSink,
+      ),
+    ),
+  ),
   EffectOutbox.layerPruneWorker.pipe(Layer.provide(EffectOutbox.layer)),
 ).pipe(
   Layer.provide(ResourceCleanupService.layer.pipe(Layer.provide(layerScheduledTaskProvided))),
