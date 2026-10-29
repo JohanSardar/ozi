@@ -203,4 +203,71 @@ describe("i3.inbox", () => {
     await search.fill("summary for pick");
     await row.waitFor();
   });
+
+  it("i4.window: Open details shows the whole ticket over the app and clicking outside closes it", async () => {
+    await inbox.getByRole("tab", { name: "Inbox" }).click();
+    await ticket({
+      ...content("Decide", "Pay the passport fee?", "gym-i3", ["Allow", "Deny"]),
+      markdown: "Held until **18:00** today.",
+    });
+    const row = inbox.getByRole("article", { name: "Pay the passport fee?" });
+    const header = row.getByRole("button", { name: /^Pay the passport fee\? Cancel gym/ });
+    if ((await header.getAttribute("aria-expanded")) === "false") await header.click();
+    await row.getByRole("button", { name: "Open details" }).click();
+    const window = page.getByRole("dialog", { name: "Pay the passport fee?" });
+    expect(await text(window.locator("header"))).toMatch(/^Decide · Cancel gym · /);
+    expect(await text(window)).toContain("Need for Pay the passport fee?");
+    expect(await text(window.getByRole("region", { name: "What happened" }))).toBe(
+      "What happened Summary for Pay the passport fee?.",
+    );
+    expect(
+      await window.getByRole("region", { name: "Details" }).locator("strong").innerText(),
+    ).toBe("18:00");
+    expect(
+      await window.getByRole("region", { name: "Pick one" }).getByRole("button").allInnerTexts(),
+    ).toEqual(["1\nAllow\nDetail for Allow", "2\nDeny\nDetail for Deny"]);
+    await window.getByRole("button", { name: /^Session transcript Cancel gym/ }).waitFor();
+    expect(await text(window.locator("footer"))).toMatch(
+      /^Your reply goes to New chat with this ticket attached/,
+    );
+    await window.getByRole("textbox", { name: "Reply to Pay the passport fee?" }).waitFor();
+    await window.getByRole("button", { name: "Got it" }).waitFor();
+    await page.mouse.click(8, 450);
+    await window.waitFor({ state: "detached" });
+  });
+
+  it("i4.send: sending a reply from the window closes it", async () => {
+    const row = inbox.getByRole("article", { name: "Pay the passport fee?" });
+    await row.getByRole("button", { name: "Open details" }).click();
+    const window = page.getByRole("dialog", { name: "Pay the passport fee?" });
+    await window.getByRole("textbox", { name: "Reply to Pay the passport fee?" }).fill("Pay it");
+    await page.keyboard.press("Enter");
+    await window.waitFor({ state: "detached" });
+  });
+
+  it("i4.transcript: the session transcript link opens the ticket's chat", async () => {
+    await inbox
+      .getByRole("article", { name: "Pay the passport fee?" })
+      .getByRole("button", { name: "Open details" })
+      .click();
+    const window = page.getByRole("dialog", { name: "Pay the passport fee?" });
+    await window.getByRole("button", { name: /^Session transcript/ }).click();
+    await window.waitFor({ state: "detached" });
+    await page.waitForURL(/\/gym-i3$/);
+  });
+
+  it("i4.archived: archived tickets open in the window with how they cleared", async () => {
+    await inbox.getByRole("tab", { name: "Archive" }).click();
+    await inbox.getByRole("searchbox", { name: "Search archive" }).fill("");
+    await inbox.getByRole("button", { name: /Pick a restaurant/ }).click();
+    const window = page.getByRole("dialog", { name: "Pick a restaurant" });
+    expect(await text(window.locator("header"))).toMatch(
+      /^Archived · Friday dinner · .* · Got it$/,
+    );
+    expect(await window.getByRole("region", { name: "Pick one" }).count()).toBe(0);
+    expect(await window.getByRole("button", { name: "Got it" }).count()).toBe(0);
+    await window.getByRole("textbox", { name: "Reply to Pick a restaurant" }).waitFor();
+    await page.keyboard.press("Escape");
+    await window.waitFor({ state: "detached" });
+  });
 });
