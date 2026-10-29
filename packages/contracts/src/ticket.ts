@@ -94,6 +94,12 @@ export const TicketUpdateInput = Schema.Struct({
 export type TicketUpdateInput = typeof TicketUpdateInput.Type;
 export const TicketCloseInput = Schema.Struct({ id: TicketId, by: TicketClearance });
 export type TicketCloseInput = typeof TicketCloseInput.Type;
+export const TicketChooseInput = Schema.Struct({
+  id: TicketId,
+  choiceIndex: NonNegativeInt.check(Schema.isLessThan(4)),
+  chatId: Schema.optional(ThreadId),
+});
+export type TicketChooseInput = typeof TicketChooseInput.Type;
 export const TicketGetInput = Schema.Struct({ id: TicketId });
 export const TicketListInput = Schema.Struct({
   status: Schema.optional(Schema.Literals(["open", "archived", "all"])),
@@ -110,6 +116,7 @@ export class TicketError extends Schema.TaggedError<TicketError>()("TicketError"
     "invalid_origin",
     "invalid_clearance",
     "storage",
+    "delivery",
   ]),
   cause: Schema.optional(Schema.Defect()),
 }) {

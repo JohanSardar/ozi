@@ -18,6 +18,7 @@ export const CLIENT_GUARDED_RPC_SCOPES = {
   [WS_METHODS.ticketsCreate]: AuthOrchestrationOperateScope,
   [WS_METHODS.ticketsUpdate]: AuthOrchestrationOperateScope,
   [WS_METHODS.ticketsClose]: AuthOrchestrationOperateScope,
+  [WS_METHODS.ticketsChoose]: AuthOrchestrationOperateScope,
   [WS_METHODS.ticketsGet]: AuthOrchestrationReadScope,
   [WS_METHODS.ticketsList]: AuthOrchestrationReadScope,
   [WS_METHODS.ticketsSubscribe]: AuthOrchestrationReadScope,

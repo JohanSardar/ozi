@@ -4,12 +4,13 @@ import type { EnvironmentId, Ticket } from "@t3tools/contracts";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
+import { useThreadRouteRef } from "../../hooks/useThreadRouteTarget";
 import { isEditableFocused } from "../../lib/editableFocus";
 import { cn } from "../../lib/utils";
 import { primaryEnvironmentIdAtom } from "../../state/primaryEnvironment";
 import { useEnvironmentQuery } from "../../state/query";
 import { environmentThreadShells } from "../../state/threads";
-import { ticketClose, ticketList, useInboxStore } from "../../state/tickets";
+import { ticketChoose, ticketClose, ticketList, useInboxStore } from "../../state/tickets";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { buildThreadRouteParams } from "../../threadRoutes";
 import { Button } from "../ui/button";
@@ -38,7 +39,22 @@ export function InboxPanel(props: TicketHooks) {
 }
 
 function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks }) {
-  const { environmentId, hooks } = props;
+  const { environmentId } = props;
+  const routeRef = useThreadRouteRef();
+  const choose = useAtomCommand(ticketChoose);
+  const hooks: TicketHooks = {
+    ...props.hooks,
+    choose: (ticket, choiceIndex) => {
+      void choose({
+        environmentId,
+        input: {
+          id: ticket.id,
+          choiceIndex,
+          ...(routeRef?.environmentId === environmentId ? { chatId: routeRef.threadId } : {}),
+        },
+      });
+    },
+  };
   const { tab, selected } = useInboxStore();
   const setTab = (next: typeof tab) => useInboxStore.setState({ tab: next });
   const setSelected = (next: typeof selected) => useInboxStore.setState({ selected: next });

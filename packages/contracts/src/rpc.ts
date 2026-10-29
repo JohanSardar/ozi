@@ -1,6 +1,7 @@
 import {
   Ticket,
   TicketCloseInput,
+  TicketChooseInput,
   TicketCreateInput,
   TicketError,
   TicketGetInput,
@@ -390,6 +391,7 @@ export const WS_METHODS = {
   ticketsCreate: "tickets.create",
   ticketsUpdate: "tickets.update",
   ticketsClose: "tickets.close",
+  ticketsChoose: "tickets.choose",
   ticketsGet: "tickets.get",
   ticketsList: "tickets.list",
   ticketsSubscribe: "tickets.subscribe",
@@ -1868,6 +1870,12 @@ const WsTicketsCloseRpc = Rpc.make(WS_METHODS.ticketsClose, {
   error: Schema.Union([TicketError, EnvironmentAuthorizationError]),
 });
 
+const WsTicketsChooseRpc = Rpc.make(WS_METHODS.ticketsChoose, {
+  payload: TicketChooseInput,
+  success: Ticket,
+  error: Schema.Union([TicketError, EnvironmentAuthorizationError]),
+});
+
 const WsTicketsGetRpc = Rpc.make(WS_METHODS.ticketsGet, {
   payload: TicketGetInput,
   success: Ticket,
@@ -1892,6 +1900,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsTicketsListRpc,
   WsTicketsGetRpc,
   WsTicketsCloseRpc,
+  WsTicketsChooseRpc,
   WsTicketsUpdateRpc,
   WsTicketsCreateRpc,
   WsGuestShareCreateRpc,
