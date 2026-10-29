@@ -493,6 +493,24 @@ const layerScheduledTaskWebhookOrigin = Layer.effect(
   ScheduledTaskWebhookOrigin,
   Effect.gen(function* () {
     const secrets = yield* ServerSecretStore.ServerSecretStore;
+    const { publicUrl } = yield* ServerConfig.ServerConfig;
+    if (publicUrl !== undefined) {
+      const url = new URL(publicUrl);
+      if (
+        !["http:", "https:"].includes(url.protocol) ||
+        url.username ||
+        url.password ||
+        url.search ||
+        url.hash
+      ) {
+        return yield* Effect.die(
+          new Error(
+            "public-url must be an HTTP(S) base URL without credentials, query or fragment.",
+          ),
+        );
+      }
+      return Effect.succeed({ relayHookBaseUrl: `${url.href.replace(/\/+$/, "")}/api/hooks` });
+    }
     return Effect.gen(function* () {
       const [relayUrl, tunnelConfig] = yield* Effect.all([
         secrets.get(RELAY_URL_SECRET),

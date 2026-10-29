@@ -1070,6 +1070,19 @@ export const layer = Layer.effect(
     const upsert: ScheduledTaskService["Service"]["upsert"] = Effect.fn(
       "ScheduledTaskService.upsert",
     )(function* (input) {
+      if (input.threadId != null) {
+        const chat = yield* threadManagement
+          .getThreadShell(input.threadId)
+          .pipe(Effect.mapError((cause) => taskError("Could not load target chat.", { cause })));
+        if (
+          chat === null ||
+          chat.deletedAt !== null ||
+          chat.archivedAt !== null ||
+          chat.projectId !== input.projectId
+        ) {
+          return yield* taskError("Select an available target chat.");
+        }
+      }
       const now = yield* localNow;
       const uuid =
         input.commandId === undefined

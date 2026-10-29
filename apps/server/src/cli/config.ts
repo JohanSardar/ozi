@@ -187,6 +187,7 @@ export interface CliServerFlags {
   readonly mode: Option.Option<ServerConfig.RuntimeMode>;
   readonly port: Option.Option<number>;
   readonly host: Option.Option<string>;
+  readonly publicUrl?: Option.Option<string>;
   readonly baseDir: Option.Option<string>;
   readonly cwd: Option.Option<string>;
   readonly devUrl: Option.Option<URL>;
@@ -216,6 +217,7 @@ export const sharedServerCommandFlags = {
   mode: modeFlag,
   port: portFlag,
   host: hostFlag,
+  publicUrl: Flag.String("public-url").pipe(Flag.optional),
   baseDir: baseDirFlag,
   cwd: Argument.String("cwd").pipe(
     Argument.withDescription(
@@ -483,6 +485,9 @@ export const resolveServerConfig = Effect.fn("config.resolveServerConfig")(funct
     ...derivedPaths,
     serverTracePath,
     host,
+    publicUrl:
+      Option.getOrUndefined(flags.publicUrl ?? Option.none()) ??
+      Option.getOrUndefined(yield* Config.String("OZI_PUBLIC_URL").pipe(Config.option)),
     ...(privateNetworkOnly ? { privateNetworkOnly } : {}),
     staticDir,
     devUrl,

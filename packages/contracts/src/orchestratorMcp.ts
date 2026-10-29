@@ -652,6 +652,9 @@ export type OrchestratorMcpCapabilitiesResult = typeof OrchestratorMcpCapabiliti
 export const OrchestratorMcpScheduleTaskInput = Schema.Struct({
   environmentId: OrchestratorMcpEnvironmentTarget,
   projectId: OrchestratorMcpProjectTarget,
+  threadId: Schema.optional(
+    ThreadId.annotate({ description: "Target chat. Defaults to this chat." }),
+  ),
   prompt: OrchestratorMcpPrompt,
   schedule: OrchestratorMcpSchedule,
   title: Schema.optional(OrchestratorMcpTitle),
@@ -687,7 +690,7 @@ export const OrchestratorMcpScheduledTask = Schema.Struct({
   lastRunStatus: ScheduledTaskRunStatus,
   webhookUrl: Schema.optional(Schema.String).annotate({
     description:
-      "Public URL for the sender. Absent: no Ozi Connect tunnel. The user must enable Ozi Connect remote access.",
+      "Public URL for the sender. Absent: configure OZI_PUBLIC_URL or serve --public-url.",
   }),
   webhookSignature: Schema.optional(Schema.Literals(["none", "set"])),
 });
