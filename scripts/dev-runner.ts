@@ -346,11 +346,14 @@ export const createDevRunnerEnv = Effect.fn("dev-runner.createDevRunnerEnv")(fun
     }
   } else {
     output.OZI_PORT = String(serverPort);
-    output.VITE_HTTP_URL = `http://${DESKTOP_DEV_LOOPBACK_HOST}:${serverPort}`;
-    output.VITE_WS_URL = `ws://${DESKTOP_DEV_LOOPBACK_HOST}:${serverPort}`;
-    // Desktop pins the renderer to loopback on purpose; an ambient marker
-    // must not make Vite drop those URLs.
-    delete output.OZI_SINGLE_ORIGIN_DEV;
+    delete output.VITE_HTTP_URL;
+    delete output.VITE_WS_URL;
+    output.OZI_SINGLE_ORIGIN_DEV = "1";
+    output.OZI_DESKTOP_DEV_NODE_PATH = process.execPath;
+    const path = yield* Path.Path;
+    output.XDG_CONFIG_HOME = path.join(resolvedBaseDir, "desktop", "config");
+    output.XDG_DATA_HOME = path.join(resolvedBaseDir, "desktop", "data");
+    output.XDG_CACHE_HOME = path.join(resolvedBaseDir, "desktop", "cache");
     delete output.OZI_MODE;
     delete output.OZI_NO_BROWSER;
     delete output.OZI_HOST;

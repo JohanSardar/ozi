@@ -436,8 +436,8 @@ function resolveElectronPath() {
   return buildMacLauncher(electronBinaryPath);
 }
 
-export function resolveElectronLaunchCommand(args = []) {
-  const electronPath = resolveElectronPath();
+export function resolveElectronLaunchCommand(args = [], { useLauncher = true } = {}) {
+  const electronPath = useLauncher ? resolveElectronPath() : resolveElectronBinaryPath();
   return {
     electronPath,
     args: [...resolveLinuxSandboxArgs(electronPath), ...args],

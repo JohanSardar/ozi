@@ -61,6 +61,7 @@ export class DesktopEnvironment extends Context.Service<
     readonly compileCachePath: string;
     readonly appUpdateYmlPath: string;
     readonly devServerUrl: Option.Option<URL>;
+    readonly devNodePath: Option.Option<string>;
     readonly devRemoteT3ServerEntryPath: Option.Option<string>;
     readonly configuredBackendPort: Option.Option<number>;
     readonly commitHashOverride: Option.Option<string>;
@@ -207,7 +208,10 @@ const make = Effect.fn("desktop.environment.make")(function* (
     rootDir,
     appRoot,
     serverRoot,
-    backendEntryPath: path.join(serverRoot, "apps/server/dist/bin.mjs"),
+    backendEntryPath: path.join(
+      serverRoot,
+      isDevelopment && !input.isPackaged ? "apps/server/src/bin.ts" : "apps/server/dist/bin.mjs",
+    ),
     clientAssetsDir: path.join(serverRoot, "apps/server/dist/client"),
     backendCwd: input.isPackaged ? homeDirectory : appRoot,
     preloadPath: path.join(input.dirname, "preload.cjs"),
@@ -216,6 +220,7 @@ const make = Effect.fn("desktop.environment.make")(function* (
       ? path.join(resourcesPath, "app-update.yml")
       : path.join(input.appPath, "dev-app-update.yml"),
     devServerUrl,
+    devNodePath: config.devNodePath,
     devRemoteT3ServerEntryPath: config.devRemoteT3ServerEntryPath,
     configuredBackendPort: config.configuredBackendPort,
     commitHashOverride: config.commitHashOverride,

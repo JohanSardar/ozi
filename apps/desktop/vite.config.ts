@@ -28,7 +28,6 @@ export default defineConfig({
       dev: {
         command:
           "node scripts/build-browser-secret.mjs && node scripts/build-preview-annotation-css.mjs && cross-env OZI_DESKTOP_DEV=1 vp pack --watch",
-        dependsOn: ["ozi#build"],
         cache: false,
       },
       "dev:bundle": {
@@ -38,7 +37,6 @@ export default defineConfig({
       },
       "dev:electron": {
         command: "node scripts/dev-electron.mjs",
-        dependsOn: ["ozi#build"],
         cache: false,
       },
       // tsc (tsc-rs) rewrites the tsbuildinfo it reads, which keeps a task out of the cache.
@@ -105,7 +103,12 @@ export default defineConfig({
       dts: false,
       sourcemap: true,
       outExtensions: () => ({ js: ".cjs" }),
-      define: publicConfigDefine,
+      define: {
+        ...publicConfigDefine,
+        ...(shouldLaunchElectronAfterPack && process.env.OZI_DESKTOP_TEST_PLATFORM === "darwin"
+          ? { "process.platform": JSON.stringify("darwin") }
+          : {}),
+      },
       entry: ["src/preload.ts"],
       deps: {
         // Sandboxed preloads cannot resolve imports inside ASAR; bundle Clerk's bridge.
