@@ -1,4 +1,4 @@
-import type { DeviceHubAccess } from "@t3tools/client-runtime/device/hub-access";
+import type { PreviewStreamAccess } from "@t3tools/client-runtime/preview/stream-access";
 import type { PreviewStreamHostSetup } from "@t3tools/contracts";
 import type {
   PreviewStreamControl,
@@ -7,7 +7,7 @@ import type {
 } from "@t3tools/client-runtime/preview/server-browser-stream";
 
 export interface PreviewStreamConfiguration {
-  readonly access: DeviceHubAccess;
+  readonly access: PreviewStreamAccess;
   readonly threadId: string;
   readonly tabId: string;
   readonly interactive: boolean;

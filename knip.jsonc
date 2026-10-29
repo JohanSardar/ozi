@@ -50,7 +50,6 @@
         "src/bin.ts!",
         "src/claude-history-worker.ts!",
         "scripts/cli.ts",
-        "scripts/fetch-expo-schema.ts",
         "scripts/probe-claude-fork-local-rollback-replay.ts",
         "scripts/update-test-shard-weights.ts",
         "scripts/verify-background-live.ts",
@@ -116,8 +115,7 @@
         "index.ts!",
         "fingerprint.config.js",
         "plugins/*.cjs",
-        "scripts/generate-device-stream.mts",
-        "src/features/devices/device-stream.browser.ts!",
+        "scripts/generate-preview-stream.mts",
         "src/features/browser/preview-stream.browser.ts!",
       ],
       // Fonts are configured as asset paths; Expo autolinks the native packages.

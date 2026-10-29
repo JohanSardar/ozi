@@ -41,19 +41,13 @@ import { cn } from "~/lib/utils";
 import { useThreadPreviewState } from "~/previewStateStore";
 import {
   type PreviewMiniPlayerSize,
-  type PreviewMiniPlayerSource,
   type PreviewMiniPlayerState,
   browserMiniPlayerSource,
   previewMiniPlayerSourceKey,
   usePreviewMiniPlayerStore,
 } from "~/previewMiniPlayerStore";
 import { useRightPanelStore } from "~/rightPanelStore";
-import { useDeviceState } from "~/state/device";
 
-import { DeviceStreamView } from "../device/DeviceStreamView";
-import type { DeviceScreenSize } from "@t3tools/client-runtime/device/stream";
-import { Atom } from "effect/reactivity";
-import { deviceScreenKey, deviceStreamScreenAtom } from "../device/deviceStreamSession";
 import type { PreviewStreamViewport } from "@t3tools/client-runtime/preview/server-browser-stream";
 import { previewBridge } from "./previewBridge";
 import { showPreviewPopup } from "./showPreviewPopup";
@@ -63,8 +57,6 @@ import {
   PREVIEW_MINI_PLAYER_WEBVIEW_Z_INDEX,
   type PreviewMiniPlayerFrame,
   resizePreviewMiniPlayer,
-  resolveDeviceMiniPlayerCornerRadius,
-  resolveDeviceMiniPlayerSourceSize,
   resolvePreviewMiniPlayerSourceSize,
 } from "./previewMiniPlayerLayout";
 
@@ -110,20 +102,8 @@ const useStreamedSourceSize = create<{
   readonly viewport: PreviewStreamViewport;
 } | null>(() => null);
 
-const NO_DEVICE_SCREEN_ATOM = Atom.make<DeviceScreenSize | null>(null).pipe(
-  Atom.withLabel("device-stream-screen:none"),
-);
-
 const streamedSourceKey = (threadRef: ScopedThreadRef, sourceKey: string) =>
   `${scopedThreadKey(threadRef)}\u0000${sourceKey}`;
-
-// The mini player's device stream view, named so the canvas can read the
-// screen size that view reports.
-const miniPlayerDeviceViewId = (
-  threadRef: ScopedThreadRef,
-  source: Extract<PreviewMiniPlayerSource, { kind: "device" }>,
-) =>
-  `preview-mini-player\u0000${scopedThreadKey(threadRef)}\u0000${deviceScreenKey(threadRef.environmentId, source.hostId, source.deviceId)}`;
 
 function useBrowserMiniPlayerSource(threadRef: ScopedThreadRef | null, tabId: string | null) {
   const previewState = useThreadPreviewState(threadRef);
@@ -172,11 +152,6 @@ export function useThreadPreviewCanvasSource(
     source?.kind === "browser" ? source.tabId : null,
   );
   const sourceKey = source ? previewMiniPlayerSourceKey(source) : null;
-  const screen = useAtomValue(
-    threadRef && source?.kind === "device"
-      ? deviceStreamScreenAtom(miniPlayerDeviceViewId(threadRef, source))
-      : NO_DEVICE_SCREEN_ATOM,
-  );
   if (!miniPlayer || !source || sourceKey === null) return null;
   if (source.kind === "browser" && !browser.snapshot) return null;
   return {
@@ -184,30 +159,13 @@ export function useThreadPreviewCanvasSource(
     width: miniPlayer.width,
     position: miniPlayer.position,
     lastInteraction: miniPlayer.lastInteraction,
-    source:
-      source.kind === "browser"
-        ? browser.sourceSize
-        : resolveDeviceMiniPlayerSourceSize(source.platform, screen),
+    source: browser.sourceSize,
   };
 }
 
 export function ThreadPreviewMiniPlayer({ threadRef, miniPlayer }: Props) {
   const { source } = miniPlayer;
-  return source.kind === "browser" ? (
-    <BrowserMiniPlayer
-      key={source.tabId}
-      threadRef={threadRef}
-      tabId={source.tabId}
-      miniPlayer={miniPlayer}
-    />
-  ) : (
-    <DeviceMiniPlayer
-      key={previewMiniPlayerSourceKey(source)}
-      threadRef={threadRef}
-      source={source}
-      miniPlayer={miniPlayer}
-    />
-  );
+  return <BrowserMiniPlayer threadRef={threadRef} tabId={source.tabId} miniPlayer={miniPlayer} />;
 }
 
 function BrowserMiniPlayer({ threadRef, tabId, miniPlayer }: Props & { readonly tabId: string }) {
@@ -350,64 +308,6 @@ function BrowserMiniPlayer({ threadRef, tabId, miniPlayer }: Props & { readonly 
           </>
         )
       }
-    </MiniPlayerShell>
-  );
-}
-
-function DeviceMiniPlayer({
-  threadRef,
-  source,
-  miniPlayer,
-}: Props & { readonly source: Extract<PreviewMiniPlayerSource, { kind: "device" }> }) {
-  const { state: deviceState } = useDeviceState(threadRef.environmentId);
-  const viewId = miniPlayerDeviceViewId(threadRef, source);
-  const screen = useAtomValue(deviceStreamScreenAtom(viewId));
-  const sourceSize = resolveDeviceMiniPlayerSourceSize(source.platform, screen);
-  const device = deviceState.devices.find(
-    (entry) => entry.hostId === source.hostId && entry.id === source.deviceId,
-  );
-  const host = deviceState.hosts.find((entry) => entry.id === source.hostId);
-  const hostLabel = host?.label ?? "Device host";
-  const cornerRadius = (player: PreviewMiniPlayerSize) =>
-    resolveDeviceMiniPlayerCornerRadius(source.platform, player);
-
-  const openInPanel = () => {
-    usePreviewMiniPlayerStore.getState().close(threadRef);
-    useRightPanelStore.getState().openDevice(threadRef, {
-      hostId: source.hostId,
-      deviceId: source.deviceId,
-      platform: source.platform,
-      name: source.name,
-    });
-  };
-
-  return (
-    <MiniPlayerShell
-      threadRef={threadRef}
-      miniPlayer={miniPlayer}
-      sourceSize={sourceSize}
-      label="Floating device preview"
-      onOpenInPanel={openInPanel}
-      cornerRadius={cornerRadius}
-    >
-      {() => (
-        <div
-          className="pointer-events-auto absolute inset-0 overflow-hidden rounded-[inherit]"
-          style={{ zIndex: PREVIEW_MINI_PLAYER_WEBVIEW_Z_INDEX }}
-        >
-          <DeviceStreamView
-            environmentId={threadRef.environmentId}
-            platform={source.platform}
-            deviceId={source.deviceId}
-            hostId={source.hostId}
-            deviceName={device?.name ?? source.name}
-            deviceDescription={`${hostLabel} · ${device?.version ?? source.platform}`}
-            visible
-            viewId={viewId}
-            serveSimOnly={host?.kind === "simlock"}
-          />
-        </div>
-      )}
     </MiniPlayerShell>
   );
 }

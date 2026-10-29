@@ -45,3 +45,7 @@ The dev app was paired in the shared browser, and its authenticated WebSocket cl
 The focused H2B E2E scenario passed in 21.6 seconds. It starts real server, Pi and Claude Code processes and invokes the CLI for both turns; startup and those process boundaries account for the time beyond the inner-loop target. Only the Anthropic transport is faked. Typechecks passed for contracts, provider-pi, server, web and scripts; lint passed on the changed code.
 
 In the shared browser, a newly paired dev app selected Ozi by default. A real Claude subscription turn replied “I'm Ozi, your one point of contact” and described delegation and verification. The composer showed high effort; the picker offered Ozi alongside Codex, Claude and an ACP instance, and switching tabs worked. [Chat](screenshots/h2b-ozi-chat.png), [picker](screenshots/h2b-ozi-picker.png). Fleet lock contention delayed checks before execution. No production or desktop builds were run.
+
+## G1 device checkpoint
+
+`e2e/g1.removal.test.ts` starts an isolated real server and uses the public CLI and ACP stdio bridge to verify that orchestration tools remain while device tools are absent. The scenario passed in 4.7 seconds. Targeted checks covered contracts, client runtime, server, web, mobile, provider core, ACP, Cursor, Muse, OpenCode, scripts and evals. The paired dev GUI loaded Browser settings without console errors: [devices removed](screenshots/g1-browser-without-devices.png). The rest of G1 remains unfinished.

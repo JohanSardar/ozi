@@ -1517,8 +1517,6 @@ function toolGroupSummarySymbolName(kind: ToolGroupSummaryKind): AppSymbolName {
       return { ios: "bubble.left", android: "chat" };
     case "command":
       return { ios: "terminal", android: "terminal" };
-    case "device":
-      return { ios: "iphone", android: "smartphone" };
     case "browser":
     case "search":
       return { ios: "globe", android: "public" };

@@ -697,9 +697,7 @@ function runBrowserAccessScenario(input: {
             projectSettingsOverrides: {
               [projectId]: {
                 enableAgentBrowserAccess: input.projectOverride,
-                ...(input.deviceOverride === undefined
-                  ? {}
-                  : { enableAgentDeviceAccess: input.deviceOverride }),
+                ...(input.deviceOverride === undefined ? {} : {}),
               },
             },
           }),

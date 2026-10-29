@@ -3,7 +3,6 @@ import { buildRuntimeInstructions } from "@t3tools/provider-core/server/runtimeI
 
 import {
   OZI_CODE_BROWSER_TOOL_INSTRUCTIONS,
-  OZI_CODE_DEVICE_TOOL_INSTRUCTIONS,
   OZI_CODE_ORCHESTRATION_SECTIONS,
 } from "@t3tools/provider-core/server/orchestrationInstructions";
 
@@ -12,23 +11,17 @@ export const CODEX_ADDITIONAL_CONTEXT_VALUE_MAX_BYTES = 4_000;
 
 export interface T3CodeToolAvailability {
   readonly browser: boolean;
-  readonly device: boolean;
 }
 
 const normalizeAvailability = (
   availability: boolean | T3CodeToolAvailability,
 ): T3CodeToolAvailability =>
-  typeof availability === "boolean" ? { browser: availability, device: false } : availability;
+  typeof availability === "boolean" ? { browser: availability } : availability;
 
 /** Instructions for unavailable tools would steer the model away from its remaining automation. */
 const toolInstructions = (availability: boolean | T3CodeToolAvailability): string => {
   const tools = normalizeAvailability(availability);
-  return [
-    tools.browser ? OZI_CODE_BROWSER_TOOL_INSTRUCTIONS : "",
-    tools.device ? OZI_CODE_DEVICE_TOOL_INSTRUCTIONS : "",
-  ]
-    .filter(Boolean)
-    .join("\n\n");
+  return [tools.browser ? OZI_CODE_BROWSER_TOOL_INSTRUCTIONS : ""].filter(Boolean).join("\n\n");
 };
 
 export interface CodexRuntimeInfo {
