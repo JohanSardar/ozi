@@ -131,7 +131,7 @@ A passive, persisted `Answered: ‹title›: ‹choice›` line appears in the c
 
 ## I5 ticket replies
 
-A reply from a row, the window or the archive goes into the chat shown behind the inbox, through T3's turn start with the default follow-up behaviour (steer or queue while the agent works). On a new chat it starts that chat, titled after the ticket. The message carries a `ticket` context record: the bubble shows a quiet quote, "↩ ‹title› · ‹need›", above the reply. The agent receives the ticket's title, group, need, summary, choices, details and files, who filed it (chat, or worker for a chat) and when, whether it is still open, an absolute transcript link, and the ticket, thread, chat, worker, job, session and message IDs, with a note to read the filing session with `t3_thread_read`. Replying does not clear the ticket; clearing belongs to I7.
+A reply from a row, the window or the archive goes into the chat shown behind the inbox, through T3's turn start with the default follow-up behaviour (steer or queue while the agent works). On a new chat it starts that chat, titled after the ticket. The message carries a `ticket` context record: the bubble shows a quiet quote, "↩ ‹title› · ‹need›", above the reply. The agent receives the ticket's title, group, need, summary, choices, details and files, who filed it (chat, or worker for a chat) and when, whether it is still open, an absolute transcript link, and the ticket, thread, chat, worker, job, session and message IDs, with a note to read the filing session with `t3_thread_read`. Once the message is accepted, the reply clears an open ticket (I7).
 
 ## C1 schedules and webhooks
 
@@ -142,3 +142,7 @@ Scheduled tasks target an existing chat and queue prompts using its current agen
 `serve --public-url` overrides `OZI_PUBLIC_URL`. An HTTP(S) base URL produces `<base>/api/hooks/<id>/<token>`; without it, agent and CLI results omit `webhookUrl`. Settings can copy the directly reachable server URL and explain how to configure a public one. Signing secrets stay write-only. Dispatch success records delivery, not completion of the agent's work.
 
 Only explicit `OZI_TEST_CLOCK=<ISO instant>` enables the isolated scheduler clock and hidden `test-clock --advance <duration>` CLI endpoint. Normal servers use the local clock.
+
+## I7 ticket clearing
+
+Every clearance goes through `tickets.close` (and `ozi ticket close`), `tickets.choose` or the agents' `ticket_close`: a reply clears the ticket as replied with its message, Got it as acknowledged, a choice as answered, and an agent's close as an agent acknowledgement of the caller's latest user message. The first clearance archives the ticket and adds a passive, persisted "✓ Closed: ‹title›" line without starting an agent: in the reply's chat, the chat Got it was pressed in (else the ticket's chat), after the `Answered` line for choices, or in the closing agent's thread. Repeated closes add no second line. The archive shows how each ticket cleared: Replied, Got it, Answered: ‹choice› or Closed from chat.
