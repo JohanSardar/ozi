@@ -102,7 +102,7 @@ it("h2b.ozi: the default chat runs the packaged harness through Pi on the Claude
       "thread",
       "start",
       workspace,
-      "Reply h2b-ozi-ok without tools.",
+      "Check the GUI capabilities, then reply h2b-ozi-ok.",
       "--wait",
     );
     expect(JSON.stringify(result), output).toContain("h2b-ozi-ok");
@@ -130,6 +130,7 @@ it("h2b.ozi: the default chat runs the packaged harness through Pi on the Claude
     expect(
       fake.requests.some((request) => JSON.stringify(request.messages).includes('"tool_result"')),
     ).toBe(true);
+    expect(JSON.stringify(fake.requests)).not.toContain('"is_error":true');
     expect(JSON.stringify(fake.headers)).not.toContain("must-not-be-used");
     await expect(NodeFSP.stat(NodePath.join(directory, "ambient-pi"))).rejects.toThrow();
     expect(await NodeFSP.readdir(NodePath.join(home, "agents/ozi"))).toBeDefined();
