@@ -1,3 +1,4 @@
+import { ChatSessionsMenu } from "./ChatSessionsMenu";
 import {
   AuthOrchestrationOperateScope,
   type EnvironmentId,

@@ -38,6 +38,11 @@ if (
     // Windows desktop launches without stdin; attach before reading, except on fast paths using pipes.
     const { attachConsoleStdin } = await import("./cli/consoleStdin.ts");
     attachConsoleStdin();
+    const printIndex = process.argv.findIndex((argument, index) => index >= 2 && (argument === "-p" || argument === "--print"));
+    if (printIndex >= 2) {
+      process.argv.splice(printIndex, 1);
+      process.argv.splice(2, 0, "print");
+    }
     const { runCli } = await import("./binCli.ts");
     runCli();
   }

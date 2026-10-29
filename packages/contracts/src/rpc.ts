@@ -1,3 +1,4 @@
+import { ChatSessionInput, ChatSessionResult, ChatSessionError, ChatPrintInput, ChatPrintEvent } from "./chatSessions.ts";
 import {
   Ticket,
   TicketCloseInput,
@@ -410,6 +411,8 @@ export const WS_METHODS = {
 
   filesystemBrowse: "filesystem.browse",
   filesystemGetMetadata: "filesystem.getMetadata",
+  chatSessionsExecute: "chatSessions.execute",
+  chatSessionsPrint: "chatSessions.print",
   agentSessionsScan: "agentSessions.scan",
   agentSessionsImport: "agentSessions.import",
   assetsCreateUrl: "assets.createUrl",
@@ -1895,6 +1898,13 @@ const WsTicketsSubscribeRpc = Rpc.make(WS_METHODS.ticketsSubscribe, {
   stream: true,
 });
 
+const WsChatSessionsExecuteRpc = Rpc.make(WS_METHODS.chatSessionsExecute, {
+  payload: ChatSessionInput, success: ChatSessionResult, error: Schema.Union([ChatSessionError, EnvironmentAuthorizationError]),
+});
+const WsChatSessionsPrintRpc = Rpc.make(WS_METHODS.chatSessionsPrint, {
+  payload: ChatPrintInput, success: ChatPrintEvent, stream: true, error: Schema.Union([ChatSessionError, EnvironmentAuthorizationError]),
+});
+
 export const WsRpcGroup = RpcGroup.make(
   WsTicketsSubscribeRpc,
   WsTicketsListRpc,
@@ -1903,6 +1913,8 @@ export const WsRpcGroup = RpcGroup.make(
   WsTicketsChooseRpc,
   WsTicketsUpdateRpc,
   WsTicketsCreateRpc,
+  WsChatSessionsExecuteRpc,
+  WsChatSessionsPrintRpc,
   WsGuestShareCreateRpc,
   WsServerProbeRpc,
   WsServerGetConfigRpc,
