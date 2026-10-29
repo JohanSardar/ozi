@@ -172,6 +172,7 @@ function createMcpClient(endpoint: string, token: string) {
       // header; initialize itself does not require it.
       "mcp-protocol-version": PROTOCOL,
     };
+    if (process.env.OZI_INBOX_RUN_ID) next["x-ozi-ticket-run-id"] = process.env.OZI_INBOX_RUN_ID;
     if (sessionId !== undefined) next["mcp-session-id"] = sessionId;
     return next;
   };

@@ -1,3 +1,4 @@
+import inbox from "@ozi/pi-inbox";
 import * as HostProcess from "@t3tools/shared/HostProcess";
 import { AgentScope } from "@t3tools/shared/AgentScope";
 import { getModelSelectionStringOptionValue } from "@t3tools/shared/model";
@@ -71,6 +72,16 @@ import {
   resolvePiLaunchArgs,
 } from "./mcpInjection.ts";
 import { PI_FILE_CHANGE_TOOLS } from "./mcpExtensionSource.ts";
+
+const decodeInboxStatus = Schema.decodeUnknownOption(
+  Schema.fromJsonString(
+    Schema.Struct({
+      status: Schema.Literals(["running", "completed", "failed"]),
+      filed: Schema.Int.check(Schema.isGreaterThanOrEqualTo(0)),
+      error: Schema.optional(Schema.String),
+    }),
+  ),
+);
 
 export const PI_PROVIDER = ProviderDriverKind.make("pi");
 const PI_DRIVER_KIND = PI_PROVIDER;
@@ -461,9 +472,15 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
       if (!resolvedLaunchArgs.ok) {
         return yield* protocolError(resolvedLaunchArgs.message);
       }
+      const inboxPath = `${host.paths.providerStatusCacheDir}/pi-inbox-extension.ts`;
+      const inboxContextPath = `${host.paths.providerStatusCacheDir}/pi-inbox-${encodeURIComponent(input.providerSessionId)}.txt`;
+      yield* provideCacheFs(
+        fileSystem.writeFileString(inboxPath, `export default ${inbox.toString()}`),
+      );
+      yield* Effect.addFinalizer(() => fileSystem.remove(inboxContextPath).pipe(Effect.ignore));
       const launch = buildPiRpcLaunch({
-        launchArgs: resolvedLaunchArgs.args,
-        environment: options.environment,
+        launchArgs: [...resolvedLaunchArgs.args, "--extension", inboxPath],
+        environment: { ...options.environment, OZI_PI_INBOX_CONTEXT_FILE: inboxContextPath },
         mcpSession,
         extensionPath,
         runtimeMode: input.runtimePolicy.runtimeMode,
@@ -549,6 +566,7 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
       let appliedModel: string | null = null;
       let appliedThinking: string | null = null;
       let appliedSessionName: string | null = null;
+      const inboxChecks = new Map<string, { turn: ActivePiTurn; startedAt: DateTime.Utc }>();
       const outOfTurnExtensionErrors: Array<PiRpcRecord> = [];
       let lastKnownLeaf: string | null = null;
       // Failed get_entries leaves an untrustworthy turn boundary; re-sync the cursor on next capture.
@@ -1216,6 +1234,49 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
         const method = recordString(event, "method");
         const nativeRequestId = recordString(event, "id");
         if (method === undefined) return;
+        if (method === "setStatus" && recordString(event, "statusKey")?.startsWith("ozi-inbox:")) {
+          const key = recordString(event, "statusKey")!;
+          const decoded = decodeInboxStatus(event["statusText"]);
+          if (Option.isNone(decoded)) return;
+          const { status, filed } = decoded.value;
+          const now = yield* DateTime.now;
+          if (status === "running" && threadState?.activeTurn) {
+            inboxChecks.set(key, { turn: threadState.activeTurn, startedAt: now });
+          }
+          const check = inboxChecks.get(key);
+          if (!check) return;
+          const itemStatus = status === "failed" ? "failed" : "completed";
+          const completedAt = now;
+          yield* emitItemNode(
+            check.turn,
+            key,
+            "tool_call",
+            itemStatus,
+            check.startedAt,
+            completedAt,
+          );
+          yield* emit({
+            type: "turn_item.updated",
+            driver: PI_PROVIDER,
+            turnItem: {
+              ...baseItemFields(check.turn, key, check.startedAt, now),
+              status: itemStatus,
+              completedAt,
+              title:
+                status === "running"
+                  ? "Inbox check"
+                  : status === "failed"
+                    ? "Inbox check · failed"
+                    : `Inbox check · ${filed} filed`,
+              type: "dynamic_tool",
+              toolName: "inbox_check",
+              input: {},
+              output: { filed, error: decoded.value.error },
+            },
+          });
+          if (status !== "running") inboxChecks.delete(key);
+          return;
+        }
         if (method === "notify") {
           const state = threadState;
           const turn = state?.activeTurn ?? null;
@@ -2427,6 +2488,7 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
               !continuation && compactCommand === null
                 ? yield* resolvePromptPayload(turnInput.message.text, turnInput.message.attachments)
                 : null;
+            yield* fileSystem.writeFileString(inboxContextPath, turnInput.runId);
             const startedAt = yield* DateTime.now;
             const syntheticNativeTurnId = `${state.providerThread.id}:attempt:${turnInput.attemptId}`;
             const providerTurn: OrchestrationV2ProviderTurn = {

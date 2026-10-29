@@ -26,16 +26,23 @@ const callerOrigin = Effect.gen(function* () {
   const run = projection.runs.findLast(
     (run) =>
       run.providerInstanceId === thread.providerInstanceId &&
-      (activeRunId === null
-        ? run.providerThreadId === projection.thread.activeProviderThreadId
-        : run.id === activeRunId),
+      (scope.ticketRunId !== undefined
+        ? run.id === scope.ticketRunId
+        : activeRunId === null
+          ? run.providerThreadId === projection.thread.activeProviderThreadId
+          : run.id === activeRunId),
   );
   const providerThread = projection.providerThreads.find(
     (candidate) =>
       candidate.id === (run?.providerThreadId ?? projection.thread.activeProviderThreadId) &&
       candidate.providerInstanceId === thread.providerInstanceId,
   );
-  if (run === undefined || providerThread?.providerSessionId == null) {
+  if (
+    run === undefined ||
+    providerThread?.providerSessionId == null ||
+    (scope.ticketRunId !== undefined &&
+      providerThread.id !== projection.thread.activeProviderThreadId)
+  ) {
     return yield* new TicketError({ reason: "invalid_origin" });
   }
   const message = projection.messages.findLast(
@@ -62,6 +69,7 @@ export const layer = McpToolAccess.toLayer(TicketToolkit, {
   ticket_update: McpToolAccess.actsOnTickets((input) =>
     Effect.gen(function* () {
       const tickets = yield* Tickets.Tickets;
+      yield* callerOrigin;
       return yield* tickets.update(input);
     }),
   ),

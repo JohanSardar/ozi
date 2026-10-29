@@ -144,7 +144,12 @@ export const actsOnTickets = <P, A, E, R>(handle: (params: P) => Effect.Effect<A
         Effect.andThen(refuseReadOnlyClient),
         Effect.andThen(loadCaller()),
         Effect.tap((context) =>
-          context.scope.thread?.inboxCheck === undefined ? assertLiveCaller(context) : Effect.void,
+          context.scope.thread?.inboxCheck !== undefined ||
+          (context.scope.ticketRunId !== undefined &&
+            context.caller?.archivedAt === null &&
+            context.caller.providerInstanceId === context.scope.thread?.providerInstanceId)
+            ? Effect.void
+            : assertLiveCaller(context),
         ),
         Effect.flatMap(() => handle(params)),
       ),

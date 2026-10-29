@@ -240,6 +240,7 @@ const makeMcpAuthMiddleware = Effect.gen(function* () {
     return yield* httpEffect.pipe(
       Effect.provideService(McpInvocationContext.McpInvocationContext, {
         ...limited,
+        ticketRunId: request.headers["x-ozi-ticket-run-id"],
         linkedEnvironments,
       }),
       Effect.map(normalizeMcpHttpResponse),
