@@ -319,6 +319,7 @@ export function SubagentNotificationLink(props: {
       null,
   );
   if (agent === null) return props.fallback;
+  if (agent.origin === "app_owned") return null;
   const resumed =
     NOTIFICATION_OUTCOME_STATUS[props.outcome] !== null &&
     subagentResumedSince(agent, props.createdAt);

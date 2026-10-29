@@ -313,8 +313,11 @@ const PERSISTENT_RESOURCE_V2_ITEM_TYPES = new Set<OrchestrationV2TurnItem["type"
 ]);
 
 export function timelineEntryIsPersistentResourceCard(entry: TimelineEntry): boolean {
+  if (entry.kind !== "event") return false;
+  const item = entry.projectedItem.item;
   return (
-    entry.kind === "event" && PERSISTENT_RESOURCE_V2_ITEM_TYPES.has(entry.projectedItem.item.type)
+    PERSISTENT_RESOURCE_V2_ITEM_TYPES.has(item.type) ||
+    (item.type === "subagent" && item.origin === "app_owned")
   );
 }
 

@@ -1,6 +1,6 @@
 import { useAtomValue } from "@effect/atom-react";
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
-import type { EnvironmentId, Ticket, TicketId } from "@t3tools/contracts";
+import type { EnvironmentId, Ticket } from "@t3tools/contracts";
 import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
@@ -9,7 +9,7 @@ import { cn } from "../../lib/utils";
 import { primaryEnvironmentIdAtom } from "../../state/primaryEnvironment";
 import { useEnvironmentQuery } from "../../state/query";
 import { environmentThreadShells } from "../../state/threads";
-import { ticketClose, ticketList } from "../../state/tickets";
+import { ticketClose, ticketList, useInboxStore } from "../../state/tickets";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { buildThreadRouteParams } from "../../threadRoutes";
 import { Button } from "../ui/button";
@@ -29,6 +29,9 @@ const GROUPS = [
   ["Read", "nothing to do"],
 ] as const;
 
+export const orderTickets = (tickets: ReadonlyArray<Ticket>) =>
+  GROUPS.flatMap(([group]) => tickets.filter((ticket) => ticket.group === group));
+
 export function InboxPanel(props: TicketHooks) {
   const environmentId = useAtomValue(primaryEnvironmentIdAtom);
   return environmentId ? <Inbox environmentId={environmentId} hooks={props} /> : null;
@@ -36,12 +39,10 @@ export function InboxPanel(props: TicketHooks) {
 
 function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks }) {
   const { environmentId, hooks } = props;
-  const [tab, setTab] = useState<"inbox" | "archive">("inbox");
+  const { tab, selected } = useInboxStore();
+  const setTab = (next: typeof tab) => useInboxStore.setState({ tab: next });
+  const setSelected = (next: typeof selected) => useInboxStore.setState({ selected: next });
   const [search, setSearch] = useState("");
-  const [selected, setSelected] = useState<{ id: TicketId | null; index: number }>({
-    id: null,
-    index: 0,
-  });
   const [workingOpen, setWorkingOpen] = useState(false);
   const [details, setDetails] = useState<Ticket | null>(null);
   const navigate = useNavigate();
@@ -58,7 +59,7 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks }) {
           })
         : null,
     ).data?.tickets ?? [];
-  const ordered = GROUPS.flatMap(([group]) => open.filter((ticket) => ticket.group === group));
+  const ordered = orderTickets(open);
   const current =
     selected.index < 0
       ? undefined
@@ -157,6 +158,7 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks }) {
                       ticket={ticket}
                       chat={titles.get(ticket.origin.chatId) ?? ""}
                       open={current?.id === ticket.id}
+                      reveal={current?.id === ticket.id && selected.reveal === true}
                       hooks={hooks}
                       onToggle={() => toggle(ticket)}
                       onGotIt={() => gotIt(ticket)}
@@ -270,6 +272,7 @@ function TicketRow(props: {
   ticket: Ticket;
   chat: string;
   open: boolean;
+  reveal: boolean;
   hooks: TicketHooks;
   onToggle: () => void;
   onGotIt: () => void;
@@ -279,6 +282,16 @@ function TicketRow(props: {
   const [reply, setReply] = useState("");
   return (
     <article
+      ref={
+        props.reveal
+          ? (element) => {
+              element?.scrollIntoView({ block: "nearest" });
+              useInboxStore.setState(({ selected }) => ({
+                selected: { ...selected, reveal: false },
+              }));
+            }
+          : undefined
+      }
       aria-label={ticket.title}
       className="mb-1.5 overflow-hidden rounded-lg border border-border bg-card transition-colors focus-within:border-ring/40 hover:border-ring/40"
     >

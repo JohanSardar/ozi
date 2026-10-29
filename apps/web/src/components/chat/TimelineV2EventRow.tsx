@@ -3,6 +3,7 @@ import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { useAtomValue } from "@effect/atom-react";
 import { environmentThreadDetails } from "../../state/threads";
 import {
+  formatSubagentDisplayTitle,
   subagentGroupSummary,
   summarizeSubagentStatuses,
 } from "@t3tools/client-runtime/state/subagent-display";
@@ -11,6 +12,7 @@ import { ChevronDownIcon } from "lucide-react";
 import { cn } from "~/lib/utils";
 import { Collapsible, CollapsibleTrigger, CollapsiblePanel } from "../ui/collapsible";
 import { EnvironmentSubagentAvatar, SubagentElapsed, V2LifecycleRow } from "./V2LifecycleRow";
+import { HandoffLine } from "./HandoffLine";
 import { LinkRequestCard } from "./LinkRequestCard";
 import { SecretRequestCard } from "./SecretRequestCard";
 import { TimelineRowCtx, type TimelineRow } from "./timelineRowContext";
@@ -19,6 +21,27 @@ import { subagentGroupTiming } from "./TimelineV2EventRow.logic";
 export function V2EventTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "event" }> }) {
   const ctx = use(TimelineRowCtx);
   const { item, visibility } = row.projectedItem;
+  if (item.type === "subagent" && item.origin === "app_owned") {
+    return (
+      <div className="flex flex-col items-start">
+        {(row.subagents ?? [row.projectedItem]).flatMap(({ item: job }) =>
+          job.type === "subagent" ? (
+            <HandoffLine
+              key={job.id}
+              parentRef={scopeThreadRef(ctx.activeThreadEnvironmentId, job.threadId)}
+              subagentId={job.subagentId}
+              title={formatSubagentDisplayTitle(job.title ?? "Subagent")}
+              status={job.status}
+              childThreadId={job.childThreadId}
+              onOpenThread={ctx.onOpenThread}
+            />
+          ) : (
+            []
+          ),
+        )}
+      </div>
+    );
+  }
   if (item.type === "subagent" && (row.subagents?.length ?? 1) > 1) {
     return <V2SubagentGroup key={row.id} row={row} />;
   }
