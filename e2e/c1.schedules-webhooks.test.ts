@@ -48,7 +48,7 @@ const rpc = async (tag: string, payload: unknown) => {
   });
 };
 
-const start = async (publicUrl?: string) => {
+const start = async (publicUrl?: string | null) => {
   const reserve = NodeNet.createServer();
   reserve.listen(0, "127.0.0.1");
   await NodeEvents.once(reserve, "listening");
@@ -67,7 +67,7 @@ const start = async (publicUrl?: string) => {
       "127.0.0.1",
       "--port",
       String(address.port),
-      ...(publicUrl === undefined ? [] : ["--public-url", publicUrl]),
+      ...(publicUrl == null ? [] : ["--public-url", publicUrl]),
     ],
     {
       cwd: directory,
@@ -78,7 +78,7 @@ const start = async (publicUrl?: string) => {
         OZI_TELEMETRY_ENABLED: "false",
         OZI_TEST_CLOCK: "2026-10-25T08:59:00Z",
         TZ: "UTC",
-        OZI_PUBLIC_URL: "https://environment.example.invalid",
+        ...(publicUrl === null ? {} : { OZI_PUBLIC_URL: "https://environment.example.invalid" }),
       },
       stdio: ["ignore", "pipe", "pipe"],
     },
@@ -311,4 +311,31 @@ it("c1.webhooks: URL tokens, raw HMAC, filters, rotation, replay expiry and fixe
   await advance("10s");
   await delivered("C1 hook 3");
   await cli("schedule", "rm", task.id, "--json");
+});
+
+it("c1.public-url: unsigned CLI webhooks omit the public URL without configuration", async () => {
+  await stop();
+  await start(null);
+  const task = await add(
+    "--webhook",
+    "--prompt",
+    "C1 unsigned {{body.value}}",
+    "--filter",
+    JSON.stringify({ path: "body.action", op: "equals", value: "opened" }),
+  );
+  expect(task.webhookUrl).toBeUndefined();
+  expect(task.webhookSignature).toBe("none");
+  const { tasks } = await rpc("scheduledTasks.list", {});
+  const saved = tasks.find((entry: any) => entry.id === task.scheduledTaskId);
+  expect(
+    (
+      await fetch(`${origin}${saved.webhook.path}`, {
+        method: "POST",
+        body: JSON.stringify({ action: "opened", value: "delivered" }),
+        headers: { "content-type": "application/json" },
+      })
+    ).status,
+  ).toBe(202);
+  await delivered("C1 unsigned delivered");
+  await cli("schedule", "rm", task.scheduledTaskId, "--json");
 });
