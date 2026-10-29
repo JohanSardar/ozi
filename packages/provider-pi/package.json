@@ -25,6 +25,8 @@
     "test": "vp test run --config ../../vite.config.ts --dir ."
   },
   "dependencies": {
+    "@earendil-works/pi-coding-agent": "1.4.0",
+    "@ozi/pi": "github:JohanSardar/ozi-harness#8e280bb053c16674e72e7733bcb36ade29987931&path:/packages/ozi-pi",
     "@t3tools/contracts": "workspace:*",
     "@t3tools/provider-core": "workspace:*",
     "@t3tools/shared": "workspace:*",

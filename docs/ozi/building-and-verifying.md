@@ -39,3 +39,9 @@ The dev app was paired in the shared browser and a real Claude Opus 5.5 turn rep
 `e2e/i1.tickets.test.ts` uses a real isolated server, SQLite, CLI and WebSocket clients. It covers structured content, two subscribers, transcript access, caller validation, delegated-task provenance, all clearance types, archive search and server restart. No provider turn is needed: the worker is created through T3's real delegation command and fails workspace preparation before provider startup. Each scenario uses the standard E2E timeout. The complete file takes about a minute because each CLI invocation starts the Effect runtime; individual package checks and lint take seconds.
 
 The dev app was paired in the shared browser, and its authenticated WebSocket client received the initial `tickets.subscribe` snapshot. [Paired app](screenshots/i1-paired.png). I1 has no inbox UI or MCP tools; those checks arrive with I3 and I2. The dev server was stopped after the check.
+
+## H2B evidence
+
+The focused H2B E2E scenario passed in 21.6 seconds. It starts real server, Pi and Claude Code processes and invokes the CLI for both turns; startup and those process boundaries account for the time beyond the inner-loop target. Only the Anthropic transport is faked. Typechecks passed for contracts, provider-pi, server, web and scripts; lint passed on the changed code.
+
+In the shared browser, a newly paired dev app selected Ozi by default. A real Claude subscription turn replied “I'm Ozi, your one point of contact” and described delegation and verification. The composer showed high effort; the picker offered Ozi alongside Codex, Claude and an ACP instance, and switching tabs worked. [Chat](screenshots/h2b-ozi-chat.png), [picker](screenshots/h2b-ozi-picker.png). Fleet lock contention delayed checks before execution. No production or desktop builds were run.
