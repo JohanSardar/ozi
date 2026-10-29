@@ -189,12 +189,19 @@ export const scheduleCommand = Command.make("schedule").pipe(
   ]),
 );
 
-export const schedulesCommand = Command.make("schedules", flags).pipe(
+export const schedulesCommand = Command.make("schedules", {
+  ...flags,
+  threadId: optional("chat"),
+}).pipe(
   Command.withHandler((input) =>
     withThreadTools(input, (tools) =>
       Effect.gen(function* () {
         yield* print(
-          yield* tools.call("list_scheduled_tasks", {}, OrchestratorMcpListScheduledTasksResult),
+          yield* tools.call(
+            "list_scheduled_tasks",
+            { threadId: Option.getOrUndefined(input.threadId) },
+            OrchestratorMcpListScheduledTasksResult,
+          ),
         );
       }),
     ),

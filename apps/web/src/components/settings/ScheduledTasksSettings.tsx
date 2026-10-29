@@ -76,7 +76,6 @@ import { Label } from "../ui/label";
 import { Menu, MenuTrigger, MenuPopup, MenuItem, MenuSeparator } from "../ui/menu";
 import { ToggleGroup, Toggle } from "../ui/toggle-group";
 import { Empty, EmptyHeader, EmptyTitle, EmptyDescription, EmptyMedia } from "../ui/empty";
-import { Badge } from "../ui/badge";
 import { Button } from "../ui/button";
 import {
   Dialog,
@@ -277,28 +276,6 @@ function relativeLabel(value: string | null, nowMs: number): string {
 export function ScheduledRelativeLabel(props: { value: string | null }) {
   const nowMinute = useNowMinute();
   return relativeLabel(props.value, Date.parse(`${nowMinute}:00.000Z`));
-}
-
-function deliveryOutcomeVariant(outcome: string) {
-  if (outcome === "accepted") return "success";
-  if (
-    outcome === "duplicate" ||
-    outcome === "coalesced" ||
-    outcome === "disabled" ||
-    outcome === "rate_limited" ||
-    outcome === "expired"
-  ) {
-    return "warning";
-  }
-  if (outcome === "dispatch_failed" || outcome === "rejected_signature") return "error";
-  return "outline";
-}
-
-function statusVariant(status: ScheduledTask["lastRunStatus"]) {
-  if (status === "failed") return "error";
-  if (status === "succeeded") return "success";
-  if (status === "running") return "info";
-  return "outline";
 }
 
 export function ScheduledTasksSettings(target: {
@@ -683,7 +660,7 @@ function ScheduledTaskRow({
             )}
           </span>
           {task.lastRunStatus !== "never" ? (
-            <Badge variant={statusVariant(task.lastRunStatus)}>{task.lastRunStatus}</Badge>
+            <span className="capitalize">{task.lastRunStatus}</span>
           ) : null}
           {task.lastRunError ? <span className="text-destructive">{task.lastRunError}</span> : null}
         </div>
@@ -796,13 +773,7 @@ function WebhookDeliveriesDialog({
           ) : selected ? (
             <div className="space-y-4">
               <div className="flex flex-wrap items-center gap-2 text-sm">
-                <Badge
-                  variant={deliveryOutcomeVariant(
-                    selected.pendingWindow ? "coalesced" : selected.outcome,
-                  )}
-                >
-                  {webhookDeliveryLabel(selected)}
-                </Badge>
+                <span>{webhookDeliveryLabel(selected)}</span>
                 <span>
                   {selected.method} · <ScheduledRelativeLabel value={selected.receivedAt} />
                 </span>
@@ -861,13 +832,7 @@ function WebhookDeliveriesDialog({
                     className="flex w-full flex-wrap items-center gap-2 py-2 text-left text-sm hover:bg-accent/40"
                     onClick={() => setSelectedId(delivery.id)}
                   >
-                    <Badge
-                      variant={deliveryOutcomeVariant(
-                        delivery.pendingWindow ? "coalesced" : delivery.outcome,
-                      )}
-                    >
-                      {webhookDeliveryLabel(delivery)}
-                    </Badge>
+                    <span>{webhookDeliveryLabel(delivery)}</span>
                     <span>{delivery.method}</span>
                     <span className="text-muted-foreground">
                       <ScheduledRelativeLabel value={delivery.receivedAt} />

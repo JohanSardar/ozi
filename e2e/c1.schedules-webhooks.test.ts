@@ -15,6 +15,7 @@ const require = NodeModule.createRequire(NodePath.join(root, "apps/server/packag
 const WebSocket = require("ws") as typeof import("../apps/server/node_modules/ws").WebSocket;
 let directory: string;
 let home: string;
+let project: string;
 let origin: string;
 let server: NodeChildProcess.NodeChildProcess;
 let chat: { threadId: string; projectId: string };
@@ -163,6 +164,8 @@ const add = (...args: string[]) =>
 beforeAll(async () => {
   directory = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "ozi-c1-"));
   home = NodePath.join(directory, ".ozi");
+  project = NodePath.join(directory, "project");
+  await NodeFSP.mkdir(project);
   await NodeFSP.mkdir(NodePath.join(home, "userdata"), { recursive: true });
   await NodeFSP.writeFile(
     NodePath.join(home, "userdata/settings.json"),
@@ -171,17 +174,29 @@ beforeAll(async () => {
         pi: {
           driver: "pi",
           enabled: true,
-          config: { enabled: true, binaryPath: NodePath.join(root, "e2e/fakes/pi.mjs") },
+          config: { enabled: true, binaryPath: NodePath.join(root, "e2e/fakes/pi.ts") },
         },
       },
-      defaultModelSelection: { instanceId: "pi", model: "test/c1-model" },
+      defaultModelSelection: { instanceId: "pi", model: "fake/fake-model" },
     }),
   );
-  await exec("git", ["init", directory]);
+  await exec("git", ["init", project]);
+  await exec("git", [
+    "-C",
+    project,
+    "-c",
+    "user.name=E2E",
+    "-c",
+    "user.email=e2e@example.invalid",
+    "commit",
+    "--allow-empty",
+    "-m",
+    "Initial",
+  ]);
   await start("https://hooks.example.invalid/base/");
   await exec(
     process.execPath,
-    [NodePath.join(root, "apps/server/src/bin.ts"), "project", "add", directory, "--home", home],
+    [NodePath.join(root, "apps/server/src/bin.ts"), "project", "add", project, "--home", home],
     {
       cwd: directory,
       env: {
@@ -196,12 +211,12 @@ beforeAll(async () => {
   chat = await cli(
     "thread",
     "start",
-    directory,
+    project,
     "C1 target",
     "--provider",
     "pi",
     "--model",
-    "test/c1-model",
+    "fake/fake-model",
     "--wait",
     "--json",
   );
@@ -225,6 +240,8 @@ it("c1.timed: intervals, local weekdays, pause, manual runs and deletion target 
   const interval = await add("--every", "1m", "--prompt", "C1 interval");
   const daily = await add("--at", "09:00", "--days", "0", "--prompt", "C1 Sunday");
   expect(interval.boundThreadId).toBe(chat.threadId);
+  expect((await cli("schedules", "--chat", chat.threadId, "--json")).tasks).toHaveLength(2);
+  expect((await cli("schedules", "--chat", "other-chat", "--json")).tasks).toEqual([]);
   await advance("1m");
   await delivered("C1 interval");
   await delivered("C1 Sunday");
@@ -235,7 +252,7 @@ it("c1.timed: intervals, local weekdays, pause, manual runs and deletion target 
   await cli("schedule", "rm", interval.scheduledTaskId, "--json");
   await cli("schedule", "rm", daily.scheduledTaskId, "--json");
   expect(
-    (await cli("thread", "list", "--project", directory, "--json")).map(
+    (await cli("thread", "list", "--project", project, "--json")).map(
       (thread: any) => thread.threadId,
     ),
   ).toEqual([chat.threadId]);
@@ -250,7 +267,7 @@ it("c1.webhooks: URL tokens, raw HMAC, filters, rotation, replay expiry and fixe
     projectId: chat.projectId,
     threadId: chat.threadId,
     workspaceStrategy: { type: "root" },
-    modelSelection: { instanceId: "pi", model: "test/c1-model" },
+    modelSelection: { instanceId: "pi", model: "fake/fake-model" },
     runtimeMode: "full-access",
     interactionMode: "default",
     schedule: {

@@ -1865,7 +1865,7 @@ const make = Effect.gen(function* () {
     listScheduledTasks: Effect.fn("OrchestratorMcpService.listScheduledTasks")(
       function* (scope, input) {
         const { parent, limits } = yield* loadCaller(scope);
-        const projectId = input.projectId ?? parent?.thread.projectId;
+        const threadId = input.threadId ?? parent?.thread.id;
         const { tasks } = yield* scheduledTasks
           .list()
           .pipe(
@@ -1875,7 +1875,7 @@ const make = Effect.gen(function* () {
           );
         return {
           tasks: yield* Effect.forEach(
-            tasks.filter((task) => projectId === undefined || task.projectId === projectId),
+            tasks.filter((task) => threadId === undefined || task.threadId === threadId),
             (task) => summarizeScheduledTask(scope, { parent, limits }, task),
           ),
         };

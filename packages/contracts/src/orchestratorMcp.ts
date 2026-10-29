@@ -698,9 +698,9 @@ export type OrchestratorMcpScheduleTaskResult = typeof OrchestratorMcpScheduleTa
 
 export const OrchestratorMcpListScheduledTasksInput = Schema.Struct({
   environmentId: OrchestratorMcpEnvironmentTarget,
-  projectId: Schema.optional(
-    ProjectId.annotate({
-      description: "Default: your thread's project, or all outside a thread.",
+  threadId: Schema.optional(
+    ThreadId.annotate({
+      description: "Default: this chat, or all outside a chat.",
     }),
   ),
 });
