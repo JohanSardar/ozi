@@ -158,7 +158,7 @@ export function workEntryIconName(workEntry: TimelineWorkEntry): WorkEntryIconNa
       case "background_task":
         return "zap";
       case "system":
-        return "t3-code";
+        return workEntry.structuredPayload.outcome === "completed" ? "check" : "t3-code";
       default:
         source satisfies never;
         return "zap";

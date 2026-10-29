@@ -184,7 +184,7 @@ import { shortcutLabelForCommand } from "../keybindings";
 import { cn } from "~/lib/utils";
 import { COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS } from "~/workspaceTitlebar";
 import { toastManager } from "./ui/toast";
-import { ticketReplyMessage, useTicketReplyStore } from "../state/tickets";
+import { ticketClose, ticketReplyMessage, useTicketReplyStore } from "../state/tickets";
 import { projectScriptIdFromCommand } from "~/projectScripts";
 import { newMessageId } from "~/lib/utils";
 import {
@@ -447,6 +447,7 @@ export default function ChatView(props: ChatViewProps) {
   const interruptThreadTurn = useOrchestrationCommand(threadEnvironment.interruptTurn, {
     reportFailure: false,
   });
+  const closeTicket = useAtomCommand(ticketClose);
   const loadEarlierThreadHistory = useAtomCommand(threadEnvironment.loadEarlierHistory, {
     label: "load earlier thread history",
     reportFailure: false,
@@ -1847,14 +1848,16 @@ export default function ChatView(props: ChatViewProps) {
   const sendAppMessageStable = useStableCallback(sendAppMessage);
   const sendTicketReply = (ticket: Ticket, text: string) => {
     if (!activeThread) return;
+    const threadId = activeThread.id;
+    const messageId = newMessageId();
     const modelSelection =
       composerRef.current?.getSendContext().selectedModelSelection ?? activeThread.modelSelection;
     void startThreadTurn({
       environmentId,
       input: {
-        threadId: activeThread.id,
+        threadId,
         message: {
-          messageId: newMessageId(),
+          messageId,
           role: "user",
           ...ticketReplyMessage(environmentId, ticket, text),
           attachments: [],
@@ -1882,7 +1885,13 @@ export default function ChatView(props: ChatViewProps) {
         createdAt: new Date().toISOString(),
       },
     }).then((result) => {
-      if (result._tag === "Success") return;
+      if (result._tag === "Success") {
+        void closeTicket({
+          environmentId,
+          input: { id: ticket.id, by: { type: "replied", threadId, messageId } },
+        });
+        return;
+      }
       const error = squashAtomCommandFailure(result);
       toastManager.add({
         type: "error",

@@ -1,5 +1,5 @@
 import * as Tickets from "./tickets/Tickets.ts";
-import * as TicketChoices from "./tickets/TicketChoices.ts";
+import * as TicketClearing from "./tickets/TicketClearing.ts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import {
@@ -468,7 +468,7 @@ it.effect("shell snapshots omit idle children and older settled threads only on 
 // Build the production RPC layer; unrelated capabilities fail if this test calls them.
 const layerUnusedConfigRpcServices = Layer.mergeAll(
   Tickets.layer,
-  Layer.mock(TicketChoices.TicketChoices)({}),
+  Layer.mock(TicketClearing.TicketClearing)({}),
   Layer.mock(DocumentText.DocumentText)({}),
   Layer.mock(ServerSecretStore.ServerSecretStore)({}),
   Layer.mock(WorkspacePaths.WorkspacePaths)({}),

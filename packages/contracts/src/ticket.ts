@@ -92,7 +92,11 @@ export const TicketUpdateInput = Schema.Struct({
   }),
 });
 export type TicketUpdateInput = typeof TicketUpdateInput.Type;
-export const TicketCloseInput = Schema.Struct({ id: TicketId, by: TicketClearance });
+export const TicketCloseInput = Schema.Struct({
+  id: TicketId,
+  by: TicketClearance,
+  chatId: Schema.optional(ThreadId),
+});
 export type TicketCloseInput = typeof TicketCloseInput.Type;
 export const TicketChooseInput = Schema.Struct({
   id: TicketId,
