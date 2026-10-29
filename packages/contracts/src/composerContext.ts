@@ -11,6 +11,7 @@ import {
   TrimmedNonEmptyString,
 } from "./baseSchemas.ts";
 import { GUEST_MESSAGE_MAX_LENGTH, GUEST_NAME_MAX_LENGTH } from "./guestShare.ts";
+import { Ticket } from "./ticket.ts";
 
 /** Image and file records reference `ChatAttachment` ids, never bytes. */
 
@@ -25,6 +26,7 @@ export const COMPOSER_CONTEXT_KINDS = [
   "skill",
   "thread",
   "environment",
+  "ticket",
 ] as const;
 export type KnownComposerContextKind = (typeof COMPOSER_CONTEXT_KINDS)[number];
 
@@ -224,6 +226,16 @@ export const EnvironmentContextRecord = Schema.Struct({
 });
 export type EnvironmentContextRecord = typeof EnvironmentContextRecord.Type;
 
+export const TicketContextRecord = Schema.Struct({
+  ...recordBase,
+  kind: Schema.Literal("ticket"),
+  ticket: Ticket,
+  chat: ContextLabel,
+  session: ContextLabel,
+  transcriptUrl: ShortString,
+});
+export type TicketContextRecord = typeof TicketContextRecord.Type;
+
 const isJson = Schema.is(Schema.Json);
 
 /** Excludes known discriminators so malformed known records fail their own schema. */
@@ -255,6 +267,7 @@ export const KnownComposerContextRecord = Schema.Union([
   SkillContextRecord,
   ThreadContextRecord,
   EnvironmentContextRecord,
+  TicketContextRecord,
 ]);
 export type KnownComposerContextRecord = typeof KnownComposerContextRecord.Type;
 

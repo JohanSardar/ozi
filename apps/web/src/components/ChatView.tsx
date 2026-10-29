@@ -69,6 +69,7 @@ import {
   type ServerProvider,
   type ScopedThreadRef,
   type ThreadId,
+  type Ticket,
   ProviderInteractionMode,
   resolveIdleCompaction,
   RuntimeMode,
@@ -183,6 +184,7 @@ import { shortcutLabelForCommand } from "../keybindings";
 import { cn } from "~/lib/utils";
 import { COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS } from "~/workspaceTitlebar";
 import { toastManager } from "./ui/toast";
+import { ticketReplyMessage, useTicketReplyStore } from "../state/tickets";
 import { projectScriptIdFromCommand } from "~/projectScripts";
 import { newMessageId } from "~/lib/utils";
 import {
@@ -1843,6 +1845,61 @@ export default function ChatView(props: ChatViewProps) {
     }
   };
   const sendAppMessageStable = useStableCallback(sendAppMessage);
+  const sendTicketReply = (ticket: Ticket, text: string) => {
+    if (!activeThread) return;
+    const modelSelection =
+      composerRef.current?.getSendContext().selectedModelSelection ?? activeThread.modelSelection;
+    void startThreadTurn({
+      environmentId,
+      input: {
+        threadId: activeThread.id,
+        message: {
+          messageId: newMessageId(),
+          role: "user",
+          ...ticketReplyMessage(environmentId, ticket, text),
+          attachments: [],
+        },
+        runtimeMode,
+        interactionMode,
+        dispatchMode: "auto",
+        ...(isServerThread
+          ? {}
+          : {
+              modelSelection,
+              bootstrap: {
+                createThread: {
+                  projectId: activeThread.projectId,
+                  title: ticket.title,
+                  modelSelection,
+                  runtimeMode,
+                  interactionMode,
+                  branch: activeThread.branch,
+                  worktreePath: activeThread.worktreePath,
+                  createdAt: activeThread.createdAt,
+                },
+              },
+            }),
+        createdAt: new Date().toISOString(),
+      },
+    }).then((result) => {
+      if (result._tag === "Success") return;
+      const error = squashAtomCommandFailure(result);
+      toastManager.add({
+        type: "error",
+        title: "Reply not sent",
+        description: error instanceof Error ? error.message : undefined,
+      });
+    });
+  };
+  const sendTicketReplyStable = useStableCallback(sendTicketReply);
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- offers the inbox this chat as the place ticket replies go
+  useEffect(() => {
+    useTicketReplyStore.setState({ send: sendTicketReplyStable });
+    return () =>
+      useTicketReplyStore.setState((state) =>
+        state.send === sendTicketReplyStable ? { send: null } : state,
+      );
+  }, [sendTicketReplyStable]);
   const queuedRunsControlRef = useRef<QueuedRunsControlHandle>(null);
 
   const {

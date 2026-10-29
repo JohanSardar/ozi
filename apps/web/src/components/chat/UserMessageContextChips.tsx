@@ -24,7 +24,12 @@ import { PREFERRED_HIGHLIGHTER } from "../../lib/syntaxHighlighting";
 import ChatMarkdown from "../ChatMarkdown";
 import { EnvironmentContextChip } from "../EnvironmentContextChip";
 import { ThreadContextChip } from "../ThreadContextChip";
-import { MessageCircleIcon, MousePointerClickIcon, PaintbrushIcon } from "lucide-react";
+import {
+  CornerUpLeftIcon,
+  MessageCircleIcon,
+  MousePointerClickIcon,
+  PaintbrushIcon,
+} from "lucide-react";
 import type { ComposerContextId, KnownComposerContextRecord } from "@t3tools/contracts";
 import { buildExpandedImagePreview } from "./ExpandedImagePreview";
 import { WorkspaceEntryIcon, WorkspaceEntryTooltip } from "./WorkspaceEntryIcon";
@@ -318,6 +323,22 @@ const userMessageContextPresentationRegistry = createContextPresentationRegistry
       render: (record, context) =>
         record.kind === "thread" ? (
           <ThreadContextChip record={record} copyMarkdown={context.copyMarkdown} />
+        ) : (
+          <UnavailableUserMessageContextChip {...context} />
+        ),
+    },
+    {
+      kind: "ticket",
+      canRender: (record) => record.kind === "ticket",
+      render: (record, context) =>
+        record.kind === "ticket" ? (
+          <span className="mb-2 flex items-start gap-2 rounded-md bg-foreground/6 px-2.5 py-1.5 text-muted-foreground text-xs">
+            <CornerUpLeftIcon aria-hidden className="mt-0.5 size-3.5 shrink-0" />
+            <span className="line-clamp-3 min-w-0">
+              <b className="font-semibold text-foreground">{record.ticket.title}</b> ·{" "}
+              {record.ticket.need}
+            </span>
+          </span>
         ) : (
           <UnavailableUserMessageContextChip {...context} />
         ),
