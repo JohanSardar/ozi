@@ -78,3 +78,9 @@ Content includes up to four labelled choices and reuses T3 attachment references
 Closing records the time and an answered choice, reply message, Got it acknowledgement or agent acknowledgement message. Message references must exist in their recorded thread; answered choices must exist on the ticket. Repeated closes preserve the first clearance. Archived content is immutable. Delivering replies and adding chat closure notes belong to I5–I7; MCP caller authentication and tools belong to I2.
 
 The `ozi ticket` CLI exposes those six operations with `--input '<json>' --json`; `subscribe` emits newline-delimited snapshots.
+
+## H2B harness integration
+
+The default chat provider is **Ozi**, a named Pi instance loading `@ozi/pi` from the merged harness PR #81. Pi 1.4 and the harness package ship with the server; no global Pi installation or checkout path is needed. Ozi starts on Claude Opus 5.5, high thinking, fast off, through `pi-claude-bridge` and the user's Claude subscription (`claude auth login`), never an Anthropic API key. Other T3 providers and ordinary Pi remain selectable per chat.
+
+Ozi keeps Pi state under `<OZI_HOME>/agents/ozi` and defaults its data root to `<OZI_HOME>/harness`. An empty root receives the initial delegation prompt and skills directory; existing roots are preserved. The Pi instance's Ozi data root setting accepts an absolute alternate root. The harness rereads `system.md` and optional `adhd.md` each turn and discovers that root's skills. T3's Pi adapter supplies the GUI MCP tools; background text helpers retain the Ozi extension and disable tools. Inbox hooks, self-repair and completion checks remain separate tickets.

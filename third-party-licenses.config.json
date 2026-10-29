@@ -328,7 +328,9 @@
       "version": "0.4.0",
       "license": "Apache-2.0 AND OFL-1.1",
       "generatedNotices": [
-        { "licenseId": "Apache-2.0" },
+        {
+          "licenseId": "Apache-2.0"
+        },
         {
           "licenseId": "OFL-1.1",
           "copyrights": [
@@ -875,6 +877,46 @@
       "name": "iobuffer",
       "license": "MIT",
       "sourceUrl": "https://github.com/image-js/iobuffer"
+    },
+    {
+      "repositoryUrl": "https://github.com/earendil-works/pi",
+      "version": "1.4.0",
+      "license": "MIT",
+      "sourceUrl": "https://github.com/earendil-works/pi/blob/v1.4.0/LICENSE",
+      "generatedNotice": {
+        "licenseId": "MIT",
+        "copyrights": ["Copyright (c) 2025 Mario Zechner"]
+      }
+    },
+    {
+      "name": "standardwebhooks",
+      "version": "1.0.0",
+      "license": "MIT",
+      "sourceUrl": "https://github.com/standard-webhooks/standard-webhooks/tree/main/libraries/javascript",
+      "generatedNotice": {
+        "licenseId": "MIT",
+        "copyrights": ["Copyright (c) Standard Webhooks"]
+      }
+    },
+    {
+      "name": "data-uri-to-buffer",
+      "version": "4.0.1",
+      "license": "MIT",
+      "sourceUrl": "https://github.com/TooTallNate/node-data-uri-to-buffer/blob/4.0.1/README.md#license",
+      "generatedNotice": {
+        "licenseId": "MIT",
+        "copyrights": ["Copyright (c) 2014 Nathan Rajlich <nathan@tootallnate.net>"]
+      }
+    },
+    {
+      "name": "change-case",
+      "version": "5.4.4",
+      "license": "MIT",
+      "sourceUrl": "https://github.com/blakeembrey/change-case/blob/change-case%405.4.4/LICENSE",
+      "generatedNotice": {
+        "licenseId": "MIT",
+        "copyrights": ["Copyright (c) 2014 Blake Embrey (hello@blakeembrey.com)"]
+      }
     }
   ]
 }

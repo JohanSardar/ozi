@@ -38,7 +38,7 @@ export const makePiTextGeneration = Effect.fn("makePiTextGeneration")(function* 
         mcpSession: undefined,
         extensionPath: undefined,
         ephemeral: true,
-        disableExtensions: true,
+        disableExtensions: piSettings.harness !== "ozi",
         // Background naming/content helpers must never mutate the workspace.
         disableTools: true,
       });

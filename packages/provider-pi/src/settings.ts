@@ -10,6 +10,17 @@ import * as Schema from "effect/Schema";
 
 export const PiSettings = makeProviderSettingsSchema(
   {
+    harness: Schema.optionalKey(Schema.Literals(["pi", "ozi"])).pipe(
+      Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
+    ),
+    dataRoot: Schema.optionalKey(TrimmedString).pipe(
+      Schema.annotateKey({
+        title: "Ozi data root",
+        description:
+          "Absolute path for system.md, adhd.md and skills. Empty uses this Ozi home's harness directory.",
+        providerSettingsForm: { clearWhenEmpty: "omit" },
+      }),
+    ),
     enabled: Schema.Boolean.pipe(
       Schema.withDecodingDefault(Effect.succeed(false)),
       Schema.annotateKey({ providerSettingsForm: { hidden: true } }),
@@ -35,7 +46,7 @@ export const PiSettings = makeProviderSettingsSchema(
     ),
   },
   {
-    order: ["binaryPath", "launchArgs"],
+    order: ["binaryPath", "launchArgs", "dataRoot"],
   },
 );
 export type PiSettings = typeof PiSettings.Type;

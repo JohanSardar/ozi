@@ -76,11 +76,27 @@ interface PiDiscovery extends PiDiscoveredCommands {
 }
 
 function piModelsFromSettings(
+  settings: PiSettings,
   customModels: ReadonlyArray<CustomModelSetting> | undefined,
   discovered: ReadonlyArray<ServerProviderModel> = [],
 ): ReadonlyArray<ServerProviderModel> {
   return providerModelsFromSettings(
-    [PI_DEFAULT_MODEL, ...discovered],
+    settings.harness === "ozi"
+      ? [
+          {
+            slug: "claude-bridge/claude-opus-5-5",
+            name: "Claude Opus 5.5",
+            isCustom: false,
+            isDefault: true,
+            capabilities: thinkingCapabilitiesForPiModel({ reasoning: true }, "high"),
+          },
+          ...discovered.filter(
+            (model) =>
+              model.subProvider === "claude-bridge" &&
+              model.slug !== "claude-bridge/claude-opus-5-5",
+          ),
+        ]
+      : [PI_DEFAULT_MODEL, ...discovered],
     customModels ?? [],
     EMPTY_PI_MODEL_CAPABILITIES,
   );
@@ -225,7 +241,7 @@ export const buildInitialPiProviderSnapshot = Effect.fn(
   "PiProviderStatus.buildInitialPiProviderSnapshot",
 )(function* (piSettings: PiSettings): Effect.fn.Return<ServerProviderDraft> {
   const checkedAt = yield* Effect.map(DateTime.now, DateTime.formatIso);
-  const models = piModelsFromSettings(piSettings.customModels);
+  const models = piModelsFromSettings(piSettings, piSettings.customModels);
   if (!piSettings.enabled) {
     return buildServerProvider({
       presentation: PI_PRESENTATION,
@@ -262,7 +278,7 @@ export const checkPiProviderStatus = Effect.fn("checkPiProviderStatus")(function
   cwd?: string,
 ): Effect.fn.Return<ServerProviderDraft, never, ChildProcessSpawner.ChildProcessSpawner> {
   const checkedAt = DateTime.formatIso(yield* DateTime.now);
-  const fallbackModels = piModelsFromSettings(piSettings.customModels);
+  const fallbackModels = piModelsFromSettings(piSettings, piSettings.customModels);
 
   if (!piSettings.enabled) {
     return buildServerProvider({
@@ -431,7 +447,7 @@ export const checkPiProviderStatus = Effect.fn("checkPiProviderStatus")(function
   }
 
   const discovery = discoveryExit.value.value;
-  const models = piModelsFromSettings(piSettings.customModels, discovery.models);
+  const models = piModelsFromSettings(piSettings, piSettings.customModels, discovery.models);
   return buildServerProvider({
     presentation: PI_PRESENTATION,
     enabled: piSettings.enabled,
@@ -448,7 +464,9 @@ export const checkPiProviderStatus = Effect.fn("checkPiProviderStatus")(function
         ? {}
         : {
             message:
-              "Pi has no usable models. Run `pi` in a terminal and use /login, or configure an API key in ~/.pi/agent.",
+              piSettings.harness === "ozi"
+                ? "Sign in with `claude auth login` to use Ozi with your Claude subscription."
+                : "Pi has no usable models. Run `pi` in a terminal and use /login, or configure an API key in ~/.pi/agent.",
           }),
     },
   });

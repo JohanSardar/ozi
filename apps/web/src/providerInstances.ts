@@ -247,12 +247,15 @@ export function resolveProjectDefaultProviderModelSelection(
   projectId: ProjectId | null,
 ): ModelSelection | null {
   const entries = providerInstanceEntriesFor(providers, settings, projectId);
-  // Matches resolveComposerProviderSelection: the first driver group wins before any other.
   const entry =
+    entries.find(
+      (candidate) => candidate.instanceId === "ozi" && isSelectableProviderInstanceEntry(candidate),
+    ) ??
     resolveSelectableProviderInstanceEntry(
       entries.filter((candidate) => candidate.driverKind === entries[0]?.driverKind),
       undefined,
-    ) ?? resolveSelectableProviderInstanceEntry(entries, undefined);
+    ) ??
+    resolveSelectableProviderInstanceEntry(entries, undefined);
   const model = entry ? getDefaultProviderInstanceModel(providers, entry.instanceId) : undefined;
   return entry && model ? { instanceId: entry.instanceId, model } : null;
 }

@@ -10,9 +10,11 @@ import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 
 import * as ProviderLatestVersions from "@t3tools/provider-core/server/ProviderLatestVersions";
 import * as ProviderHost from "@t3tools/provider-core/server/ProviderHost";
+import * as ProviderContinuationRequests from "@t3tools/provider-core/server/ProviderContinuationRequests";
+import { prepareOzi } from "./ozi.ts";
 import { piUsageReader } from "./usage.ts";
 import { makePiTextGeneration } from "./textGeneration.ts";
-import { PiAdapterV2Driver, type PiAdapterV2DriverEnv } from "./adapter.ts";
+import { makePiAdapterV2, type PiAdapterV2DriverEnv } from "./adapter.ts";
 import { ProviderDriverError } from "@t3tools/provider-core/server/errors";
 import {
   buildInitialPiProviderSnapshot,
@@ -97,7 +99,21 @@ export const PiDriver: ProviderDriver<PiSettings, PiDriverEnv, Path.Path> = {
     const latestVersions = yield* ProviderLatestVersions.ProviderLatestVersions;
     const host = yield* ProviderHost.ProviderHost;
     const { cwd } = host.paths;
-    const processEnv = yield* mergeProviderInstanceEnvironment(environment);
+    const prepared = yield* prepareOzi(
+      { ...config, enabled },
+      yield* mergeProviderInstanceEnvironment(environment),
+    ).pipe(
+      Effect.mapError(
+        (cause) =>
+          new ProviderDriverError({
+            driver: DRIVER_KIND,
+            instanceId,
+            detail: "Failed to prepare Ozi harness.",
+            cause,
+          }),
+      ),
+    );
+    const processEnv = prepared.environment;
     const continuationIdentity = defaultProviderContinuationIdentity({
       driverKind: DRIVER_KIND,
       instanceId,
@@ -108,7 +124,7 @@ export const PiDriver: ProviderDriver<PiSettings, PiDriverEnv, Path.Path> = {
       accentColor,
       continuationGroupKey: continuationIdentity.continuationKey,
     });
-    const effectiveConfig = { ...config, enabled } satisfies PiSettings;
+    const effectiveConfig = prepared.settings;
     const resolveMaintenance = yield* makeCachedProviderMaintenanceResolution(
       resolveProviderMaintenanceCapabilitiesEffect(UPDATE, {
         binaryPath: effectiveConfig.binaryPath,
@@ -120,13 +136,11 @@ export const PiDriver: ProviderDriver<PiSettings, PiDriverEnv, Path.Path> = {
       ),
     );
 
-    const orchestrationAdapter = yield* PiAdapterV2Driver.create({
+    const orchestrationAdapter = yield* makePiAdapterV2({
       instanceId,
-      displayName,
-      accentColor,
-      environment,
-      enabled,
-      config,
+      environment: processEnv,
+      settings: effectiveConfig,
+      continuationRequests: yield* ProviderContinuationRequests.ProviderContinuationRequests,
     }).pipe(
       Effect.mapError(
         (cause) =>
