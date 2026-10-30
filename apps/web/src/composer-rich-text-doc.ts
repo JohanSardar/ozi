@@ -155,16 +155,22 @@ export const ComposerItalicExtension = Italic.extend({
 });
 
 /**
- * Mod+B bolds selected text only. Without a selection Tiptap would toggle bold
- * for the next typed text, which users hit by accident when they mean the
- * sidebar toggle. Runs ahead of the Bold extension and swallows the chord.
+ * Mod+B and Mod+I format selected text only. Without a selection Tiptap would
+ * toggle the mark for the next typed text, which users hit by accident when
+ * they mean the sidebar or inbox toggle. Runs ahead of the mark extensions and
+ * swallows the chords.
  */
-export const ComposerBoldSelectionOnlyExtension = Extension.create({
-  name: "composerBoldSelectionOnly",
+export const ComposerMarkSelectionOnlyExtension = Extension.create({
+  name: "composerMarkSelectionOnly",
   priority: 1000,
   addKeyboardShortcuts() {
     const ignoreWithoutSelection = () => this.editor.state.selection.empty;
-    return { "Mod-b": ignoreWithoutSelection, "Mod-B": ignoreWithoutSelection };
+    return {
+      "Mod-b": ignoreWithoutSelection,
+      "Mod-B": ignoreWithoutSelection,
+      "Mod-i": ignoreWithoutSelection,
+      "Mod-I": ignoreWithoutSelection,
+    };
   },
 });
 

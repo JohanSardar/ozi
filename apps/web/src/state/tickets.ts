@@ -15,8 +15,10 @@ import {
   ticketContextRecord,
 } from "@t3tools/shared/composerContextReferences";
 import { create } from "zustand";
+import { createJSONStorage, persist } from "zustand/middleware";
 
 import { connectionAtomRuntime } from "../connection/runtime";
+import { resolveStorage } from "../lib/storage";
 import { readThreadShell } from "./entities";
 import { readPreparedConnection } from "./session";
 
@@ -36,10 +38,30 @@ export const ticketChoose = createEnvironmentRpcCommand(connectionAtomRuntime, {
   tag: WS_METHODS.ticketsChoose,
 });
 
-export const useInboxStore = create<{
+interface InboxState {
   tab: "inbox" | "archive";
   selected: { id: TicketId | null; index: number; reveal?: boolean };
-}>()(() => ({ tab: "inbox", selected: { id: null, index: 0 } }));
+  hidden: boolean;
+}
+
+export const useInboxStore = create<InboxState>()(
+  persist((): InboxState => ({ tab: "inbox", selected: { id: null, index: 0 }, hidden: false }), {
+    name: "ozi:inbox:v1",
+    storage: createJSONStorage(() =>
+      resolveStorage(typeof window !== "undefined" ? window.localStorage : undefined),
+    ),
+    partialize: ({ hidden }) => ({ hidden }),
+  }),
+);
+
+const syncInboxHidden = ({ hidden }: { hidden: boolean }) =>
+  document.documentElement.toggleAttribute("data-inbox-hidden", hidden);
+if (typeof document !== "undefined") {
+  syncInboxHidden(useInboxStore.getState());
+  useInboxStore.subscribe(syncInboxHidden);
+}
+
+export const toggleInbox = () => useInboxStore.setState(({ hidden }) => ({ hidden: !hidden }));
 
 export const useTicketReplyStore = create<{
   send: ((ticket: Ticket, text: string) => void) | null;

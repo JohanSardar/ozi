@@ -165,7 +165,7 @@ describe("rightPanelStore", () => {
     ).toEqual({
       byThreadKey: {},
       threadPanelVisibilityByThreadKey: {
-        "env-1:thread-A": { inlineOpen: false, popoverOpen: false },
+        "env-1:thread-B": { inlineOpen: true, popoverOpen: false },
       },
     });
   });

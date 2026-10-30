@@ -1,3 +1,4 @@
+import { ShowInboxButton } from "../inbox/InboxPanel";
 import {
   AuthOrchestrationOperateScope,
   type EnvironmentId,
@@ -35,7 +36,6 @@ import {
   WorkspaceBreadcrumbText,
 } from "../WorkspaceBreadcrumb";
 import { observeResize } from "~/lib/observeResize";
-import { cn } from "~/lib/utils";
 import { tickTextContent } from "~/lib/tickTextContent";
 import { textDirection } from "~/textDirection";
 import { useClientSettings } from "../../hooks/useSettings";
@@ -51,7 +51,6 @@ interface ChatHeaderProps {
   isServerThread: boolean;
   parentThreadLink: { threadId: ThreadId; title: string } | null;
   onOpenThread: (threadId: ThreadId) => void;
-  rightPanelOpen: boolean;
   defaultCwd: string | null;
 }
 
@@ -77,7 +76,6 @@ export const ChatHeader = memo(function ChatHeader({
   isServerThread,
   parentThreadLink,
   onOpenThread,
-  rightPanelOpen,
   defaultCwd,
 }: ChatHeaderProps) {
   const interfaceFont = useClientSettings((settings) => settings.fontFamilySans);
@@ -259,10 +257,7 @@ export const ChatHeader = memo(function ChatHeader({
   return (
     <div
       ref={breadcrumbContainerRef}
-      className={cn(
-        "flex min-w-0 flex-1 items-center gap-2 sm:gap-3",
-        rightPanelOpen ? "pr-10" : "pr-24",
-      )}
+      className="flex min-w-0 flex-1 items-center gap-2 sm:gap-3"
       onContextMenu={handleHeaderContextMenu}
     >
       <WorkspaceBreadcrumb
@@ -400,6 +395,7 @@ export const ChatHeader = memo(function ChatHeader({
         </WorkspaceBreadcrumbItem>
       </WorkspaceBreadcrumb>
       {isServerThread ? <GuestShareIndicator threadRef={activeThreadRef} /> : null}
+      <ShowInboxButton />
     </div>
   );
 });

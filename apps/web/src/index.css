@@ -160,6 +160,10 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
   }
 }
 
+:root[data-inbox-hidden] {
+  --inbox-width: 0px;
+}
+
 .wco {
   --native-titlebar-height: env(titlebar-area-height, 0px);
   --workspace-topbar-height: max(40px, env(titlebar-area-height, 52px));

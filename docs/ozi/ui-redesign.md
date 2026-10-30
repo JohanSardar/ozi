@@ -27,7 +27,7 @@ Three columns: chats, conversation, inbox.
 ### Conversation (center)
 
 - As T3: user messages are bubbles on the right; assistant text is plain and full width, centered in a 46rem column.
-- The top bar shows the chat title and, while it works, a spinner with the elapsed time. It has no Sessions or panel buttons; thread details, the terminal drawer and the right panel open with their keybindings.
+- The top bar shows the chat title and, while it works, a spinner with the elapsed time. It has no Sessions or panel buttons; thread details (closed by default), the terminal drawer and the right panel open with their keybindings.
 - Tool work folds into one "Worked for 1m 20s" row; it expands to steps, and each step to its details.
 - A delegated job shows as a line "↳ ‹job› · waiting on you" that opens its ticket.
 - Hovering or selecting assistant text offers Reply; the quote sits above the composer and goes with the message.
@@ -45,7 +45,7 @@ Three columns: chats, conversation, inbox.
 
 ### Inbox (right)
 
-- One inbox for every chat, with Inbox and Archive tabs.
+- One inbox for every chat, with Inbox and Archive tabs. A Hide inbox (⌘I) button ends the tab row; while hidden, Show inbox with the open-ticket count sits at the top right of the chat header. ⌘I toggles it and the choice persists.
 - Tickets are grouped under Decide (questions and approvals), Do (things only the user can do, such as a BankID login), Review (finished work) and Read (nothing to do), each with a count. The heading is the only type marker; rows carry no icons.
 - A row shows the ticket title and its chat and age, and opens in place: one bold line saying what the user needs to do, the context, numbered choices (keys 1–3) when there is a choice, a reply box, Got it and Open details. The first ticket starts open; clearing one opens the next.
 - Open details shows the ticket in a window over the app, like T3's settings: the full context, details, choices, the session transcript and job, and a reply box at the bottom. Clicking outside closes it; sending closes it.
@@ -126,7 +126,7 @@ Simulator and emulator support is removed across the server, contracts, provider
 
 ## I3 inbox panel
 
-The inbox is a fixed right column beside every chat from 1024px wide (340px, 404px from 1280px); top-right workspace controls move left by its width. It reads `tickets.subscribe` live: open tickets in group order, then by most recent update. The row's chat is the origin chat's title and its age is the creation time. The open ticket stays open until it clears, then the ticket that takes its place opens; clicking an open row closes it. Got it closes the ticket as acknowledged. Choices, keys 1–4 (one per shown choice, outside text fields) and the reply box (Enter) call hooks that I6 and I5 implement. Working lists each chat's pending subagent tasks and opens the worker. The archive subscribes with the server's search and shows how each ticket cleared, its chat and the clearance age.
+The inbox is a fixed right column beside every chat from 1024px wide (340px, 404px from 1280px); top-right workspace controls move left by its width. Hiding it gives the conversation its width. It reads `tickets.subscribe` live: open tickets in group order, then by most recent update. The row's chat is the origin chat's title and its age is the creation time. The open ticket stays open until it clears, then the ticket that takes its place opens; clicking an open row closes it. Got it closes the ticket as acknowledged. Choices, keys 1–4 (one per shown choice, outside text fields) and the reply box (Enter) call hooks that I6 and I5 implement. Working lists each chat's pending subagent tasks and opens the worker. The archive subscribes with the server's search and shows how each ticket cleared, its chat and the clearance age.
 
 ## I4 ticket window
 

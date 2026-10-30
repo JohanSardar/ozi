@@ -2,20 +2,34 @@ import { useAtomValue } from "@effect/atom-react";
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import type { EnvironmentId, Ticket } from "@t3tools/contracts";
 import { useNavigate } from "@tanstack/react-router";
+import { InboxIcon, PanelRightIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { useThreadRouteRef } from "../../hooks/useThreadRouteTarget";
+import {
+  isRichTextMarkShortcut,
+  resolveShortcutCommand,
+  shortcutLabelForCommand,
+} from "../../keybindings";
 import { isEditableFocused } from "../../lib/editableFocus";
 import { cn } from "../../lib/utils";
 import { primaryEnvironmentIdAtom } from "../../state/primaryEnvironment";
 import { useEnvironmentQuery } from "../../state/query";
 import { environmentThreadShells } from "../../state/threads";
-import { ticketChoose, ticketClose, ticketList, useInboxStore } from "../../state/tickets";
+import { primaryServerKeybindingsAtom } from "../../state/server";
+import {
+  ticketChoose,
+  ticketClose,
+  ticketList,
+  toggleInbox,
+  useInboxStore,
+} from "../../state/tickets";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { buildThreadRouteParams } from "../../threadRoutes";
 import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Spinner } from "../ui/spinner";
+import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { Age, Choices, clearedBy, TicketWindow } from "./TicketWindow";
 
 export interface TicketHooks {
@@ -33,9 +47,70 @@ const GROUPS = [
 export const orderTickets = (tickets: ReadonlyArray<Ticket>) =>
   GROUPS.flatMap(([group]) => tickets.filter((ticket) => ticket.group === group));
 
+function useInboxShortcutLabel() {
+  const keybindings = useAtomValue(primaryServerKeybindingsAtom);
+  const label = shortcutLabelForCommand(keybindings, "inbox.toggle");
+  return label ? ` (${label})` : "";
+}
+
 export function InboxPanel(props: TicketHooks) {
   const environmentId = useAtomValue(primaryEnvironmentIdAtom);
-  return environmentId ? <Inbox environmentId={environmentId} hooks={props} /> : null;
+  const keybindings = useAtomValue(primaryServerKeybindingsAtom);
+  const hidden = useInboxStore((state) => state.hidden);
+
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- window keydown listener that toggles the inbox on its shortcut
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.defaultPrevented) return;
+      if (
+        isRichTextMarkShortcut(event, window.getSelection(), "i") &&
+        event.target instanceof HTMLElement &&
+        event.target.closest('[data-composer-rich-text="true"]')
+      )
+        return;
+      if (resolveShortcutCommand(event, keybindings) !== "inbox.toggle") return;
+      event.preventDefault();
+      event.stopPropagation();
+      toggleInbox();
+    };
+    window.addEventListener("keydown", onKeyDown, true);
+    return () => window.removeEventListener("keydown", onKeyDown, true);
+  }, [keybindings]);
+
+  return environmentId && !hidden ? <Inbox environmentId={environmentId} hooks={props} /> : null;
+}
+
+export function ShowInboxButton() {
+  const environmentId = useAtomValue(primaryEnvironmentIdAtom);
+  const hidden = useInboxStore((state) => state.hidden);
+  const shortcut = useInboxShortcutLabel();
+  const count =
+    useEnvironmentQuery(environmentId && hidden ? ticketList({ environmentId, input: {} }) : null)
+      .data?.tickets.length ?? 0;
+  if (!hidden) return null;
+  return (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <Button
+            variant="ghost"
+            size="icon-sm"
+            className="relative ms-2 hidden shrink-0 lg:inline-flex [-webkit-app-region:no-drag]"
+            aria-label={`Show inbox${shortcut}`}
+            onClick={toggleInbox}
+          />
+        }
+      >
+        <InboxIcon className="size-4" />
+        {count > 0 ? (
+          <span className="absolute -top-0.5 -right-0.5 min-w-4 rounded-full bg-primary px-1 text-center text-3xs font-semibold leading-4 text-primary-foreground tabular-nums">
+            {count}
+          </span>
+        ) : null}
+      </TooltipTrigger>
+      <TooltipPopup side="bottom">Show inbox{shortcut}</TooltipPopup>
+    </Tooltip>
+  );
 }
 
 function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks }) {
@@ -55,6 +130,7 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks }) {
   const [search, setSearch] = useState("");
   const [workingOpen, setWorkingOpen] = useState(false);
   const [details, setDetails] = useState<Ticket | null>(null);
+  const shortcut = useInboxShortcutLabel();
   const navigate = useNavigate();
   const close = useAtomCommand(ticketClose);
   const threads = useAtomValue(environmentThreadShells.environmentThreadsAtom(environmentId));
@@ -123,7 +199,7 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks }) {
     >
       <div
         role="tablist"
-        className="flex h-(--workspace-topbar-height) shrink-0 items-stretch gap-5 border-b border-border px-3.5"
+        className="flex h-(--workspace-topbar-height) shrink-0 items-stretch gap-5 border-b border-border ps-3.5 pe-2.5"
       >
         {(["inbox", "archive"] as const).map((name) => (
           <button
@@ -145,6 +221,22 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks }) {
             ) : null}
           </button>
         ))}
+        <Tooltip>
+          <TooltipTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                className="ms-auto self-center"
+                aria-label={`Hide inbox${shortcut}`}
+                onClick={toggleInbox}
+              />
+            }
+          >
+            <PanelRightIcon className="size-4" />
+          </TooltipTrigger>
+          <TooltipPopup side="bottom">Hide inbox{shortcut}</TooltipPopup>
+        </Tooltip>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-3 pt-0.5 pb-4">
         {tab === "inbox" ? (

@@ -334,14 +334,14 @@ export function isOpenFavoriteEditorShortcut(
 }
 
 /**
- * Whether the keypress should bold text in the rich-text composer: Mod+B
- * without extra modifiers, with text selected. Tiptap binds the same chord, so
- * app shortcuts captured ahead of the editor yield only in that case. With no
- * selection the chord stays with the app (the sidebar toggle by default).
+ * Whether Mod+B or Mod+I, without extra modifiers and with text selected,
+ * should format the rich-text composer. Without a selection the chord stays
+ * with the app shortcut captured ahead of the editor.
  */
-export function isRichTextBoldShortcut(
+export function isRichTextMarkShortcut(
   event: ShortcutEventLike,
   selection: Pick<Selection, "isCollapsed"> | null,
+  key: "b" | "i",
 ): boolean {
   if (event.type !== undefined && event.type !== "keydown") {
     return false;
@@ -349,7 +349,7 @@ export function isRichTextBoldShortcut(
   return (
     selection !== null &&
     !selection.isCollapsed &&
-    resolveEventKeys(event).has("b") &&
+    resolveEventKeys(event).has(key) &&
     (event.metaKey || event.ctrlKey) &&
     !event.altKey &&
     !event.shiftKey

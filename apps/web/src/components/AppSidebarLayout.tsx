@@ -19,7 +19,7 @@ import {
 } from "../hooks/showThreadUndoNotice";
 import { getLocalStorageItem, removeLocalStorageItem } from "../hooks/useLocalStorage";
 import {
-  isRichTextBoldShortcut,
+  isRichTextMarkShortcut,
   resolveShortcutCommand,
   shortcutLabelForCommand,
 } from "../keybindings";
@@ -314,7 +314,7 @@ function SidebarControl() {
         return;
       }
       if (
-        isRichTextBoldShortcut(event, window.getSelection()) &&
+        isRichTextMarkShortcut(event, window.getSelection(), "b") &&
         event.target instanceof HTMLElement &&
         event.target.closest('[data-composer-rich-text="true"]')
       ) {

@@ -2705,7 +2705,6 @@ export default function ChatView(props: ChatViewProps) {
             defaultCwd={defaultCwd}
             parentThreadLink={headerParentThreadLink}
             onOpenThread={onOpenRelatedThreadStable}
-            rightPanelOpen={inlineRightPanelOwnsTitleBar}
           />
         </header>
 
