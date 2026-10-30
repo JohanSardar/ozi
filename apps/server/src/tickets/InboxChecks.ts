@@ -61,7 +61,7 @@ const make = Effect.gen(function* () {
         prompt: `Inbox check. You are an isolated fork of the agent's completed turn. Do not continue its task or reply to the user.
 Use ticket_create, ticket_update, ticket_close and ticket_list only.
 File a ticket for anything from this turn that needs the user's answer or acknowledgement: a question, approval, something only the user can do, finished result, failure, or something the user should see. Skip small talk. File nothing if nothing fits.
-Give it a group (Decide, Do, Review or Read), a title saying what happened or what's needed, one sentence on what to do, a short summary of the context, and up to four choices when useful. The user should be able to act without reading the chat. ${TICKET_WRITING}
+Give it a group (Decide, Do, Review or Read), a title saying what happened or what's needed, one sentence on what to do, a short summary of the context, and up to four choices when useful, with pictures, maps, events, drafts and browser cards from this turn as the fields explain. The user should be able to act without reading the chat. ${TICKET_WRITING}
 Do not duplicate an existing ticket; update it when needed. Close the listed open tickets that the user's last message acknowledged. Do not treat silence or viewing as acknowledgement.
 Listed open tickets:
 ${listed}`,

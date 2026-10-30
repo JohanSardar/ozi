@@ -32,14 +32,14 @@ export const TicketToolkit = Toolkit.make(
   Tool.make("ticket_create", {
     ...shared,
     description:
-      `File a ticket when the user needs to answer, act, review or acknowledge something. Skip small talk. ${TICKET_WRITING} Session and transcript links are attached automatically. Delegated workers use this only when their task tells them to.`,
+      `File a ticket when the user needs to answer, act, review or acknowledge something. Skip small talk. ${TICKET_WRITING} Show rather than describe: give choices pictures, and put photos, screenshots, maps, events, drafts and browser cards in markdown as its field explains. Session and transcript links are attached automatically. Delegated workers use this only when their task tells them to.`,
     parameters: TicketContent,
     success: Ticket,
   }).annotate(Tool.Destructive, true),
   Tool.make("ticket_update", {
     ...shared,
     description:
-      `Update an open ticket when its context, request or choices change. ${TICKET_WRITING} Delegated workers use this only when their task tells them to.`,
+      `Update an open ticket when its context, request, choices or pictures change. ${TICKET_WRITING} Delegated workers use this only when their task tells them to.`,
     parameters: TicketUpdateInput,
     success: Ticket,
   }).annotate(Tool.Destructive, true),
