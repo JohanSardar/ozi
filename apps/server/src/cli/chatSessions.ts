@@ -4,6 +4,8 @@ import * as NodeSocket from "@effect/platform-node/NodeSocket";
 import * as NetService from "@t3tools/shared/Net";
 import {
   ChatSessionResult,
+  PiRpcCommand,
+  ServerSettings,
   MessageId,
   ProviderInstanceId,
   ChatSessionRpcGroup,
@@ -32,6 +34,11 @@ import * as ServerConfig from "../config.ts";
 import { isProcessAlive, readPersistedServerRuntimeState } from "../serverRuntimeState.ts";
 import { baseDirFlag, resolveCliAuthConfig } from "./config.ts";
 import { readRemoteConnection } from "./remote.ts";
+import * as ChildProcess from "effect/process/ChildProcess";
+import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
+import { PiSettings } from "@t3tools/provider-pi/settings";
+import { piCliLaunch } from "@t3tools/provider-pi/server";
+import { mergeProviderInstanceEnvironment } from "@t3tools/provider-core/server/instanceEnvironment";
 import packageJson from "../../package.json" with { type: "json" };
 
 class SessionCliError extends Schema.TaggedError<SessionCliError>()("SessionCliError", {
@@ -40,6 +47,12 @@ class SessionCliError extends Schema.TaggedError<SessionCliError>()("SessionCliE
   override readonly [Runtime.errorReported] = false;
 }
 
+const decodeCommandPayload = Schema.decodeEffect(
+  Schema.fromJsonString(Schema.Record(Schema.String, Schema.Unknown)),
+);
+const decodePiCommand = Schema.decodeUnknownEffect(PiRpcCommand);
+const decodePiSettings = Schema.decodeEffect(PiSettings);
+const decodeSettings = Schema.decodeEffect(Schema.fromJsonString(ServerSettings));
 const makeClient = RpcClient.make(ChatSessionRpcGroup);
 const decodeResponse = Schema.decodeEffect(
   Schema.fromJsonString(
@@ -476,10 +489,171 @@ export const printCommand = Command.make("print", {
   ),
 );
 
+export const mainCommand = Command.make("main", {
+  baseDir: baseDirFlag,
+  json: jsonFlag,
+  thread: threadFlag,
+  command: Argument.String("command"),
+  payload: Flag.String("payload").pipe(Flag.withDefault("{}")),
+}).pipe(
+  Command.withDescription("Run an allowlisted Pi RPC command on a chat."),
+  Command.withHandler((flags) =>
+    report(flags.json)(
+      withClient(
+        flags,
+        Effect.fn("cli.main")(function* (client) {
+          const payload = yield* decodeCommandPayload(flags.payload);
+          if (Object.hasOwn(payload, "type"))
+            return yield* new SessionCliError({
+              message: "--payload must omit type; select the command by name.",
+            });
+          const command = yield* decodePiCommand(
+            { ...payload, type: flags.command },
+            { onExcessProperty: "error" },
+          );
+          const result = yield* client["chatSessions.execute"]({
+            action: "pi-rpc",
+            threadId: yield* current(client, Option.getOrUndefined(flags.thread)),
+            command,
+          });
+          yield* printJson(result.data ?? {});
+        }),
+      ),
+    ),
+  ),
+);
+
+export const piCommand = Command.make("pi", {
+  baseDir: baseDirFlag,
+  json: jsonFlag,
+  thread: threadFlag,
+  args: Argument.String("args").pipe(Argument.variadic()),
+}).pipe(
+  Command.withDescription(
+    "Run Pi's CLI using the chat's agent directory. Use -- before Pi flags that overlap Ozi flags.",
+  ),
+  Command.withHandler((flags) =>
+    report(flags.json)(
+      Effect.gen(function* () {
+        const config = yield* resolveCliAuthConfig(flags, yield* GlobalFlag.LogLevel);
+        const runtime = yield* readPersistedServerRuntimeState(config.serverRuntimeStatePath);
+        const local = Option.isSome(runtime) && isProcessAlive(runtime.value.pid);
+        const remote = local
+          ? Option.none()
+          : yield* readRemoteConnection(Option.some(config.baseDir));
+        if (!local && Option.isSome(remote)) {
+          const result = yield* withClient(
+            flags,
+            Effect.fn("cli.pi.remote")(function* (client) {
+              return yield* client["chatSessions.execute"]({
+                action: "pi-cli",
+                threadId: yield* current(client, Option.getOrUndefined(flags.thread)),
+                args: flags.args,
+              });
+            }),
+          );
+          if (flags.json) yield* printJson(result);
+          else {
+            yield* Console.log(result.stdout ?? "");
+            if (result.stderr) yield* Console.error(result.stderr);
+          }
+          process.exitCode = result.exitCode ?? 0;
+          return;
+        }
+        const fs = yield* FileSystem.FileSystem;
+        const settings = yield* fs.readFileString(config.settingsPath).pipe(
+          Effect.catchIf(
+            (error) => error.reason._tag === "NotFound",
+            () => Effect.succeed("{}"),
+          ),
+          Effect.flatMap(decodeSettings),
+        );
+        const selected = local
+          ? yield* withClient(
+              flags,
+              Effect.fn("cli.pi.current")(function* (client) {
+                return yield* client["chatSessions.execute"]({
+                  action: "inspect",
+                  threadId: yield* current(client, Option.getOrUndefined(flags.thread)),
+                });
+              }),
+            )
+          : undefined;
+        if (!local && Option.isSome(flags.thread))
+          return yield* new SessionCliError({
+            message: "Start Ozi to select a chat with --thread.",
+          });
+        const instanceId =
+          selected?.modelSelection?.instanceId ??
+          settings.defaultModelSelection?.instanceId ??
+          ProviderInstanceId.make("ozi");
+        const instance = settings.providerInstances[instanceId];
+        if (instance?.driver !== "pi")
+          return yield* new SessionCliError({ message: "Choose a Pi chat with --thread." });
+        const launch = yield* piCliLaunch(
+          yield* decodePiSettings(instance.config ?? {}),
+          yield* mergeProviderInstanceEnvironment(instance.environment),
+          config.baseDir,
+        );
+        const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+        yield* Effect.scoped(
+          Effect.gen(function* () {
+            const child = yield* spawner.spawn(
+              ChildProcess.make(launch.binary, flags.args, {
+                env: launch.env,
+                extendEnv: false,
+                cwd: selected?.workingDirectory ?? config.cwd,
+                stdin: "inherit",
+                stdout: flags.json ? "pipe" : "inherit",
+                stderr: flags.json ? "pipe" : "inherit",
+              }),
+            );
+            const [stdout, stderr, code] = yield* Effect.all(
+              [
+                child.stdout.pipe(Stream.decodeText(), Stream.mkString),
+                child.stderr.pipe(Stream.decodeText(), Stream.mkString),
+                child.exitCode,
+              ],
+              { concurrency: "unbounded" },
+            );
+            if (flags.json) yield* printJson({ stdout, stderr, exitCode: Number(code) });
+            process.exitCode = Number(code);
+          }),
+        );
+      }),
+    ),
+  ),
+);
+
 export function runSessionCli() {
+  if (process.argv[2] === "pi") {
+    const wrapper: string[] = [];
+    const args: string[] = [];
+    const raw = process.argv.slice(3);
+    for (let index = 0; index < raw.length; index++) {
+      const arg = raw[index]!;
+      if (arg === "--") {
+        args.push(...raw.slice(index + 1));
+        break;
+      }
+      if (arg === "--json") wrapper.push(arg);
+      else if (arg === "--home" || arg === "--thread") {
+        wrapper.push(arg);
+        if (raw[index + 1] !== undefined) wrapper.push(raw[++index]!);
+      } else if (arg.startsWith("--home=") || arg.startsWith("--thread=")) wrapper.push(arg);
+      else args.push(arg);
+    }
+    process.argv.splice(3, process.argv.length - 3, ...wrapper, "--", ...args);
+  }
   Command.run(
     Command.make("ozi").pipe(
-      Command.withSubcommands([sessionCommand, printCommand, answerCommand]),
+      Command.withSubcommands([
+        sessionCommand,
+        printCommand,
+        answerCommand,
+        mainCommand,
+        piCommand,
+      ]),
     ),
     { version: packageJson.version },
   ).pipe(

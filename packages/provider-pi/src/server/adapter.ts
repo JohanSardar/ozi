@@ -6,6 +6,7 @@ import { readToolOutputImage } from "@t3tools/shared/toolOutput";
 import * as Predicate from "effect/Predicate";
 import {
   ProviderDriverKind,
+  type PiRpcCommand,
   type ChatAttachment,
   type ModelSelection,
   type OrchestrationV2ExecutionNode,
@@ -45,7 +46,7 @@ import * as ProviderHost from "@t3tools/provider-core/server/ProviderHost";
 import { providerMessageTextWithAttachmentPaths } from "@t3tools/provider-core/server/attachmentPrompt";
 import { mcpToolPresentation } from "@t3tools/provider-core/server/mcpToolPresentation";
 import * as McpProviderSessions from "@t3tools/provider-core/server/McpProviderSessions";
-import { parsePiCompactCommand, type PiCompactCommand } from "./commands.ts";
+import { parsePiCompactCommand, parsePiBuiltinCommand, type PiCompactCommand } from "./commands.ts";
 import { mergeProviderInstanceEnvironment } from "@t3tools/provider-core/server/instanceEnvironment";
 import * as IdAllocator from "@t3tools/provider-core/server/IdAllocator";
 import * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAdapter";
@@ -85,6 +86,8 @@ const decodeInboxStatus = Schema.decodeUnknownOption(
     }),
   ),
 );
+
+const encodeCommandResult = Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown));
 
 export const PI_PROVIDER = ProviderDriverKind.make("pi");
 const PI_DRIVER_KIND = PI_PROVIDER;
@@ -2417,6 +2420,73 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
         return { message, images };
       });
 
+      const commandText = (result: unknown) =>
+        typeof result === "string"
+          ? Effect.succeed(result)
+          : encodeCommandResult(result ?? { success: true }).pipe(
+              Effect.mapError(
+                (cause) =>
+                  new ProviderAdapter.ProviderAdapterProtocolError({
+                    driver: PI_PROVIDER,
+                    detail: "Invalid Pi command response",
+                    cause,
+                  }),
+              ),
+            );
+
+      const emitCommandResult = Effect.fn("PiAdapter.emitCommandResult")(function* (
+        turn: ActivePiTurn,
+        result: unknown,
+      ) {
+        const item: PiStreamItemState = {
+          nativeItemId: `${turn.providerTurn.id}:command:${turn.nextItemOrdinal}`,
+          kind: "assistant_message",
+          text: yield* commandText(result),
+          completed: true,
+          flushScheduled: false,
+          startedAt: yield* DateTime.now,
+        };
+        yield* emitStreamItem(turn, item, false);
+      });
+
+      const executeBuiltin = Effect.fn("PiAdapter.executeBuiltin")(function* (
+        turn: ActivePiTurn,
+        command: PiRpcCommand,
+      ) {
+        const result = yield* runtime.executePiCommand!(command);
+        const appThread = turn.turnInput.appThread;
+        if (
+          command.type === "set_session_name" ||
+          command.type === "set_model" ||
+          command.type === "set_thinking_level"
+        ) {
+          const modelSelection =
+            command.type === "set_model"
+              ? { ...appThread.modelSelection, model: `${command.provider}/${command.modelId}` }
+              : command.type === "set_thinking_level"
+                ? {
+                    ...appThread.modelSelection,
+                    options: [
+                      ...(appThread.modelSelection.options ?? []).filter(
+                        (option) => option.id !== "thinking",
+                      ),
+                      { id: "thinking", value: command.level },
+                    ],
+                  }
+                : appThread.modelSelection;
+          yield* emit({
+            type: "app_thread.created",
+            driver: PI_PROVIDER,
+            appThread: {
+              ...appThread,
+              title: command.type === "set_session_name" ? command.name : appThread.title,
+              modelSelection,
+            },
+          });
+        }
+        return result;
+      });
+
       const runtime: ProviderAdapter.ProviderAdapterV2SessionRuntime = {
         instanceId: options.instanceId,
         driver: PI_PROVIDER,
@@ -2469,6 +2539,40 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
                 }),
             ),
           ),
+        executePiCommand: (command) =>
+          request(
+            command,
+            command.type === "compact" || command.type === "bash" ? 120_000 : PI_REQUEST_TIMEOUT_MS,
+          ).pipe(
+            Effect.tap(
+              Effect.fnUntraced(function* (result) {
+                if (command.type === "set_session_name") appliedSessionName = command.name;
+                if (command.type === "set_thinking_level") appliedThinking = command.level;
+                if (command.type === "set_model") {
+                  appliedModel = `${command.provider}/${command.modelId}`;
+                  contextWindow = rememberModelContextWindow(result);
+                  sessionEntity = {
+                    ...sessionEntity,
+                    model: appliedModel,
+                    updatedAt: yield* DateTime.now,
+                  };
+                  yield* emit({
+                    type: "provider_session.updated",
+                    driver: PI_PROVIDER,
+                    providerSession: sessionEntity,
+                  });
+                }
+              }),
+            ),
+            Effect.mapError(
+              (cause) =>
+                new ProviderAdapter.ProviderAdapterProtocolError({
+                  driver: PI_PROVIDER,
+                  detail: "Pi command failed",
+                  cause,
+                }),
+            ),
+          ),
         compactThread: (turnInput) =>
           runtime.startTurn({
             ...turnInput,
@@ -2516,8 +2620,11 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
             const compactCommand = continuation
               ? null
               : parsePiCompactCommand(turnInput.message.text);
+            const builtinCommand = continuation
+              ? null
+              : parsePiBuiltinCommand(turnInput.message.text);
             const payload =
-              !continuation && compactCommand === null
+              !continuation && builtinCommand === null
                 ? yield* resolvePromptPayload(turnInput.message.text, turnInput.message.attachments)
                 : null;
             yield* fileSystem.writeFileString(inboxContextPath, turnInput.runId);
@@ -2638,6 +2745,16 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
                 }),
               ),
             );
+            if (builtinCommand !== null && compactCommand === null) {
+              const result =
+                "error" in builtinCommand
+                  ? builtinCommand.error
+                  : yield* executeBuiltin(activeTurn, builtinCommand).pipe(
+                      Effect.catch((cause) => Effect.succeed({ error: cause.message })),
+                    );
+              yield* emitCommandResult(activeTurn, result);
+              yield* finalizeTurn(state);
+            }
             // Pi acks `prompt` only after slash-command expansion completes,
             // and extension commands may block on user dialogs indefinitely.
             // Rejections therefore return later as id-less response records
@@ -2662,6 +2779,18 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
             const turn = threadState?.activeTurn ?? null;
             if (turn === null || turn.providerTurn.id !== steerInput.providerTurnId) {
               return yield* protocolError(`Pi turn ${steerInput.providerTurnId} is not active`);
+            }
+            const builtinCommand = parsePiBuiltinCommand(steerInput.message.text);
+            if (
+              builtinCommand !== null &&
+              !("type" in builtinCommand && builtinCommand.type === "compact")
+            ) {
+              const result =
+                "error" in builtinCommand
+                  ? builtinCommand.error
+                  : yield* executeBuiltin(turn, builtinCommand);
+              yield* emitCommandResult(turn, result);
+              return;
             }
             const compactCommand = parsePiCompactCommand(steerInput.message.text);
             const payload =
