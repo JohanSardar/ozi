@@ -14,13 +14,15 @@ import {
   CommandId,
   MessageId,
   ProviderDriverKind,
+  ProviderSessionId,
+  isConfiguredProviderInstanceEnabled,
   ThreadId,
   ChatAttachment,
   type ModelSelection,
   OrchestrationV2StoredEvent,
 } from "@t3tools/contracts";
 import { PiSettings } from "@t3tools/provider-pi/settings";
-import { bundledPiBinary } from "@t3tools/provider-pi/server";
+import { bundledPiBinary, piCliLaunch } from "@t3tools/provider-pi/server";
 import * as Context from "effect/Context";
 import * as Crypto from "effect/Crypto";
 import * as DateTime from "effect/DateTime";
@@ -33,6 +35,7 @@ import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import * as ChildProcess from "effect/process/ChildProcess";
 import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
+import { mergeProviderInstanceEnvironment } from "@t3tools/provider-core/server/instanceEnvironment";
 import * as ServerConfig from "../config.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as ThreadManagement from "../orchestration-v2/ThreadManagementService.ts";
@@ -380,6 +383,133 @@ const make = Effect.gen(function* () {
     return { threadId };
   });
 
+  const piCommand = Effect.fn("ChatSessions.piCommand")(function* (
+    projection: Projection,
+    input: Extract<ChatSessionInput, { action: "pi-rpc" | "pi-cli" }>,
+  ) {
+    const currentSettings = yield* settings.getSettings;
+    const instance = currentSettings.providerInstances[projection.thread.providerInstanceId];
+    if (
+      instance?.driver !== "pi" ||
+      !isConfiguredProviderInstanceEnabled(currentSettings, projection.thread.providerInstanceId)
+    )
+      return yield* new ChatSessionError({ reason: "pi_required" });
+    if (input.action === "pi-cli") {
+      const launch = yield* piCliLaunch(
+        yield* decodePiSettings(instance.config ?? {}),
+        yield* mergeProviderInstanceEnvironment(instance.environment),
+        config.baseDir,
+      ).pipe(Effect.provideService(Path.Path, path));
+      return yield* Effect.scoped(
+        Effect.gen(function* () {
+          const child = yield* spawner.spawn(
+            ChildProcess.make(launch.binary, input.args, {
+              cwd: projection.thread.workingDirectory ?? config.cwd,
+              env: launch.env,
+              extendEnv: false,
+              stdin: "ignore",
+            }),
+          );
+          const [stdout, stderr, exitCode] = yield* Effect.all(
+            [
+              child.stdout.pipe(Stream.decodeText(), Stream.mkString),
+              child.stderr.pipe(Stream.decodeText(), Stream.mkString),
+              child.exitCode,
+            ],
+            { concurrency: "unbounded" },
+          );
+          return { threadId: input.threadId, stdout, stderr, exitCode: Number(exitCode) };
+        }),
+      ).pipe(Effect.timeout("2 minutes"));
+    }
+    const providerThread = projection.providerThreads.find(
+      (item) =>
+        item.id === projection.thread.activeProviderThreadId &&
+        item.providerInstanceId === projection.thread.providerInstanceId,
+    );
+    const runtimePolicy = {
+      runtimeMode: projection.thread.runtimeMode,
+      interactionMode: projection.thread.interactionMode,
+      cwd: projection.thread.workingDirectory ?? config.cwd,
+    };
+    const previousSession = projection.providerSessions.find(
+      (item) => item.id === providerThread?.providerSessionId,
+    );
+    const session = yield* providerSessions.open({
+      threadId: input.threadId,
+      providerSessionId:
+        providerThread?.providerSessionId ?? ProviderSessionId.make(`pi-command:${input.threadId}`),
+      modelSelection: projection.thread.modelSelection,
+      runtimePolicy,
+      ...(providerThread?.nativeThreadRef?.nativeId == null
+        ? {}
+        : { initialNativeThreadId: providerThread.nativeThreadRef.nativeId }),
+      ...(previousSession === undefined ? {} : { resumeFromSession: previousSession }),
+      ...(providerThread?.nativeMetadata?.itemIdentityVersion === undefined
+        ? {}
+        : {
+            initialProviderItemIdentityVersion: providerThread.nativeMetadata.itemIdentityVersion,
+          }),
+    });
+    const registered =
+      providerThread === undefined
+        ? yield* session.ensureThread({
+            threadId: input.threadId,
+            title: projection.thread.title,
+            modelSelection: projection.thread.modelSelection,
+            runtimePolicy,
+          })
+        : yield* session.resumeThread({
+            providerThread,
+            modelSelection: projection.thread.modelSelection,
+            runtimePolicy,
+          });
+    yield* sink.write({
+      events: [
+        {
+          id: EventId.make(yield* uuid()),
+          type: "provider-thread.updated",
+          threadId: input.threadId,
+          driver: registered.driver,
+          providerInstanceId: registered.providerInstanceId,
+          occurredAt: registered.updatedAt,
+          payload: registered,
+        },
+      ],
+    });
+    if (session.executePiCommand === undefined)
+      return yield* new ChatSessionError({ reason: "pi_required" });
+    const data = yield* session.executePiCommand(input.command);
+    const command = input.command;
+    if (command.type === "set_session_name")
+      yield* threads.dispatch({
+        type: "thread.metadata.update",
+        commandId: yield* commandId(),
+        threadId: input.threadId,
+        title: command.name,
+      });
+    if (command.type === "set_model" || command.type === "set_thinking_level") {
+      const selection = projection.thread.modelSelection;
+      const modelSelection =
+        command.type === "set_model"
+          ? { ...selection, model: `${command.provider}/${command.modelId}` }
+          : {
+              ...selection,
+              options: [
+                ...(selection.options ?? []).filter((option) => option.id !== "thinking"),
+                { id: "thinking", value: command.level },
+              ],
+            };
+      yield* threads.dispatch({
+        type: "thread.model-selection.set",
+        commandId: yield* commandId(),
+        threadId: input.threadId,
+        modelSelection,
+      });
+    }
+    return { threadId: input.threadId, data };
+  });
+
   const execute = Effect.fn("ChatSessions.execute")(
     function* (input: ChatSessionInput): Effect.fn.Return<ChatSessionResult, unknown> {
       if (input.action === "list") {
@@ -402,9 +532,13 @@ const make = Effect.gen(function* () {
       if (input.action === "new") return yield* create(input);
       if (input.action === "import") return yield* create(input);
       const projection = yield* load(input.threadId);
+      if (input.action === "pi-rpc" || input.action === "pi-cli")
+        return yield* piCommand(projection, input);
       if (input.action === "inspect")
         return {
           threadId: input.threadId,
+          modelSelection: projection.thread.modelSelection,
+          workingDirectory: projection.thread.workingDirectory ?? config.cwd,
           messages: (yield* history(projection))
             .filter((message) => message.role === "user")
             .map(({ id, text }) => ({ id, text })),

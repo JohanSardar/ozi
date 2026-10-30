@@ -1,6 +1,7 @@
 import type { OrchestrationV2HistoricalMessage } from "@t3tools/contracts";
 import {
   ChatAttachment,
+  type PiRpcCommand,
   CheckpointId,
   MessageId,
   ModelSelection,
@@ -579,6 +580,9 @@ export interface ProviderAdapterV2SessionRuntime {
   readonly startTurn: (
     input: ProviderAdapterV2TurnInput,
   ) => Effect.Effect<void, ProviderAdapterV2Error>;
+  readonly executePiCommand?: (
+    command: PiRpcCommand,
+  ) => Effect.Effect<unknown, ProviderAdapterV2Error>;
   readonly compactThread?: (
     input: ProviderAdapterV2TurnInput,
   ) => Effect.Effect<void, ProviderAdapterV2Error>;

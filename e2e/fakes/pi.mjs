@@ -5,6 +5,18 @@ import * as NodePath from "node:path";
 import * as NodeReadline from "node:readline";
 
 const args = process.argv.slice(2);
+if (args.includes("--p4-probe")) {
+  console.log(
+    JSON.stringify({
+      args,
+      agentDir: process.env.PI_CODING_AGENT_DIR,
+      marker: process.env.OZI_P4_MARKER,
+      cwd: process.cwd(),
+    }),
+  );
+  console.error("Pi CLI stderr");
+  process.exit(args.includes("--p4-fail") ? 7 : 0);
+}
 if (args.includes("--version")) {
   console.log("1.4.0");
   process.exit(0);
@@ -25,6 +37,9 @@ NodeFS.mkdirSync(directory, { recursive: true });
 let file;
 let entries;
 let waiting = false;
+let sessionName;
+let model = { provider: "test", id: "test" };
+let thinkingLevel = "high";
 const send = (event) => process.stdout.write(`${JSON.stringify(event)}\n`);
 const save = () =>
   NodeFS.writeFileSync(file, entries.map((entry) => JSON.stringify(entry)).join("\n") + "\n");
@@ -105,7 +120,9 @@ for await (const line of NodeReadline.createInterface({ input: process.stdin }))
         sessionId: entries[0].id,
         isStreaming: waiting,
         isCompacting: false,
-        thinkingLevel: "high",
+        thinkingLevel,
+        sessionName,
+        model,
         messageCount: entries.length - 1,
         pendingMessageCount: 0,
       });
@@ -126,7 +143,46 @@ for await (const line of NodeReadline.createInterface({ input: process.stdin }))
       });
       break;
     case "get_commands":
-      response({ commands: [] });
+      response({
+        commands: [
+          { name: "extension", source: "extension" },
+          { name: "template", source: "prompt" },
+        ],
+      });
+      break;
+    case "set_session_name":
+      sessionName = request.name;
+      response();
+      break;
+    case "set_model":
+      model = { provider: request.provider, id: request.modelId };
+      response(model);
+      break;
+    case "set_thinking_level":
+      thinkingLevel = request.level;
+      response();
+      break;
+    case "get_available_thinking_levels":
+      response({ levels: ["off", "high"] });
+      break;
+    case "get_last_assistant_text":
+      response({
+        text:
+          branch().findLast((entry) => entry.message?.role === "assistant")?.message.content[0]
+            .text ?? null,
+      });
+      break;
+    case "export_html": {
+      const output = request.outputPath ?? `${file}.html`;
+      NodeFS.writeFileSync(output, "<!doctype html><title>Pi session</title>");
+      response({ path: output });
+      break;
+    }
+    case "bash":
+      response({ output: request.command, exitCode: 0, cancelled: false, truncated: false });
+      break;
+    case "compact":
+      response({ summary: "Compacted", tokensBefore: 20 });
       break;
     case "get_entries":
       response({
