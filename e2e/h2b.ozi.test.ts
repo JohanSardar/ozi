@@ -12,7 +12,7 @@ const exec = NodeUtil.promisify(NodeChildProcess.execFile);
 const root = NodePath.resolve(import.meta.dirname, "..");
 const cli = NodePath.join(root, "apps/server/src/bin.ts");
 
-it("C6.harness-package: the default chat loads repair, completion and inbox with the subscription harness", async () => {
+it("H6.main-checked: default Ozi checks its own text-only completion", async () => {
   const directory = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "ozi-h2b-"));
   const home = NodePath.join(directory, "home");
   const workspace = NodePath.join(directory, "workspace");
@@ -30,6 +30,13 @@ it("C6.harness-package: the default chat loads repair, completion and inbox with
     }),
   );
   const fake = await startAnthropic((request) => {
+    if (JSON.stringify(request.system).includes("OZI COMPLETION CHECK"))
+      return {
+        text: JSON.stringify({
+          verdict: { verdict: "done", useful: false },
+          verified: ["The requested reply h2b-ozi-ok is present in native history."],
+        }),
+      };
     const tool = request.tools.find((entry) => entry.name.includes("orchestrator_capabilities"));
     return tool && !JSON.stringify(request.messages).includes('"tool_result"')
       ? { tool: tool.name, arguments: {} }
@@ -118,6 +125,31 @@ it("C6.harness-package: the default chat loads repair, completion and inbox with
     await NodeFSP.writeFile(NodePath.join(home, "harness/adhd.md"), "h2b-adhd");
     const first = fake.requests.length;
     await run("thread", "send", result.threadId, "Reply h2b-ozi-ok again without tools.", "--wait");
+    const harness = async (...args: string[]) =>
+      JSON.parse(
+        (
+          await exec(
+            process.execPath,
+            [
+              NodePath.join(root, "apps/server/node_modules/@ozi/pi/src/cli.mjs"),
+              ...args,
+              "--data-root",
+              NodePath.join(home, "harness"),
+              "--json",
+            ],
+            { env: environment },
+          )
+        ).stdout,
+      );
+    const checks = (await harness("checks")).filter(
+      (row: { workerId: string | null }) => row.workerId === null,
+    );
+    expect(checks).toHaveLength(2);
+    for (const check of checks) {
+      const settled = await harness("wait", "check", check.id, "checked", "--timeout", "20");
+      expect(settled.reportItemId).toBeTruthy();
+      expect(settled.action).toBeNull();
+    }
     expect(
       fake.requests.slice(first).some((request) => {
         const system = JSON.stringify(request.system);
@@ -126,7 +158,9 @@ it("C6.harness-package: the default chat loads repair, completion and inbox with
     ).toBe(true);
     for (const request of fake.requests) {
       expect(request.model).toBe("claude-opus-5-5");
-      expect(request.output_config?.effort).toBe("high");
+      expect(request.output_config?.effort).toBe(
+        JSON.stringify(request.system).includes("OZI COMPLETION CHECK") ? "low" : "high",
+      );
       expect(request.speed).not.toBe("fast");
     }
     expect(
