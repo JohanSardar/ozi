@@ -334,6 +334,7 @@ export default defineConfig({
           "packages/shared/src/HostProcess.ts",
           "apps/desktop/scripts/dev-electron.mjs",
           "e2e/g3.desktop-dev.test.ts",
+          "e2e/i8.notifications.test.ts",
         ],
         rules: { "t3code/no-global-process-runtime": "off" },
       },
