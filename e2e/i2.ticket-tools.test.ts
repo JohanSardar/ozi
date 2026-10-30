@@ -81,6 +81,10 @@ describe("i2.ticket-tools", () => {
       }),
     );
     fake = await startAnthropic((request) => {
+      if (JSON.stringify(request.system).includes("OZI COMPLETION CHECK"))
+        return {
+          text: JSON.stringify({ verdict: { verdict: "done", useful: false }, verified: [] }),
+        };
       const create = request.tools.find((tool) => tool.name.endsWith("ticket_create"));
       if (!create) {
         const search = request.tools.find(
@@ -125,7 +129,7 @@ describe("i2.ticket-tools", () => {
         case 2:
           return call("ticket_update", {
             id,
-            changes: { title: `${name} updated`, origin: { threadId: "spoof" } },
+            changes: { group: "Decide", title: `${name} updated`, origin: { threadId: "spoof" } },
           });
         case 3:
           return call("ticket_list", { search: name });

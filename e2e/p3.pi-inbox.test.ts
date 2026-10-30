@@ -57,6 +57,10 @@ it("p3.pi-inbox: isolated native forks file, acknowledge and skip small talk wit
   let firstFork = true;
   let forkRequests = 0;
   const fake = await startAnthropic(async (request) => {
+    if (JSON.stringify(request.system).includes("OZI COMPLETION CHECK"))
+      return {
+        text: JSON.stringify({ verdict: { verdict: "done", useful: false }, verified: [] }),
+      };
     const text = JSON.stringify(request.messages);
     const fork = text.includes("Check the completed turn's inbox only");
     if (!fork)
@@ -222,7 +226,9 @@ it("p3.pi-inbox: isolated native forks file, acknowledge and skip small talk wit
     expect(archived.origin).toEqual(ticket.origin);
     for (const request of fake.requests) {
       expect(request.model).toBe("claude-opus-5-5");
-      expect(request.output_config?.effort).toBe("high");
+      expect(request.output_config?.effort).toBe(
+        JSON.stringify(request.system).includes("OZI COMPLETION CHECK") ? "low" : "high",
+      );
     }
     const end = await run("thread", "show", result.threadId);
     const users = end.messages.filter((message: { role: string }) => message.role === "user");
