@@ -68,7 +68,6 @@ function sanitizeAgentActivityAggregateRow(
 ): RelayAgentActivityAggregateRow {
   return {
     ...row,
-    projectTitle: truncateText(row.projectTitle, MAX_SUMMARY_TEXT_LENGTH),
     threadTitle: truncateText(row.threadTitle, MAX_SUMMARY_TEXT_LENGTH),
     modelTitle: truncateText(row.modelTitle, MAX_SUMMARY_TEXT_LENGTH),
     status: truncateText(row.status, MAX_STATUS_TEXT_LENGTH),
@@ -106,7 +105,7 @@ export function notificationForActivity(
   const activity = sanitizeAgentActivityAggregateRow(row);
   return sanitizeApnsNotificationPayload({
     title: activity.threadTitle,
-    body: `${activity.status}: ${activity.projectTitle}`,
+    body: `${activity.status}: ${activity.modelTitle}`,
     environmentId: activity.environmentId,
     threadId: activity.threadId,
     deepLink: activity.deepLink,

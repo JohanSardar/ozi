@@ -5,14 +5,7 @@ import {
   type PartialState,
   type StackActionType,
 } from "@react-navigation/native";
-import { availableScratchWorkspaceRoot } from "@t3tools/client-runtime/operations/projects";
 import { resolvePromptLinkModelSelection } from "@t3tools/client-runtime/prompt-links";
-import {
-  isAtomCommandInterrupted,
-  runAtomCommand,
-  squashAtomCommandFailure,
-} from "@t3tools/client-runtime/state/runtime";
-import type { EnvironmentProject } from "@t3tools/client-runtime/state/shell";
 import type { EnvironmentId } from "@t3tools/contracts";
 import { parseNewThreadLink, type LinkedPrompt } from "@t3tools/shared/promptLinks";
 import { Atom } from "effect/reactivity";
@@ -20,7 +13,6 @@ import { Atom } from "effect/reactivity";
 import { findLinkedRoute, findStackRoute, updateLinkedRoute } from "../../lib/appLinking";
 import { rootNavigationRef } from "../../lib/rootNavigation";
 import { appAtomRegistry } from "../../state/atom-registry";
-import { projectEnvironment } from "../../state/projects";
 import { environmentServerConfigsAtom } from "../../state/server";
 import { environmentThreadShells } from "../../state/threads";
 import {
@@ -42,7 +34,7 @@ import {
 
 // Found at any depth, both in the parsed link and on the live stack, so the two never disagree on
 // whether the link has landed.
-const NEW_TASK_ROUTE = "NewTaskProject";
+const NEW_TASK_ROUTE = "NewTask";
 const NEW_TASK_ROUTES = [NEW_TASK_ROUTE];
 
 type LinkedDraftRequest = {
@@ -142,7 +134,7 @@ function writeDraft(
   return resolved?.exact !== true;
 }
 
-async function openProjectDraft(project: EnvironmentProject, request: LinkedDraftRequest) {
+async function openEnvironmentDraft(environmentId: EnvironmentId, request: LinkedDraftRequest) {
   try {
     await waitForComposerDraftsLoaded();
   } catch {
@@ -150,15 +142,13 @@ async function openProjectDraft(project: EnvironmentProject, request: LinkedDraf
     return;
   }
   const draftKey = createNewTaskDraft({
-    environmentId: project.environmentId,
-    projectId: project.id,
+    environmentId: environmentId,
   });
-  const modelUnavailable = writeDraft(draftKey, project.environmentId, request);
+  const modelUnavailable = writeDraft(draftKey, environmentId, request);
   dispatchFromNewTask(
     StackActions.push("Thread", {
       draft: {
         draftId: draftKey,
-        title: project.title,
       },
     }),
   );
@@ -180,39 +170,16 @@ async function openScratchDraft(request: LinkedDraftRequest) {
       .get(workspaceConnections.environmentsAtom)
       .filter(
         (environment) =>
-          availableScratchWorkspaceRoot(
-            environment.connectionState,
-            serverConfigs.get(environment.environmentId),
-          ) !== null,
+          environment.connectionState === "connected" &&
+          serverConfigs.has(environment.environmentId),
       )
       .map((environment) => environment.environmentId),
   );
   if (environmentId === null) {
-    Dialog.alert(
-      "Could not start without a project",
-      "No connected environment offers threads without a project.",
-    );
+    Dialog.alert("Could not start chat", "Connect an environment to start a chat.");
     return;
   }
-  const result = await runAtomCommand(
-    appAtomRegistry,
-    projectEnvironment.openScratch,
-    { environmentId, input: {} },
-    { reportFailure: false },
-  );
-  if (result._tag === "Failure") {
-    if (!isAtomCommandInterrupted(result)) {
-      const error = squashAtomCommandFailure(result);
-      Dialog.alert(
-        "Could not start without a project",
-        error instanceof Error
-          ? error.message
-          : "The folder for threads without a project could not be created.",
-      );
-    }
-    return;
-  }
-  await openProjectDraft(result.value, { ...request });
+  await openEnvironmentDraft(environmentId, request);
 }
 
 function resolveLink(linkSearch: string) {

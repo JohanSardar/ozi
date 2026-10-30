@@ -251,7 +251,7 @@ export interface ThreadDetailScreenProps {
   readonly onCancelQueuedRunEdit: () => void;
   readonly onRemoveQueuedEditAttachment: (attachmentId: string) => void;
   readonly environmentId: EnvironmentId;
-  readonly projectWorkspaceRoot: string | null;
+  readonly workspaceRoot: string | null;
   readonly threadCwd: string | null;
   readonly selectedThreadQueueCount: number;
   readonly queuedMessages: ReadonlyArray<QueuedThreadMessage>;
@@ -1049,7 +1049,7 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
       (candidate) => candidate.instanceId === selectedInstanceId,
     );
     return provider
-      ? resolveProviderSkillsForCwd(provider, props.threadCwd ?? props.projectWorkspaceRoot)
+      ? resolveProviderSkillsForCwd(provider, props.threadCwd ?? props.workspaceRoot)
       : [];
   })();
 
@@ -1562,7 +1562,7 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
                         activeThreadBusy={props.activeThreadBusy}
                         canStopThread={props.canStopThread}
                         environmentId={props.environmentId}
-                        projectCwd={props.threadCwd ?? props.projectWorkspaceRoot}
+                        defaultCwd={props.threadCwd ?? props.workspaceRoot}
                         // Keep follow-ups in the draft until server creation succeeds, or rejection strands them in the outbox.
                         sendBlockedReason={
                           props.draftMode

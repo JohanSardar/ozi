@@ -48,7 +48,6 @@ function Chat(props: { composerKeys: string[]; launcher?: { keys: string; receiv
   useChatShortcuts({
     enabled: true,
     keybindings: [],
-    scriptKeybindings: [],
     getShortcutContext: () => shortcutContext,
     threadFindActive: false,
     // Type-to-focus only calls insertTextAtEnd, so the stand-in composer implements just that.
@@ -62,7 +61,6 @@ function Chat(props: { composerKeys: string[]; launcher?: { keys: string; receiv
     },
     closeThreadFind: () => {},
     commands: {},
-    fallback: () => undefined,
   });
   return props.launcher ? <Launcher {...props.launcher} /> : null;
 }

@@ -8,11 +8,8 @@ import { SafeAreaInsetsContext, useSafeAreaInsets } from "react-native-safe-area
 import { AdaptiveWorkspaceContext, useAdaptiveWorkspaceLayout } from "./adaptive-workspace-context";
 import { threadSelectionDeferral } from "./deferred-navigation";
 import { uuidv4 } from "../../lib/uuid";
-import type {
-  EnvironmentProject,
-  EnvironmentThreadShell,
-} from "@t3tools/client-runtime/state/shell";
-import { EnvironmentId, ThreadId, type SidebarProjectGroupingMode } from "@t3tools/contracts";
+import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/shell";
+import { EnvironmentId, ThreadId } from "@t3tools/contracts";
 import { useAtomValue } from "@effect/atom-react";
 import { useFocusEffect } from "@react-navigation/native";
 import { NavigationContext, NavigationRouteContext, useNavigation } from "@react-navigation/native";
@@ -40,14 +37,7 @@ import {
 } from "../../lib/layout";
 import { scopedThreadKey } from "../../lib/scopedEntities";
 import type { ThreadListFilters } from "../../persistence/mobile-preferences";
-import { appAtomRegistry } from "../../state/atom-registry";
-import { useProjects } from "../../state/entities";
-import { environmentThreadShells } from "../../state/threads";
 import { mobilePreferencesAtom } from "../../state/preferences";
-import {
-  DEFAULT_MOBILE_PROJECT_GROUPING_SETTINGS,
-  resolveMobileProjectGroupingSettings,
-} from "../../state/project-grouping";
 import {
   parseActiveThreadPath,
   useHardwareKeyboardCommand,
@@ -70,7 +60,6 @@ import {
 import { startOpeningDetail } from "../workspace/useSelectWorkspaceDetail";
 import { useWorkspaceTabs } from "../workspace/WorkspaceTabsContext";
 import { HomeListOptionsProvider } from "../home/home-list-options";
-import { newTaskDestination } from "../threads/new-task-project-selection";
 import { usePendingTaskListActions } from "../home/usePendingTaskListActions";
 import { ThreadNavigationSidebar } from "../threads/ThreadNavigationSidebar";
 import { RenderErrorBoundary, RenderFailureView } from "../../components/RenderErrorBoundary";
@@ -146,17 +135,12 @@ export function AdaptiveWorkspaceLayout(props: {
   const preferencesResult = useAtomValue(mobilePreferencesAtom);
   if (!AsyncResult.isSuccess(preferencesResult)) {
     return AsyncResult.isFailure(preferencesResult) ? (
-      <AdaptiveWorkspaceLayoutContent
-        {...props}
-        projectGroupingMode={DEFAULT_MOBILE_PROJECT_GROUPING_SETTINGS.sidebarProjectGroupingMode}
-      />
+      <AdaptiveWorkspaceLayoutContent {...props} />
     ) : null;
   }
-  const groupingSettings = resolveMobileProjectGroupingSettings(preferencesResult.value);
   return (
     <AdaptiveWorkspaceLayoutContent
       {...props}
-      projectGroupingMode={groupingSettings.sidebarProjectGroupingMode}
       savedThreadListFilters={preferencesResult.value.threadListFilters}
     />
   );
@@ -170,12 +154,10 @@ function AdaptiveWorkspaceLayoutContent(
     readonly workspaceRouteName: string | undefined;
     readonly workspaceRouteKeys: ReadonlyArray<string>;
   } & {
-    readonly projectGroupingMode: SidebarProjectGroupingMode;
     readonly savedThreadListFilters?: ThreadListFilters | undefined;
   },
 ) {
   const floatingTabsEnabled = useAndroidFloatingTabs();
-  const projectGroupingMode = props.projectGroupingMode;
   const nativeWorkspace = use(NativeWorkspaceModeContext);
   const usesPresentationHost = use(WorkspacePresentationHostContext);
   const windowDimensions = useWindowDimensions();
@@ -542,8 +524,6 @@ function AdaptiveWorkspaceLayoutContent(
   }
   const handleSelectThreadRoute = (params: ReactNavigation.RootParamList["Thread"]) =>
     handleSelectDetail({ name: "Thread", params });
-
-  const projects = useProjects();
   const compactAndroidSettings =
     Platform.OS === "android" && androidSettingsOpen && !layout.usesSplitView;
   // Reads the open page when pressed, so the layout context doesn't change on every navigation.
@@ -559,27 +539,11 @@ function AdaptiveWorkspaceLayoutContent(
     const first = (value: string | string[] | undefined) =>
       Array.isArray(value) ? value[0] : value;
     const environmentId = first(params?.environmentId);
-    const threadId = first(params?.threadId);
     // The full index, not the sidebar list: subagent and archived threads are current threads too.
-    const projectId =
-      environmentId && threadId
-        ? appAtomRegistry
-            .get(
-              environmentThreadShells.environmentThreadIndexAtom(EnvironmentId.make(environmentId)),
-            )
-            .get(ThreadId.make(threadId))?.projectId
-        : undefined;
-    const preferences = appAtomRegistry.get(mobilePreferencesAtom);
-    const saved = AsyncResult.isSuccess(preferences) ? preferences.value : undefined;
-    handleSelectThreadRoute(
-      newTaskDestination({
-        projects,
-        requestId: uuidv4(),
-        useLastProject: saved?.useLastProjectForNewThreads,
-        currentProject: environmentId && projectId ? { environmentId, projectId } : undefined,
-        lastProject: saved?.lastThreadProject,
-      }),
-    );
+    handleSelectDetail({
+      name: "Thread",
+      params: { draft: { requestId: uuidv4(), ...(environmentId ? { environmentId } : {}) } },
+    });
   };
 
   useHardwareKeyboardCommand("newTask", () => {
@@ -593,17 +557,6 @@ function AdaptiveWorkspaceLayoutContent(
   };
   const { openPendingTask: handleOpenPendingTask } =
     usePendingTaskListActions(handleSelectThreadRoute);
-
-  const handleNewThreadInProject = (project: EnvironmentProject) => {
-    handleSelectThreadRoute({
-      draft: {
-        requestId: uuidv4(),
-        environmentId: String(project.environmentId),
-        projectId: String(project.id),
-        title: project.title,
-      },
-    });
-  };
 
   const inspectorColumnTargetWidth =
     workspaceInspector !== null && workspaceInspector.active && panes.auxiliaryPaneVisible
@@ -816,10 +769,7 @@ function AdaptiveWorkspaceLayoutContent(
 
   if (nativeWorkspace) {
     return (
-      <HomeListOptionsProvider
-        projectGroupingMode={projectGroupingMode}
-        savedFilters={props.savedThreadListFilters}
-      >
+      <HomeListOptionsProvider savedFilters={props.savedThreadListFilters}>
         <AdaptiveWorkspaceContext value={contextValue}>
           <NativeWorkspaceInspectorContext
             value={{ render: workspaceInspector?.render, visible: inspectorColumnTargetWidth > 0 }}
@@ -880,7 +830,6 @@ function AdaptiveWorkspaceLayoutContent(
                     selectedThreadKey={selectedThreadKey}
                     onOpenSettings={handleOpenSettings}
                     onOpenEnvironmentSettings={handleOpenEnvironmentSettings}
-                    onNewThreadInProject={handleNewThreadInProject}
                     onOpenPendingTask={handleOpenPendingTask}
                     onSelectThread={handleSelectThread}
                     onSearchQueryChange={setPrimarySidebarSearchQuery}
@@ -992,10 +941,7 @@ function AdaptiveWorkspaceLayoutContent(
   );
 
   return (
-    <HomeListOptionsProvider
-      projectGroupingMode={projectGroupingMode}
-      savedFilters={props.savedThreadListFilters}
-    >
+    <HomeListOptionsProvider savedFilters={props.savedThreadListFilters}>
       <AdaptiveWorkspaceContext.Provider value={contextValue}>
         <WindowHingeContext value={windowHinge}>
           {usesPresentationHost ? (

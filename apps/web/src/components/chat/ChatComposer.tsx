@@ -22,7 +22,6 @@ import type {
   ChatFileAttachment,
   EnvironmentId,
   ModelSelection,
-  ProjectId,
   PreviewAnnotationPayload,
   ThreadContextRecord,
   EnvironmentContextRecord,
@@ -357,7 +356,7 @@ export interface ChatComposerProps {
   activeThreadShell: ThreadShell | null;
   promptHistoryMessages: ReadonlyArray<ChatMessage>;
   forceExpandedOnMobile: boolean;
-  projectSelectionRequired: boolean;
+  environmentSelectionRequired: boolean;
 
   phase: SessionPhase;
   canInterrupt: boolean;
@@ -408,10 +407,9 @@ export interface ChatComposerProps {
   lockedProvider: ProviderDriverKind | null;
   providerStatuses: ServerProvider[];
   providerCatalogKnown: boolean;
-  activeProjectDefaultModelSelection: ModelSelection | null | undefined;
+  defaultModelSelection: ModelSelection | null | undefined;
   activeThreadModelSelection: ModelSelection | null | undefined;
   reportedModelSelection?: ModelSelection | null;
-  activeProjectId: ProjectId | null;
 
   activeContextWindow: ContextWindowSnapshot | null;
   compactThreadUnavailable: boolean;
@@ -502,7 +500,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     activeThread,
     promptHistoryMessages,
     forceExpandedOnMobile,
-    projectSelectionRequired,
+    environmentSelectionRequired,
     phase,
     canInterrupt,
     isSendBusy,
@@ -527,10 +525,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     lockedProvider,
     providerStatuses,
     providerCatalogKnown,
-    activeProjectDefaultModelSelection,
+    defaultModelSelection,
     activeThreadModelSelection,
     reportedModelSelection,
-    activeProjectId,
     activeContextWindow,
     compactThreadUnavailable,
     compactDisabled,
@@ -843,16 +840,15 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   } = useComposerProviderModel({
     providerStatuses,
     settings,
-    activeProjectId,
     threadRef: composerDraftTarget,
     threadModelSelection: activeThreadModelSelection,
-    projectModelSelection: activeProjectDefaultModelSelection,
+    defaultModelSelection: defaultModelSelection,
     promptInjectionState: getComposerPromptInjectionState(prompt),
     candidateInstanceIds: [
       composerDraft.activeProvider ?? null,
       activeThread?.runtime?.providerInstanceId,
       activeThreadModelSelection?.instanceId,
-      activeProjectDefaultModelSelection?.instanceId,
+      defaultModelSelection?.instanceId,
     ],
     lockedProvider,
     lockedInstanceId:
@@ -1212,7 +1208,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     isSendBusy ||
     isSendDisabled ||
     noProviderAvailable ||
-    projectSelectionRequired ||
+    environmentSelectionRequired ||
     environmentUnavailable !== null ||
     (!composerSendState.hasSendableContent && !showResumeAction);
   const collapsedComposerPrimaryActionLabel = showResumeAction
@@ -2162,7 +2158,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     }),
     readTerminalContexts: () => composerTerminalContextsRef.current,
     routeThreadRef,
-    projectSelectionRequired,
+    environmentSelectionRequired,
     pendingUserInputs,
     activePendingProgress,
     prompt,
@@ -2290,7 +2286,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       text.length === 0 ||
       activePendingIsResponding ||
       (pendingUserInputs.length > 0 && !activePendingProgress?.activeQuestion) ||
-      projectSelectionRequired
+      environmentSelectionRequired
     ) {
       return false;
     }
@@ -2345,7 +2341,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       pendingUserInputs,
       supportsQuestionAttachments,
       isLiteralPendingAnswer,
-      projectSelectionRequired,
+      environmentSelectionRequired,
       questionAttachmentTarget,
       attachmentTargetKey,
       fileStagingLimit,
@@ -2709,7 +2705,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         return true;
       },
       citeAssistantText: (citation) => {
-        if (pendingUserInputs.length > 0 || projectSelectionRequired) return false;
+        if (pendingUserInputs.length > 0 || environmentSelectionRequired) return false;
         setReplyQuote(citation);
         focusComposer();
         return true;
@@ -2910,7 +2906,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       isChoiceOnlyPendingQuestion,
       isLiteralPendingAnswer,
       pendingUserInputs.length,
-      projectSelectionRequired,
+      environmentSelectionRequired,
       applyPromptReplacementStable,
       isComposerModelPickerOpen,
       openModelPickerStable,
@@ -3092,7 +3088,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
               "rounded-2xl transition-[background-color] duration-200",
               "in-data-[thread-context-over]:bg-accent/45 in-data-[thread-context-over]:ring-1 in-data-[thread-context-over]:ring-inset in-data-[thread-context-over]:ring-primary/70",
               isDragOverComposer ? "bg-accent/45 ring-1 ring-inset ring-primary/70" : null,
-              projectSelectionRequired ? "opacity-75" : null,
+              environmentSelectionRequired ? "opacity-75" : null,
               composerProviderState.composerSurfaceClassName,
             )}
           >
@@ -3276,7 +3272,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                             : "Type your own answer, or leave this blank to use the selected option"
                           : showPlanFollowUpPrompt && activeProposedPlan
                             ? "Add feedback to refine the plan, or leave this blank to implement it"
-                            : projectSelectionRequired
+                            : environmentSelectionRequired
                               ? "Choose a project above to start a thread"
                               : showProviderUnavailable
                                 ? "Enable a provider in Settings to send a message"
@@ -3285,7 +3281,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                                   : DEFAULT_COMPOSER_PLACEHOLDER
                     }
                     disabled={
-                      projectSelectionRequired ||
+                      environmentSelectionRequired ||
                       isChoiceOnlyPendingQuestion ||
                       activePendingIsResponding
                     }
@@ -3309,7 +3305,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                       isEnvironmentUnavailable={
                         environmentUnavailable !== null ||
                         noProviderAvailable ||
-                        projectSelectionRequired
+                        environmentSelectionRequired
                       }
                       hasSendableContent={false}
                       preserveComposerFocusOnPointerDown
@@ -3380,7 +3376,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                     isEnvironmentUnavailable={
                       environmentUnavailable !== null ||
                       noProviderAvailable ||
-                      projectSelectionRequired
+                      environmentSelectionRequired
                     }
                     hasSendableContent={composerSendState.hasSendableContent}
                     canResume={showResumeAction}

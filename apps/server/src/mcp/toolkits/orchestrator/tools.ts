@@ -221,8 +221,7 @@ const CreateThreadsTool = Tool.make("create_threads", {
   .annotate(Tool.OpenWorld, true);
 
 const ThreadListTool = Tool.make("t3_thread_list", {
-  description:
-    "List threads newest first, in one project or with `allProjects`. Page with `cursor`.",
+  description: "List threads newest first. Page with `cursor`.",
   parameters: OrchestratorMcpThreadListInput,
   success: OrchestratorMcpThreadListResult,
   failure: OrchestratorMcpFailure,

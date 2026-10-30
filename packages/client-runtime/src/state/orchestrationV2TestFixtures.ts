@@ -1,8 +1,6 @@
 import {
-  ProjectId,
   ProviderInstanceId,
   ThreadId,
-  type OrchestrationProjectShell,
   type OrchestrationV2ShellSnapshot,
   type OrchestrationV2ThreadProjection,
   type OrchestrationV2ThreadShell,
@@ -10,23 +8,11 @@ import {
 import * as DateTime from "effect/DateTime";
 
 export const v2Now = DateTime.makeUnsafe("2026-06-20T00:00:00.000Z");
-const v2ProjectId = ProjectId.make("project-v2");
 export const v2ThreadId = ThreadId.make("thread-v2");
 const v2ProviderInstanceId = ProviderInstanceId.make("codex");
 
-export const v2Project: OrchestrationProjectShell = {
-  id: v2ProjectId,
-  title: "Project",
-  workspaceRoot: "/workspace/project",
-  defaultModelSelection: null,
-  scripts: [],
-  createdAt: "2026-06-20T00:00:00.000Z",
-  updatedAt: "2026-06-20T00:00:00.000Z",
-};
-
 export const v2ThreadShell: OrchestrationV2ThreadShell = {
   id: v2ThreadId,
-  projectId: v2ProjectId,
   title: "Thread",
   providerInstanceId: v2ProviderInstanceId,
   modelSelection: { instanceId: v2ProviderInstanceId, model: "gpt-5.4" },
@@ -59,7 +45,6 @@ export const v2ThreadShell: OrchestrationV2ThreadShell = {
 export const v2Projection: OrchestrationV2ThreadProjection = {
   thread: {
     id: v2ThreadShell.id,
-    projectId: v2ThreadShell.projectId,
     title: v2ThreadShell.title,
     providerInstanceId: v2ThreadShell.providerInstanceId,
     modelSelection: v2ThreadShell.modelSelection,
@@ -101,7 +86,6 @@ export const v2Projection: OrchestrationV2ThreadProjection = {
 export const v2ShellSnapshot: OrchestrationV2ShellSnapshot = {
   schemaVersion: 1,
   snapshotSequence: 0,
-  projects: [v2Project],
   threads: [v2ThreadShell],
   archivedThreads: [],
 };

@@ -37,19 +37,12 @@ it("c2.mcp-stream: thread list exits after its response on an open SSE connectio
             serverInfo: { name: "external-mcp", version: "1" },
           }
         : {
-            structuredContent:
-              message.params.name === "t3_project_list"
-                ? {
-                    projects: [{ id: "c2-project", title: "C2", workspaceRoot: home }],
-                    nextCursor: null,
-                  }
-                : {
-                    projectId: "c2-project",
-                    currentThreadId: null,
-                    threads: [],
-                    nextCursor: null,
-                    total: 0,
-                  },
+            structuredContent: {
+              currentThreadId: null,
+              threads: [],
+              nextCursor: null,
+              total: 0,
+            },
           };
     response.writeHead(200, { "content-type": "text/event-stream", "mcp-session-id": "c2-stream" });
     response.write(`data: ${JSON.stringify({ jsonrpc: "2.0", id: message.id, result })}\n\n`);
@@ -67,15 +60,11 @@ it("c2.mcp-stream: thread list exits after its response on an open SSE connectio
     }),
   );
   try {
-    const result = await exec(
-      process.execPath,
-      [bin, "thread", "list", "--project", home, "--home", home, "--json"],
-      {
-        cwd: home,
-        env: { ...process.env, HOME: home, OZI_HOME: home, OZI_TELEMETRY_ENABLED: "false" },
-        timeout: 10_000,
-      },
-    );
+    const result = await exec(process.execPath, [bin, "thread", "list", "--home", home, "--json"], {
+      cwd: home,
+      env: { ...process.env, HOME: home, OZI_HOME: home, OZI_TELEMETRY_ENABLED: "false" },
+      timeout: 10_000,
+    });
     expect(JSON.parse(result.stdout)).toEqual([]);
   } finally {
     server.closeAllConnections();
@@ -134,7 +123,6 @@ describe("c2.inbox", () => {
     home = NodePath.join(directory, "home");
     remote = NodePath.join(directory, "client");
     await NodeFSP.mkdir(remote);
-    await exec("git", ["init", directory]);
     await NodeFSP.mkdir(NodePath.join(home, "userdata"), { recursive: true });
     const binaryPath =
       process.env.OZI_TEST_CLAUDE_BINARY ??
@@ -196,10 +184,6 @@ describe("c2.inbox", () => {
       dev.once("error", reject);
       dev.once("exit", (code) => reject(new Error(`Dev exited ${code}: ${output}`)));
     });
-    await exec(process.execPath, [bin, "project", "add", directory, "--home", home], {
-      cwd: directory,
-      env,
-    });
   });
   afterAll(async () => {
     if (dev?.pid && dev.exitCode === null) {
@@ -223,7 +207,6 @@ describe("c2.inbox", () => {
       await cli(
         "thread",
         "start",
-        directory,
         "c2 origin",
         "--provider",
         "claudeAgent",
@@ -236,7 +219,6 @@ describe("c2.inbox", () => {
       await cli(
         "thread",
         "start",
-        directory,
         "c2 current",
         "--provider",
         "claudeAgent",
@@ -246,9 +228,7 @@ describe("c2.inbox", () => {
       )
     ).threadId;
     expect(
-      (await cli("thread", "list", "--project", directory)).map(
-        (thread: { threadId: string }) => thread.threadId,
-      ),
+      (await cli("thread", "list")).map((thread: { threadId: string }) => thread.threadId),
     ).toContain(originId);
     expect(await cli("thread", "send", currentId, "c2 follow up", "--wait")).toMatchObject({
       reply: "c2-agent-ready",

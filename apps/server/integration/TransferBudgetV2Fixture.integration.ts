@@ -4,7 +4,6 @@ import {
   EventId,
   MessageId,
   NodeId,
-  ProjectId,
   ProviderInstanceId,
   ProviderThreadId,
   ProviderTurnId,
@@ -39,7 +38,6 @@ export function threadCreated(
     occurredAt: now,
     payload: {
       id: threadId,
-      projectId: ProjectId.make("transfer-project"),
       title: "Transfer budget",
       providerInstanceId: ProviderInstanceId.make(provider),
       modelSelection: {

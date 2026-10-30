@@ -9,7 +9,7 @@ import * as Option from "effect/Option";
 import { Atom, AtomRegistry } from "effect/reactivity";
 import { describe, expect, it } from "vite-plus/test";
 
-import { createAllEnvironmentProjectSnapshotsReadyAtom } from "./shell";
+import { createAllEnvironmentSnapshotsReadyAtom } from "./shell";
 
 const LOCAL = EnvironmentId.make("local");
 const REMOTE = EnvironmentId.make("remote");
@@ -24,7 +24,6 @@ function shellState(status: EnvironmentShellState["status"]): EnvironmentShellSt
         : Option.some({
             schemaVersion: 1,
             snapshotSequence: 1,
-            projects: [],
             threads: [],
             archivedThreads: [],
           }),
@@ -65,7 +64,7 @@ function makeHarness(requiresPrimaryEnvironment = true) {
   const shells = Atom.family((_environmentId: EnvironmentId) =>
     Atom.make<EnvironmentShellState>(shellState("empty")),
   );
-  const ready = createAllEnvironmentProjectSnapshotsReadyAtom({
+  const ready = createAllEnvironmentSnapshotsReadyAtom({
     catalogValueAtom: catalog,
     shellStateValueAtom: shells,
     requiresPrimaryEnvironment,

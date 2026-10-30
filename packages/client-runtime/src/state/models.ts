@@ -2,14 +2,12 @@ import { backgroundWorkHoldsCompletion } from "@t3tools/shared/orchestrationV2Pe
 import type {
   EnvironmentId,
   MessageId,
-  OrchestrationProjectShell,
   OrchestrationV2ProviderGoal,
   OrchestrationV2RunStatus,
   OrchestrationV2ProviderFailureClass,
   OrchestrationV2ThreadProjection,
   OrchestrationV2ThreadShell,
   PlanId,
-  ProjectId,
   ProviderInstanceId,
   RunId,
   ThreadId,
@@ -17,11 +15,6 @@ import type {
 import * as DateTime from "effect/DateTime";
 
 import { formatSubagentDisplayTitle } from "./subagentDisplay.ts";
-
-export interface EnvironmentProject extends OrchestrationProjectShell {
-  readonly environmentId: EnvironmentId;
-  readonly isScratch?: true;
-}
 
 /**
  * The projection stays nested so the server projection and all structurally
@@ -135,7 +128,6 @@ function threadRunStatusIsActive(status: ThreadRuntimeSummary["status"]): boolea
 export interface EnvironmentThreadShell {
   readonly environmentId: EnvironmentId;
   readonly id: ThreadId;
-  readonly projectId: ProjectId;
   readonly title: string;
   readonly providerInstanceId: ProviderInstanceId;
   readonly modelSelection: OrchestrationV2ThreadShell["modelSelection"];
@@ -239,13 +231,6 @@ function shellRuntime(thread: OrchestrationV2ThreadShell): ThreadRuntimeSummary 
   };
 }
 
-export function scopeProject(
-  environmentId: EnvironmentId,
-  project: OrchestrationProjectShell,
-): EnvironmentProject {
-  return { ...project, environmentId };
-}
-
 export type PendingSubagentRequest = "approval" | "user_input";
 
 export function presentThreadShell(
@@ -279,7 +264,6 @@ export function presentThreadShell(
   return {
     environmentId,
     id: thread.id,
-    projectId: thread.projectId,
     title:
       thread.lineage.relationshipToParent === "subagent"
         ? formatSubagentDisplayTitle(thread.title)

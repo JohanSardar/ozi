@@ -769,7 +769,6 @@ export interface ThreadSearchSubject {
   readonly id?: string;
   readonly title: string;
   readonly branch?: string | null;
-  readonly projectTitle?: string | null;
   /** Only set with two or more environments; it tells same-named threads apart. */
   readonly environmentLabel?: string | null;
   /** Latest user activity, in epoch ms. */
@@ -885,7 +884,6 @@ function matchHint(
   typos: boolean,
 ): SearchMatchHint | undefined {
   const candidates: Array<{ readonly label: string; readonly text: string | null | undefined }> = [
-    { label: "Project", text: thread.projectTitle },
     { label: "Environment", text: thread.environmentLabel },
   ];
   const holds = (text: string, query: string) =>
@@ -899,9 +897,7 @@ function matchHint(
   };
   const whole = hintFor(normalizedQuery);
   if (whole) return whole;
-  const contexts = [thread.projectTitle, thread.environmentLabel].filter(
-    (text): text is string => !!text,
-  );
+  const contexts = [thread.environmentLabel].filter((text): text is string => !!text);
   const rest = normalizedQuery
     .split(" ")
     .filter((token) => !contexts.some((text) => holds(text, token)))
@@ -928,9 +924,6 @@ export function scoreThreadSearch(
   },
 ): ThreadSearchMatch | null {
   const fields: WeightedSearchField[] = [{ value: thread.title, weight: 1, midWord: true }];
-  if (thread.projectTitle) {
-    fields.push({ value: thread.projectTitle, weight: 0.25, context: true });
-  }
   if (thread.environmentLabel) {
     fields.push({ value: thread.environmentLabel, weight: 0.25, context: true });
   }

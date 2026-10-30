@@ -1,3 +1,4 @@
+import { ThreadLaunchToolkit } from "../../mcp/toolkits/threadLaunch/tools.ts";
 // @effect-diagnostics nodeBuiltinImport:off -- workflow fixtures use files and the fake Claude CLI uses Node streams
 import * as NodeEvents from "node:events";
 import * as NodeFS from "node:fs";
@@ -38,7 +39,6 @@ import {
   type OrchestrationV2AppThread,
   type OrchestrationV2PendingBackgroundTask,
   OrchestrationV2ProviderThread,
-  ProjectId,
   ProviderInstanceId,
   type ProviderInstanceEnvironment,
   ProviderDriverKind,
@@ -84,7 +84,6 @@ import { PreviewControlsToolkit } from "../../mcp/toolkits/previewControls/tools
 import { HtmlToolkit } from "../../mcp/toolkits/html/tools.ts";
 import { TicketToolkit } from "../../mcp/toolkits/ticket/tools.ts";
 import { EnvironmentToolkit } from "../../mcp/toolkits/environment/tools.ts";
-import { ProjectToolkit } from "../../mcp/toolkits/project/tools.ts";
 import { ThreadToolkit } from "../../mcp/toolkits/thread/tools.ts";
 import { OrchestratorToolkit } from "../../mcp/toolkits/orchestrator/tools.ts";
 import { ClaudeExecutableFileCheck } from "../../provider/Drivers/ClaudeExecutable.ts";
@@ -170,7 +169,6 @@ function makeClaudeTestAppThread(input: {
     createdBy: "user",
     creationSource: "web",
     id: input.threadId,
-    projectId: ProjectId.make(`project-${input.threadId}`),
     title: "Claude attachment test",
     providerInstanceId: ProviderInstanceId.make(ClaudeAdapterV2.CLAUDE_PROVIDER),
     modelSelection: CLAUDE_TEST_MODEL_SELECTION,
@@ -531,7 +529,7 @@ describe("ClaudeAdapterV2 MCP query overrides", () => {
     const readOnlyToolNames = [
       ...Object.values(OrchestratorToolkit.tools),
       ...Object.values(ThreadToolkit.tools),
-      ...Object.values(ProjectToolkit.tools),
+      ...Object.values(ThreadLaunchToolkit.tools),
       ...Object.values(EnvironmentToolkit.tools),
       ...Object.values(PreviewControlsToolkit.tools),
       ...Object.values(HtmlToolkit.tools),
@@ -2195,7 +2193,6 @@ describe("ClaudeAdapterV2 native fork", () => {
             createdBy: "user",
             creationSource: "web",
             id: targetThreadId,
-            projectId: ProjectId.make("project-claude-fork-target"),
             title: "Claude fork target",
             providerInstanceId: ProviderInstanceId.make(ClaudeAdapterV2.CLAUDE_PROVIDER),
             modelSelection: {

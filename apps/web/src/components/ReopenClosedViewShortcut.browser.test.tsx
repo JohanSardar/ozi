@@ -64,9 +64,7 @@ vi.mock(import("../state/shell"), async (original) => {
 });
 vi.mock(import("../state/entities"), async (original) => ({
   ...(await original()),
-  readThreadShell: (() => ({ projectId: "project-1", workingDirectory: null })) as never,
-  readProject: (() =>
-    state.workspaceAvailable ? { workspaceRoot: "/work/project" } : null) as never,
+  readThreadShell: (() => ({ workingDirectory: null })) as never,
 }));
 vi.mock(import("./ui/toast"), async (original) => {
   const actual = await original();

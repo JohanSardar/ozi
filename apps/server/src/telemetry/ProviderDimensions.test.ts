@@ -72,7 +72,8 @@ it("drops input strings outside the schema's literals, since rejected calls are 
     targetChosen: false,
     mode: "async",
   });
-  expect(
-    handoffSettings("t3_thread_launch", { workspaceStrategy: { type: "/home/me/secret" } }, {}),
-  ).toEqual({ targetChosen: false, workspace: "root" });
+  expect(handoffSettings("t3_thread_launch", {}, {})).toEqual({
+    targetChosen: false,
+    workspace: "root",
+  });
 });

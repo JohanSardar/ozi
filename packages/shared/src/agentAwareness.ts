@@ -1,9 +1,4 @@
-import type {
-  EnvironmentId,
-  OrchestrationV2ThreadShell,
-  Project,
-  ThreadId,
-} from "@t3tools/contracts";
+import type { EnvironmentId, OrchestrationV2ThreadShell, ThreadId } from "@t3tools/contracts";
 import * as DateTime from "effect/DateTime";
 
 import { backgroundWorkHoldsCompletion } from "./orchestrationV2PendingBackgroundWork.ts";
@@ -20,7 +15,6 @@ export type AgentAwarenessPhase =
 export interface AgentAwarenessState {
   readonly environmentId: EnvironmentId;
   readonly threadId: ThreadId;
-  readonly projectTitle: string;
   readonly threadTitle: string;
   readonly phase: AgentAwarenessPhase;
   readonly headline: string;
@@ -39,7 +33,6 @@ function buildAgentAwarenessDeepLink(input: {
 
 export interface ProjectThreadAwarenessV2Input {
   readonly environmentId: EnvironmentId;
-  readonly project: Pick<Project, "title">;
   readonly thread: Pick<
     OrchestrationV2ThreadShell,
     | "activityRunStatus"
@@ -59,7 +52,7 @@ export interface ProjectThreadAwarenessV2Input {
 export function projectThreadAwarenessV2(
   input: ProjectThreadAwarenessV2Input,
 ): AgentAwarenessState | null {
-  const { environmentId, project, thread } = input;
+  const { environmentId, thread } = input;
   if (thread.lineage.relationshipToParent === "subagent") return null;
   const phase = resolveThreadAwarenessPhaseV2(thread);
   if (phase === null) {
@@ -83,7 +76,6 @@ export function projectThreadAwarenessV2(
   return {
     environmentId,
     threadId: thread.id,
-    projectTitle: project.title,
     threadTitle: thread.title,
     phase,
     headline: headlineForPhase(phase),

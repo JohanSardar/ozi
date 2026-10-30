@@ -7,7 +7,6 @@ import {
 import {
   CommandId,
   EnvironmentId,
-  ProjectId,
   ProviderInstanceId,
   RunId,
   ThreadId,
@@ -25,7 +24,6 @@ import * as MobileDatabase from "../persistence/mobile-database";
 import { make } from "./environment-cache-store";
 
 const ENVIRONMENT_ID = EnvironmentId.make("environment-1");
-const PROJECT_ID = ProjectId.make("project-1");
 const THREAD_ID = ThreadId.make("thread-1");
 const PROVIDER_INSTANCE_ID = ProviderInstanceId.make("codex");
 const NOW = DateTime.makeUnsafe("2026-07-29T12:00:00.000Z");
@@ -35,21 +33,9 @@ const encodeLegacyThreadSnapshot = Schema.encodeEffect(
 const SHELL_SNAPSHOT: OrchestrationV2ShellSnapshot = {
   schemaVersion: 1,
   snapshotSequence: 3,
-  projects: [
-    {
-      id: PROJECT_ID,
-      title: "Project",
-      workspaceRoot: "/repo",
-      defaultModelSelection: null,
-      scripts: [],
-      createdAt: "2026-07-29T12:00:00.000Z",
-      updatedAt: "2026-07-29T12:00:00.000Z",
-    },
-  ],
   threads: [
     {
       id: THREAD_ID,
-      projectId: PROJECT_ID,
       title: "Thread",
       providerInstanceId: PROVIDER_INSTANCE_ID,
       modelSelection: {
@@ -100,7 +86,6 @@ const THREAD_SNAPSHOT: OrchestrationV2ThreadDetailSnapshot = {
   projection: {
     thread: {
       id: THREAD_ID,
-      projectId: PROJECT_ID,
       title: "Thread",
       providerInstanceId: PROVIDER_INSTANCE_ID,
       modelSelection: {

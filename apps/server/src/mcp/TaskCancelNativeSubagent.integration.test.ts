@@ -5,7 +5,6 @@ import {
   EnvironmentId,
   MessageId,
   NodeId,
-  ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
   ProviderThreadId,
@@ -33,7 +32,6 @@ import * as ServerSettings from "../serverSettings.ts";
 import * as ProviderReplayHarness from "../orchestration-v2/testkit/ProviderReplayHarness.ts";
 import { checkpointWorkspace } from "@t3tools/provider-testing/replayWorkspace";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
-import * as ProjectService from "../project/ProjectService.ts";
 import * as ProviderRegistry from "../provider/ProviderRegistry.ts";
 import * as ScheduledTaskService from "../scheduledTasks/ScheduledTaskService.ts";
 import * as SecretRequests from "../secrets/SecretRequests.ts";
@@ -152,7 +150,6 @@ it.effect("task_cancel ends a delegated child's background native subagent", () 
           Layer.mergeAll(
             layerAdapters,
             Layer.mock(ProviderRegistry.ProviderRegistry)({ getProviders: Effect.succeed([]) }),
-            Layer.mock(ProjectService.ProjectService)({}),
             Layer.mock(SecretRequests.SecretRequests)({}),
             Layer.mock(RemoteDelegation.RemoteDelegation)({}),
             ServerSettings.layerTest(),
@@ -182,7 +179,6 @@ it.effect("task_cancel ends a delegated child's background native subagent", () 
           type: "thread.create",
           commandId: CommandId.make("create-parent"),
           threadId: parentThreadId,
-          projectId: ProjectId.make("project:task-cancel"),
           title: "Parent",
           modelSelection,
           runtimeMode: "full-access",

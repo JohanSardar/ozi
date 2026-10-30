@@ -1,9 +1,6 @@
 import { NativeScrollView } from "../../native/NativeScrollViewMarker";
 import { Button } from "../../components/ui/Button";
-import type {
-  EnvironmentProject,
-  EnvironmentThreadShell,
-} from "@t3tools/client-runtime/state/shell";
+import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/shell";
 import { LegendList } from "@legendapp/list/react-native";
 import {
   AuthOrchestrationOperateScope,
@@ -23,7 +20,6 @@ import type { SwipeableMethods } from "react-native-gesture-handler/ReanimatedSw
 import { AppText as Text } from "../../components/ui/AppText";
 import { EmptyState } from "../../components/ui/EmptyState";
 import { EnvironmentMachineSymbol } from "../../components/EnvironmentMachineSymbol";
-import { ProjectFavicon } from "../../components/ProjectFavicon";
 import { relativeTime } from "../../lib/time";
 import { useUniwindTheme } from "../../lib/useUniwindTheme";
 import { useServerConfigs } from "../../state/entities";
@@ -124,11 +120,10 @@ function ArchivedThreadsHeader(props: {
 
 type ArchivedThreadListItem =
   | {
-      readonly kind: "project";
+      readonly kind: "environment";
       readonly key: string;
       readonly environmentLabel: string | null;
       readonly environmentMachine: EnvironmentMachineKind;
-      readonly project: EnvironmentProject;
     }
   | {
       readonly kind: "thread";
@@ -139,26 +134,17 @@ type ArchivedThreadListItem =
       readonly thread: EnvironmentThreadShell;
     };
 
-function ProjectGroupLabel(props: {
+function EnvironmentGroupLabel(props: {
   readonly environmentLabel: string | null;
   readonly environmentMachine: EnvironmentMachineKind;
-  readonly project: EnvironmentProject;
 }) {
   return (
     <View className="flex-row items-center gap-2.5 px-1 pb-2">
-      <ProjectFavicon
-        environmentId={props.project.environmentId}
-        faviconPath={props.project.faviconPath}
-        projectIcon={props.project.projectIcon}
-        projectTitle={props.project.title}
-        size={18}
-        workspaceRoot={props.project.workspaceRoot}
-      />
       <Text
         className="flex-1 text-xs font-t3-medium tracking-[0.5px] uppercase text-foreground-muted"
         numberOfLines={1}
       >
-        {props.project.title}
+        {props.environmentLabel ?? "Environment"}
       </Text>
       {props.environmentLabel ? (
         <View className="max-w-[42%] flex-row items-center gap-1">
@@ -315,15 +301,14 @@ export function ArchivedThreadsScreen(props: {
   const listItems = useMemo<ReadonlyArray<ArchivedThreadListItem>>(() => {
     const items: ArchivedThreadListItem[] = [];
     for (const group of props.groups) {
-      const environmentLabel = environmentLabelsById.get(group.project.environmentId) ?? null;
+      const environmentLabel = environmentLabelsById.get(group.environmentId) ?? null;
       items.push({
-        kind: "project",
-        key: `${group.key}:project`,
+        kind: "environment",
+        key: `${group.key}:environment`,
         environmentLabel,
         environmentMachine: resolveEnvironmentMachineKind(
-          serverConfigs.get(group.project.environmentId) ?? null,
+          serverConfigs.get(group.environmentId) ?? null,
         ),
-        project: group.project,
       });
 
       group.threads.forEach((thread, index) => {
@@ -353,13 +338,12 @@ export function ArchivedThreadsScreen(props: {
   const isInitialLoad = props.isLoading && props.groups.length === 0 && props.error === null;
   const isFiltered = props.searchQuery.trim().length > 0 || props.selectedEnvironmentId !== null;
   const renderListItem = ({ item }: { item: ArchivedThreadListItem }) => {
-    if (item.kind === "project") {
+    if (item.kind === "environment") {
       return (
         <View className="pt-4">
-          <ProjectGroupLabel
+          <EnvironmentGroupLabel
             environmentLabel={item.environmentLabel}
             environmentMachine={item.environmentMachine}
-            project={item.project}
           />
         </View>
       );

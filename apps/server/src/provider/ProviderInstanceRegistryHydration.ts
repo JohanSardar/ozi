@@ -3,8 +3,6 @@ import {
   OZI_PROVIDER_INSTANCE,
   ProviderDriverKind,
   ProviderInstanceId,
-  providerInstanceConfigEnabledFlag,
-  resolveProviderInstanceEnabled,
   type ProviderInstanceConfig,
   type ProviderInstanceConfigMap,
   ServerSettings,
@@ -56,25 +54,6 @@ export const deriveProviderInstanceConfigMap = (
     const instanceId = defaultInstanceIdForDriver(driver.driverKind);
     if (instanceId in merged) continue;
     merged[instanceId] = { driver: driver.driverKind };
-  }
-
-  // Probe project-enabled instances even if disabled machine-wide; project threads can still route to them.
-  for (const overrides of Object.values(settings.projectSettingsOverrides)) {
-    for (const [rawInstanceId, projectOverride] of Object.entries(
-      overrides?.providerInstances ?? {},
-    )) {
-      if (projectOverride.enabled !== true) continue;
-      const instanceId = rawInstanceId as ProviderInstanceId;
-      const existing = merged[instanceId];
-      if (existing === undefined || resolveProviderInstanceEnabled(existing)) continue;
-      merged[instanceId] = {
-        ...existing,
-        enabled: true,
-        ...(providerInstanceConfigEnabledFlag(existing.config) === false
-          ? { config: { ...(existing.config as Record<string, unknown>), enabled: true } }
-          : {}),
-      };
-    }
   }
 
   return merged as ProviderInstanceConfigMap;

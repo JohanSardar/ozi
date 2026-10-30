@@ -11,7 +11,6 @@ import {
   type OrchestrationV2ThreadProjection,
   type ProviderDriverKind,
   type ProviderInteractionMode,
-  ProjectId,
   type RunId,
   type RuntimeMode,
   type ScheduledTaskId,
@@ -22,13 +21,10 @@ import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
-import * as ProjectService from "../project/ProjectService.ts";
 import * as CommandReceiptStore from "./CommandReceiptStore.ts";
 import * as IdAllocator from "@t3tools/provider-core/server/IdAllocator";
 import { DispatchModeLimit } from "./DispatchModeLimit.ts";
 import * as ThreadManagement from "./ThreadManagementService.ts";
-
-export type ThreadLaunchWorkspaceStrategy = { readonly type: "root" };
 
 export interface ThreadLaunchInitialMessage {
   readonly messageId?: MessageId;
@@ -43,13 +39,12 @@ export interface ThreadLaunchInput {
   readonly commandId: CommandId;
   readonly threadId?: ThreadId;
   readonly reuseExistingThread?: boolean;
-  readonly projectId: ProjectId;
   readonly title: string;
+  readonly workingDirectory?: string | undefined;
   readonly generateTitle?: boolean;
   readonly modelSelection: ModelSelection;
   readonly runtimeMode: RuntimeMode;
   readonly interactionMode: ProviderInteractionMode;
-  readonly workspaceStrategy: ThreadLaunchWorkspaceStrategy;
   readonly initialMessage?: ThreadLaunchInitialMessage;
   readonly importedNativeThread?: {
     readonly ref: {
@@ -67,11 +62,6 @@ export interface ThreadLaunchInput {
   readonly delegatedFrom?: OrchestrationV2DelegatedFrom;
 }
 
-type PreparationInput = Pick<
-  ThreadLaunchInput,
-  "commandId" | "projectId" | "workspaceStrategy" | "initialMessage"
-> & {};
-
 export interface ThreadLaunchResult {
   readonly threadId: ThreadId;
   readonly projection: OrchestrationV2ThreadProjection;
@@ -84,14 +74,12 @@ export class ThreadLaunchError extends Schema.TaggedError<ThreadLaunchError>()(
   "ThreadLaunchError",
   {
     operation: Schema.Literals([
-      "resolve-project",
       "read-receipt",
       "create-thread",
       "update-thread",
       "dispatch-message",
     ]),
     commandId: CommandId,
-    projectId: ProjectId,
     threadId: Schema.optional(ThreadId),
     cause: Schema.Defect(),
   },
@@ -114,18 +102,20 @@ export class ThreadLaunchService extends Context.Service<
 >()("ozi/orchestration-v2/ThreadLaunchService") {}
 
 const make = Effect.gen(function* () {
-  const projects = yield* ProjectService.ProjectService;
   const receipts = yield* CommandReceiptStore.CommandReceiptStoreV2;
   const ids = yield* IdAllocator.IdAllocatorV2;
   const threads = yield* ThreadManagement.ThreadManagementService;
 
   const mapError =
-    (input: PreparationInput, operation: ThreadLaunchError["operation"], threadId?: ThreadId) =>
+    (
+      input: Pick<ThreadLaunchInput, "commandId">,
+      operation: ThreadLaunchError["operation"],
+      threadId?: ThreadId,
+    ) =>
     (cause: unknown) =>
       new ThreadLaunchError({
         operation,
         commandId: input.commandId,
-        projectId: input.projectId,
         ...(threadId === undefined ? {} : { threadId }),
         cause,
       });
@@ -143,7 +133,6 @@ const make = Effect.gen(function* () {
       .getThreadRecords(threadId, ["runs"])
       .pipe(Effect.mapError(mapError(input, "update-thread", threadId)));
     if (
-      projection.thread.projectId !== input.projectId ||
       projection.thread.archivedAt !== null ||
       projection.thread.deletedAt !== null ||
       (yield* threads
@@ -155,22 +144,13 @@ const make = Effect.gen(function* () {
         input,
         "update-thread",
         threadId,
-      )("Only an empty active thread in the target project can change workspace during launch.");
+      )("Only an empty active chat can be reused.");
     }
   });
 
   const launch: ThreadLaunchService["Service"]["launch"] = Effect.fn("ThreadLaunchService.launch")(
     function* (request) {
       const input: ThreadLaunchInput = request;
-      const project = yield* projects.getById(input.projectId).pipe(
-        Effect.mapError(mapError(input, "resolve-project")),
-        Effect.flatMap(
-          Option.match({
-            onNone: () => Effect.fail(mapError(input, "resolve-project")("Project not found.")),
-            onSome: Effect.succeed,
-          }),
-        ),
-      );
       if (input.reuseExistingThread === true && input.threadId === undefined) {
         return yield* mapError(
           input,
@@ -180,7 +160,6 @@ const make = Effect.gen(function* () {
 
       const launchReceipt = yield* readReceipt(input, input.commandId);
       yield* threads.assertProviderInstanceEnabled({
-        projectId: input.projectId,
         commandId: input.commandId,
         instanceId: input.modelSelection.instanceId,
       });
@@ -196,9 +175,7 @@ const make = Effect.gen(function* () {
         const candidateThreadId =
           input.threadId ??
           reusableLaunchReceipt?.threadId ??
-          (yield* ids.allocate
-            .thread({ projectId: input.projectId })
-            .pipe(Effect.mapError(mapError(input, "create-thread"))));
+          (yield* ids.allocate.thread({}).pipe(Effect.mapError(mapError(input, "create-thread"))));
 
         if (reusableLaunchReceipt !== undefined) {
           const shell = yield* threads
@@ -206,13 +183,6 @@ const make = Effect.gen(function* () {
             .pipe(Effect.mapError(mapError(input, "create-thread", candidateThreadId)));
           if (shell === null) {
             return yield* mapError(input, "create-thread", candidateThreadId)("Thread not found.");
-          }
-          if (shell.projectId !== input.projectId) {
-            return yield* mapError(
-              input,
-              "resolve-project",
-              candidateThreadId,
-            )("Project identity changed.");
           }
         }
 
@@ -231,12 +201,11 @@ const make = Effect.gen(function* () {
                 type: "thread.create",
                 commandId: input.commandId,
                 threadId: candidateThreadId,
-                projectId: input.projectId,
                 title: input.title,
                 modelSelection: input.modelSelection,
                 runtimeMode: input.runtimeMode,
                 interactionMode: input.interactionMode,
-                workingDirectory: null,
+                workingDirectory: input.workingDirectory ?? null,
                 ...(input.importedNativeThread === undefined
                   ? {}
                   : { importedNativeThread: input.importedNativeThread }),
@@ -259,9 +228,6 @@ const make = Effect.gen(function* () {
         const threadId =
           claimed.storedEvents.find((stored) => stored.event.type.startsWith("thread."))?.event
             .threadId ?? candidateThreadId;
-        if (project.id !== input.projectId) {
-          return yield* mapError(input, "resolve-project", threadId)("Project identity changed.");
-        }
         let runId: RunId | null = null;
         let messageSequence: number | undefined;
         let messageWasAlreadyAccepted = false;

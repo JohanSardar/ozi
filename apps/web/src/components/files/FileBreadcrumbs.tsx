@@ -28,7 +28,7 @@ import {
   fileBreadcrumbs,
   isListableHostFolder,
 } from "./filePath";
-import { useProjectEntriesQuery } from "./projectFilesQueryState";
+import { useProjectEntriesQuery } from "./workspaceFilesQueryState";
 
 interface FileBreadcrumbsProps {
   readonly cwd: string;
@@ -36,7 +36,7 @@ interface FileBreadcrumbsProps {
   /** Navigates to a folder; an empty path is the workspace root. */
   readonly onNavigateFolder: (relativePath: string) => void;
   readonly onOpenFile: (relativePath: string) => void;
-  readonly projectName: string;
+  readonly workspaceName: string;
   /** Current path; an empty path is the workspace root. */
   readonly relativePath: string;
   /** Deepest visible path, including descendants retained after navigating up. */
@@ -44,8 +44,8 @@ interface FileBreadcrumbsProps {
   readonly workspaceMutationId: string | null;
 }
 
-function pathLabel(path: string, projectName: string): string {
-  return path.slice(path.lastIndexOf("/") + 1) || projectName;
+function pathLabel(path: string, workspaceName: string): string {
+  return path.slice(path.lastIndexOf("/") + 1) || workspaceName;
 }
 
 function BreadcrumbLabel(props: {
@@ -80,7 +80,7 @@ function BreadcrumbMenuContent(props: {
   readonly onDirectoryChange: (path: string) => void;
   readonly onOpenChange: (open: boolean) => void;
   readonly onOpenFile: (path: string) => void;
-  readonly projectName: string;
+  readonly workspaceName: string;
   readonly rootPath: string;
   readonly workspaceMutationId: string | null;
 }) {
@@ -118,7 +118,7 @@ function BreadcrumbMenuContent(props: {
         <>
           <MenuItem closeOnClick={false} onClick={() => props.onDirectoryChange(parentPath)}>
             <ArrowLeftIcon />
-            <span className="truncate">Back to {pathLabel(parentPath, props.projectName)}</span>
+            <span className="truncate">Back to {pathLabel(parentPath, props.workspaceName)}</span>
           </MenuItem>
           <MenuSeparator />
         </>
@@ -254,7 +254,7 @@ function FolderContentsMenu(props: FileBreadcrumbsProps & { readonly crumb: File
           onDirectoryChange={setDirectoryPath}
           onOpenChange={handleOpenChange}
           onOpenFile={props.onOpenFile}
-          projectName={props.projectName}
+          workspaceName={props.workspaceName}
           rootPath={props.crumb.path}
           workspaceMutationId={props.workspaceMutationId}
         />
@@ -268,7 +268,7 @@ function FolderBreadcrumb(props: {
   /** Whether this crumb is below the current folder. */
   readonly descendant: boolean;
   readonly onNavigate: (path: string) => void;
-  readonly projectName: string;
+  readonly workspaceName: string;
 }) {
   return (
     <Tooltip>
@@ -286,7 +286,7 @@ function FolderBreadcrumb(props: {
       >
         <span className="block truncate">{props.crumb.label}</span>
       </TooltipTrigger>
-      <TooltipPopup side="top">{props.crumb.path || props.projectName}</TooltipPopup>
+      <TooltipPopup side="top">{props.crumb.path || props.workspaceName}</TooltipPopup>
     </Tooltip>
   );
 }
@@ -294,7 +294,7 @@ function FolderBreadcrumb(props: {
 /** Host paths outside the workspace omit contents menus; the browser already lists their destination. */
 export function FileBreadcrumbs(props: FileBreadcrumbsProps) {
   const hostPath = isHostPath(props.relativePath);
-  const breadcrumbs = fileBreadcrumbs(props.projectName, props.trail);
+  const breadcrumbs = fileBreadcrumbs(props.workspaceName, props.trail);
   const currentPath = breadcrumbPathOf(props.relativePath);
   const currentIndex = breadcrumbs.findIndex((crumb) => crumb.path === currentPath);
 
@@ -315,7 +315,7 @@ export function FileBreadcrumbs(props: FileBreadcrumbsProps) {
                   <BreadcrumbLabel
                     current
                     label={crumb.label}
-                    pathLabel={crumb.path || props.projectName}
+                    pathLabel={crumb.path || props.workspaceName}
                   />
                 </span>
               ) : hostPath && !isListableHostFolder(crumb.path) ? (
@@ -325,7 +325,7 @@ export function FileBreadcrumbs(props: FileBreadcrumbsProps) {
                   crumb={crumb}
                   descendant={index > currentIndex}
                   onNavigate={props.onNavigateFolder}
-                  projectName={props.projectName}
+                  workspaceName={props.workspaceName}
                 />
               )}
               {index === breadcrumbs.length - 1 ? null : hostPath ? (

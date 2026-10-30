@@ -141,11 +141,8 @@ export class IncomingShareInbox {
         throw new Error("The shared content is no longer available.");
       }
       if (target.destination) {
-        if (
-          target.destination.environmentId !== destination.environmentId ||
-          target.destination.projectId !== destination.projectId
-        ) {
-          throw new Error("The shared content is already reserved for another project draft.");
+        if (target.destination.environmentId !== destination.environmentId) {
+          throw new Error("The shared content is already reserved for another chat draft.");
         }
         return sortAndDedupeIncomingShares(persisted);
       }
@@ -171,10 +168,7 @@ export class IncomingShareInbox {
       if (!target.destination) {
         return sortAndDedupeIncomingShares(persisted);
       }
-      if (
-        target.destination.environmentId !== expectedDestination.environmentId ||
-        target.destination.projectId !== expectedDestination.projectId
-      ) {
+      if (target.destination.environmentId !== expectedDestination.environmentId) {
         throw new Error("The shared content reservation changed before it could be released.");
       }
 

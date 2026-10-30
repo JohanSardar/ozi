@@ -12,7 +12,7 @@ import {
   transitionShareImport,
 } from "./incomingShareImport";
 
-const destination = { environmentId: "env-1", projectId: "project-1" };
+const destination = { environmentId: "env-1" };
 const edited: ComposerDraft = { text: "typed after the undo", attachments: [] };
 
 /** The draft store's own undo, applied to the test's draft map. */

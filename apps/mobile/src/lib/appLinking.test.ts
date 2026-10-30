@@ -59,7 +59,7 @@ describe("cloud-only deep links", () => {
 
 describe("draft deep links", () => {
   it("opens the old draft URL on the thread screen with its draft identity", () => {
-    const draft = { projectId: "project-1", environmentId: "env-1", draftId: "draft-1" };
+    const draft = { environmentId: "env-1", draftId: "draft-1" };
     expect(
       restoreDraftLinkState(
         { routes: [{ name: "Home" }, { name: "Thread", params: draft }] },

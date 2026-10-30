@@ -9,7 +9,6 @@ import type {
   OrchestrationV2PlanArtifact,
   OrchestrationV2UserMessageInputIntent,
   PlanId,
-  ProjectScript as ContractProjectScript,
   ProviderInteractionMode,
   RunId,
   RuntimeMode,
@@ -17,7 +16,6 @@ import type {
   ThreadId,
 } from "@t3tools/contracts";
 import type {
-  EnvironmentProject,
   EnvironmentThreadShell,
   ThreadRuntimeSummary,
 } from "@t3tools/client-runtime/state/shell";
@@ -32,7 +30,6 @@ export const DEFAULT_INTERACTION_MODE: ProviderInteractionMode = "default";
 export const DEFAULT_THREAD_TERMINAL_HEIGHT = 280;
 export const DEFAULT_THREAD_TERMINAL_ID = "term-1";
 export const MAX_TERMINALS_PER_GROUP = 4;
-export type ProjectScript = ContractProjectScript;
 
 export interface ThreadTerminalGroup {
   id: string;
@@ -96,8 +93,6 @@ export interface ProposedPlan {
   readonly createdAt: string;
   readonly updatedAt: string;
 }
-
-export type Project = EnvironmentProject;
 export type Thread = EnvironmentThreadShell;
 export type ThreadShell = EnvironmentThreadShell;
 

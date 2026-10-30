@@ -8,7 +8,6 @@ import {
   EnvironmentId,
   NodeId,
   type OrchestrationV2Run,
-  ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
   RunId,
@@ -30,8 +29,6 @@ import * as ThreadLaunch from "../orchestration-v2/ThreadLaunchService.ts";
 import * as ThreadManagement from "../orchestration-v2/ThreadManagementService.ts";
 import * as ProviderReplayHarness from "../orchestration-v2/testkit/ProviderReplayHarness.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
-import * as ManagedProjectFolders from "../project/ManagedProjectFolders.ts";
-import * as ProjectService from "../project/ProjectService.ts";
 import * as ProviderRegistry from "../provider/ProviderRegistry.ts";
 import * as ScheduledTaskService from "../scheduledTasks/ScheduledTaskService.ts";
 import * as ServerSettings from "../serverSettings.ts";
@@ -50,7 +47,6 @@ import * as PeerLinks from "../peer/PeerLinks.ts";
 // changes only that.
 
 const instanceId = ProviderInstanceId.make("codex");
-const projectId = ProjectId.make("project:link-origin");
 const adapter = {
   instanceId,
   driver: ProviderDriverKind.make("codex"),
@@ -85,7 +81,6 @@ const layerLaunches = Layer.effect(
             type: "thread.create",
             commandId: input.commandId,
             threadId: input.threadId!,
-            projectId: input.projectId,
             title: input.title,
             modelSelection: input.modelSelection,
             runtimeMode: input.runtimeMode,
@@ -112,7 +107,7 @@ const layerLaunches = Layer.effect(
 const layerTools = Layer.mergeAll(
   McpHttpServer.layerOrchestratorToolkit,
   McpHttpServer.layerThreadToolkit,
-  McpHttpServer.layerProjectRegistration,
+  McpHttpServer.layerThreadLaunchRegistration,
 ).pipe(
   Layer.provide(DocumentText.layer.pipe(Layer.provideMerge(NodeServices.layer))),
   Layer.provideMerge(McpServer.McpServer.layer),
@@ -127,42 +122,12 @@ const layerTools = Layer.mergeAll(
     }),
   ),
   Layer.provide(Layer.mock(ScheduledTaskService.ScheduledTaskService)({})),
-  Layer.provide(
-    Layer.mock(ProjectService.ProjectService)({
-      getById: () => Effect.succeedNone,
-      create: (input) =>
-        Effect.succeed({
-          id: input.projectId,
-          title: input.title,
-          workspaceRoot: input.workspaceRoot,
-          defaultModelSelection: null,
-          scripts: [],
-          createdAt: "2026-10-18T00:00:00.000Z",
-          updatedAt: "2026-10-18T00:00:00.000Z",
-          deletedAt: null,
-        }),
-      update: (input) =>
-        Effect.succeed({
-          id: input.projectId,
-          title: input.title ?? "Untitled",
-          workspaceRoot: "/p/t3code",
-          defaultModelSelection: null,
-          scripts: [],
-          createdAt: "2026-10-18T00:00:00.000Z",
-          updatedAt: "2026-10-18T00:00:00.000Z",
-          deletedAt: null,
-        }),
-    }),
-  ),
   Layer.provide(Layer.mock(SecretRequests.SecretRequests)({})),
   Layer.provide(Layer.mock(PeerForwarding.PeerForwarding)({})),
   Layer.provide(Layer.mock(PeerLinkRequests.PeerLinkRequests)({})),
   Layer.provide(Layer.mock(PeerLinks.PeerLinks)({})),
   Layer.provide(Layer.mock(ThreadSearch.ThreadSearch)({})),
   Layer.provide(Layer.mock(RemoteDelegation.RemoteDelegation)({})),
-  Layer.provide(
-    Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({ namedProjectsRoot: "/p" }),
-  ),
   Layer.provide(
     ServerConfig.layerTest(process.cwd(), { prefix: "t3-link-origin-" }).pipe(
       Layer.provide(NodeServices.layer),
@@ -225,7 +190,6 @@ const launch = (
   extra: Record<string, unknown> = {},
 ) =>
   call(scope, "t3_thread_launch", {
-    projectId,
     title,
     modelSelection: { instanceId, model: "gpt-5" },
     ...extra,
@@ -243,7 +207,6 @@ const usersOwnThread = Effect.gen(function* () {
     type: "thread.create",
     commandId: CommandId.make("create:users-own"),
     threadId,
-    projectId,
     title: "The user's own",
     modelSelection: { instanceId, model: "gpt-5" },
     // Within an `auto` link's modes, so only the fence decides.
@@ -384,7 +347,7 @@ it.layer(Layer.provideMerge(layerTools, layerOrchestration))("work a link starts
       });
       assert.equal(renamed.isError, false, JSON.stringify(renamed.content));
       for (const [name, args] of [
-        ["t3_project_update", { projectId, title: "The desk's now" }],
+        ["t3_project_update", { title: "The desk's now" }],
         ["t3_project_create", { title: "t3code", workspaceRoot: "/p/t3code" }],
       ] as const) {
         const changed = yield* call(trusted, name, args);

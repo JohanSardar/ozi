@@ -8,13 +8,11 @@ import {
   ForwardCompatibleArray,
   OrchestrationMessageContext,
   PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
-  ProjectId as ProjectIdSchema,
   ProviderInteractionMode as ProviderInteractionModeSchema,
   ProviderOptionSelection as ProviderOptionSelectionSchema,
   RuntimeMode as RuntimeModeSchema,
   type EnvironmentId,
   type ModelSelection,
-  type ProjectId,
   type ProviderInteractionMode,
   type ProviderOptionSelection,
   type RuntimeMode,
@@ -367,12 +365,11 @@ export interface ComposerDraft {
   readonly runtimeMode?: RuntimeMode;
   readonly interactionMode?: ProviderInteractionMode;
   readonly workspaceSelection?: ComposerDraftWorkspaceSelection;
-  readonly project?: ComposerDraftProject;
+  readonly environmentStamp?: ComposerDraftEnvironment;
 }
 
-export interface ComposerDraftProject {
+export interface ComposerDraftEnvironment {
   readonly environmentId: EnvironmentId;
-  readonly projectId: ProjectId;
   readonly createdAt: string;
 }
 
@@ -396,7 +393,7 @@ export interface ComposerDraftWorkspaceSelection {
 
 export type ComposerDraftSettingsUpdate = Pick<
   ComposerDraft,
-  "modelSelection" | "runtimeMode" | "interactionMode" | "workspaceSelection" | "project"
+  "modelSelection" | "runtimeMode" | "interactionMode" | "workspaceSelection" | "environmentStamp"
 >;
 
 const ComposerDraftWorkspaceSelectionSchema = Schema.Struct({
@@ -405,9 +402,8 @@ const ComposerDraftWorkspaceSelectionSchema = Schema.Struct({
   followsCurrentCheckout: Schema.optional(Schema.Boolean),
 });
 
-const ComposerDraftProjectSchema = Schema.Struct({
+const ComposerDraftEnvironmentSchema = Schema.Struct({
   environmentId: EnvironmentIdSchema,
-  projectId: ProjectIdSchema,
   createdAt: Schema.String,
 });
 
@@ -426,7 +422,7 @@ const ComposerDraftSchema = Schema.Struct({
   runtimeMode: Schema.optional(RuntimeModeSchema),
   interactionMode: Schema.optional(ProviderInteractionModeSchema),
   workspaceSelection: Schema.optional(ComposerDraftWorkspaceSelectionSchema),
-  project: Schema.optional(ComposerDraftProjectSchema),
+  environmentStamp: Schema.optional(ComposerDraftEnvironmentSchema),
 });
 
 const PersistedComposerDraftsSchema = Schema.Struct({
@@ -613,7 +609,7 @@ function withComposerDraft(
   draftKey: string,
   draft: ComposerDraft,
 ): Record<string, ComposerDraft> {
-  if (isEmptyDraft(draft) && draft.project === undefined) {
+  if (isEmptyDraft(draft) && draft.environmentStamp === undefined) {
     const next = { ...current };
     delete next[draftKey];
     return next;
@@ -633,7 +629,7 @@ export function migrateLegacyNewTaskDraft(
   now: string,
 ): readonly [key: string, draft: ComposerDraft] {
   const restored = restoreMissingComposerFileReferences(draft);
-  const legacy = draft.project === undefined ? parseLegacyNewTaskDraftKey(key) : null;
+  const legacy = draft.environmentStamp === undefined ? parseLegacyNewTaskDraftKey(key) : null;
   if (legacy === null) {
     return [key, restored];
   }
@@ -641,9 +637,8 @@ export function migrateLegacyNewTaskDraft(
     newTaskDraftKey(newDraftId()),
     {
       ...restored,
-      project: {
+      environmentStamp: {
         environmentId: EnvironmentIdSchema.make(legacy.environmentId),
-        projectId: ProjectIdSchema.make(legacy.projectId),
         createdAt: now,
       },
     },
@@ -656,7 +651,21 @@ export function decodePersistedComposerState(value: unknown): {
   readonly modelOptionMemory: ModelOptionMemoryState;
   readonly cloudDrafts: ComposerCloudDraftState;
 } {
-  const parsed = decodePersistedComposerDraftsDocument(value);
+  const document = value && typeof value === "object" ? (value as Record<string, unknown>) : null;
+  const stored = document?.drafts;
+  const migrated =
+    stored && typeof stored === "object" && !Array.isArray(stored)
+      ? Object.fromEntries(
+          Object.entries(stored).map(([key, value]) => {
+            if (!value || typeof value !== "object") return [key, value];
+            const draft = value as Record<string, unknown>;
+            return [key, { ...draft, environmentStamp: draft.environmentStamp ?? draft.project }];
+          }),
+        )
+      : stored;
+  const parsed = decodePersistedComposerDraftsDocument(
+    document ? { ...document, drafts: migrated } : value,
+  );
   const now = new Date().toISOString();
   return {
     drafts: Object.fromEntries(
@@ -1544,7 +1553,7 @@ export function clearComposerDraftContentState(
     context: _context,
     modelSelection,
     workspaceSelection,
-    project: _project,
+    environmentStamp: _project,
     ...retained
   } = existing;
   const draft = {
@@ -1827,47 +1836,42 @@ export function removeComposerDraftsForEnvironment(
   return Object.fromEntries(
     Object.entries(drafts).filter(
       ([draftKey, draft]) =>
-        !draftKey.startsWith(environmentPrefix) && draft.project?.environmentId !== environmentId,
+        !draftKey.startsWith(environmentPrefix) &&
+        draft.environmentStamp?.environmentId !== environmentId,
     ),
   );
 }
 
-export function createNewTaskDraft(project: {
+export function createNewTaskDraft(environmentStamp: {
   readonly environmentId: EnvironmentId;
-  readonly projectId: ProjectId;
 }): string {
   const draftKey = newTaskDraftKey(newDraftId());
-  const stamp: ComposerDraftProject = {
-    environmentId: project.environmentId,
-    projectId: project.projectId,
+  const stamp: ComposerDraftEnvironment = {
+    environmentId: environmentStamp.environmentId,
     createdAt: new Date().toISOString(),
   };
   updateComposerDrafts((current) => ({
     ...current,
-    [draftKey]: { ...EMPTY_DRAFT, project: stamp },
+    [draftKey]: { ...EMPTY_DRAFT, environmentStamp: stamp },
   }));
   return draftKey;
 }
 
 export function retargetNewTaskDraft(
   draftKey: string,
-  project: { readonly environmentId: EnvironmentId; readonly projectId: ProjectId },
+  environmentStamp: { readonly environmentId: EnvironmentId },
 ): void {
   updateComposerDrafts((current) => {
     const existing = current[draftKey];
-    const stamp = existing?.project;
-    if (
-      stamp !== undefined &&
-      stamp.environmentId === project.environmentId &&
-      stamp.projectId === project.projectId
-    ) {
+    const stamp = existing?.environmentStamp;
+    if (stamp !== undefined && stamp.environmentId === environmentStamp.environmentId) {
       return current;
     }
     const { workspaceSelection: _workspaceSelection, ...retained } = normalizeDraft(existing);
     // Keep bytes across environment moves but drop server-specific upload stamps.
     const attachments = retained.attachments.map((attachment) =>
       attachment.uploadEnvironmentId !== undefined &&
-      attachment.uploadEnvironmentId !== project.environmentId
+      attachment.uploadEnvironmentId !== environmentStamp.environmentId
         ? stripAttachmentUploadReference(attachment)
         : attachment,
     );
@@ -1876,9 +1880,8 @@ export function retargetNewTaskDraft(
       [draftKey]: {
         ...retained,
         attachments,
-        project: {
-          environmentId: project.environmentId,
-          projectId: project.projectId,
+        environmentStamp: {
+          environmentId: environmentStamp.environmentId,
           createdAt: stamp?.createdAt ?? new Date().toISOString(),
         },
       },
@@ -1888,17 +1891,18 @@ export function retargetNewTaskDraft(
 
 export function findNewTaskDraftKeys(
   drafts: Readonly<Record<string, ComposerDraft>>,
-  project: { readonly environmentId: EnvironmentId; readonly projectId: ProjectId },
+  environmentStamp: { readonly environmentId: EnvironmentId },
 ): ReadonlyArray<string> {
   return Object.entries(drafts)
     .filter(
       ([key, draft]) =>
         isNewTaskDraftKey(key) &&
-        draft.project?.environmentId === project.environmentId &&
-        draft.project.projectId === project.projectId,
+        draft.environmentStamp?.environmentId === environmentStamp.environmentId,
     )
     .sort(([, left], [, right]) =>
-      (right.project?.createdAt ?? "").localeCompare(left.project?.createdAt ?? ""),
+      (right.environmentStamp?.createdAt ?? "").localeCompare(
+        left.environmentStamp?.createdAt ?? "",
+      ),
     )
     .map(([key]) => key);
 }
@@ -1961,13 +1965,13 @@ export const newTaskComposerDraftsAtom = Atom.make((get): ComposerDraftsByKey =>
   return matching.length === 0 ? EMPTY_DRAFTS : Object.fromEntries(matching);
 }).pipe(Atom.withEquality(sameDrafts));
 
-type ComposerDraftUploadSource = Pick<ComposerDraft, "attachments" | "project">;
+type ComposerDraftUploadSource = Pick<ComposerDraft, "attachments" | "environmentStamp">;
 type ComposerDraftUploadSources = Readonly<Record<string, ComposerDraftUploadSource>>;
 export const composerDraftUploadSourcesAtom = Atom.make((get): ComposerDraftUploadSources =>
   Object.fromEntries(
     Object.entries(get(composerDraftsAtom)).map(([key, draft]) => [
       key,
-      { attachments: draft.attachments, project: draft.project },
+      { attachments: draft.attachments, environmentStamp: draft.environmentStamp },
     ]),
   ),
 ).pipe(
@@ -1976,7 +1980,9 @@ export const composerDraftUploadSourcesAtom = Atom.make((get): ComposerDraftUplo
     return (
       keys.length === Object.keys(b).length &&
       keys.every(
-        (key) => a[key]?.attachments === b[key]?.attachments && a[key]?.project === b[key]?.project,
+        (key) =>
+          a[key]?.attachments === b[key]?.attachments &&
+          a[key]?.environmentStamp === b[key]?.environmentStamp,
       )
     );
   }),

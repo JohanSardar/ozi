@@ -1,4 +1,4 @@
-import { scopeProjectRef, scopeThreadRef } from "@t3tools/client-runtime/environment";
+import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { resolveProviderInstanceDisplayName } from "@t3tools/client-runtime/state/provider-instance-display";
 import { resolveSubagentMetadata } from "@t3tools/client-runtime/state/subagent-display";
 import type { EnvironmentId, OrchestrationV2Subagent } from "@t3tools/contracts";
@@ -9,7 +9,7 @@ import { AppText as Text } from "../../components/ui/AppText";
 import { SymbolView } from "../../components/ui/AppSymbol";
 import { ProviderIcon } from "../../components/ProviderIcon";
 import { cn } from "../../lib/cn";
-import { useEnvironmentServerConfig, useProject, useThreadShell } from "../../state/entities";
+import { useEnvironmentServerConfig, useThreadShell } from "../../state/entities";
 import { subagentCardDetail } from "./subagent-card-presentation";
 import { SUBAGENT_TONE_TEXT_CLASS, SubagentStatusDot } from "./SubagentStatusDot";
 import { resolveSubagentRowPresentation } from "./threadAgentsPresentation";
@@ -109,17 +109,11 @@ function SubagentMetadata(props: {
   const child = useThreadShell(
     subagent.childThreadId === null ? null : scopeThreadRef(environmentId, subagent.childThreadId),
   )?.source;
-  const parentProject = useProject(
-    parent ? scopeProjectRef(environmentId, parent.projectId) : null,
-  );
-  const childProject = useProject(child ? scopeProjectRef(environmentId, child.projectId) : null);
   const { modelLabel, workspace } = resolveSubagentMetadata({
     model: subagent.model,
     provider,
     parentThread: parent,
     childThread: child,
-    parentProject,
-    childProject,
   });
   return (
     <View className="min-w-0 flex-row items-center gap-1.5">

@@ -39,7 +39,7 @@ function compareCommands(
   );
 }
 
-export type KeybindingSource = "Default" | "Custom" | "Project";
+export type KeybindingSource = "Default" | "Custom";
 
 export interface KeybindingRow {
   readonly id: string;
@@ -132,10 +132,6 @@ export function parseWhenExpressionDraft(
 }
 
 function sourceForBinding(binding: ResolvedKeybindingRule): KeybindingSource {
-  if (String(binding.command).startsWith("script.")) {
-    return "Project";
-  }
-
   const bindingKey = shortcutToKeybindingInput(binding.shortcut);
   const bindingWhen = whenAstToExpression(binding.whenAst);
   const isDefault = DEFAULT_RESOLVED_KEYBINDINGS.some(
@@ -212,7 +208,6 @@ const KEYBINDING_GROUPS = [
   { id: "terminal", title: "Terminal", prefixes: ["terminal"] },
   { id: "preview", title: "Preview & diff", prefixes: ["preview"] },
   { id: "appearance", title: "Appearance", prefixes: ["theme", "appearance", "themeEditor"] },
-  { id: "scripts", title: "Project scripts", prefixes: ["script"] },
 ] as const;
 const OTHER_KEYBINDING_GROUP = { id: "other", title: "Other" } as const;
 
@@ -372,9 +367,7 @@ export function commandLabel(command: KeybindingCommand): string {
   if (command === "view.reopenClosed") return "Reopen Closed Tab";
   if (command === "preview.focusUrl") return "Preview: Focus URL";
   const raw = String(command);
-  if (raw.startsWith("script.") && raw.endsWith(".run")) {
-    return `Run Script: ${titleCaseCommandSegment(raw.slice("script.".length, -".run".length))}`;
-  }
+
   return raw.split(".").map(titleCaseCommandSegment).join(": ");
 }
 

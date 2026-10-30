@@ -114,14 +114,14 @@ import {
   getProjectFileQueryAtom,
   setProjectFileQueryData,
   useProjectFileQuery,
-} from "./projectFilesQueryState";
+} from "./workspaceFilesQueryState";
 
 const NO_FILE_REVISION_ATOM = Atom.make(null);
 
 interface FilePreviewPanelProps {
   environmentId: EnvironmentId;
   cwd: string;
-  projectName: string;
+  workspaceName: string;
   relativePath: string | null;
   attachment?: ChatFileAttachment;
   threadRef: ScopedThreadRef;
@@ -827,7 +827,7 @@ function initialExplorerOpen(): boolean {
 export default function FilePreviewPanel({
   environmentId,
   cwd,
-  projectName,
+  workspaceName,
   relativePath: requestedPath,
   attachment,
   threadRef,
@@ -1101,7 +1101,7 @@ export default function FilePreviewPanel({
                 environmentId={environmentId}
                 onNavigateFolder={navigateToFolder}
                 onOpenFile={onOpenFile}
-                projectName={projectName}
+                workspaceName={workspaceName}
                 relativePath={breadcrumbPath}
                 trail={breadcrumbTrail}
                 workspaceMutationId={workspaceMutationId}
@@ -1377,7 +1377,7 @@ export default function FilePreviewPanel({
               key={`${environmentId}:${hostFolderPath ?? cwd}`}
               environmentId={environmentId}
               cwd={hostFolderPath ?? cwd}
-              projectName={hostFolderPath ?? projectName}
+              workspaceName={hostFolderPath ?? workspaceName}
               hostFolder={hostFolderPath !== null}
               selectedPath={
                 hostFolderPath === null

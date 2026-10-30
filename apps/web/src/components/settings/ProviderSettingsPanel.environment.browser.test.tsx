@@ -115,7 +115,6 @@ vi.mock(import("../../state/session"), async (original) => {
 });
 vi.mock(import("../../state/entities"), async (original) => ({
   ...(await original()),
-  useProjects: (() => []) as never,
 }));
 vi.mock(import("./settingsLayout"), async (original) => ({
   ...(await original()),

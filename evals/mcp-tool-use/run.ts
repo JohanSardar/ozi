@@ -43,7 +43,7 @@ import { HtmlToolkit } from "../../apps/server/src/mcp/toolkits/html/tools.ts";
 import { OrchestratorToolkit } from "../../apps/server/src/mcp/toolkits/orchestrator/tools.ts";
 import { PreviewToolkit } from "../../apps/server/src/mcp/toolkits/preview/tools.ts";
 import { PreviewControlsToolkit } from "../../apps/server/src/mcp/toolkits/previewControls/tools.ts";
-import { ProjectToolkit } from "../../apps/server/src/mcp/toolkits/project/tools.ts";
+import { ThreadLaunchToolkit } from "../../apps/server/src/mcp/toolkits/threadLaunch/tools.ts";
 import { ThreadToolkit } from "../../apps/server/src/mcp/toolkits/thread/tools.ts";
 import {
   CLAUDE_PROVIDER,
@@ -304,7 +304,7 @@ const t3SourceTools: ReadonlyArray<Tool.Any> = [
   OrchestratorToolkit,
   ThreadToolkit,
   AttachmentToolkit,
-  ProjectToolkit,
+  ThreadLaunchToolkit,
   EnvironmentToolkit,
   PreviewControlsToolkit,
   PreviewToolkit,

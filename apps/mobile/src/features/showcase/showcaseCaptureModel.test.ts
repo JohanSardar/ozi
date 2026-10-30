@@ -16,8 +16,6 @@ const ready: ShowcaseReadinessInput = {
   themeApplied: true,
   agentActivityStaged: false,
   themeId: "t3-code",
-  renderSignal: null,
-  renderReports: 0,
 };
 
 describe("showcaseSceneOnScreen", () => {
@@ -25,7 +23,6 @@ describe("showcaseSceneOnScreen", () => {
     expect(showcaseSceneOnScreen("agent-activity", "/")).toBe("agent-activity");
     expect(showcaseSceneOnScreen("threads", "/")).toBe("threads");
     expect(showcaseSceneOnScreen("agent-activity", "/threads/env/thread")).toBe("thread");
-    expect(showcaseSceneOnScreen(null, "/threads/env/thread/review?x=1")).toBe("review");
   });
 });
 
@@ -69,31 +66,16 @@ describe("showcaseReadinessKey", () => {
     expect(showcaseReadinessKey(agentActivity)).toBeNull();
     expect(showcaseReadinessKey({ ...agentActivity, agentActivityStaged: true })).not.toBeNull();
   });
-
-  it("waits for review to report a draw in the current theme, and changes key when it redraws", () => {
-    const review = { ...ready, scene: "review", requestedScene: "review" } as const;
-    expect(showcaseReadinessKey(review)).toBeNull();
-    expect(
-      showcaseReadinessKey({
-        ...review,
-        renderSignal: { scene: "review", themeId: "material-you" },
-      }),
-    ).toBeNull();
-    const drawn = { ...review, renderSignal: { scene: "review", themeId: "t3-code" } } as const;
-    const firstDraw = showcaseReadinessKey({ ...drawn, renderReports: 1 });
-    expect(firstDraw).not.toBeNull();
-    expect(showcaseReadinessKey({ ...drawn, renderReports: 2 })).not.toBe(firstDraw);
-  });
 });
 
 describe("shouldNavigateToShowcaseScene", () => {
   it("dispatches again when the thread shell changes while the scene is still not on screen", () => {
     const shell = { id: "remote-command-center" };
-    const first = { requestedScene: "review", scene: "threads", thread: shell } as const;
+    const first = { requestedScene: "terminal", scene: "threads", thread: shell } as const;
     expect(shouldNavigateToShowcaseScene(null, first)).toBe(true);
     expect(shouldNavigateToShowcaseScene(first, { ...first })).toBe(false);
     expect(shouldNavigateToShowcaseScene(first, { ...first, thread: { ...shell } })).toBe(true);
     expect(shouldNavigateToShowcaseScene(first, { ...first, scene: "thread" })).toBe(true);
-    expect(shouldNavigateToShowcaseScene(first, { ...first, scene: "review" })).toBe(false);
+    expect(shouldNavigateToShowcaseScene(first, { ...first, scene: "terminal" })).toBe(false);
   });
 });

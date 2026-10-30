@@ -2,7 +2,6 @@ import {
   EnvironmentId,
   ORCHESTRATION_V2_WS_METHODS,
   OrchestrationV2GetShellSnapshotError,
-  ProjectId,
   ThreadId,
   type OrchestrationV2OlderSettledThreadsPage,
   type OrchestrationV2SearchThreadsResult,
@@ -46,12 +45,11 @@ import {
 
 const DAY = 24 * 60 * 60 * 1000;
 const environmentId = EnvironmentId.make("env-a");
-const project = ProjectId.make("project-a");
 const before = DateTime.formatIso(DateTime.makeUnsafe(50 * DAY));
 const older: OlderSettled = {
   before,
   beforeMs: 50 * DAY,
-  counts: new Map([[project, 3]]),
+  count: 0,
 };
 
 const row = (
@@ -64,7 +62,6 @@ const row = (
 ) =>
   ({
     id: ThreadId.make(id),
-    projectId: project,
     lineage: {
       parentThreadId: input.subagent === true ? ThreadId.make("parent") : null,
       relationshipToParent: input.subagent === true ? "subagent" : null,
@@ -170,33 +167,28 @@ it("counts older threads the client does not hold, once", () => {
   expect(
     unloadedOlderSettledCount({
       olderSettled,
-      scopes: [{ environmentId, projectIds: null }],
+      scopes: [{ environmentId }],
       threads: local,
     }),
   ).toBe(1);
   expect(
     unloadedOlderSettledCount({
       olderSettled,
-      scopes: [{ environmentId, projectIds: [ProjectId.make("other")] }],
+      scopes: [{ environmentId }],
       threads: local,
     }),
   ).toBe(0);
-  // Two projects in one environment: each subtracts only its own loaded rows.
-  const other = ProjectId.make("project-b");
   const twoProjects = (): OlderSettled => ({
     ...older,
-    counts: new Map([
-      [project, 10],
-      [other, 10],
-    ]),
+    count: 0,
   });
   expect(
     unloadedOlderSettledCount({
       olderSettled: twoProjects,
-      scopes: [{ environmentId, projectIds: [project, other] }],
+      scopes: [{ environmentId }],
       threads: [
         { source: row("a-old", { settledDay: 10 }), environmentId },
-        { source: { ...row("b-old", { settledDay: 10 }), projectId: other }, environmentId },
+        { source: { ...row("b-old", { settledDay: 10 }) }, environmentId },
       ],
     }),
   ).toBe(18);
@@ -371,13 +363,12 @@ const shellSnapshot = (input: {
   Option.some({
     schemaVersion: 1,
     snapshotSequence: input.sequence,
-    projects: [],
     threads: [row("recent", { settledDay: 60 })],
     archivedThreads: [],
     olderSettled: {
       before,
       asOfSequence: input.asOfSequence,
-      counts: [{ projectId: project, count: input.count }],
+      count: input.count,
     },
   } as unknown as OrchestrationV2ShellSnapshot);
 
@@ -386,7 +377,7 @@ describe("createOlderSettledThreadAtoms", () => {
     Effect.gen(function* () {
       const { replies, requests, atoms, registry, setShell, until } = yield* makeAtoms();
       const olderAtom = atoms.olderSettledAtom(environmentId);
-      const count = (value: OlderSettled | null) => value?.counts.get(project);
+      const count = (value: OlderSettled | null) => value?.count;
       registry.mount(olderAtom);
 
       // A cached shell: its counts stand, read nothing.
@@ -405,7 +396,7 @@ describe("createOlderSettledThreadAtoms", () => {
         Effect.succeed({
           snapshotSequence: 4,
           threads: [],
-          counts: [{ projectId: project, count: 4 }],
+          count: 4,
         }),
       );
       setShell({
@@ -431,7 +422,7 @@ describe("createOlderSettledThreadAtoms", () => {
   it.effect("reads pages in order until a short one, and retries a failed page", () =>
     Effect.gen(function* () {
       const { replies, requests, atoms, registry, setShell, until } = yield* makeAtoms();
-      const scope = { environmentId, projectIds: null };
+      const scope = { environmentId };
       const snapshot = shellSnapshot({ sequence: 3, asOfSequence: 3, count: 30 });
 
       // A cached shell holds no other environment back: nothing can load yet.
@@ -447,16 +438,13 @@ describe("createOlderSettledThreadAtoms", () => {
       const full = Array.from({ length: 25 }, (_, index) =>
         row(`full-${String(index).padStart(2, "0")}`, { settledDay: 40 - index }),
       );
-      yield* Queue.offer(
-        replies,
-        Effect.succeed({ snapshotSequence: 3, threads: full, counts: [] }),
-      );
+      yield* Queue.offer(replies, Effect.succeed({ snapshotSequence: 3, threads: full, count: 0 }));
       yield* Queue.offer(
         replies,
         Effect.succeed({
           snapshotSequence: 3,
           threads: [row("short", { settledDay: 10 })],
-          counts: [],
+          count: 0,
         }),
       );
       const twoPages = atoms.pagesAtom(scope, 2);
@@ -489,7 +477,7 @@ describe("createOlderSettledThreadAtoms", () => {
       expect(registry.get(onePage).status).toBe("pending");
       yield* Queue.offer(
         replies,
-        Effect.succeed({ snapshotSequence: 3, threads: full.slice(0, 3), counts: [] }),
+        Effect.succeed({ snapshotSequence: 3, threads: full.slice(0, 3), count: 0 }),
       );
       const retried = yield* until(onePage, (pages) => pages.status === "ready");
       expect(retried.reads).toHaveLength(1);
@@ -533,7 +521,7 @@ describe("createOlderSettledThreadAtoms", () => {
         snapshot: shellSnapshot({ sequence: 3, asOfSequence: 3, count: 30 }),
         generation: 1,
       });
-      const scope = { environmentId, projectIds: null };
+      const scope = { environmentId };
       const full = Array.from({ length: 25 }, (_, index) =>
         row(`full-${String(index).padStart(2, "0")}`, { settledDay: 40 - index }),
       );
@@ -542,10 +530,7 @@ describe("createOlderSettledThreadAtoms", () => {
         before: { settledAt: before },
         limit: 25,
       });
-      yield* Queue.offer(
-        replies,
-        Effect.succeed({ snapshotSequence: 3, threads: full, counts: [] }),
-      );
+      yield* Queue.offer(replies, Effect.succeed({ snapshotSequence: 3, threads: full, count: 0 }));
       yield* until(atoms.pagesAtom(scope, 1), (pages) => pages.reads.length === 1);
 
       // React builds the next shelf before the last one lets go, so page 1 is not read again.

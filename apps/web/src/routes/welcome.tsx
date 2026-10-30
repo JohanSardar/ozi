@@ -3,8 +3,6 @@ import { useState } from "react";
 import { EnvironmentId } from "@t3tools/contracts";
 import * as Schema from "effect/Schema";
 import * as Option from "effect/Option";
-
-import { NoProjectsHero } from "../components/NoProjectsHero";
 import { WelcomeWizard } from "../components/onboarding/WelcomeWizard";
 import { useNewThreadHandler } from "../hooks/useHandleNewThread";
 
@@ -34,15 +32,14 @@ function WelcomeRouteView() {
   const localAvailable = authGateState.status === "authenticated";
   return (
     <>
-      <NoProjectsHero />
       {isWelcomeRoute && !dismissed ? (
         <WelcomeWizard
           localAvailable={localAvailable}
           resumeEnvironmentId={resumeEnvironmentId}
-          onDone={async (projectRef) => {
+          onDone={async (environmentId) => {
             setDismissed(true);
-            if (projectRef !== undefined) {
-              await openNewThread(projectRef, { replace: true }).catch(() =>
+            if (environmentId !== undefined) {
+              await openNewThread(environmentId, { replace: true }).catch(() =>
                 navigate({ to: "/", replace: true }),
               );
               return;

@@ -23,7 +23,6 @@ export type ChatShortcutCommands = Partial<Record<KeybindingCommand, ChatShortcu
 interface ChatShortcutsInput {
   readonly enabled: boolean;
   readonly keybindings: ResolvedKeybindingsConfig;
-  readonly scriptKeybindings: ResolvedKeybindingsConfig;
   readonly getShortcutContext: (target: EventTarget | null) => ShortcutMatchContext & {
     readonly modelPickerOpen: boolean;
   };
@@ -32,8 +31,6 @@ interface ChatShortcutsInput {
   readonly composerRef: ComposerHandleRef;
   readonly closeThreadFind: () => void;
   readonly commands: ChatShortcutCommands;
-  /** Handles commands not in `commands`, such as project scripts. */
-  readonly fallback: (command: KeybindingCommand) => ChatShortcutHandler | undefined;
 }
 
 /**
@@ -69,14 +66,11 @@ export function useChatShortcuts(input: ChatShortcutsInput) {
       return;
     }
 
-    const command = resolveChatShortcutCommand(event, keybindings, input.scriptKeybindings, {
+    const command = resolveChatShortcutCommand(event, keybindings, {
       context: shortcutContext,
     });
     if (!command) return;
-    const run =
-      input.commands[command] ??
-      composerShortcutCommands(input.composerRef)[command] ??
-      input.fallback(command);
+    const run = input.commands[command] ?? composerShortcutCommands(input.composerRef)[command];
     if (!run || run({ event, terminalFocusOwner }) === false) return;
     event.preventDefault();
     event.stopPropagation();

@@ -6,8 +6,6 @@ import {
   type ScopedThreadRef,
   type ThreadId,
 } from "@t3tools/contracts";
-import { scopeProjectRef } from "@t3tools/client-runtime/environment";
-import { projectScriptCwd, projectScriptRuntimeEnv } from "@t3tools/shared/projectScripts";
 import { resolveTerminalSessionLabel } from "@t3tools/shared/terminalLabels";
 import { memo, useEffect } from "react";
 import { useComposerDraftStore } from "../composerDraftStore";
@@ -20,7 +18,7 @@ import {
   useRightPanelStore,
   type RightPanelSurface,
 } from "../rightPanelStore";
-import { useProject, useQuietThreadShell } from "../state/entities";
+import { useServerConfigs, useQuietThreadShell } from "../state/entities";
 import { useEnvironmentScope } from "../state/session";
 import { useKnownTerminalSessions } from "../state/terminalSessions";
 import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../terminalUiStateStore";
@@ -104,12 +102,8 @@ export const PersistentThreadTerminalDrawer = memo(function PersistentThreadTerm
   const terminalActions = useThreadTerminalActions(threadRef);
   const serverThread = useQuietThreadShell(threadRef);
   const draftThread = useComposerDraftStore((store) => store.getDraftThreadByRef(threadRef));
-  const projectRef = serverThread
-    ? scopeProjectRef(serverThread.environmentId, serverThread.projectId)
-    : draftThread
-      ? scopeProjectRef(draftThread.environmentId, draftThread.projectId)
-      : null;
-  const project = useProject(projectRef);
+  const defaultCwd =
+    useServerConfigs().get(threadRef?.environmentId ?? ("" as EnvironmentId))?.cwd ?? null;
   const terminalUiState = useTerminalUiStateStore((state) =>
     selectThreadTerminalUiState(state.terminalUiStateByThreadKey, threadRef),
   );
@@ -137,16 +131,13 @@ export const PersistentThreadTerminalDrawer = memo(function PersistentThreadTerm
   const terminalLaunchLocationsById = new Map<string, TerminalLaunchLocationWithEnv>();
   for (const session of drawerTerminalSessions) {
     const summary = session.state.summary;
-    if (!project || !summary) continue;
+    if (!summary) continue;
     const workingDirectoryForLaunch =
       launchContext !== null ? launchContext.workingDirectory : summary.workingDirectory;
     terminalLaunchLocationsById.set(session.target.terminalId, {
       cwd: launchContext?.cwd ?? summary.cwd,
       workingDirectory: workingDirectoryForLaunch,
-      runtimeEnv: projectScriptRuntimeEnv({
-        project: { cwd: project.workspaceRoot },
-        workingDirectory: workingDirectoryForLaunch,
-      }),
+      runtimeEnv: {},
     });
   }
   const serverOrderedTerminalIds = drawerTerminalSessions.map(
@@ -175,20 +166,8 @@ export const PersistentThreadTerminalDrawer = memo(function PersistentThreadTerm
     reconcileTerminalIds(threadRef, serverOrderedTerminalIds);
   }, [reconcileTerminalIds, serverOrderedTerminalIds, terminalUiState.terminalIds, threadRef]);
   const workingDirectory = serverThread?.workingDirectory ?? draftThread?.workingDirectory ?? null;
-  const cwd =
-    launchContext?.cwd ??
-    (project
-      ? projectScriptCwd({
-          project: { cwd: project.workspaceRoot },
-          workingDirectory: workingDirectory,
-        })
-      : null);
-  const runtimeEnv = project
-    ? projectScriptRuntimeEnv({
-        project: { cwd: project.workspaceRoot },
-        workingDirectory: workingDirectory,
-      })
-    : {};
+  const cwd = launchContext?.cwd ?? (defaultCwd ? (workingDirectory ?? defaultCwd) : null);
+  const runtimeEnv = {};
 
   const setTerminalHeight = (height: number) => {
     storeSetTerminalHeight(threadRef, height);
@@ -233,7 +212,7 @@ export const PersistentThreadTerminalDrawer = memo(function PersistentThreadTerm
     onAddTerminalContext(selection);
   };
 
-  if (!project || (!terminalUiState.terminalOpen && !active) || !cwd) {
+  if ((!terminalUiState.terminalOpen && !active) || !cwd) {
     return null;
   }
 
@@ -317,14 +296,8 @@ export const PersistentThreadTerminalPanel = memo(function PersistentThreadTermi
   newShortcutLabel,
   closeShortcutLabel,
 }: PersistentThreadTerminalPanelProps) {
-  const serverThread = useQuietThreadShell(threadRef);
-  const draftThread = useComposerDraftStore((store) => store.getDraftThreadByRef(threadRef));
-  const projectRef = serverThread
-    ? scopeProjectRef(serverThread.environmentId, serverThread.projectId)
-    : draftThread
-      ? scopeProjectRef(draftThread.environmentId, draftThread.projectId)
-      : null;
-  const project = useProject(projectRef);
+  const defaultCwd =
+    useServerConfigs().get(threadRef?.environmentId ?? ("" as EnvironmentId))?.cwd ?? null;
   const knownTerminalSessions = useKnownTerminalSessions({
     environmentId: threadRef.environmentId,
     threadId: threadRef.threadId,
@@ -339,12 +312,8 @@ export const PersistentThreadTerminalPanel = memo(function PersistentThreadTermi
   const cwd =
     launchContext?.cwd ??
     activeSummary?.cwd ??
-    (project
-      ? projectScriptCwd({ project: { cwd: project.workspaceRoot }, workingDirectory })
-      : null);
-  const runtimeEnv = project
-    ? projectScriptRuntimeEnv({ project: { cwd: project.workspaceRoot }, workingDirectory })
-    : {};
+    (defaultCwd ? (workingDirectory ?? defaultCwd) : null);
+  const runtimeEnv = {};
   const terminalLabelsById = new Map<string, string>();
   const terminalLaunchLocationsById = new Map<string, TerminalLaunchLocationWithEnv>();
   for (const terminalId of surface.terminalIds) {
@@ -352,24 +321,17 @@ export const PersistentThreadTerminalPanel = memo(function PersistentThreadTermi
       knownTerminalSessions?.find((session) => session.target.terminalId === terminalId)?.state
         .summary ?? null;
     terminalLabelsById.set(terminalId, resolveTerminalSessionLabel(terminalId, summary));
-    if (!project) continue;
+    if (!defaultCwd && !summary?.cwd && !launchContext?.cwd) continue;
+    const terminalCwd = launchContext?.cwd ?? summary?.cwd ?? workingDirectory ?? defaultCwd;
+    if (terminalCwd === null) continue;
     terminalLaunchLocationsById.set(terminalId, {
-      cwd:
-        launchContext?.cwd ??
-        summary?.cwd ??
-        projectScriptCwd({
-          project: { cwd: project.workspaceRoot },
-          workingDirectory: workingDirectory,
-        }),
+      cwd: terminalCwd,
       workingDirectory: workingDirectory,
-      runtimeEnv: projectScriptRuntimeEnv({
-        project: { cwd: project.workspaceRoot },
-        workingDirectory: workingDirectory,
-      }),
+      runtimeEnv: {},
     });
   }
 
-  if (!project || !cwd) return null;
+  if (!cwd) return null;
 
   return (
     <ThreadTerminalDrawer

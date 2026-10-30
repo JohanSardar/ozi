@@ -24,7 +24,7 @@ describe("draft thread handoff", () => {
     const initial = router.getInitialState(options);
     const draft = router.getStateForAction(
       initial,
-      CommonActions.navigate("Thread", { draft: { projectId: "project" } }),
+      CommonActions.navigate("Thread", { draft: {} }),
       options,
     )!;
     if (!draft || draft.stale !== false) throw new Error("Draft route was not initialized");
@@ -51,7 +51,7 @@ describe("missing shared-content project recovery", () => {
   it("replaces the stale draft before selecting the replacement project", () => {
     const router = StackRouter({});
     const options = {
-      routeNames: ["Home", "Thread", "NewTaskProject"],
+      routeNames: ["Home", "Thread"],
       routeParamList: {},
       routeGetIdList: {},
     };
@@ -59,7 +59,7 @@ describe("missing shared-content project recovery", () => {
     const staleDraft = router.getStateForAction(
       initial,
       CommonActions.navigate("Thread", {
-        draft: { environmentId: "environment", projectId: "deleted", incomingShareId: "share" },
+        draft: { environmentId: "environment", incomingShareId: "share" },
       }),
       options,
     )!;
@@ -75,41 +75,39 @@ describe("missing shared-content project recovery", () => {
     const recovered = router.getStateForAction(
       picker,
       CommonActions.navigate("Thread", {
-        draft: { environmentId: "environment", projectId: "replacement", incomingShareId: "share" },
+        draft: { environmentId: "environment", incomingShareId: "share" },
       }),
       options,
     )!;
     expect(recovered.routes.filter(isDraftThreadRoute)).toHaveLength(1);
     expect(recovered.routes.at(-1)?.params).toEqual({
-      draft: { environmentId: "environment", projectId: "replacement", incomingShareId: "share" },
+      draft: { environmentId: "environment", incomingShareId: "share" },
     });
   });
 });
 
 describe("draft route identity", () => {
   it("changes when a reused Thread route selects another draft or starts a new one", () => {
-    const draft = { environmentId: "env", projectId: "project", draftId: "a" };
+    const draft = { environmentId: "env", draftId: "a" };
     expect(draftRouteIdentity(draft)).not.toBe(draftRouteIdentity({ ...draft, draftId: "b" }));
     expect(draftRouteIdentity(draft)).not.toBe(
       draftRouteIdentity({ ...draft, draftId: undefined }),
     );
-    expect(draftRouteIdentity(draft)).not.toBe(
-      draftRouteIdentity({ ...draft, projectId: "other" }),
-    );
+    expect(draftRouteIdentity(draft)).not.toBe(draftRouteIdentity({ ...draft }));
     expect(draftRouteIdentity(draft)).not.toBe(
       draftRouteIdentity({ ...draft, incomingShareId: "share" }),
     );
   });
 
   it("normalizes link parameters without resetting for display metadata", () => {
-    expect(
-      draftRouteIdentity({ environmentId: ["env"], projectId: ["project"], title: "Old" }),
-    ).toBe(draftRouteIdentity({ environmentId: "env", projectId: "project", title: "New" }));
+    expect(draftRouteIdentity({ environmentId: ["env"], title: "Old" })).toBe(
+      draftRouteIdentity({ environmentId: "env", title: "New" }),
+    );
   });
 });
 
 it("starts a fresh controller for repeated new-task requests in the same project", () => {
-  const project = { environmentId: "env", projectId: "project" };
+  const project = { environmentId: "env" };
   expect(draftRouteIdentity({ ...project, requestId: "first" })).not.toBe(
     draftRouteIdentity({ ...project, requestId: "second" }),
   );

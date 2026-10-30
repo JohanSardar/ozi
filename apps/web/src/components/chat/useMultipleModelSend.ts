@@ -7,7 +7,6 @@ import {
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { deriveThreadTitleSeed } from "@t3tools/client-runtime/operations";
 import { settlePromise, squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
-import type { EnvironmentProject } from "@t3tools/client-runtime/state/shell";
 import { useNavigate } from "@tanstack/react-router";
 import { newMessageId } from "~/lib/utils";
 import { collapseExpandedComposerCursor } from "../../composer-logic";
@@ -83,7 +82,6 @@ export function useMultipleModelSend(input: MultipleModelSendInput) {
 
   return async ({
     threadId,
-    project,
     selections,
     targets,
     sendSnapshot,
@@ -95,7 +93,6 @@ export function useMultipleModelSend(input: MultipleModelSendInput) {
     isCurrentSend,
   }: {
     readonly threadId: ThreadId;
-    readonly project: EnvironmentProject;
     readonly selections: ReadonlyArray<ModelSelection>;
     readonly targets: ReadonlyArray<MultipleModelTarget>;
     readonly sendSnapshot: ComposerSendSnapshot;
@@ -173,7 +170,6 @@ export function useMultipleModelSend(input: MultipleModelSendInput) {
                   interactionMode: target.interactionMode,
                   bootstrap: {
                     createThread: {
-                      projectId: project.id,
                       title,
                       modelSelection: target.selection,
                       runtimeMode,

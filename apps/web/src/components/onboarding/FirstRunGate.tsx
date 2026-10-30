@@ -11,16 +11,13 @@ import {
 } from "../../hooks/useSettings";
 import { completeOnboarding } from "../../onboarding/firstRun";
 import {
-  isFirstRunWorkspaceProvenanceAuthoritative,
-  isFreshFirstRunWorkspace,
   resolveFirstRunDecision,
   resolveHostedFirstRunDecision,
   transitionFirstRunGateState,
   type FirstRunGateState,
 } from "../../onboarding/firstRun.logic";
-import { useAllEnvironmentShellsBootstrapped, useProjects } from "../../state/entities";
+import { useAllEnvironmentShellsBootstrapped } from "../../state/entities";
 import { useEnvironments } from "../../state/environments";
-import { environmentProjects } from "../../state/projects";
 import { primaryServerConfigAtom, primaryServerWelcomeAtom } from "../../state/server";
 import { environmentShell } from "../../state/shell";
 import { environmentThreadShells } from "../../state/threads";
@@ -39,10 +36,9 @@ const primaryShellLiveAtom = Atom.make((get) => {
 }).pipe(Atom.withLabel("web-onboarding-primary-shell-live"));
 
 const workspaceEvidenceLiveAtom = Atom.make((get) => {
-  const environmentIds = new Set([
-    ...get(environmentProjects.projectsAtom).map((project) => project.environmentId),
-    ...get(environmentThreadShells.threadShellsAtom).map((thread) => thread.environmentId),
-  ]);
+  const environmentIds = new Set(
+    get(environmentThreadShells.threadShellsAtom).map((thread) => thread.environmentId),
+  );
 
   for (const environmentId of environmentIds) {
     if (get(environmentShell.stateValueAtom(environmentId)).status !== "live") {
@@ -58,11 +54,6 @@ const workspaceEvidenceLiveAtom = Atom.make((get) => {
 const threadCountAtom = Atom.make(
   (get) => get(environmentThreadShells.threadShellsAtom).length,
 ).pipe(Atom.withLabel("web-onboarding-thread-count"));
-
-const soleThreadAtom = Atom.make((get) => {
-  const threads = get(environmentThreadShells.threadShellsAtom);
-  return threads.length === 1 ? threads[0]! : null;
-}).pipe(Atom.withLabel("web-onboarding-sole-thread"));
 
 export function FirstRunGate({
   enabled,
@@ -80,9 +71,7 @@ export function FirstRunGate({
   const onboardingCompletedAt = useClientSettings((settings) => settings.onboardingCompletedAt);
   const bootstrapped = useAllEnvironmentShellsBootstrapped();
   const { isReady: environmentCatalogReady } = useEnvironments();
-  const projects = useProjects();
   const threadCount = useAtomValue(threadCountAtom);
-  const soleThread = useAtomValue(soleThreadAtom);
   const serverConfig = useAtomValue(primaryServerConfigAtom);
   const serverWelcome = useAtomValue(primaryServerWelcomeAtom);
   const primaryShellLive = useAtomValue(primaryShellLiveAtom);
@@ -96,21 +85,7 @@ export function FirstRunGate({
   }));
   const { decision, stalled } = gateState;
   const settingsReadFailed = hydrationStatus === "failed" || hydrationStatus === "retrying";
-  // The server's sole cwd-bootstrap project/thread still counts as fresh so npx ozi users see onboarding.
-  const serverCwd = serverConfig?.cwd ?? null;
-  const primaryEnvironmentId = serverConfig?.environment.environmentId ?? null;
-  const workspaceFresh =
-    threadCount <= 1 &&
-    isFreshFirstRunWorkspace({
-      primaryEnvironmentId,
-      serverCwd,
-      bootstrapProjectId: serverWelcome?.bootstrapProjectId,
-      bootstrapThreadId: serverWelcome?.bootstrapThreadId,
-      bootstrapProjectCreated: serverWelcome?.bootstrapProjectCreated,
-      bootstrapThreadCreated: serverWelcome?.bootstrapThreadCreated,
-      projects,
-      threads: soleThread === null ? [] : [soleThread],
-    });
+  const workspaceFresh = threadCount === 0;
 
   const { decision: nextDecision, persistCompletion } = hostedStatic
     ? resolveHostedFirstRunDecision(hydrated)
@@ -121,14 +96,10 @@ export function FirstRunGate({
         bootstrapped,
         authoritative: primaryShellLive,
         workspaceAuthoritative: workspaceEvidenceLive,
-        workspaceProvenanceAuthoritative: isFirstRunWorkspaceProvenanceAuthoritative({
-          welcomeReceived: serverWelcome !== null,
-          bootstrapStatus: serverWelcome?.bootstrapStatus ?? null,
-        }),
+        workspaceProvenanceAuthoritative: serverWelcome !== null,
         catalogReady: environmentCatalogReady,
         serverConfigAvailable: serverConfig !== null,
         workspaceFresh,
-        projectCount: projects.length,
         threadCount,
       });
 

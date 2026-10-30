@@ -204,7 +204,7 @@ it("keeps committed handlers while a replacement render suspends", () => {
     throw pending;
   }
   const toolbar = (value: string, suspend = false) => (
-    <Suspense fallback={null}>
+    <Suspense>
       <NativeHeaderToolbar>
         <NativeHeaderToolbar.Button label="Open" onPress={() => onPress(value)} />
       </NativeHeaderToolbar>

@@ -6,7 +6,6 @@ import {
   EnvironmentId,
   MessageId,
   NodeId,
-  ProjectId,
   ProviderInstanceId,
   ProviderDriverKind,
   ProviderSessionId,
@@ -299,7 +298,6 @@ const turnInput = Effect.fnUntraced(function* (
   const selection = modelSelection(providerThread.providerInstanceId);
   const appThread: OrchestrationV2AppThread = {
     id: threadId,
-    projectId: ProjectId.make("project-muse-test"),
     title: "Muse test",
     createdBy: "user",
     creationSource: "web",

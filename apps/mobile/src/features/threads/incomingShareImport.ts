@@ -131,7 +131,6 @@ function keyOf(target: ShareImportTarget): string {
     target.routeKey,
     target.draftKey,
     target.destination.environmentId,
-    target.destination.projectId,
     target.shareId,
   ]);
 }

@@ -1,6 +1,5 @@
 import {
   EnvironmentId,
-  ProjectId,
   RunId,
   RuntimeRequestId,
   ThreadId,
@@ -20,7 +19,6 @@ import { childThreadInputsTitle, createEnvironmentThreadShellAtoms } from "./thr
 
 const environmentId = EnvironmentId.make("environment-v2");
 const remoteEnvironmentId = EnvironmentId.make("remote-environment-v2");
-const otherProjectId = ProjectId.make("other-project");
 
 function makeHarness(environmentIds: ReadonlyArray<EnvironmentId> = [environmentId]) {
   const snapshotAtom = Atom.family((_environmentId: EnvironmentId) =>
@@ -406,54 +404,6 @@ describe("v2 thread shell lists", () => {
     expect(environmentsOf()).toEqual(new Set([environmentId, remoteEnvironmentId]));
     dispose();
     registry.dispose();
-  });
-
-  it("preserves project memberships on updates and keeps the same thread separate per environment", () => {
-    const harness = makeHarness([environmentId, remoteEnvironmentId]);
-    const otherThread = {
-      ...v2ThreadShell,
-      id: ThreadId.make("other-thread"),
-      projectId: otherProjectId,
-    };
-    const snapshot = { ...v2ShellSnapshot, threads: [v2ThreadShell, otherThread] };
-    harness.registry.set(harness.snapshotAtom(environmentId), snapshot);
-    const membershipAtom = harness.threads.environmentThreadRefsByProjectAtom(environmentId);
-    const listAtom = harness.threads.threadShellsForProjectRefsAtom([
-      { environmentId: remoteEnvironmentId, projectId: v2ThreadShell.projectId },
-      { environmentId, projectId: v2ThreadShell.projectId },
-    ]);
-    const disposeList = harness.registry.mount(listAtom);
-    try {
-      const membership = harness.registry.get(membershipAtom);
-      const before = harness.registry.get(listAtom);
-      expect(before).toHaveLength(2);
-      expect(before[0]).not.toBe(before[1]);
-      expect(before.map((thread) => thread.environmentId)).toEqual([
-        remoteEnvironmentId,
-        environmentId,
-      ]);
-
-      harness.registry.set(harness.snapshotAtom(environmentId), {
-        ...snapshot,
-        threads: [v2ThreadShell, { ...otherThread, title: "Changed elsewhere" }],
-      });
-      expect(harness.registry.get(membershipAtom)).toBe(membership);
-      expect(harness.registry.get(listAtom)).toBe(before);
-
-      harness.registry.set(harness.snapshotAtom(environmentId), {
-        ...snapshot,
-        threads: [{ ...v2ThreadShell, projectId: otherProjectId }, otherThread],
-      });
-      expect(harness.registry.get(listAtom)).toEqual([before[0]]);
-      harness.registry.set(harness.snapshotAtom(remoteEnvironmentId), {
-        ...v2ShellSnapshot,
-        threads: [],
-      });
-      expect(harness.registry.get(listAtom)).toEqual([]);
-    } finally {
-      disposeList();
-      harness.registry.dispose();
-    }
   });
 
   it("keeps the quiet shell through streaming ticks and follows every change once the run stops", () => {

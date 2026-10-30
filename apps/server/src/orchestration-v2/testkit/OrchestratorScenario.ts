@@ -157,10 +157,6 @@ function commandThreadIds(command: OrchestrationV2Command): ReadonlyArray<Thread
     case "provider-session.detach":
     case "message.dispatch":
     case "notification.delivery.accept":
-    case "prepared-run.release":
-    case "prepared-run.progress":
-    case "prepared-run.fail":
-    case "prepared-run.retry":
     case "subagent.stop":
     case "run.interrupt":
     case "queued-message.promote-to-steer":

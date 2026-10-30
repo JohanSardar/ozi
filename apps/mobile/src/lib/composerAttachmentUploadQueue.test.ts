@@ -282,13 +282,7 @@ describe("draft upload scope and offline submission", () => {
   });
 
   it("reads an id-keyed new-task draft's environment from its project stamp", () => {
-    const stamped = {
-      project: {
-        environmentId,
-        projectId: "project" as never,
-        createdAt: "2026-09-05T00:00:00.000Z",
-      },
-    };
+    const stamped = {};
     expect(composerDraftEnvironmentId("new-task:abc123-def456", [], stamped)).toBe(environmentId);
     expect(composerDraftEnvironmentId("new-task:abc123-def456", [])).toBeNull();
     expect(composerDraftEnvironmentId("new-task:environment-2:project", [], stamped)).toBe(

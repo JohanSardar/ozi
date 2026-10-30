@@ -53,9 +53,6 @@ import {
 import { McpAppFullscreenScreen } from "./features/threads/McpAppFullscreenScreen";
 import { ConnectionsRouteScreen } from "./features/connection/ConnectionsRouteScreen";
 import { ConnectionsNewRouteScreen } from "./features/connection/ConnectionsNewRouteScreen";
-import { AddProjectLocalRoute } from "./features/projects/AddProjectLocalRoute";
-import { AddProjectNewRoute } from "./features/projects/AddProjectNewRoute";
-import { AddProjectSourceRoute } from "./features/projects/AddProjectSourceRoute";
 import { NewTaskEnvironmentPickerRouteScreen } from "./features/threads/NewTaskContextPickerScreens";
 import {
   ExistingThreadSettingsRouteScreen,
@@ -63,7 +60,6 @@ import {
 } from "./features/threads/ThreadSettingsSheet";
 import { NewTaskFlowProvider } from "./features/threads/new-task-flow-provider";
 import { newTaskFlowKey } from "./features/threads/new-task-flow-state";
-import { NewTaskRouteScreen } from "./features/threads/NewTaskRouteScreen";
 import { SettingsNavigationRouteScreen } from "./features/settings/SettingsNavigationRouteScreen";
 import { SettingsAppearanceRouteScreen } from "./features/settings/SettingsAppearanceRouteScreen";
 import { SettingsClientStorageRouteScreen } from "./features/settings/SettingsClientStorageRouteScreen";
@@ -90,8 +86,6 @@ import {
   SettingsOpenSourceLicenseRouteScreen,
   SettingsOpenSourceLicensesRouteScreen,
 } from "./features/settings/SettingsOpenSourceLicensesRouteScreen";
-import { SettingsProjectGroupingRouteScreen } from "./features/settings/SettingsProjectGroupingRouteScreen";
-import { SettingsProjectOverviewRouteScreen } from "./features/settings/SettingsProjectOverviewRouteScreen";
 import { UsageLimitAccountScreen } from "./features/usage/UsageLimitsPooled";
 import { UsageRouteScreen } from "./features/usage/UsageRouteScreen";
 import { SettingsAboutRouteScreen } from "./features/settings/SettingsAboutRouteScreen";
@@ -291,27 +285,6 @@ const SETTINGS_SCREENS = {
       ...SETTINGS_PAGE_OPTIONS,
       title: "Appearance",
     },
-  }),
-  SettingsProjectGrouping: createNativeStackScreen({
-    screen: SettingsProjectGroupingRouteScreen,
-    linking: "settings/project-grouping",
-    options: {
-      ...SETTINGS_PAGE_OPTIONS,
-      title: "General",
-    },
-  }),
-  SettingsOrganization: createNativeStackScreen({
-    screen: SettingsProjectGroupingRouteScreen,
-    linking: "settings/organization",
-    options: {
-      ...SETTINGS_PAGE_OPTIONS,
-      title: "General",
-    },
-  }),
-  SettingsProjectOverview: createNativeStackScreen({
-    screen: SettingsProjectOverviewRouteScreen,
-    linking: "settings/project",
-    options: { ...SETTINGS_PAGE_OPTIONS, title: "Projects" },
   }),
   SettingsKeyboard: createNativeStackScreen({
     screen: SettingsKeyboardRouteScreen,
@@ -579,34 +552,10 @@ const RootStackConfig = createWorkspaceStackNavigator({
       linking: { path: "threads/:environmentId?/:threadId?", alias: ["new/draft"] },
       options: THREAD_HEADER_OPTIONS,
     }),
-    NewTaskProject: createNativeStackScreen({
-      screen: NewTaskRouteScreen,
-      linking: { path: "new", alias: ["new/project"] },
-      options: { ...GLASS_HEADER_OPTIONS, title: "Choose project" },
-    }),
     NewTaskEnvironment: createNativeStackScreen({
       linking: "new/draft/environment",
       screen: NewTaskEnvironmentPickerRouteScreen,
       options: { ...GLASS_HEADER_OPTIONS, title: "Environment" },
-    }),
-    AddProject: createNativeStackScreen({
-      linking: "new/add-project",
-      screen: AddProjectSourceRoute,
-
-      options: {
-        ...GLASS_HEADER_OPTIONS,
-        title: "Add project",
-      },
-    }),
-    AddProjectLocal: createNativeStackScreen({
-      linking: "new/add-project/local",
-      screen: AddProjectLocalRoute,
-      options: GLASS_HEADER_OPTIONS,
-    }),
-    AddProjectNew: createNativeStackScreen({
-      linking: "new/add-project/new",
-      screen: AddProjectNewRoute,
-      options: GLASS_HEADER_OPTIONS,
     }),
     NewTaskFiles: createNativeStackScreen({
       linking: "new/draft/files",

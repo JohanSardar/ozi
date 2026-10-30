@@ -48,32 +48,16 @@ function trimTrailingPathSeparators(value: string): string {
   return /^[a-zA-Z]:$/.test(trimmed) ? `${trimmed}\\` : trimmed;
 }
 
-export function normalizeProjectPathForDispatch(value: string): string {
+export function normalizePathForDispatch(value: string): string {
   return trimTrailingPathSeparators(value.trim());
 }
 
-export function normalizeProjectPathForComparison(value: string): string {
-  const normalized = normalizeProjectPathForDispatch(value);
+export function normalizePathForComparison(value: string): string {
+  const normalized = normalizePathForDispatch(value);
   if (isWindowsDrivePath(normalized) || isUncPath(normalized)) {
     return normalized.replaceAll("/", "\\").toLowerCase();
   }
   return normalized;
-}
-
-// Windows refuses these as file names, with or without an extension.
-const WINDOWS_RESERVED_NAME = /^(con|prn|aux|nul|com[1-9]|lpt[1-9])$/;
-
-export function newProjectFolderName(name: string): string {
-  const slug = name
-    .normalize("NFKD")
-    .replace(/[̀-ͯ]/g, "")
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, "-")
-    .replace(/^-+/, "")
-    .slice(0, 64)
-    .replace(/-+$/, "");
-  if (slug.length === 0) return "project";
-  return WINDOWS_RESERVED_NAME.test(slug) ? `${slug}-project` : slug;
 }
 
 const SLASH_PREFIXED_WINDOWS_DRIVE_PATTERN = /^\/[A-Za-z]:[\\/]/;

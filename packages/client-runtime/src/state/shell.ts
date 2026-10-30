@@ -110,7 +110,6 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
         lastPersisted !== undefined &&
         snapshot.snapshotSequence >= lastPersisted.snapshotSequence &&
         snapshot.schemaVersion === lastPersisted.schemaVersion &&
-        snapshot.projects === lastPersisted.projects &&
         snapshot.threads === lastPersisted.threads &&
         snapshot.archivedThreads === lastPersisted.archivedThreads
       ) {

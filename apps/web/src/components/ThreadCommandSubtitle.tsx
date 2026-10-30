@@ -1,21 +1,15 @@
 import type { ProviderDriverKind } from "@t3tools/contracts";
-import { ProjectFavicon, type ProjectFaviconProject } from "./ProjectFavicon";
 import { ProviderInstanceIcon } from "./chat/ProviderInstanceIcon";
 import { cn } from "~/lib/utils";
 
 export type ThreadCommandSubtitleVariant = "favicon-workspace-harness" | "favicon-workspace";
 
 const THREAD_COMMAND_SUBTITLE_VARIANT: ThreadCommandSubtitleVariant = "favicon-workspace-harness";
-
-export const COMMAND_PALETTE_META_ICON_CLASS = "size-3 shrink-0 text-muted-foreground/70";
-
-export function CommandPaletteMetaDot() {
+function CommandPaletteMetaDot() {
   return <span className="shrink-0 text-muted-foreground/50">·</span>;
 }
 
 export function ThreadCommandSubtitle(props: {
-  project: ProjectFaviconProject | null;
-  projectTitle: string | null;
   environmentLabel?: string | null;
   workingDirectory: string | null;
   isCurrent: boolean;
@@ -30,9 +24,9 @@ export function ThreadCommandSubtitle(props: {
   const showHarness =
     variant !== "favicon-workspace" && props.driverKind != null && props.providerDisplayName;
 
-  const projectLabel = props.projectTitle?.trim() || null;
+  const environmentLabel = props.environmentLabel?.trim() || null;
 
-  if (!projectLabel && !props.isCurrent && !showHarness) {
+  if (!environmentLabel && !props.isCurrent && !showHarness) {
     return null;
   }
 
@@ -43,24 +37,15 @@ export function ThreadCommandSubtitle(props: {
         props.className,
       )}
     >
-      {projectLabel ? (
+      {environmentLabel ? (
         <span className="inline-flex min-w-0 items-center gap-1">
-          {props.project ? (
-            <ProjectFavicon project={props.project} className="size-3 shrink-0" />
-          ) : null}
-          <span className="min-w-0 truncate">{projectLabel}</span>
-          {props.environmentLabel ? (
-            <>
-              <CommandPaletteMetaDot />
-              <span className="shrink-0">{props.environmentLabel}</span>
-            </>
-          ) : null}
+          <span className="min-w-0 truncate">{environmentLabel}</span>
         </span>
       ) : null}
 
       {showHarness && props.driverKind ? (
         <>
-          {projectLabel ? <CommandPaletteMetaDot /> : null}
+          {environmentLabel ? <CommandPaletteMetaDot /> : null}
           <ProviderInstanceIcon
             driverKind={props.driverKind}
             displayName={props.providerDisplayName ?? props.driverKind}
@@ -73,7 +58,7 @@ export function ThreadCommandSubtitle(props: {
 
       {props.isCurrent ? (
         <>
-          {projectLabel || showHarness ? <CommandPaletteMetaDot /> : null}
+          {environmentLabel || showHarness ? <CommandPaletteMetaDot /> : null}
           <span className="shrink-0">Current thread</span>
         </>
       ) : null}

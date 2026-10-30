@@ -27,7 +27,7 @@ export function composerDraftEnvironmentId(
     readonly messageId: string;
     readonly environmentId: EnvironmentId;
   }>,
-  draft?: { readonly project?: { readonly environmentId: EnvironmentId } },
+  draft?: { readonly environmentStamp?: { readonly environmentId: EnvironmentId } },
 ): EnvironmentId | null {
   if (draftKey.startsWith("pending-task:")) {
     return (
@@ -36,8 +36,8 @@ export function composerDraftEnvironmentId(
     );
   }
   if (draftKey.startsWith("new-task:")) {
-    if (draft?.project) {
-      return draft.project.environmentId;
+    if (draft?.environmentStamp) {
+      return draft.environmentStamp.environmentId;
     }
     const legacy = parseLegacyNewTaskDraftKey(draftKey);
     return legacy === null ? null : EnvironmentId.make(legacy.environmentId);

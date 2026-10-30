@@ -4,7 +4,6 @@ import {
   NodeId,
   EventId,
   MessageId,
-  ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
   RunId,
@@ -36,7 +35,6 @@ it.effect(
       const forkRunId = RunId.make("run:fork-compact");
       const source: OrchestrationV2AppThread = {
         id: sourceId,
-        projectId: ProjectId.make("project:fork-compact"),
         title: "Source",
         providerInstanceId: instanceId,
         modelSelection: { instanceId, model: "claude-opus-5-5" },

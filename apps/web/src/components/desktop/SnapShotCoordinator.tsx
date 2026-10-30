@@ -17,7 +17,7 @@ import { useHandleNewThread } from "../../hooks/useHandleNewThread";
 import { useStableCallback } from "../../hooks/useStableCallback";
 import { getClientSettings, useClientSettings } from "../../hooks/useSettings";
 import { readThreadShell } from "../../state/entities";
-import { resolveThreadActionProjectRef } from "../../lib/chatThreadActions";
+import { resolveThreadActionEnvironmentId } from "../../lib/chatThreadActions";
 import {
   beginSnapShotAnimation,
   dismissAllSnapShotAnimations,
@@ -225,7 +225,7 @@ export function SnapShotCoordinator() {
   const {
     activeDraftThread,
     activeThread,
-    defaultProjectRef,
+    defaultEnvironmentId,
     handleNewThread,
     routeDraftId,
     routeThreadRef,
@@ -279,10 +279,10 @@ export function SnapShotCoordinator() {
       }
       settleTarget(routeTarget, null);
     }
-    const projectRef = resolveThreadActionProjectRef({
+    const projectRef = resolveThreadActionEnvironmentId({
       activeDraftThread,
       activeThread: activeThread ?? undefined,
-      defaultProjectRef,
+      defaultEnvironmentId,
       handleNewThread,
     });
     if (!projectRef) return null;

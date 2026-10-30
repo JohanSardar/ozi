@@ -1,3 +1,4 @@
+import { startAnthropic, type AnthropicReply } from "./fakes/anthropic.ts";
 import * as NodeChildProcess from "node:child_process";
 import * as NodeEvents from "node:events";
 import * as NodeFSP from "node:fs/promises";
@@ -15,6 +16,7 @@ const bin = NodePath.join(root, "apps/server/src/bin.ts");
 
 describe("i1.tickets", () => {
   let home: string;
+  let transport: Awaited<ReturnType<typeof startAnthropic>>;
   let env: NodeJS.ProcessEnv;
   let port: number;
   let origin: string;
@@ -107,7 +109,15 @@ describe("i1.tickets", () => {
   };
   beforeAll(async () => {
     home = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "ozi-i1-"));
-    env = { ...process.env, HOME: home, OZI_HOME: home, OZI_TELEMETRY_ENABLED: "false" };
+    transport = await startAnthropic(() => new Promise<AnthropicReply>(() => {}));
+    env = {
+      CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat01-ozi-test-only",
+      ANTHROPIC_BASE_URL: transport.url,
+      ...process.env,
+      HOME: home,
+      OZI_HOME: home,
+      OZI_TELEMETRY_ENABLED: "false",
+    };
     const reserve = NodeNet.createServer();
     reserve.listen(0, "127.0.0.1");
     await NodeEvents.once(reserve, "listening");
@@ -143,13 +153,6 @@ describe("i1.tickets", () => {
         ws.send(JSON.stringify({ _tag: "Request", id, tag, payload, headers: [] }));
       });
     try {
-      await rpc("projects.mutate", {
-        type: "project.create",
-        commandId: crypto.randomUUID(),
-        projectId: "project-i1",
-        title: "Tickets",
-        workspaceRoot: home,
-      });
       for (const threadId of ["chat-i1", "reply-i1"]) {
         await rpc("orchestration.dispatchCommand", {
           type: "thread.create",
@@ -157,9 +160,8 @@ describe("i1.tickets", () => {
           creationSource: "web",
           commandId: crypto.randomUUID(),
           threadId,
-          projectId: "project-i1",
           title: threadId,
-          modelSelection: { instanceId: "codex", model: "gpt-5.4" },
+          modelSelection: { instanceId: "ozi", model: "default" },
           runtimeMode: "full-access",
           interactionMode: "default",
           workingDirectory: null,
@@ -173,7 +175,7 @@ describe("i1.tickets", () => {
           messageId: `message-${threadId}`,
           text: "Acknowledged",
           attachments: [],
-          dispatchMode: { type: "defer_start" },
+          dispatchMode: { type: "start_immediately" },
         });
       }
       const projection = (await rpc("orchestration.getThreadProjection", {
@@ -189,10 +191,9 @@ describe("i1.tickets", () => {
         parentRunId: run.id,
         parentNodeId: run.rootNodeId,
         task: "Check the result",
-        modelSelection: { instanceId: "codex", model: "gpt-5.4" },
+        modelSelection: { instanceId: "ozi", model: "default" },
         runtimeMode: "full-access",
         interactionMode: "default",
-        workspaceStrategy: { type: "root" },
       });
       const parent = (await rpc("orchestration.getThreadProjection", { threadId: "chat-i1" })) as {
         subagents: Array<{ id: string; childThreadId: string }>;
@@ -222,7 +223,6 @@ describe("i1.tickets", () => {
         chatId: "chat-i1",
         jobId: null,
         workerId: null,
-        sessionId: null,
         messageId: "message-chat-i1",
       },
     });
@@ -312,6 +312,7 @@ describe("i1.tickets", () => {
     await reconnect.close();
   });
   afterAll(async () => {
+    await transport?.close();
     for (const child of watchers)
       if (child.exitCode === null && !child.killed) child.kill("SIGTERM");
     await stop();

@@ -109,12 +109,12 @@ export function isMarkdownPreviewFile(path: string): boolean {
   return /\.(?:md|mdx)$/i.test(path.split(/[?#]/, 1)[0] ?? "");
 }
 
-export function fileHeaderSubtitle(projectName: string, relativePath: string): string {
+export function fileHeaderSubtitle(workspaceName: string, relativePath: string): string {
   const parentDir = relativePath.slice(
     0,
     Math.max(relativePath.lastIndexOf("/"), relativePath.lastIndexOf("\\"), 0),
   );
   return isAbsolutePath(relativePath)
     ? parentDir
-    : [projectName, parentDir].filter(Boolean).join(" · ");
+    : [workspaceName, parentDir].filter(Boolean).join(" · ");
 }

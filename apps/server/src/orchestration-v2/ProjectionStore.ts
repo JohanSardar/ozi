@@ -24,7 +24,6 @@ import type {
   PlanId,
   OrchestrationV2ConversationMessage,
   OrchestrationV2DomainEvent,
-  OrchestrationV2OlderSettledCount,
   OrchestrationV2OlderSettledCursor,
   OrchestrationV2ProjectedTurnItem,
   OrchestrationV2ProviderThread,
@@ -69,7 +68,6 @@ import {
   ThreadId,
   TurnItemId,
   NodeId,
-  ProjectId,
   ProviderInstanceId,
 } from "@t3tools/contracts";
 import {
@@ -185,7 +183,6 @@ export type ProjectionLimitRecoveryCandidate = Pick<
 export type ProjectionSettlementCandidate = Pick<
   OrchestrationV2ThreadShell,
   | "id"
-  | "projectId"
   | "workingDirectory"
   | "createdAt"
   | "updatedAt"
@@ -371,7 +368,6 @@ export interface ProjectionTimelinePage {
 
 export interface ShellSnapshotOptions {
   readonly location?: "active" | "archive";
-  readonly projectId?: ProjectId;
   readonly unsettledOnly?: boolean;
   /**
    * Only the threads sharing this thread's `lineage.rootThreadId`: the root, its forks, and their
@@ -384,14 +380,13 @@ export interface ShellSnapshotOptions {
 
 export interface OlderSettledThreadsQuery {
   readonly before: OrchestrationV2OlderSettledCursor;
-  readonly projectIds?: ReadonlyArray<ProjectId> | undefined;
   readonly limit: number;
 }
 
 export interface OlderSettledThreadsListing {
   readonly threadIds: ReadonlyArray<ThreadId>;
   /** Only for `limit: 0`. */
-  readonly counts: ReadonlyArray<OrchestrationV2OlderSettledCount>;
+  readonly count: number;
 }
 
 export interface ProjectionStoreV2Shape {
@@ -1416,7 +1411,6 @@ export function threadShellFromProjection(
     createdBy: projection.thread.createdBy,
     creationSource: projection.thread.creationSource,
     id: projection.thread.id,
-    projectId: projection.thread.projectId,
     title: projection.thread.title,
     providerInstanceId: projection.thread.providerInstanceId,
     modelSelection: projection.thread.modelSelection,
@@ -1690,7 +1684,6 @@ function shellFromState(input: {
     createdBy: input.state.thread.createdBy,
     creationSource: input.state.thread.creationSource,
     id: input.state.thread.id,
-    projectId: input.state.thread.projectId,
     title: input.state.thread.title,
     providerInstanceId: input.state.thread.providerInstanceId,
     modelSelection: input.state.thread.modelSelection,
@@ -1811,7 +1804,6 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
               yield* sql`
               INSERT INTO orchestration_v2_projection_threads (
                 thread_id,
-                project_id,
                 title,
                 default_provider,
                 provider_instance_id,
@@ -1826,7 +1818,6 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
               )
               VALUES (
                 ${event.payload.id},
-                ${event.payload.projectId},
                 ${event.payload.title},
                 ${event.payload.providerInstanceId},
                 ${event.payload.providerInstanceId},
@@ -1841,7 +1832,6 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
               )
               ON CONFLICT(thread_id)
               DO UPDATE SET
-                project_id = excluded.project_id,
                 title = excluded.title,
                 default_provider = excluded.default_provider,
                 provider_instance_id = excluded.provider_instance_id,
@@ -5671,7 +5661,6 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
       threadId?: ThreadId,
       {
         location,
-        projectId,
         unsettledOnly = false,
         familyOf,
         workingDirectory,
@@ -5857,8 +5846,6 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
               LIMIT 1
             ) AND blocked.status = 'failed'
             WHERE t.deleted_at IS NULL${threadId === undefined ? sql`` : sql` AND t.thread_id = ${threadId}`}${
-              projectId === undefined ? sql`` : sql` AND t.project_id = ${projectId}`
-            }${
               location === "active"
                 ? sql` AND json_extract(t.payload_json, '$.archivedAt') IS NULL`
                 : location === "archive"
@@ -6520,19 +6507,17 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
 
     const listOlderSettledThreads: ProjectionStoreV2Shape["listOlderSettledThreads"] = Effect.fn(
       "ProjectionStore.listOlderSettledThreads",
-    )(function* ({ before, projectIds, limit }) {
+    )(function* ({ before, limit }) {
       // ISO strings in one format, so string order is time order.
       const older = sql`
-        SELECT t.thread_id, t.project_id,
+        SELECT t.thread_id,
           json_extract(t.payload_json, '$.settledAt') AS settled_at
         FROM orchestration_v2_projection_threads t
         WHERE t.deleted_at IS NULL
           AND json_extract(t.payload_json, '$.archivedAt') IS NULL
           AND json_extract(t.payload_json, '$.lineage.relationshipToParent') IS NOT 'subagent'
           AND json_extract(t.payload_json, '$.settledOverride') = 'settled'
-          AND json_extract(t.payload_json, '$.settledAt') IS NOT NULL${
-            projectIds === undefined ? sql`` : sql` AND t.project_id IN ${sql.in(projectIds)}`
-          }
+          AND json_extract(t.payload_json, '$.settledAt') IS NOT NULL
       `;
       const belowCursor =
         before.threadId === undefined
@@ -6552,18 +6537,14 @@ export const layer: Layer.Layer<ProjectionStoreV2, never, SqlClient.SqlClient> =
       const countRows =
         limit !== 0
           ? []
-          : yield* sql<{ readonly project_id: string; readonly count: number }>`
+          : yield* sql<{ readonly count: number }>`
               WITH older AS (${older})
-              SELECT older.project_id, COUNT(*) AS count FROM older
+              SELECT COUNT(*) AS count FROM older
               WHERE ${belowCursor}
-              GROUP BY older.project_id
             `;
       return {
         threadIds: pageRows.map((row) => ThreadId.make(row.thread_id)),
-        counts: countRows.map((row) => ({
-          projectId: ProjectId.make(row.project_id),
-          count: row.count,
-        })),
+        count: countRows[0]?.count ?? 0,
       };
     }, Effect.mapError(shellSnapshotReadError));
 

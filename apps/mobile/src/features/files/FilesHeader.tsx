@@ -11,7 +11,7 @@ import { useToolbarLayout } from "../../components/ui/useToolbarLayout";
 import { useHardwareBack } from "../../lib/backHandler";
 
 export function FilesHeader(props: {
-  readonly projectName: string;
+  readonly workspaceName: string;
   readonly searchQuery: string;
   readonly onSearchQueryChange: (query: string) => void;
   readonly onRefresh: () => void;
@@ -45,7 +45,7 @@ export function FilesHeader(props: {
       >
         <AndroidScreenHeader
           title="Files"
-          subtitle={props.projectName}
+          subtitle={props.workspaceName}
           hideBottomBorder
           onBack={props.onBack}
           leading={props.leading}

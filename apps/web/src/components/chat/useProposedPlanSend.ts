@@ -12,10 +12,7 @@ import {
   squashAtomCommandFailure,
   type AtomCommandResult,
 } from "@t3tools/client-runtime/state/runtime";
-import type {
-  EnvironmentProject,
-  EnvironmentThreadShell,
-} from "@t3tools/client-runtime/state/shell";
+import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/shell";
 import { scopedThreadKey } from "@t3tools/client-runtime/environment";
 import { truncate } from "@t3tools/shared/String";
 import { useNavigate } from "@tanstack/react-router";
@@ -229,7 +226,6 @@ export function usePlanFollowUpSend(input: PlanFollowUpSendInput) {
 }
 
 interface ImplementPlanInNewThreadInput extends PlanSendBase {
-  readonly activeProject: EnvironmentProject | null;
   readonly activeEnvironmentUnavailable: boolean;
   readonly defaultRuntimeMode: RuntimeMode;
 }
@@ -249,7 +245,6 @@ export function useImplementPlanInNewThread(input: ImplementPlanInNewThreadInput
     composerRef,
     beginLocalDispatch,
     resetLocalDispatch,
-    activeProject,
     activeEnvironmentUnavailable,
     defaultRuntimeMode,
   } = input;
@@ -265,7 +260,6 @@ export function useImplementPlanInNewThread(input: ImplementPlanInNewThreadInput
     if (
       !readEnvironmentScope(environmentId, AuthOrchestrationOperateScope) ||
       !activeThread ||
-      !activeProject ||
       !activeProposedPlan ||
       !isServerThread ||
       isSendBusy ||
@@ -300,7 +294,6 @@ export function useImplementPlanInNewThread(input: ImplementPlanInNewThreadInput
       environmentId,
       input: {
         threadId: nextThreadId,
-        projectId: activeProject.id,
         title: nextThreadTitle,
         modelSelection: nextThreadModelSelection,
         runtimeMode: defaultRuntimeMode,

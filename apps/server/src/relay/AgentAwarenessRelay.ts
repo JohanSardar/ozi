@@ -3,7 +3,6 @@ import type {
   OrchestrationV2DomainEvent,
   OrchestrationV2ThreadShell,
   OrchestrationV2TurnItem,
-  Project,
   ThreadId,
 } from "@t3tools/contracts";
 import {
@@ -48,7 +47,6 @@ import {
 import { getOrCreateEnvironmentKeyPairFromSecretStore } from "../cloud/environmentKeys.ts";
 import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
 import * as ThreadManagement from "../orchestration-v2/ThreadManagementService.ts";
-import * as ProjectService from "../project/ProjectService.ts";
 import { forkParked } from "../serverActivation.ts";
 
 export class AgentAwarenessRelay extends Context.Service<
@@ -288,32 +286,20 @@ function describeThreadShellForAwareness(
 function resolveAgentAwarenessRelayPublishSnapshot(input: {
   readonly environmentId: EnvironmentId;
   readonly thread: Option.Option<OrchestrationV2ThreadShell>;
-  readonly project: Option.Option<Project>;
 }): {
-  readonly projectId: string | null;
   readonly state: RelayAgentActivityState | null;
-  readonly reason: "snapshot" | "thread-not-found" | "project-not-found";
+  readonly reason: "snapshot" | "thread-not-found";
 } {
   if (Option.isNone(input.thread)) {
     return {
-      projectId: null,
       state: null,
       reason: "thread-not-found",
     };
   }
-  if (Option.isNone(input.project)) {
-    return {
-      projectId: input.thread.value.projectId,
-      state: null,
-      reason: "project-not-found",
-    };
-  }
   return {
-    projectId: input.thread.value.projectId,
     state: sanitizeRelayAgentActivityState(
       projectThreadAwarenessV2({
         environmentId: input.environmentId,
-        project: input.project.value,
         thread: input.thread.value,
       }),
     ),
@@ -331,19 +317,12 @@ function terminalWorkSinceStart(thread: OrchestrationV2ThreadShell, startedAt: n
 export function resolveAgentAwarenessRelayActiveThreadIds(input: {
   readonly environmentId: EnvironmentId;
   readonly startedAt: number;
-  readonly projects: ReadonlyArray<Pick<Project, "id" | "title">>;
   readonly threads: ReadonlyArray<OrchestrationV2ThreadShell>;
 }): ReadonlyArray<ThreadId> {
-  const projectById = new Map(input.projects.map((project) => [project.id, project]));
   return input.threads
     .filter((thread) => {
-      const project = projectById.get(thread.projectId);
-      if (!project) {
-        return false;
-      }
       const state = projectThreadAwarenessV2({
         environmentId: input.environmentId,
-        project,
         thread,
       });
       return (
@@ -361,7 +340,6 @@ export const make = Effect.gen(function* () {
   const secrets = yield* ServerSecretStore.ServerSecretStore;
   const serverEnvironment = yield* ServerEnvironment.ServerEnvironment;
   const threads = yield* ThreadManagement.ThreadManagementService;
-  const projects = yield* ProjectService.ProjectService;
   const crypto = yield* Crypto.Crypto;
   const scope = yield* Effect.scope;
   const cloudLinkKeyPair = yield* getOrCreateEnvironmentKeyPairFromSecretStore(secrets);
@@ -462,7 +440,6 @@ export const make = Effect.gen(function* () {
     const environmentId = yield* serverEnvironment.getEnvironmentId;
 
     const publishState = Effect.fn("relay.agent_activity.publish")(function* (input: {
-      readonly projectId: string | null;
       readonly state: RelayAgentActivityState | null;
       readonly reason: string;
     }) {
@@ -482,7 +459,6 @@ export const make = Effect.gen(function* () {
       yield* Effect.logInfo("publishing agent activity for thread", {
         environmentId,
         threadId,
-        projectId: input.projectId,
         statePhase: input.state?.phase ?? null,
         hasState: input.state !== null,
         reason: input.reason,
@@ -522,13 +498,9 @@ export const make = Effect.gen(function* () {
       threadShell === null || threadShell.archivedAt !== null
         ? Option.none<OrchestrationV2ThreadShell>()
         : Option.some(threadShell);
-    const project = Option.isSome(thread)
-      ? yield* projects.getById(thread.value.projectId)
-      : Option.none<Project>();
     const snapshot = resolveAgentAwarenessRelayPublishSnapshot({
       environmentId,
       thread,
-      project,
     });
     const publishIdentity = agentAwarenessPublishIdentity(snapshot.state);
     const publishedStateByThread = yield* Ref.get(publishedStateByThreadRef);
@@ -593,13 +565,11 @@ export const make = Effect.gen(function* () {
           ? resolveAgentAwarenessRelayPublishSnapshot({
               environmentId,
               thread: Option.some({ ...thread.value, settledOverride: null }),
-              project,
             })
           : null;
       if (unsettled?.state?.phase === "completed") {
         const completion = unsettled.state;
         yield* publishState({
-          projectId: unsettled.projectId,
           state: completion,
           reason: unsettled.reason,
         }).pipe(withRelayClientTracing);
@@ -621,16 +591,9 @@ export const make = Effect.gen(function* () {
         environmentId,
         threadId,
       });
-    } else if (snapshot.reason === "project-not-found") {
-      yield* Effect.logDebug("publishing agent activity tombstone; project not found", {
-        environmentId,
-        threadId,
-        projectId: snapshot.projectId,
-      });
     }
 
     yield* publishState({
-      projectId: snapshot.projectId,
       state: snapshot.state,
       reason: snapshot.reason,
     }).pipe(withRelayClientTracing);
@@ -724,14 +687,10 @@ export const make = Effect.gen(function* () {
       return "unlinked" as const;
     }
     const environmentId = yield* serverEnvironment.getEnvironmentId;
-    const [projectSnapshot, shellSnapshot] = yield* Effect.all([
-      projects.snapshot,
-      threads.getShellSnapshot(),
-    ]);
+    const shellSnapshot = yield* threads.getShellSnapshot();
     const activeThreadIds = resolveAgentAwarenessRelayActiveThreadIds({
       environmentId,
       startedAt,
-      projects: projectSnapshot.projects,
       threads: shellSnapshot.threads,
     });
     if (activeThreadIds.length === 0) {

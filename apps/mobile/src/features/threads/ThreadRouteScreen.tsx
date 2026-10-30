@@ -1,6 +1,5 @@
 import { useSelectedThreadDirectory } from "../../state/use-thread-directory";
 import * as Dialog from "../../components/ui/Dialog";
-import { useRememberThreadProject } from "./useRememberThreadProject";
 import { AppBar } from "../../components/ui/AppBar";
 import {
   StackActions,
@@ -44,7 +43,6 @@ import { useSelectedThreadRequests } from "../../state/use-selected-thread-reque
 import { useThreadComposerState } from "../../state/use-thread-composer-state";
 import { threadEnvironment, useThreadFamily } from "../../state/threads";
 import { EMPTY_ENVIRONMENT_THREAD_STATE } from "@t3tools/client-runtime/state/threads";
-import { useProjects } from "../../state/entities";
 import { projectThreadContentPresentation } from "./threadContentPresentation";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
 import {
@@ -162,18 +160,10 @@ function ThreadUnavailableScreen(props: {
 /** A thread that can't load opens a new task in its environment instead of a dead end. */
 function UnavailableThreadDraftRedirect(props: { readonly environmentId: EnvironmentId }) {
   const navigation = useNavigation();
-  const projects = useProjects();
   const openDraft = useEffectEvent(() => {
-    const project = projects.find((candidate) => candidate.environmentId === props.environmentId);
     navigation.dispatch(
       StackActions.replace("Thread", {
-        draft: project
-          ? {
-              requestId: uuidv4(),
-              environmentId: String(project.environmentId),
-              projectId: String(project.id),
-            }
-          : { requestId: uuidv4() },
+        draft: { requestId: uuidv4(), environmentId: props.environmentId },
       }),
     );
   });
@@ -322,10 +312,8 @@ function ThreadRouteContent(
     selectedThread,
     selectedThreadCreation,
     selectedThreadDetailRef,
-    selectedThreadProject,
     selectedEnvironmentConnection,
   } = useThreadSelection();
-  useRememberThreadProject(selectedThreadProject);
   const canOperateThread = useEnvironmentScope(
     selectedThread?.environmentId ?? null,
     AuthOrchestrationOperateScope,
@@ -437,7 +425,7 @@ function ThreadRouteContent(
   // The title it had at delegation, until this client sees the parent itself.
   const delegatedFromThread = useThreadShell(delegatedFromRef);
   const headerSubtitle = [
-    selectedThreadProject?.title ?? null,
+    selectedThreadCwd?.split("/").at(-1) ?? null,
     selectedEnvironmentConnection?.environmentLabel ?? null,
     // A linked environment's delegated task names its parent; other linked work its origin.
     delegatedFrom !== null
@@ -499,7 +487,7 @@ function ThreadRouteContent(
         cwd={selectedThreadCwd}
         environmentId={selectedThread.environmentId}
         headerInset={inspectorHeaderInset}
-        projectName={selectedThreadProject?.title ?? "Files"}
+        workspaceName={selectedThreadCwd?.split("/").at(-1) ?? "Files"}
         selectedPath={null}
         onSelectFile={handleSelectInspectorFile}
       />
@@ -586,8 +574,7 @@ function ThreadRouteContent(
         draft: {
           draftId: restoredNewTaskDraftKey(creation.messageId),
           environmentId: String(creation.environmentId),
-          projectId: String(creation.creation.projectId),
-          ...(selectedThreadProject ? { title: selectedThreadProject.title } : {}),
+          ...(selectedThreadCwd ? { title: selectedThreadCwd.split("/").at(-1) } : {}),
         },
       }),
     );
@@ -641,7 +628,7 @@ function ThreadRouteContent(
                 headerColor={headerColor}
                 usesNativeHeaderGlass={usesNativeHeaderGlass}
                 hasThreadCwd={selectedThreadCwd !== null}
-                hasWorkspaceRoot={Boolean(selectedThreadProject?.workspaceRoot)}
+                hasWorkspaceRoot={Boolean(selectedThreadCwd)}
                 fileInspectorSupported={fileInspector.supported}
                 inspectorMode={inspectorMode}
                 onToggleInspector={handleToggleInspector}
@@ -689,7 +676,7 @@ function ThreadRouteContent(
           onCancelQueuedRunEdit={composer.cancelQueuedRunEdit}
           onRemoveQueuedEditAttachment={composer.onRemoveQueuedEditAttachment}
           environmentId={selectedThread.environmentId}
-          projectWorkspaceRoot={selectedThreadProject?.workspaceRoot ?? null}
+          workspaceRoot={selectedThreadCwd ?? null}
           threadCwd={selectedThreadCwd}
           selectedThreadQueueCount={composer.selectedThreadQueueCount}
           queuedMessages={

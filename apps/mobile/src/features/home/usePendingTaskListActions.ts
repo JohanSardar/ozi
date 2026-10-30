@@ -29,7 +29,6 @@ export function usePendingTaskListActions(
           : {
               draft: {
                 environmentId: String(pendingTask.environmentId),
-                projectId: String(pendingTask.projectId),
                 draftId: pendingTask.draftKey,
               },
             },

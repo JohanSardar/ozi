@@ -346,7 +346,7 @@ describe("instance-scoped model selection", () => {
       selectedProvider: driver,
       selectedInstanceId: instanceId,
       threadModelSelection: null,
-      projectModelSelection: null,
+      defaultModelSelection: null,
       settings: settingsWithProviderInstances(),
     });
     const dispatch = getComposerProviderState({
@@ -378,7 +378,7 @@ describe("instance-scoped model selection", () => {
       selectedProvider: driver,
       selectedInstanceId: instanceId,
       threadModelSelection: null,
-      projectModelSelection: null,
+      defaultModelSelection: null,
       settings: settingsWithProviderInstances(),
     });
 
@@ -407,7 +407,7 @@ describe("instance-scoped model selection", () => {
         selectedProvider: driver,
         selectedInstanceId: instanceId,
         threadModelSelection: saved,
-        projectModelSelection: null,
+        defaultModelSelection: null,
         settings: settingsWithProviderInstances(),
       });
       expect(state.selectedModel).toBe(saved.model);
@@ -439,7 +439,7 @@ describe("instance-scoped model selection", () => {
         selectedProvider: driver,
         selectedInstanceId: instanceId,
         threadModelSelection: null,
-        projectModelSelection: createModelSelection(
+        defaultModelSelection: createModelSelection(
           ProviderInstanceId.make("codex"),
           "gpt-5.6-sol",
         ),
@@ -550,7 +550,7 @@ describe("instance-scoped model selection", () => {
       selectedProvider: driver,
       selectedInstanceId: instanceId,
       threadModelSelection: saved,
-      projectModelSelection: null,
+      defaultModelSelection: null,
       settings: settingsWithProviderInstances(),
     });
     const dispatch = getComposerProviderState({
@@ -588,7 +588,7 @@ describe("instance-scoped model selection", () => {
       selectedProvider: driver,
       selectedInstanceId: instanceId,
       threadModelSelection: threadSelection,
-      projectModelSelection: null,
+      defaultModelSelection: null,
       settings: settingsWithProviderInstances(),
     });
     const dispatch = getComposerProviderState({
@@ -759,7 +759,7 @@ describe("default model settings and new-thread composer parity", () => {
         selectedProvider: driver,
         selectedInstanceId: instanceId,
         threadModelSelection: stored,
-        projectModelSelection: stored,
+        defaultModelSelection: stored,
         settings,
       });
       const effective = resolveEffectiveDefaultModelSelection(settings, providers, stored);

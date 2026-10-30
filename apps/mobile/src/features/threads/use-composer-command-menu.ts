@@ -206,7 +206,7 @@ export function useComposerCommandMenu({
   environments = EMPTY_ENVIRONMENTS,
   linkedEnvironments = NO_LINKED_ENVIRONMENTS,
   currentThreadId = null,
-  projectCwd,
+  defaultCwd,
   selectedProviderStatus,
   hasThread,
   hasCompactableConversation,
@@ -224,7 +224,7 @@ export function useComposerCommandMenu({
   /** The machines `environmentId` links to, by name, whose threads the picker also offers. */
   readonly linkedEnvironments?: ReadonlyMap<EnvironmentId, string>;
   readonly currentThreadId?: ThreadId | null;
-  readonly projectCwd: string | null;
+  readonly defaultCwd: string | null;
   readonly selectedProviderStatus: ServerProvider | null;
   readonly hasThread: boolean;
   readonly hasCompactableConversation: boolean;
@@ -251,15 +251,15 @@ export function useComposerCommandMenu({
     setLocalSelection({ ownerKey, start: next.start, end: next.end });
 
   const skills = selectedProviderStatus
-    ? resolveProviderSkillsForCwd(selectedProviderStatus, projectCwd)
+    ? resolveProviderSkillsForCwd(selectedProviderStatus, defaultCwd)
     : [];
   const selectedProviderInstanceId = selectedProviderStatus?.instanceId;
   const refreshWorkspaceSnapshot = useAtomRefresh(
-    environmentId && projectCwd && selectedProviderInstanceId
+    environmentId && defaultCwd && selectedProviderInstanceId
       ? providerWorkspaceSnapshotRefresh({
           environmentId,
           instanceId: selectedProviderInstanceId,
-          cwd: projectCwd,
+          cwd: defaultCwd,
         })
       : idleWorkspaceSnapshotRefreshAtom,
   );
@@ -285,7 +285,7 @@ export function useComposerCommandMenu({
   })();
   const pathSearch = useComposerPathSearch({
     environmentId,
-    cwd: trigger?.kind === "path" ? projectCwd : null,
+    cwd: trigger?.kind === "path" ? defaultCwd : null,
     query: trigger?.kind === "path" ? trigger.query : null,
   });
   // Mounts older settled threads matching the mention, which shells may leave out.
@@ -312,7 +312,7 @@ export function useComposerCommandMenu({
           ? {
               ...selectedProviderStatus,
               slashCommands: getProviderSlashCommandsForSlashMenu(
-                resolveProviderSlashCommandsForCwd(selectedProviderStatus, projectCwd),
+                resolveProviderSlashCommandsForCwd(selectedProviderStatus, defaultCwd),
                 visibleSkills,
               ),
             }

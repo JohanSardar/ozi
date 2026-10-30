@@ -250,10 +250,10 @@ const runAppCommand = Effect.fn("cli.app")(function* (flags: {
 export const appCommand = Command.make("app", {
   baseDir: baseDirFlag,
   workspaceRoot: Argument.String("path").pipe(
-    Argument.withDescription("Project directory. Default: current directory."),
+    Argument.withDescription("Working directory. Default: current directory."),
     Argument.optional,
   ),
 }).pipe(
-  Command.withDescription("Open a project in the running Ozi desktop app."),
+  Command.withDescription("Open a chat in the running Ozi desktop app."),
   Command.withHandler(runAppCommand),
 );

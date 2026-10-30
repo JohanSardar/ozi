@@ -119,7 +119,6 @@ export type RelayDeviceUnregistrationParams = typeof RelayDeviceUnregistrationPa
 export const RelayAgentActivityState = Schema.Struct({
   environmentId: EnvironmentId,
   threadId: ThreadId,
-  projectTitle: TrimmedNonEmptyString,
   threadTitle: TrimmedNonEmptyString,
   phase: RelayAgentAwarenessPhase,
   headline: TrimmedNonEmptyString,
@@ -133,7 +132,6 @@ export type RelayAgentActivityState = typeof RelayAgentActivityState.Type;
 export const RelayAgentActivityAggregateRow = Schema.Struct({
   environmentId: EnvironmentId,
   threadId: ThreadId,
-  projectTitle: TrimmedNonEmptyString,
   threadTitle: TrimmedNonEmptyString,
   modelTitle: TrimmedNonEmptyString,
   phase: RelayAgentAwarenessPhase,
@@ -1295,7 +1293,6 @@ export type RelayMobileTelemetrySignal = typeof RelayMobileTelemetrySignal.Type;
 
 // expo-observe appends `<easProjectId>/v1/<signal>` to its endpoint URL and cannot send credentials.
 const RelayMobileTelemetryParams = Schema.Struct({
-  projectId: Schema.String.check(Schema.isGUID()),
   signal: RelayMobileTelemetrySignal,
 });
 const RelayMobileTelemetryGroup = HttpApiGroup.make("mobileTelemetry")

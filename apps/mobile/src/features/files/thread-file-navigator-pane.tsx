@@ -30,7 +30,7 @@ export function ThreadFileNavigatorPane(props: {
   readonly cwd: string;
   readonly environmentId: EnvironmentId;
   readonly headerInset: number;
-  readonly projectName: string;
+  readonly workspaceName: string;
   readonly selectedPath: string | null;
   readonly onSelectFile: (path: string) => void;
 }) {
@@ -128,7 +128,7 @@ export function ThreadFileNavigatorPane(props: {
               hideBackButton
               hideShadow={false}
               navigationItemStyle="editor"
-              subtitle={props.projectName}
+              subtitle={props.workspaceName}
               title="Files"
               titleColor={foregroundColor}
               titleFontSize={17}
@@ -174,7 +174,7 @@ export function ThreadFileNavigatorPane(props: {
       >
         {Platform.OS === "android" ? (
           <FilesHeader
-            projectName={props.projectName}
+            workspaceName={props.workspaceName}
             searchQuery={searchQuery}
             onSearchQueryChange={setSearchQuery}
             onRefresh={entriesQuery.refresh}
@@ -184,7 +184,7 @@ export function ThreadFileNavigatorPane(props: {
             <View className="min-w-0 flex-1">
               <Text className="text-sm font-t3-bold text-foreground">Files</Text>
               <Text className="text-xs text-foreground-muted" numberOfLines={1}>
-                {props.projectName}
+                {props.workspaceName}
               </Text>
             </View>
             <Pressable

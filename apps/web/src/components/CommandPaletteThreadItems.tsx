@@ -36,7 +36,7 @@ import { useAtomCommand } from "../state/use-atom-command";
 import { buildThreadRouteParams } from "../threadRoutes";
 import { formatRelativeTimeLabel } from "../timestampFormat";
 import { buildThreadActionItems, ITEM_ICON_CLASS } from "./CommandPalette.logic";
-import { useEnvironmentLookups, useProjectLookups } from "./CommandPaletteLookups";
+import { useEnvironmentLookups } from "./CommandPaletteLookups";
 import { ThreadCommandSubtitle } from "./ThreadCommandSubtitle";
 import { ThreadRowLeadingStatus, ThreadRowTrailingStatus } from "./ThreadStatusIndicators";
 
@@ -53,7 +53,7 @@ function useProviderEntryByEnvironmentAndInstanceId() {
           (environment.environmentId === primaryEnvironmentId ? providers : []),
       );
       const entries = serverConfig
-        ? applyProviderInstanceSettings(derived, serverConfig.settings, null)
+        ? applyProviderInstanceSettings(derived, serverConfig.settings)
         : derived;
       return entries.map(
         (entry) => [`${environment.environmentId}:${entry.instanceId}`, entry] as const,
@@ -99,7 +99,6 @@ export function useCommandPaletteThreadItems(input: {
   const { projectEnvironmentLocationById } = useEnvironmentLookups();
   const providerEntryByEnvironmentAndInstanceId = useProviderEntryByEnvironmentAndInstanceId();
   const messageSearch = useConnectedThreadSearch(threadSearchQuery);
-  const { projectByKey } = useProjectLookups();
   const visitThread = useAtomCommand(threadEnvironment.visit, { reportFailure: false });
   // Ranking is relative to when the palette opened, so rows do not reorder as time passes.
   const [now] = useState(() => Date.now());
@@ -114,7 +113,6 @@ export function useCommandPaletteThreadItems(input: {
         }
       : {}),
     ...(activeThread ? { activeThread } : {}),
-    projectByKey,
     icon: <MessageSquareIcon className={ITEM_ICON_CLASS} />,
     renderLeadingContent: (thread) => <ThreadRowLeadingStatus thread={thread} />,
     renderTrailingContent: (thread) => (
@@ -122,7 +120,7 @@ export function useCommandPaletteThreadItems(input: {
         <ThreadRowTrailingStatus thread={thread} />
       </>
     ),
-    renderDescription: (thread, { projectTitle }) => {
+    renderDescription: (thread) => {
       const modelInstanceId =
         thread.runtime?.providerInstanceId ?? thread.modelSelection.instanceId;
       const providerEntry =
@@ -130,8 +128,6 @@ export function useCommandPaletteThreadItems(input: {
         null;
       return (
         <ThreadCommandSubtitle
-          project={projectByKey.get(`${thread.environmentId}:${thread.projectId}`) ?? null}
-          projectTitle={projectTitle ?? null}
           environmentLabel={
             projectEnvironmentLocationById.get(thread.environmentId)?.label ?? "Remote"
           }

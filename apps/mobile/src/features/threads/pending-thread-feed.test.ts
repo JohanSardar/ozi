@@ -4,7 +4,6 @@ import {
   ComposerContextId,
   EnvironmentId,
   MessageId,
-  ProjectId,
   ThreadId,
 } from "@t3tools/contracts";
 import type { QueuedThreadMessage } from "../../state/thread-outbox-model";
@@ -58,7 +57,6 @@ describe("pending timeline messages", () => {
     const queued = {
       ...pending("creation"),
       creation: {
-        projectId: ProjectId.make("project"),
         workspaceMode: "local" as const,
         workingDirectory: null,
       },

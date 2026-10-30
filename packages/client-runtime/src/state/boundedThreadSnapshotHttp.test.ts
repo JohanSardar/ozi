@@ -35,7 +35,6 @@ const FULL_SNAPSHOT_BODY = {
       createdBy: "user",
       creationSource: "web",
       id: String(THREAD_ID),
-      projectId: "project-1",
       title: "Full fallback thread",
       providerInstanceId: "codex",
       modelSelection: { instanceId: "codex", model: "gpt-5" },

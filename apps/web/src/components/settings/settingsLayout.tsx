@@ -3,8 +3,7 @@ import { AuthSettingsWriteScope } from "@t3tools/contracts";
 import { usePrimaryEnvironmentId, usePrimaryEnvironment } from "../../state/environments";
 import { useEnvironmentScope, useEnvironmentsWithScope } from "../../state/session";
 import { InfoIcon, Undo2Icon } from "lucide-react";
-import { DEFAULT_SERVER_SETTINGS, type ServerSettings } from "@t3tools/contracts";
-import * as Equal from "effect/Equal";
+import { type ServerSettings } from "@t3tools/contracts";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { createContext, type ComponentPropsWithoutRef, type ReactNode, useContext } from "react";
 
@@ -18,19 +17,7 @@ import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { useOptionalSettingsScope } from "./SettingsScopeContext";
 import { SettingsScopeSentence } from "./SettingsScopeSentence";
-import {
-  isProjectScopedSettingKey,
-  listProjectOverrides,
-  type ProjectOverrideEntry,
-  scopedSettingsAreMixed,
-  scopedSettingsSource,
-} from "./scopedSettings";
-import { useClearProjectOverrides, useClearScopedSettings } from "./useScopedSettings";
-import {
-  SettingInheritance,
-  type SettingInheritanceState,
-  type SettingOverridingProject,
-} from "./SettingInheritance";
+import { scopedSettingsAreMixed } from "./scopedSettings";
 
 const EMPTY_SETTING_KEYS: readonly (keyof ServerSettings)[] = [];
 
@@ -268,38 +255,11 @@ export function SettingsUnavailableGroup({
   );
 }
 
-function projectOverrides(
-  context: ReturnType<typeof useOptionalSettingsScope>,
-  scopedKeys: ReadonlyArray<keyof ServerSettings>,
-): SettingOverridingProject[] {
-  if (context === null || scopedKeys.length === 0) return [];
-  return listProjectOverrides(context.connectedEnvironments, scopedKeys).flatMap((entry) => {
-    const group = context.groups.find((candidate) =>
-      candidate.memberProjects.some(
-        (member) => member.environmentId === entry.environmentId && member.id === entry.projectId,
-      ),
-    );
-    if (!group) return [];
-    return [
-      {
-        ...entry,
-        label: group.displayName,
-        open: () =>
-          context.selectScope({
-            project: group.projectKey,
-            ...(context.search.machine ? { machine: context.search.machine } : {}),
-          }),
-      },
-    ];
-  });
-}
-
 export function SettingsRow({
   title,
   description,
   status,
   resetAction,
-  onResetOverride,
   control,
   serverScoped = false,
   settingKeys = EMPTY_SETTING_KEYS,
@@ -312,7 +272,6 @@ export function SettingsRow({
   description?: ReactNode;
   status?: ReactNode;
   resetAction?: ReactNode;
-  onResetOverride?: () => void;
   control?: ReactNode;
   serverScoped?: boolean;
   settingKeys?: readonly (keyof ServerSettings)[];
@@ -333,45 +292,13 @@ export function SettingsRow({
     ? context.connectedEnvironments.length > 0 &&
       context.connectedEnvironments.every((target) => writableIds.has(target.environmentId))
     : primaryCanWrite;
-  const clearOverrides = useClearScopedSettings();
-  const clearProjectOverrides = useClearProjectOverrides();
-  const isProjectScope =
-    context !== null && (context.scope.kind === "project" || context.scope.kind === "checkout");
-  const scopedKeys = settingKeys.filter(isProjectScopedSettingKey);
-  const environmentWide = isProjectScope && serverScoped && scopedKeys.length === 0;
   const mixed =
     mixedOverride ?? (context !== null && scopedSettingsAreMixed(context.targets, settingKeys));
-  const source =
-    context && isProjectScope ? scopedSettingsSource(context.targets, scopedKeys) : null;
   const unavailable =
     serverScoped &&
     (!canWriteSettings ||
       !(context ? context.connectedEnvironments.length > 0 : primarySettingsAvailable));
-  const inheritedFrom =
-    source === "environment" && context?.scope.environmentIds.length === 1
-      ? (context.environments.find(
-          (environment) => environment.environmentId === context.scope.environmentIds[0],
-        )?.label ?? "environment")
-      : "environment";
-  const environmentSettingsById = new Map(
-    (context?.connectedEnvironments ?? []).flatMap((environment) =>
-      environment.serverConfig
-        ? [[environment.environmentId, environment.serverConfig.settings] as const]
-        : [],
-    ),
-  );
-  const overridingProjects = isProjectScope ? [] : projectOverrides(context, scopedKeys);
-  const renderedReset = unavailable ? null : isProjectScope && scopedKeys.length > 0 ? (
-    source === "project" || source === "mixed" ? (
-      <SettingResetButton
-        label={typeof title === "string" ? title : "override"}
-        tooltip="Reset to inherited value"
-        onClick={() => (onResetOverride ? onResetOverride() : clearOverrides(scopedKeys))}
-      />
-    ) : null
-  ) : (
-    resetAction
-  );
+  const renderedReset = unavailable ? null : resetAction;
   const inertControl = (message: string) => (
     <Tooltip>
       <TooltipTrigger
@@ -408,48 +335,7 @@ export function SettingsRow({
               ? "Reconnect the selected environment to change this setting."
               : PRIMARY_SETTINGS_UNAVAILABLE_MESSAGE,
         )
-      : environmentWide && control
-        ? inertControl("Environment-wide setting. Select an environment to change it.")
-        : control;
-  const customized =
-    context !== null &&
-    settingKeys.some((key) =>
-      context.targets.some((candidate) => {
-        const environmentSettings = environmentSettingsById.get(candidate.environmentId);
-        return (
-          environmentSettings !== undefined &&
-          !Equal.equals(environmentSettings[key], DEFAULT_SERVER_SETTINGS[key])
-        );
-      }),
-    );
-  const inheritance: { state: SettingInheritanceState; summary: string } = mixed
-    ? { state: "mixed", summary: "Mixed across selected environments" }
-    : source === "project"
-      ? { state: "overridden", summary: "Overridden for this project" }
-      : source === "t3.json"
-        ? { state: "inherited", summary: "Inherited from the repository's t3.json" }
-        : source === "environment" && scopedKeys.length > 0
-          ? { state: "inherited", summary: `Inherited from ${inheritedFrom}` }
-          : customized
-            ? { state: "environment", summary: "Set on the environment" }
-            : { state: "default", summary: "Built-in default" };
-  const renderedInheritance =
-    context && serverScoped && settingKeys.length > 0 ? (
-      <SettingInheritance
-        state={inheritance.state}
-        summary={inheritance.summary}
-        targets={context.targets}
-        environments={context.connectedEnvironments}
-        keys={settingKeys}
-        overridingProjects={overridingProjects}
-        {...(canWriteSettings
-          ? {
-              onClearOverrides: (entries: readonly ProjectOverrideEntry[]) =>
-                clearProjectOverrides(entries, scopedKeys),
-            }
-          : {})}
-      />
-    ) : null;
+      : control;
   const renderedStatus = status;
 
   return (
@@ -468,19 +354,7 @@ export function SettingsRow({
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex min-h-5 items-center gap-1.5">
             <h3 className="text-sm font-medium text-foreground">{title}</h3>
-            {renderedInheritance ? (
-              <span
-                className={cn(
-                  "inline-flex h-5 w-5 shrink-0 items-center justify-center",
-                  // Values set right here explain nothing new, so their marker waits for hover or focus.
-                  (inheritance.state === "default" || inheritance.state === "environment") &&
-                    overridingProjects.length === 0 &&
-                    "opacity-0 group-hover/settings-row:opacity-100 has-focus-visible:opacity-100 has-data-popup-open:opacity-100",
-                )}
-              >
-                {renderedInheritance}
-              </span>
-            ) : null}
+            {mixed ? <span className="text-xs text-warning">Mixed</span> : null}
             <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center">
               {renderedReset}
             </span>

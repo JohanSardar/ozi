@@ -158,7 +158,7 @@ export function NewTaskEnvironmentPickerRouteScreen() {
                 key={String(environment.environmentId)}
                 environmentId={environment.environmentId}
                 isLast={index === flow.environments.length - 1}
-                disabled={flow.switchingToEnvironmentId !== null}
+                disabled={flow.submitting}
                 onPress={() => {
                   void Haptics.selectionAsync();
                   void flow.switchEnvironment(environment.environmentId).then((switched) => {

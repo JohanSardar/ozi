@@ -28,7 +28,6 @@ import {
   NonNegativeInt,
   PlanId,
   PositiveInt,
-  ProjectId,
   ProviderSessionId,
   ProviderThreadId,
   ProviderTurnId,
@@ -61,7 +60,6 @@ import {
   RuntimeMode,
 } from "./providerPolicy.ts";
 import { ProviderDriverKind, ProviderInstanceId } from "./providerInstance.ts";
-import { OrchestrationProjectShell } from "./orchestrationProject.ts";
 import {
   TurnTokenUsage,
   ToolActivitySurface,
@@ -420,7 +418,6 @@ const LenientThreadOpens = Schema.NullOr(OrchestrationV2ThreadOpens).pipe(
 export const OrchestrationV2AppThread = Schema.Struct({
   ...OrchestrationV2CreationFields,
   id: ThreadId,
-  projectId: ProjectId,
   title: TrimmedNonEmptyString,
   providerInstanceId: ProviderInstanceId,
   modelSelection: ModelSelection,
@@ -621,14 +618,6 @@ export const OrchestrationV2RunBackgroundWorkCancelled = Schema.Struct({
 export type OrchestrationV2RunBackgroundWorkCancelled =
   typeof OrchestrationV2RunBackgroundWorkCancelled.Type;
 
-export const OrchestrationV2ThreadLaunchWorkspaceStrategy = Schema.Union([
-  Schema.Struct({
-    type: Schema.Literal("root"),
-  }),
-]);
-export type OrchestrationV2ThreadLaunchWorkspaceStrategy =
-  typeof OrchestrationV2ThreadLaunchWorkspaceStrategy.Type;
-
 export const ORCHESTRATION_V2_WORKSPACE_PREPARATION_FAILURE_CODE = "workspace_preparation_failed";
 
 export const OrchestrationV2Run = Schema.Struct({
@@ -662,7 +651,6 @@ export const OrchestrationV2Run = Schema.Struct({
     }),
   ),
   delegatedCompletion: Schema.optional(OrchestrationV2DelegatedCompletionCohort),
-  workspacePreparation: Schema.optional(OrchestrationV2ThreadLaunchWorkspaceStrategy),
 });
 export type OrchestrationV2Run = typeof OrchestrationV2Run.Type;
 
@@ -1973,7 +1961,6 @@ export type OrchestrationV2LatestVisibleMessageSummary =
 export const OrchestrationV2ThreadShell = Schema.Struct({
   ...OrchestrationV2CreationFields,
   id: ThreadId,
-  projectId: ProjectId,
   title: Schema.String,
   providerInstanceId: ProviderInstanceId,
   modelSelection: ModelSelection,
@@ -2089,12 +2076,6 @@ export function isOlderSettledThreadShell(
   );
 }
 
-export const OrchestrationV2OlderSettledCount = Schema.Struct({
-  projectId: ProjectId,
-  count: NonNegativeInt,
-});
-export type OrchestrationV2OlderSettledCount = typeof OrchestrationV2OlderSettledCount.Type;
-
 /**
  * Snapshots that leave out older settled threads (`omitOlderSettled`) name the cut and count, per
  * project, every thread `isOlderSettledThreadShell` matches, sent or not. `asOfSequence` is the
@@ -2103,7 +2084,7 @@ export type OrchestrationV2OlderSettledCount = typeof OrchestrationV2OlderSettle
 export const OrchestrationV2OlderSettledThreads = Schema.Struct({
   before: IsoDateTime,
   asOfSequence: NonNegativeInt,
-  counts: Schema.Array(OrchestrationV2OlderSettledCount),
+  count: NonNegativeInt,
 });
 export type OrchestrationV2OlderSettledThreads = typeof OrchestrationV2OlderSettledThreads.Type;
 
@@ -2117,7 +2098,6 @@ export type OrchestrationV2ThreadShellSnapshot = typeof OrchestrationV2ThreadShe
 
 export const OrchestrationV2ShellSnapshot = Schema.Struct({
   ...OrchestrationV2ThreadShellSnapshot.fields,
-  projects: Schema.Array(OrchestrationProjectShell),
   olderSettled: Schema.optionalKey(OrchestrationV2OlderSettledThreads),
 });
 export type OrchestrationV2ShellSnapshot = typeof OrchestrationV2ShellSnapshot.Type;
@@ -2129,16 +2109,6 @@ export const OrchestrationV2ShellStreamItem = Schema.Union([
   Schema.Struct({
     kind: Schema.Literal("snapshot"),
     snapshot: OrchestrationV2ShellSnapshot,
-  }),
-  Schema.Struct({
-    kind: Schema.Literal("project.updated"),
-    sequence: NonNegativeInt,
-    project: OrchestrationProjectShell,
-  }),
-  Schema.Struct({
-    kind: Schema.Literal("project.removed"),
-    sequence: NonNegativeInt,
-    projectId: ProjectId,
   }),
   Schema.Struct({
     kind: Schema.Literal("thread.updated"),
@@ -2793,7 +2763,6 @@ export const OrchestrationV2Command = Schema.Union([
     ...OrchestrationV2CreationFields,
     commandId: CommandId,
     threadId: ThreadId,
-    projectId: ProjectId,
     title: TrimmedNonEmptyString,
     modelSelection: ModelSelection,
     runtimeMode: RuntimeMode,
@@ -2990,10 +2959,6 @@ export const OrchestrationV2Command = Schema.Union([
       }),
     ),
     dispatchMode: Schema.Union([
-      Schema.Struct({
-        type: Schema.Literal("defer_start"),
-        workspaceStrategy: Schema.optional(OrchestrationV2ThreadLaunchWorkspaceStrategy),
-      }),
       Schema.Struct({ type: Schema.Literal("steer_active"), targetRunId: RunId }),
       Schema.Struct({ type: Schema.Literal("restart_active"), targetRunId: RunId }),
       Schema.Struct({ type: Schema.Literal("queue_after_active") }),
@@ -3001,36 +2966,10 @@ export const OrchestrationV2Command = Schema.Union([
     ]),
   }),
   Schema.Struct({
-    type: Schema.Literal("prepared-run.release"),
-    commandId: CommandId,
-    threadId: ThreadId,
-    runId: RunId,
-  }),
-  Schema.Struct({
     type: Schema.Literal("notification.delivery.accept"),
     commandId: CommandId,
     threadId: ThreadId,
     messageId: MessageId,
-  }),
-  Schema.Struct({
-    type: Schema.Literal("prepared-run.progress"),
-    commandId: CommandId,
-    threadId: ThreadId,
-    runId: RunId,
-    phase: Schema.Literals(["setup"]),
-  }),
-  Schema.Struct({
-    type: Schema.Literal("prepared-run.fail"),
-    commandId: CommandId,
-    threadId: ThreadId,
-    runId: RunId,
-    failure: OrchestrationV2ProviderFailure,
-  }),
-  Schema.Struct({
-    type: Schema.Literal("prepared-run.retry"),
-    commandId: CommandId,
-    threadId: ThreadId,
-    runId: RunId,
   }),
   Schema.Struct({
     type: Schema.Literal("subagent.stop"),
@@ -3142,7 +3081,6 @@ export const OrchestrationV2Command = Schema.Union([
     modelSelection: ModelSelection,
     runtimeMode: RuntimeMode,
     interactionMode: ProviderInteractionMode,
-    workspaceStrategy: Schema.optional(OrchestrationV2ThreadLaunchWorkspaceStrategy),
     // Defaults to settled_only; fire-and-forget wakes require always.
     completionWake: Schema.optional(Schema.Literals(["always", "settled_only"])),
     createdAt: Schema.optional(Schema.DateTimeUtc),
@@ -3212,13 +3150,6 @@ const OrchestrationV2InternalCommand = Schema.Union([
     guestMessageId: GuestMessageId,
     text: Schema.String,
     attachments: Schema.optional(Schema.Array(ChatAttachment)),
-  }),
-  /** Moves a thread to a project rooted at the folder it already works in, so its cwd never changes. */
-  Schema.Struct({
-    type: Schema.Literal("thread.project.adopt-folder"),
-    commandId: CommandId,
-    threadId: ThreadId,
-    projectId: ProjectId,
   }),
   /**
    * Records a delegated task that runs in a linked environment: the task, its
@@ -3406,23 +3337,21 @@ export class OrchestrationV2CommandOutputError extends Schema.TaggedError<Orches
 export const OrchestrationV2ArchivedShellSnapshot = Schema.Struct({
   schemaVersion: PositiveInt,
   snapshotSequence: NonNegativeInt,
-  projects: Schema.Array(OrchestrationProjectShell),
   threads: Schema.Array(OrchestrationV2ThreadShell),
 });
 export type OrchestrationV2ArchivedShellSnapshot = typeof OrchestrationV2ArchivedShellSnapshot.Type;
 
 export const OrchestrationV2ThreadLaunchInput = Schema.Struct({
+  workingDirectory: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
   commandId: CommandId,
   creationSource: Schema.optional(OrchestrationV2CreationSource),
   threadId: Schema.optional(ThreadId),
   reuseExistingThread: Schema.optional(Schema.Boolean),
-  projectId: ProjectId,
   title: TrimmedNonEmptyString,
   generateTitle: Schema.optional(Schema.Boolean),
   modelSelection: ModelSelection,
   runtimeMode: RuntimeMode,
   interactionMode: ProviderInteractionMode,
-  workspaceStrategy: OrchestrationV2ThreadLaunchWorkspaceStrategy,
   initialMessage: Schema.optional(
     Schema.Struct({
       messageId: Schema.optional(MessageId),
@@ -3495,7 +3424,6 @@ export type OrchestrationV2ThreadFamily = typeof OrchestrationV2ThreadFamily.Typ
 export const OrchestrationV2SearchThreadsInput = Schema.Struct({
   ...OrchestrationSearchThreadsInput.fields,
   olderSettledBefore: Schema.optionalKey(IsoDateTime),
-  projectIds: Schema.optionalKey(Schema.Array(ProjectId)),
   /** The client's name for this environment, which its own ranking also matches. */
   environmentLabel: Schema.optionalKey(Schema.String),
   /** Skips message search, for pickers that match titles only. */
@@ -3519,8 +3447,6 @@ export type OrchestrationV2OlderSettledCursor = typeof OrchestrationV2OlderSettl
 
 export const OrchestrationV2GetOlderSettledThreadsInput = Schema.Struct({
   before: OrchestrationV2OlderSettledCursor,
-  /** Every project when absent. */
-  projectIds: Schema.optionalKey(Schema.Array(ProjectId)),
   /** 0 reads only the counts. */
   limit: Schema.Int.check(Schema.isBetween({ minimum: 0, maximum: 50 })),
 });
@@ -3535,7 +3461,7 @@ export type OrchestrationV2GetOlderSettledThreadsInput =
 export const OrchestrationV2OlderSettledThreadsPage = Schema.Struct({
   snapshotSequence: NonNegativeInt,
   threads: Schema.Array(OrchestrationV2ThreadShell),
-  counts: Schema.Array(OrchestrationV2OlderSettledCount),
+  count: NonNegativeInt,
 });
 export type OrchestrationV2OlderSettledThreadsPage =
   typeof OrchestrationV2OlderSettledThreadsPage.Type;
@@ -3709,7 +3635,6 @@ export class OrchestrationV2ThreadLaunchError extends Schema.TaggedError<Orchest
   "OrchestrationV2ThreadLaunchError",
   {
     commandId: CommandId,
-    projectId: ProjectId,
     message: Schema.String,
     cause: Schema.optional(Schema.Defect()),
   },

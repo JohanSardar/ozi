@@ -8,8 +8,6 @@ import {
   type ResponseStreamingMode,
   type ServerSettings,
   type ServerSettingsPatch,
-  PROJECT_SCOPED_SERVER_SETTING_KEYS,
-  type ProjectScopedServerSettingKey,
 } from "@t3tools/contracts";
 import { useRef, useState } from "react";
 import { View } from "react-native";
@@ -25,11 +23,9 @@ import { DatabaseStorageNotice } from "./components/DatabaseStorageNotice";
 import { ListChoiceRow as SettingsChoiceRow } from "../../components/ui/ListChoiceRow";
 import { SettingsSection } from "./components/SettingsSection";
 import { SettingsSwitchRow } from "./components/SettingsSwitchRow";
-import { SettingsProjectOverridesSection } from "./components/SettingsProjectOverridesSection";
 import { useSettingsEnvironmentFilter } from "./settings-environment-filter";
 import { useSettingsWriter } from "./useSettingsWriter";
 import {
-  planMobileScopedSettingsClear,
   planMobileScopedSettingsPatch,
   resolveMobileSettingsTargets,
   uniformMobileSetting,
@@ -43,16 +39,6 @@ type SettingsPage = "threads" | "maintenance";
 const PAGE_TITLES: Record<SettingsPage, string> = {
   threads: "Threads",
   maintenance: "Maintenance",
-};
-
-const PAGE_PROJECT_KEYS: Record<SettingsPage, readonly ProjectScopedServerSettingKey[]> = {
-  threads: [
-    "defaultRuntimeMode",
-    "responseStreamingMode",
-    "enableAgentBrowserAccess",
-    "sidebarAutoSettleAfterDays",
-  ],
-  maintenance: ["continueThreadsAfterServerUpdate"],
 };
 
 const STREAMING_CHOICES: ReadonlyArray<{
@@ -81,7 +67,6 @@ const AUTO_SETTLE_SETTING_KEYS: ReadonlySet<string> = new Set([
 
 function planServerSettingsWrites(
   targets: readonly ScopedMobileSettingsTarget[],
-  projectSelected: boolean,
   patch: ServerSettingsPatch,
 ) {
   const capable = targets.filter((target) => supportsSharedSettingsSync(target.environment));
@@ -90,9 +75,9 @@ function planServerSettingsWrites(
     Object.entries(patch).filter(([key]) => !AUTO_SETTLE_SETTING_KEYS.has(key)),
   ) as ServerSettingsPatch;
   return [
-    ...planMobileScopedSettingsPatch(capable, projectSelected, patch),
+    ...planMobileScopedSettingsPatch(capable, patch),
     ...(Object.keys(othersPatch).length > 0
-      ? planMobileScopedSettingsPatch(others, projectSelected, othersPatch)
+      ? planMobileScopedSettingsPatch(others, othersPatch)
       : []),
   ];
 }
@@ -108,21 +93,14 @@ export function SettingsEnvironmentMaintenanceRouteScreen() {
 function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
   const insets = useSafeAreaInsets();
   const navigation = useNavigation();
-  const { selectedTargets, projectGroups, selectedProjectKey } = useSettingsEnvironmentFilter();
-  const selectedProject = projectGroups.find((group) => group.key === selectedProjectKey);
+  const { selectedTargets } = useSettingsEnvironmentFilter();
   const writableEnvironments = useEnvironmentsWithScope(selectedTargets, AuthSettingsWriteScope);
-  const projectSelected = selectedProjectKey !== null;
-  const targets = resolveMobileSettingsTargets(
-    selectedTargets,
-    projectSelected ? (selectedProject?.members.map((member) => member.project) ?? []) : null,
-  );
+  const targets = resolveMobileSettingsTargets(selectedTargets);
   const [pendingWrites, setPendingWrites] = useState(0);
   const writeInFlight = useRef(false);
   // Closing views can save after controls disable; queue those patches behind the pending write.
   const queuedPatch = useRef<{ key: string; patch: ServerSettingsPatch } | null>(null);
-  const targetsKey = targets
-    .map((target) => `${target.environment.environmentId}:${target.projectId}`)
-    .join(",");
+  const targetsKey = targets.map((target) => `${target.environment.environmentId}`).join(",");
   const [pendingTargets, setPendingTargets] = useState<
     readonly ScopedMobileSettingsTarget[] | null
   >(null);
@@ -151,7 +129,7 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
       )
     )
       return;
-    const writes = planServerSettingsWrites(targets, projectSelected, patch);
+    const writes = planServerSettingsWrites(targets, patch);
     if (writes.length === 0) return;
     writeInFlight.current = true;
     setPendingTargets(targets);
@@ -167,34 +145,7 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
       if (queued?.key === targetsKey) write({ ...patch, ...queued.patch });
     });
   };
-  const clearProjectOverrides = () => {
-    if (
-      writeInFlight.current ||
-      !targets.every((target) =>
-        readEnvironmentScope(target.environment.environmentId, AuthSettingsWriteScope),
-      )
-    )
-      return;
-    const writes = planMobileScopedSettingsClear(targets, PAGE_PROJECT_KEYS[props.page]);
-    if (writes.length === 0) return;
-    writeInFlight.current = true;
-    setPendingTargets(targets);
-    setPendingWrites((count) => count + 1);
-    void writeSettings(targets, writes).finally(() => {
-      writeInFlight.current = false;
-      // Resending a draft over these pre-clear targets would undo the clear.
-      queuedPatch.current = null;
-      setPendingTargets(null);
-      setPendingWrites((count) => count - 1);
-    });
-  };
   const disabled = !canWriteSettings || pendingWrites > 0 || !hasConnectedSelection;
-  const disabledFor = (key: string) =>
-    disabled ||
-    (projectSelected &&
-      !PROJECT_SCOPED_SERVER_SETTING_KEYS.includes(
-        key as (typeof PROJECT_SCOPED_SERVER_SETTING_KEYS)[number],
-      ));
 
   return (
     <>
@@ -212,30 +163,17 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
         >
           {!hasConnectedSelection || reference === null ? (
             <Text className="px-2 text-base text-foreground-muted">
-              {projectSelected
-                ? "Select a project with a checkout on a connected environment."
-                : "Use the filter above to select a connected environment."}
+              {"Use the filter above to select a connected environment."}
             </Text>
           ) : (
             <>
-              {projectSelected ? (
-                <SettingsProjectOverridesSection
-                  projectLabel={selectedProject?.label ?? "Unavailable project"}
-                  hasOverrides={targets.some((target) =>
-                    PAGE_PROJECT_KEYS[props.page].some((key) => target.sources[key] === "project"),
-                  )}
-                  pending={pendingWrites > 0}
-                  disabled={!canWriteSettings}
-                  onClear={clearProjectOverrides}
-                />
-              ) : null}
               {props.page === "threads" ? (
                 <>
                   <SettingsSection
                     title="Default permissions"
                     trailing={
                       pendingWrites === 0 && uniform("defaultRuntimeMode") === null ? (
-                        <MixedValuesLabel projectSelected={projectSelected} />
+                        <MixedValuesLabel />
                       ) : null
                     }
                   >
@@ -246,7 +184,7 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
                         description={choice.description}
                         selected={uniform("defaultRuntimeMode") === choice.mode}
                         separated={index > 0}
-                        disabled={disabledFor("defaultRuntimeMode")}
+                        disabled={disabled}
                         onPress={() => write({ defaultRuntimeMode: choice.mode })}
                       />
                     ))}
@@ -255,7 +193,7 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
                     title="Response streaming"
                     trailing={
                       pendingWrites === 0 && uniform("responseStreamingMode") === null ? (
-                        <MixedValuesLabel projectSelected={projectSelected} />
+                        <MixedValuesLabel />
                       ) : null
                     }
                   >
@@ -266,7 +204,7 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
                         description={choice.description}
                         selected={uniform("responseStreamingMode") === choice.mode}
                         separated={index > 0}
-                        disabled={disabledFor("responseStreamingMode")}
+                        disabled={disabled}
                         onPress={() => write({ responseStreamingMode: choice.mode })}
                       />
                     ))}
@@ -277,7 +215,7 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
                       label="Agent browser access"
                       subtitle="Allow agents to use the in-app preview browser."
                       value={uniform("enableAgentBrowserAccess")}
-                      disabled={disabledFor("enableAgentBrowserAccess")}
+                      disabled={disabled}
                       onValueChange={(value) => write({ enableAgentBrowserAccess: value })}
                     />
                   </SettingsSection>
@@ -287,15 +225,15 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
 
               {props.page === "maintenance" ? (
                 <>
-                  {!projectSelected ? (
+                  {
                     <DatabaseStorageNotice
                       targets={selectedTargets.filter(
                         (target) =>
                           target.serverConfig.environment.capabilities.databaseStorage === true,
                       )}
                     />
-                  ) : null}
-                  {!projectSelected ? (
+                  }
+                  {
                     <SettingsSection title="Manage environments">
                       {selectedTargets.map((target) => (
                         <SettingsRow
@@ -311,18 +249,16 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
                         />
                       ))}
                     </SettingsSection>
-                  ) : null}
+                  }
                   <SettingsSection title="Updates">
                     <SettingsSwitchRow
                       icon="arrow.clockwise"
                       label="Check provider updates"
                       subtitle={
-                        projectSelected
-                          ? "Environment-wide setting. Select All projects to change it."
-                          : "Check installed provider CLIs for newer versions and fetch model catalog updates. When off, new models may not appear."
+                        "Check installed provider CLIs for newer versions and fetch model catalog updates. When off, new models may not appear."
                       }
                       value={uniform("enableProviderUpdateChecks")}
-                      disabled={disabledFor("enableProviderUpdateChecks")}
+                      disabled={disabled}
                       onValueChange={(value) => write({ enableProviderUpdateChecks: value })}
                     />
                     <View className="border-t border-border-subtle">
@@ -331,7 +267,7 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
                         label="Continue after restart"
                         subtitle="Resume interrupted threads after an update or restart."
                         value={uniform("continueThreadsAfterServerUpdate")}
-                        disabled={disabledFor("continueThreadsAfterServerUpdate")}
+                        disabled={disabled}
                         onValueChange={(value) =>
                           write({ continueThreadsAfterServerUpdate: value })
                         }
@@ -348,14 +284,10 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
   );
 }
 
-function MixedValuesLabel(props: { readonly projectSelected: boolean }) {
+function MixedValuesLabel() {
   return (
     <Text
-      accessibilityLabel={
-        props.projectSelected
-          ? "Selected project checkouts use different values"
-          : "Selected environments use different values"
-      }
+      accessibilityLabel={"Selected environments use different values"}
       className="px-2 text-sm text-foreground-muted android:px-4"
     >
       Mixed

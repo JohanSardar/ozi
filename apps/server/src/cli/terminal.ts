@@ -19,7 +19,6 @@ import { formatInbox, formatTicket, formatJson, inboxFlags, withInboxTools } fro
 import {
   readTimeline,
   readFullText,
-  resolveProject,
   ThreadLaunchResult,
   ThreadUsageError,
   waitForRun,
@@ -33,7 +32,6 @@ const help =
 export const terminalCommand = Command.make("terminal", {
   ...inboxFlags,
   chat: Flag.String("chat").pipe(Flag.withSchema(ThreadId), Flag.optional),
-  project: Flag.String("project").pipe(Flag.withDefault(".")),
 }).pipe(
   Command.withDescription(
     "Use chats and the inbox in a terminal. --json accepts line commands and emits newline-delimited JSON.",
@@ -155,7 +153,7 @@ export const terminalCommand = Command.make("terminal", {
                 do {
                   const result: OrchestratorMcpThreadListResult = yield* tools.call(
                     "t3_thread_list",
-                    { allProjects: true, includeSubagents: false, cursor, limit: 100 },
+                    { includeSubagents: false, cursor, limit: 100 },
                     OrchestratorMcpThreadListResult,
                   );
                   yield* emit(
@@ -170,10 +168,9 @@ export const terminalCommand = Command.make("terminal", {
                 return;
               }
               case "/new": {
-                const project = yield* resolveProject(tools, flags.project);
                 const result = yield* tools.call(
                   "t3_thread_launch",
-                  { projectId: project.id, title: argument.slice(0, 80), message: argument },
+                  { title: argument.slice(0, 80), message: argument },
                   ThreadLaunchResult,
                 );
                 chatId = result.threadId;

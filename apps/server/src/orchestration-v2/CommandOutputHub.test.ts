@@ -63,13 +63,11 @@ const seedThread = Effect.gen(function* () {
   const idAllocator = yield* IdAllocator.IdAllocatorV2;
   const eventSink = yield* EventSink.EventSinkV2;
   const now = yield* DateTime.now;
-  const projectId = yield* idAllocator.allocate.project({ fixtureName: "command-output" });
-  const threadId = yield* idAllocator.allocate.thread({ fixtureName: "command-output", projectId });
+  const threadId = yield* idAllocator.allocate.thread({ fixtureName: "command-output" });
   const thread: OrchestrationV2AppThread = {
     createdBy: "user",
     creationSource: "web",
     id: threadId,
-    projectId,
     title: "Command output",
     providerInstanceId: modelSelection.instanceId,
     modelSelection,

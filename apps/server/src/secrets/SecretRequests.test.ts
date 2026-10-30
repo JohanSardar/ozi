@@ -3,7 +3,6 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import * as HostProcess from "@t3tools/shared/HostProcess";
 import {
-  ProjectId,
   type OrchestrationV2ServerCommand,
   SecretRef,
   ThreadId,
@@ -25,7 +24,6 @@ import * as SecretRequests from "./SecretRequests.ts";
 
 const threadId = ThreadId.make("thread-orchestrator");
 const turnItemId = TurnItemId.make("turn-item:secret-request:1");
-const projectId = ProjectId.make("project-1");
 
 const withService = <A, E>(
   body: (input: {
@@ -95,7 +93,7 @@ const withService = <A, E>(
       Layer.mock(ThreadManagementService.ThreadManagementService)({
         getThreadRecords: () =>
           Effect.succeed({
-            thread: { projectId },
+            thread: {},
             runs: [{ id: "run-1", status: options.runStatus ?? "running" }],
             turnItems: [
               {
@@ -155,9 +153,9 @@ it.effect("a saved answer becomes a one-use ref, and the thread only learns it w
       assert.notInclude(Object.values(dispatched[0] as object).map(String), "ghp_secret");
 
       const ref = Option.getOrThrow(yield* service.savedRef({ threadId, turnItemId }));
-      assert.equal(yield* service.consume({ ref, projectId }), "ghp_secret");
+      assert.equal(yield* service.consume({ ref }), "ghp_secret");
       assert.isFalse(valuesOf(stored).some((value) => value.includes("ghp_secret")));
-      const again = yield* service.consume({ ref, projectId }).pipe(Effect.flip);
+      const again = yield* service.consume({ ref }).pipe(Effect.flip);
       assert.include(again.message, "already used");
     }),
   ),
@@ -173,7 +171,7 @@ it.effect("two concurrent uses of one ref hand the value out once", () =>
       });
       const ref = Option.getOrThrow(yield* service.savedRef({ threadId, turnItemId }));
       const results = yield* Effect.forEach(
-        [service.consume({ ref, projectId }), service.consume({ ref, projectId })],
+        [service.consume({ ref }), service.consume({ ref })],
         Effect.result,
         { concurrency: "unbounded" },
       );
@@ -210,7 +208,7 @@ it.effect("a save whose record failed can be saved again", () =>
           answer: { type: "save", secret: "ghp_secret" },
         });
         const ref = Option.getOrThrow(yield* service.savedRef({ threadId, turnItemId }));
-        assert.equal(yield* service.consume({ ref, projectId }), "ghp_secret");
+        assert.equal(yield* service.consume({ ref }), "ghp_secret");
       }),
     { failedRecords: 1 },
   ),
@@ -225,11 +223,9 @@ it.effect("a ref only works in the project it was entered for", () =>
         answer: { type: "save", secret: "ghp_secret" },
       });
       const ref = Option.getOrThrow(yield* service.savedRef({ threadId, turnItemId }));
-      const elsewhere = yield* service
-        .consume({ ref, projectId: ProjectId.make("project-other") })
-        .pipe(Effect.flip);
+      const elsewhere = yield* service.consume({ ref }).pipe(Effect.flip);
       assert.include(elsewhere.message, "does not exist");
-      assert.equal(yield* service.consume({ ref, projectId }), "ghp_secret");
+      assert.equal(yield* service.consume({ ref }), "ghp_secret");
     }),
   ),
 );
@@ -279,7 +275,7 @@ it.effect("traces and counts a saved answer without ever recording the value", (
           answer: { type: "save", secret: "ghp_secret" },
         });
         const ref = Option.getOrThrow(yield* service.savedRef({ threadId, turnItemId }));
-        yield* service.consume({ ref, projectId });
+        yield* service.consume({ ref });
       }),
     ).pipe(Effect.withTracer(tracer));
     assert.equal((yield* counted) - before, 1);
@@ -309,7 +305,7 @@ it.effect("works in threads with long ids, such as a delegated subagent's", () =
         const ref = Option.getOrThrow(
           yield* service.savedRef({ threadId: delegatedThreadId, turnItemId }),
         );
-        assert.equal(yield* service.consume({ ref, projectId }), "ghp_secret");
+        assert.equal(yield* service.consume({ ref }), "ghp_secret");
       }),
     { threadId: delegatedThreadId },
   );
@@ -340,7 +336,7 @@ it.effect("a used value that cannot be deleted is not handed out", () =>
           answer: { type: "save", secret: "ghp_secret" },
         });
         const ref = Option.getOrThrow(yield* service.savedRef({ threadId, turnItemId }));
-        const failed = yield* service.consume({ ref, projectId }).pipe(Effect.flip);
+        const failed = yield* service.consume({ ref }).pipe(Effect.flip);
         assert.include(failed.message, "Could not use");
       }),
     { removeFails: true },
@@ -373,7 +369,7 @@ it.effect("a file request moves its value to an owner-only file, once", () =>
           // A retried request_secret gets the same file; the value is never a ref again.
           assert.equal(yield* service.saveToFile({ threadId, turnItemId }), file);
           const ref = SecretRef.make(`secret-ref:${path.basename(file)}`);
-          const reused = yield* service.consume({ ref, projectId }).pipe(Effect.flip);
+          const reused = yield* service.consume({ ref }).pipe(Effect.flip);
           assert.equal(reused.reason, "ref_unavailable");
           return file;
         }),

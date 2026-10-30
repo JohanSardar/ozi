@@ -1,11 +1,10 @@
 import { useAtomValue } from "@effect/atom-react";
 import type { EnvironmentId } from "@t3tools/contracts";
-import { useMemo, useCallback, type Dispatch, type SetStateAction } from "react";
+import { useMemo, type Dispatch, type SetStateAction } from "react";
 
-import { useProjects, useServerConfigs } from "../../state/entities";
+import { useServerConfigs } from "../../state/entities";
 import { createDraft, scheduledTaskDefaultModel } from "./scheduledTaskDraft";
 import { useSettingsEnvironmentFilter } from "./settings-environment-filter";
-import { settingsTargetsForProject } from "./settings-environment-filter.logic";
 
 import {
   scheduledTaskEditorHasChanges,
@@ -18,33 +17,11 @@ import {
 
 /** The form draft lives in an atom, so it survives while its native picker routes are on top. */
 export function useScheduledTaskEditor() {
-  const { selectedTargets, selectedProjectKey, projectGroups } = useSettingsEnvironmentFilter();
-  const selectedGroup = projectGroups.find((group) => group.key === selectedProjectKey);
+  const { selectedTargets } = useSettingsEnvironmentFilter();
   const configs = useServerConfigs();
-  const projects = useProjects();
-  const defaultTarget = settingsTargetsForProject(
-    selectedTargets,
-    selectedProjectKey === null ? null : selectedGroup,
-  )[0];
-  const draftForEnvironment = useCallback(
-    (environmentId: EnvironmentId) => {
-      const environmentProjects = projects.filter(
-        (project) => project.environmentId === environmentId,
-      );
-      const project =
-        environmentProjects.find((project) =>
-          selectedGroup?.members.some(
-            (member) =>
-              member.project.environmentId === environmentId && member.project.id === project.id,
-          ),
-        ) ?? environmentProjects[0];
-      return createDraft(
-        project?.id ?? null,
-        scheduledTaskDefaultModel(configs.get(environmentId) ?? null, project ?? null),
-      );
-    },
-    [configs, projects, selectedGroup],
-  );
+  const defaultTarget = selectedTargets[0];
+  const draftForEnvironment = (environmentId: EnvironmentId) =>
+    createDraft(scheduledTaskDefaultModel(configs.get(environmentId) ?? null));
   // Direct links can open the new-task form before environments have connected.
   const defaultEditor = useMemo(
     () =>

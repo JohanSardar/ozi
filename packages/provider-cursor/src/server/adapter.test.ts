@@ -5,7 +5,6 @@ import {
   EnvironmentId,
   MessageId,
   NodeId,
-  ProjectId,
   ProviderInstanceId,
   ProviderSessionId,
   RunAttemptId,
@@ -156,7 +155,6 @@ describe("CursorAdapterV2", () => {
           rootNodeId: NodeId.make("cursor-lifecycle-root"),
           appThread: {
             id: threadId,
-            projectId: ProjectId.make("cursor-lifecycle-project"),
             createdBy: "user",
             creationSource: "web",
             title: "Cursor lifecycle",
@@ -390,7 +388,6 @@ describe("CursorAdapterV2", () => {
         rootNodeId: NodeId.make("cursor-failure-root"),
         appThread: {
           id: threadId,
-          projectId: ProjectId.make("cursor-failure-project"),
           createdBy: "user",
           creationSource: "web",
           title: "Cursor failure",
@@ -510,7 +507,6 @@ describe("CursorAdapterV2", () => {
       const now = yield* DateTime.now;
       const appThread = {
         id: threadId,
-        projectId: ProjectId.make("cursor-error-project"),
         createdBy: "user" as const,
         creationSource: "web" as const,
         title: "Cursor transport failure",
@@ -857,7 +853,6 @@ describe("CursorAdapterV2", () => {
         rootNodeId: NodeId.make("cursor-search-root"),
         appThread: {
           id: threadId,
-          projectId: ProjectId.make("cursor-search-project"),
           createdBy: "user",
           creationSource: "web",
           title: "Cursor search results",
@@ -1141,7 +1136,6 @@ describe("CursorAdapterV2", () => {
         rootNodeId: NodeId.make("cursor-task-ls-root"),
         appThread: {
           id: threadId,
-          projectId: ProjectId.make("cursor-task-ls-project"),
           createdBy: "user",
           creationSource: "web",
           title: "Cursor subagent ls",
@@ -1293,7 +1287,6 @@ describe("CursorAdapterV2", () => {
           rootNodeId: NodeId.make("cursor-custom-model-root"),
           appThread: {
             id: threadId,
-            projectId: ProjectId.make("cursor-custom-model-project"),
             createdBy: "user",
             creationSource: "web",
             title: "Cursor custom model",

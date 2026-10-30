@@ -191,7 +191,6 @@ export const buildRemoteOpenUrl = (input: {
       h: input.host,
       launchIde: "true",
       ideHint: editor.jetbrainsProductCode,
-      projectHint: input.absolutePath.replaceAll("\\", "/"),
     });
     if (input.username !== undefined) {
       params.set("u", input.username);

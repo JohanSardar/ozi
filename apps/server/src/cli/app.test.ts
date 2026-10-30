@@ -96,7 +96,6 @@ async function startFakeDesktop(input: {
             version: 1,
             requestId: request.requestId,
             ok: true,
-            projectId: "project-1",
             threadId: `thread-${received.length}`,
           };
       socket.end(`${JSON.stringify(response)}\n`);

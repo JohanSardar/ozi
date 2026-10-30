@@ -441,10 +441,6 @@ function summaryActionPriority(action: ToolGroupAction | T3McpToolSummaryAction)
     case "queue-reorder":
     case "queue-steer":
     case "question-respond":
-    case "project-create":
-    case "project-update":
-    case "project-delete":
-    case "project-clone":
     case "environment-update":
     case "attachment-prepare":
     case "attachment-discard":

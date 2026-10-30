@@ -16,7 +16,7 @@ vi.mock(import("~/state/session"), async (original) => ({
   ...(await original()),
   readEnvironmentScope: () => true,
 }));
-vi.mock(import("./projectFilesQueryState"), async (original) => ({
+vi.mock(import("./workspaceFilesQueryState"), async (original) => ({
   ...(await original()),
   confirmProjectFileQueryData: () => true,
   getUnsavedProjectFileQueryData: getUnsavedFile,

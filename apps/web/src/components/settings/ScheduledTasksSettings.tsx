@@ -307,7 +307,7 @@ export function ScheduledTasksSettings(target: {
     (task) =>
       task.id === target.taskId &&
       linkedEnvironmentId !== undefined &&
-      matchesScheduledTaskScope(scope, linkedEnvironmentId, task.projectId),
+      matchesScheduledTaskScope(scope, linkedEnvironmentId),
   );
   // A `taskId` link opens its editor once, the first time the task loads. The editor then owns
   // the session until close, so a disconnect that disables the query cannot drop unsaved edits.
@@ -425,9 +425,7 @@ function ScheduledTaskEnvironmentList({
     return {
       environment,
       connected: index >= 0,
-      tasks: data?.tasks.filter((task) =>
-        matchesScheduledTaskScope(scope, environment.environmentId, task.projectId),
-      ),
+      tasks: data?.tasks.filter(() => matchesScheduledTaskScope(scope, environment.environmentId)),
       error: query?._tag === "Failure" ? formatEnvironmentQueryError(query.cause) : null,
     };
   });
@@ -544,8 +542,8 @@ function ScheduledTaskEnvironmentSection({
         })
       : null,
   );
-  const tasks = tasksQuery.data?.tasks.filter((task) =>
-    matchesScheduledTaskScope(scope, environment.environmentId, task.projectId),
+  const tasks = tasksQuery.data?.tasks.filter(() =>
+    matchesScheduledTaskScope(scope, environment.environmentId),
   );
   const linkedTask = tasks?.find((task) => task.id === taskId);
   return (
@@ -1015,7 +1013,7 @@ function ScheduledTaskEditorForm({
     (chat) =>
       chat.environmentId === environmentId &&
       chat.archivedAt === null &&
-      matchesScheduledTaskScope(scope, environmentId, chat.projectId),
+      matchesScheduledTaskScope(scope, environmentId),
   );
   const canOperate = useAtomValue(
     serverEnvironment.upsertScheduledTask.permissionAtom(environmentId),
@@ -1099,9 +1097,7 @@ function ScheduledTaskEditorForm({
       prompt: draft.prompt.trim(),
       enabled: draft.enabled,
       schedule,
-      projectId: selectedChat.projectId,
       threadId: selectedChat.id,
-      workspaceStrategy: { type: "root" },
       modelSelection: selection,
       runtimeMode: selectedChat.runtimeMode,
       interactionMode: selectedChat.interactionMode,

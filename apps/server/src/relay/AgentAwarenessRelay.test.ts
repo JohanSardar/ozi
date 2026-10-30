@@ -8,7 +8,6 @@ import {
   type OrchestrationV2DomainEvent,
   type OrchestrationV2ThreadShell,
   type OrchestrationV2TurnItem,
-  ProjectId,
   ProviderInstanceId,
   RunId,
   ThreadId,
@@ -39,18 +38,15 @@ import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
 import * as ProjectionStore from "../orchestration-v2/ProjectionStore.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import * as ThreadManagementService from "../orchestration-v2/ThreadManagementService.ts";
-import * as ProjectService from "../project/ProjectService.ts";
 import * as AgentAwarenessRelay from "./AgentAwarenessRelay.ts";
 
 const THREAD_ID = ThreadId.make("relay-thread");
 const SECOND_THREAD_ID = ThreadId.make("relay-thread-2");
-const PROJECT_ID = ProjectId.make("relay-project");
 const NOW = "2026-09-04T12:00:00.000Z";
 
 function shell(overrides: Partial<OrchestrationV2ThreadShell> = {}): OrchestrationV2ThreadShell {
   return {
     id: THREAD_ID,
-    projectId: PROJECT_ID,
     title: "Thread",
     providerInstanceId: ProviderInstanceId.make("codex"),
     modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "test-model" },
@@ -104,7 +100,6 @@ describe("startup agent activity", () => {
     const ids = AgentAwarenessRelay.resolveAgentAwarenessRelayActiveThreadIds({
       environmentId: EnvironmentId.make("relay-env"),
       startedAt,
-      projects: [{ id: PROJECT_ID, title: "Project" }],
       threads: [
         shell(),
         shell({
@@ -128,7 +123,7 @@ describe("startup agent activity", () => {
           latestRunCompletedAt: DateTime.makeUnsafe("2026-09-04T12:00:01.000Z"),
         }),
         shell({ id: ThreadId.make("idle"), status: "idle" }),
-        shell({ id: ThreadId.make("missing-project"), projectId: ProjectId.make("missing") }),
+        shell({ id: ThreadId.make("missing-project") }),
       ],
     });
     assert.deepStrictEqual(ids, [THREAD_ID, newCompleted, newFailed]);
@@ -204,11 +199,11 @@ const makeTestRelay = Effect.fnUntraced(function* (
     getThreadSnapshot: unused,
     getThreadTranscript: unused,
     getThreadSnapshotWindow: unused,
-    getProjectThreadRecords: () => Effect.die("unused project record read"),
-    listProjectThreads: unused,
+    getActiveThreadRecords: () => Effect.die("unused project record read"),
+    listThreads: unused,
     sendToThread: unused,
     assertProviderInstanceEnabled: unused,
-    isProviderInstanceEnabledForProject: unused,
+    isProviderInstanceEnabled: unused,
     hasReceipt: unused,
     waitForThread: unused,
     settleAfterRun: unused,
@@ -258,28 +253,6 @@ const makeTestRelay = Effect.fnUntraced(function* (
     Effect.provideService(ServerEnvironment.ServerEnvironment, {
       getEnvironmentId: Effect.succeed(EnvironmentId.make("relay-environment")),
       getDescriptor: unused(),
-    }),
-    Effect.provideService(ProjectService.ProjectService, {
-      create: unused,
-      bootstrap: unused,
-      update: unused,
-      delete: unused,
-      getByWorkspaceRoot: unused,
-      snapshot: Effect.succeed({ projects: [] } as never),
-      listPage: unused,
-      getShell: unused,
-      listShells: unused,
-      getById: () =>
-        Effect.succeedSome({
-          id: PROJECT_ID,
-          title: "Project",
-          workspaceRoot: "/workspace",
-          defaultModelSelection: null,
-          scripts: [],
-          createdAt: NOW,
-          updatedAt: NOW,
-          deletedAt: null,
-        }),
     }),
     Effect.provideService(FetchHttpClient.Fetch, fetch),
     Effect.provide(NodeCrypto.layer),
@@ -638,7 +611,6 @@ describe("AgentAwarenessRelay", () => {
           createdBy: "user",
           creationSource: "web",
           id: THREAD_ID,
-          projectId: PROJECT_ID,
           title: "Thread",
           providerInstanceId: ProviderInstanceId.make("codex"),
           modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "test-model" },

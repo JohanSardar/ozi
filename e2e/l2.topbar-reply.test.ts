@@ -115,7 +115,6 @@ it("l2.topbar-reply: the top bar times a working chat and Reply sends assistant 
       ),
     );
     await page.goto(JSON.parse(await ozi("pair")).pairingUrl);
-    await page.getByRole("button", { name: "Start without a project" }).click();
     const composer = page.getByRole("textbox", { name: /^Message/ });
     await composer.click();
     await composer.pressSequentially("Plan Friday");

@@ -90,10 +90,9 @@ describe("createThreadFamilyAtoms", () => {
         snapshot: Option.some({
           schemaVersion: 1,
           snapshotSequence: 9,
-          projects: [],
           threads: [row("kept")],
           archivedThreads: [],
-          olderSettled: { before: "2026-10-01T00:00:00.000Z", asOfSequence: 4, counts: [] },
+          olderSettled: { before: "2026-10-01T00:00:00.000Z", asOfSequence: 4, count: 0 },
         } as OrchestrationV2ShellSnapshot),
         removedAt: new Map([[ThreadId.make("removed"), 9]]),
       }),
@@ -173,7 +172,6 @@ describe("createThreadFamilyAtoms", () => {
         const shellSnapshot = {
           schemaVersion: 1,
           snapshotSequence: 3,
-          projects: [],
           threads: [parent],
           archivedThreads: [],
         } as OrchestrationV2ShellSnapshot;

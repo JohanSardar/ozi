@@ -9,8 +9,6 @@ import {
   isUnconfiguredDefaultInstanceEnabled,
   resolveProviderInstanceEnabled,
   type ModelSelection,
-  type ProjectScopedServerSettingKey,
-  type ProjectSettingsOverrides,
   ProviderDriverKind,
   ProviderInstanceId,
   ServerSettings,
@@ -174,85 +172,6 @@ function mergeSettingsEntries<Value>(
   return Object.fromEntries(next);
 }
 
-// Older clients omit providerInstances during whole-entry replacement; preserve it to avoid wiping overrides.
-function mergeProjectSettingsOverridesPatch(
-  current: Readonly<Record<string, ProjectSettingsOverrides>>,
-  patch: Readonly<Record<string, ProjectSettingsOverrides | null>>,
-): Record<string, ProjectSettingsOverrides> {
-  const next = new Map(Object.entries(current));
-  for (const [projectId, entry] of Object.entries(patch)) {
-    if (entry === null) {
-      next.delete(projectId);
-      continue;
-    }
-    const storedProviderInstances = current[projectId]?.providerInstances;
-    next.set(projectId, {
-      ...entry,
-      ...(Object.hasOwn(entry, "providerInstances") || storedProviderInstances === undefined
-        ? {}
-        : { providerInstances: storedProviderInstances }),
-    });
-  }
-  return Object.fromEntries(next);
-}
-
-export function deriveLegacyProjectOverrides(
-  settings: Pick<ServerSettings, "projectSettingsOverrides">,
-): Pick<ServerSettings, "projectAgentBrowserAccessOverrides" | "projectScriptOverrides"> {
-  const projectAgentBrowserAccessOverrides: Record<string, boolean> = {};
-  const projectScriptOverrides: Record<string, ServerSettings["defaultProjectScripts"] | null> = {};
-  for (const [projectId, entry] of Object.entries(settings.projectSettingsOverrides)) {
-    if (entry.enableAgentBrowserAccess !== undefined) {
-      projectAgentBrowserAccessOverrides[projectId] = entry.enableAgentBrowserAccess;
-    }
-    if (entry.defaultProjectScripts !== undefined) {
-      projectScriptOverrides[projectId] = entry.defaultProjectScripts;
-    }
-  }
-  return { projectAgentBrowserAccessOverrides, projectScriptOverrides };
-}
-
-function translateLegacyProjectOverridePatch(
-  current: Pick<ServerSettings, "projectSettingsOverrides">,
-  patch: ServerSettingsPatch,
-): ServerSettingsPatch {
-  const { projectAgentBrowserAccessOverrides, projectScriptOverrides, ...rest } = patch;
-  if (projectAgentBrowserAccessOverrides === undefined && projectScriptOverrides === undefined) {
-    return patch;
-  }
-  const currentEntries: Readonly<Record<string, ProjectSettingsOverrides>> =
-    current.projectSettingsOverrides;
-  const entries = new Map<string, ProjectSettingsOverrides | null>(
-    Object.entries(rest.projectSettingsOverrides ?? {}),
-  );
-  // Canonical entries outrank legacy maps, including deliberately omitted keys.
-  const canonicalProjectIds = new Set(Object.keys(rest.projectSettingsOverrides ?? {}));
-  const applyKey = <K extends ProjectScopedServerSettingKey>(
-    map: Readonly<Record<string, ProjectSettingsOverrides[K] | null>> | undefined,
-    key: K,
-  ) => {
-    if (map === undefined) return;
-    for (const [projectId, value] of Object.entries(map)) {
-      if (canonicalProjectIds.has(projectId)) continue;
-      const entry: ProjectSettingsOverrides = {
-        ...(entries.get(projectId) ?? currentEntries[projectId]),
-      };
-      if (value === null || value === undefined) {
-        delete entry[key];
-      } else {
-        entry[key] = value;
-      }
-      entries.set(projectId, Object.keys(entry).length === 0 ? null : entry);
-    }
-  };
-  applyKey(projectAgentBrowserAccessOverrides, "enableAgentBrowserAccess");
-  applyKey(projectScriptOverrides, "defaultProjectScripts");
-  return {
-    ...rest,
-    projectSettingsOverrides: Object.fromEntries(entries),
-  } as ServerSettingsPatch;
-}
-
 /**
  * A client from before `idleCompaction` patches the old boolean switch. Turning
  * it off keeps "Never" rather than reverting to the default.
@@ -273,7 +192,7 @@ export function applyServerSettingsPatch(
   current: ServerSettings,
   rawPatch: ServerSettingsPatch,
 ): ServerSettings {
-  const patch = translateLegacyProjectOverridePatch(current, rawPatch);
+  const patch = rawPatch;
   const selectionPatch = patch.textGenerationModelSelection;
   const {
     migrateModelPreferences,
@@ -288,10 +207,6 @@ export function applyServerSettingsPatch(
     usageLimitSources: usageLimitSourcesPatch,
     usagePriceOverrides: usagePriceOverridesPatch,
     usageModelAliases: usageModelAliasesPatch,
-    // Entry replacement: deepMerge would keep keys the client meant to clear.
-    projectSettingsOverrides: projectSettingsOverridesPatch,
-    projectAgentBrowserAccessOverrides: _legacyBrowserAccess,
-    projectScriptOverrides: _legacyScripts,
     ...patchForMerge
   } = patch;
   const currentBackgroundActivity = normalizeServerBackgroundActivitySettings(current);
@@ -397,26 +312,11 @@ export function applyServerSettingsPatch(
     ...(patch.providerInstances !== undefined
       ? { providerInstances: patch.providerInstances }
       : {}),
-    ...(projectSettingsOverridesPatch !== undefined
-      ? {
-          projectSettingsOverrides: Object.fromEntries(
-            Object.entries(
-              mergeProjectSettingsOverridesPatch(
-                current.projectSettingsOverrides,
-                projectSettingsOverridesPatch,
-              ),
-            ).filter(([, entry]) => Object.keys(entry).length > 0),
-          ),
-        }
-      : {}),
     ...(patch.defaultModelSelection !== undefined
       ? { defaultModelSelection: patch.defaultModelSelection }
       : {}),
     ...(patch.fallbackModelSelection !== undefined
       ? { fallbackModelSelection: patch.fallbackModelSelection }
-      : {}),
-    ...(patch.defaultProjectScripts !== undefined
-      ? { defaultProjectScripts: patch.defaultProjectScripts }
       : {}),
     ...(usageLimitSourcesPatch !== undefined
       ? {
@@ -452,7 +352,6 @@ export function applyServerSettingsPatch(
   );
   const nextWithReplacements = {
     ...withIdleCompaction(nextWithReplacementsBase, patchedIdleCompaction(current, patch)),
-    ...deriveLegacyProjectOverrides(nextWithReplacementsBase),
     backgroundActivity: normalizedBackgroundActivity,
     providerHealthRefreshInterval: resolvedBackgroundActivity.providerHealthRefreshInterval,
     backgroundActivityProfile: resolvedBackgroundActivity.profile,

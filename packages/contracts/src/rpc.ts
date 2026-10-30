@@ -1,4 +1,21 @@
 import {
+  WorkspaceListEntriesError,
+  WorkspaceListEntriesInput,
+  WorkspaceListEntriesResult,
+  WorkspaceReadFileError,
+  WorkspaceReadFileInput,
+  WorkspaceReadFileResult,
+  WorkspaceSearchContentsError,
+  WorkspaceSearchContentsInput,
+  WorkspaceSearchContentsResult,
+  WorkspaceSearchEntriesError,
+  WorkspaceSearchEntriesInput,
+  WorkspaceSearchEntriesResult,
+  WorkspaceWriteFileError,
+  WorkspaceWriteFileInput,
+  WorkspaceWriteFileResult,
+} from "./workspace.ts";
+import {
   ChatSessionInput,
   ChatSessionResult,
   ChatSessionError,
@@ -24,7 +41,6 @@ import {
   OrchestrationV2SearchThreadsInput,
   OrchestrationV2SearchThreadsResult,
 } from "./orchestrationV2.ts";
-import { OrchestrationDispatchCommandError } from "./orchestrationDispatch.ts";
 import {
   McpAppCallToolInput,
   McpAppCallToolResult,
@@ -109,15 +125,6 @@ import {
   FilesystemBrowseError,
 } from "./filesystem.ts";
 import {
-  AgentSessionImportInput,
-  AgentSessionImportProjectChangedError,
-  AgentSessionImportProjectNotFoundError,
-  AgentSessionImportResult,
-  AgentSessionScanInput,
-  AgentSessionScanResult,
-  AgentSessionScanError,
-} from "./agentSessions.ts";
-import {
   AssetAccessError,
   AssetCreateUrlInput,
   AssetCreateUrlResult,
@@ -160,28 +167,6 @@ import {
   OrchestrationV2RpcSchemas,
   OrchestrationV2ThreadLaunchError,
 } from "./orchestrationV2.ts";
-import {
-  ProjectCreateNewInput,
-  ProjectCreateNewResult,
-  ProjectCreateFromThreadInput,
-  ProjectCreateFromThreadResult,
-  ProjectEnsureScratchResult,
-  ProjectListEntriesError,
-  ProjectListEntriesInput,
-  ProjectListEntriesResult,
-  ProjectReadFileError,
-  ProjectReadFileInput,
-  ProjectReadFileResult,
-  ProjectSearchContentsError,
-  ProjectSearchContentsInput,
-  ProjectSearchContentsResult,
-  ProjectSearchEntriesError,
-  ProjectSearchEntriesInput,
-  ProjectSearchEntriesResult,
-  ProjectWriteFileError,
-  ProjectWriteFileInput,
-  ProjectWriteFileResult,
-} from "./project.ts";
 import {
   TerminalAttachInput,
   TerminalObserveInput,
@@ -277,7 +262,6 @@ import {
   ScheduledTaskMutationResult,
 } from "./scheduledTask.ts";
 import { SecretRequestAnswerInput, SecretRequestError } from "./secretRequest.ts";
-import { Project, ProjectMutation, ProjectMutationError } from "./project.ts";
 
 export const WS_METHODS = {
   ticketsCreate: "tickets.create",
@@ -287,15 +271,11 @@ export const WS_METHODS = {
   ticketsGet: "tickets.get",
   ticketsList: "tickets.list",
   ticketsSubscribe: "tickets.subscribe",
-  projectsListEntries: "projects.listEntries",
-  projectsReadFile: "projects.readFile",
-  projectsSearchContents: "projects.searchContents",
-  projectsSearchEntries: "projects.searchEntries",
-  projectsWriteFile: "projects.writeFile",
-  projectsMutate: "projects.mutate",
-  projectsEnsureScratch: "projects.ensureScratch",
-  projectsCreateNew: "projects.createNew",
-  projectsCreateFromThread: "projects.createFromThread",
+  workspaceListEntries: "workspace.listEntries",
+  workspaceReadFile: "workspace.readFile",
+  workspaceSearchContents: "workspace.searchContents",
+  workspaceSearchEntries: "workspace.searchEntries",
+  workspaceWriteFile: "workspace.writeFile",
 
   shellOpenInEditor: "shell.openInEditor",
 
@@ -304,8 +284,6 @@ export const WS_METHODS = {
   chatSessionsExecute: "chatSessions.execute",
   chatSessionsPrint: "chatSessions.print",
   chatSessionsAnswer: "chatSessions.answer",
-  agentSessionsScan: "agentSessions.scan",
-  agentSessionsImport: "agentSessions.import",
   assetsCreateUrl: "assets.createUrl",
   assetsPersistChatAttachments: "assets.persistChatAttachments",
   attachmentsCreateUploadUrl: "attachments.createUploadUrl",
@@ -771,58 +749,34 @@ const WsServerReportClientActivityRpc = Rpc.make(WS_METHODS.serverReportClientAc
   error: EnvironmentAuthorizationError,
 });
 
-const WsProjectsSearchEntriesRpc = Rpc.make(WS_METHODS.projectsSearchEntries, {
-  payload: ProjectSearchEntriesInput,
-  success: ProjectSearchEntriesResult,
-  error: Schema.Union([ProjectSearchEntriesError, EnvironmentAuthorizationError]),
+const WsWorkspaceSearchEntriesRpc = Rpc.make(WS_METHODS.workspaceSearchEntries, {
+  payload: WorkspaceSearchEntriesInput,
+  success: WorkspaceSearchEntriesResult,
+  error: Schema.Union([WorkspaceSearchEntriesError, EnvironmentAuthorizationError]),
 });
 
-const WsProjectsSearchContentsRpc = Rpc.make(WS_METHODS.projectsSearchContents, {
-  payload: ProjectSearchContentsInput,
-  success: ProjectSearchContentsResult,
-  error: Schema.Union([ProjectSearchContentsError, EnvironmentAuthorizationError]),
+const WsWorkspaceSearchContentsRpc = Rpc.make(WS_METHODS.workspaceSearchContents, {
+  payload: WorkspaceSearchContentsInput,
+  success: WorkspaceSearchContentsResult,
+  error: Schema.Union([WorkspaceSearchContentsError, EnvironmentAuthorizationError]),
 });
 
-const WsProjectsListEntriesRpc = Rpc.make(WS_METHODS.projectsListEntries, {
-  payload: ProjectListEntriesInput,
-  success: ProjectListEntriesResult,
-  error: Schema.Union([ProjectListEntriesError, EnvironmentAuthorizationError]),
+const WsWorkspaceListEntriesRpc = Rpc.make(WS_METHODS.workspaceListEntries, {
+  payload: WorkspaceListEntriesInput,
+  success: WorkspaceListEntriesResult,
+  error: Schema.Union([WorkspaceListEntriesError, EnvironmentAuthorizationError]),
 });
 
-const WsProjectsReadFileRpc = Rpc.make(WS_METHODS.projectsReadFile, {
-  payload: ProjectReadFileInput,
-  success: ProjectReadFileResult,
-  error: Schema.Union([ProjectReadFileError, EnvironmentAuthorizationError]),
+const WsWorkspaceReadFileRpc = Rpc.make(WS_METHODS.workspaceReadFile, {
+  payload: WorkspaceReadFileInput,
+  success: WorkspaceReadFileResult,
+  error: Schema.Union([WorkspaceReadFileError, EnvironmentAuthorizationError]),
 });
 
-const WsProjectsWriteFileRpc = Rpc.make(WS_METHODS.projectsWriteFile, {
-  payload: ProjectWriteFileInput,
-  success: ProjectWriteFileResult,
-  error: Schema.Union([ProjectWriteFileError, EnvironmentAuthorizationError]),
-});
-
-const WsProjectsMutateRpc = Rpc.make(WS_METHODS.projectsMutate, {
-  payload: ProjectMutation,
-  success: Project,
-  error: Schema.Union([ProjectMutationError, EnvironmentAuthorizationError]),
-});
-
-const WsProjectsEnsureScratchRpc = Rpc.make(WS_METHODS.projectsEnsureScratch, {
-  payload: Schema.Struct({}),
-  success: ProjectEnsureScratchResult,
-  error: Schema.Union([OrchestrationDispatchCommandError, EnvironmentAuthorizationError]),
-});
-
-const WsProjectsCreateNewRpc = Rpc.make(WS_METHODS.projectsCreateNew, {
-  payload: ProjectCreateNewInput,
-  success: ProjectCreateNewResult,
-  error: Schema.Union([OrchestrationDispatchCommandError, EnvironmentAuthorizationError]),
-});
-
-const WsProjectsCreateFromThreadRpc = Rpc.make(WS_METHODS.projectsCreateFromThread, {
-  payload: ProjectCreateFromThreadInput,
-  success: ProjectCreateFromThreadResult,
-  error: Schema.Union([OrchestrationDispatchCommandError, EnvironmentAuthorizationError]),
+const WsWorkspaceWriteFileRpc = Rpc.make(WS_METHODS.workspaceWriteFile, {
+  payload: WorkspaceWriteFileInput,
+  success: WorkspaceWriteFileResult,
+  error: Schema.Union([WorkspaceWriteFileError, EnvironmentAuthorizationError]),
 });
 
 const WsShellOpenInEditorRpc = Rpc.make(WS_METHODS.shellOpenInEditor, {
@@ -840,23 +794,6 @@ const WsFilesystemBrowseRpc = Rpc.make(WS_METHODS.filesystemBrowse, {
   payload: FilesystemBrowseInput,
   success: FilesystemBrowseResult,
   error: Schema.Union([FilesystemBrowseError, EnvironmentAuthorizationError]),
-});
-
-const WsAgentSessionsScanRpc = Rpc.make(WS_METHODS.agentSessionsScan, {
-  payload: AgentSessionScanInput,
-  success: AgentSessionScanResult,
-  error: Schema.Union([AgentSessionScanError, EnvironmentAuthorizationError]),
-});
-
-const WsAgentSessionsImportRpc = Rpc.make(WS_METHODS.agentSessionsImport, {
-  payload: AgentSessionImportInput,
-  success: AgentSessionImportResult,
-  error: Schema.Union([
-    AgentSessionImportProjectChangedError,
-    AgentSessionImportProjectNotFoundError,
-    AgentSessionScanError,
-    EnvironmentAuthorizationError,
-  ]),
 });
 
 const WsAssetsCreateUrlRpc = Rpc.make(WS_METHODS.assetsCreateUrl, {
@@ -1387,20 +1324,14 @@ export const WsRpcGroup = RpcGroup.make(
   WsServerReportClientActivityRpc,
   WsCloudGetRelayClientStatusRpc,
   WsCloudInstallRelayClientRpc,
-  WsProjectsListEntriesRpc,
-  WsProjectsReadFileRpc,
-  WsProjectsSearchContentsRpc,
-  WsProjectsSearchEntriesRpc,
-  WsProjectsEnsureScratchRpc,
-  WsProjectsCreateNewRpc,
-  WsProjectsCreateFromThreadRpc,
-  WsProjectsWriteFileRpc,
-  WsProjectsMutateRpc,
+  WsWorkspaceListEntriesRpc,
+  WsWorkspaceReadFileRpc,
+  WsWorkspaceSearchContentsRpc,
+  WsWorkspaceSearchEntriesRpc,
+  WsWorkspaceWriteFileRpc,
   WsShellOpenInEditorRpc,
   WsFilesystemBrowseRpc,
   WsFilesystemGetMetadataRpc,
-  WsAgentSessionsScanRpc,
-  WsAgentSessionsImportRpc,
   WsAssetsCreateUrlRpc,
   WsAssetsPersistChatAttachmentsRpc,
   WsAttachmentsCreateUploadUrlRpc,

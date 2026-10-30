@@ -20,7 +20,7 @@ vi.mock("~/connection/catalog", () => ({
   },
 }));
 vi.mock("~/state/projects", () => ({
-  projectEnvironment: {
+  workspaceEnvironment: {
     listEntries: () =>
       Atom.make((get) =>
         get(mocks.reachable)

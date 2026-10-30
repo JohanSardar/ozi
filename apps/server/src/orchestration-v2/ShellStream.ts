@@ -1,14 +1,11 @@
 import type {
   ApplicationStoredEvent,
-  OrchestrationProjectShell,
-  OrchestrationV2OlderSettledCount,
   OrchestrationV2OlderSettledThreads,
   OrchestrationV2ShellSnapshot,
   OrchestrationV2ThreadShell,
   OrchestrationV2ThreadShellSnapshot,
   OrchestrationV2ShellStreamItem,
   OrchestrationV2StoredEvent,
-  ProjectId,
   ThreadId,
 } from "@t3tools/contracts";
 import {
@@ -17,14 +14,9 @@ import {
   OrchestrationV2ThreadShell as ThreadShellSchema,
 } from "@t3tools/contracts";
 import * as NodeSqliteClient from "@t3tools/shared/nodeSqliteClient";
-import type * as Arr from "effect/Array";
-import type * as Cause from "effect/Cause";
 import * as Clock from "effect/Clock";
 import * as DateTime from "effect/DateTime";
-import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
-import * as Exit from "effect/Exit";
-import * as Queue from "effect/Queue";
 import * as Schema from "effect/Schema";
 import type * as SqlClient from "effect/sql/SqlClient";
 import * as Stream from "effect/Stream";
@@ -42,10 +34,6 @@ export const bufferShellLiveStream = <E, R>(
     source,
     (item) => {
       switch (item.kind) {
-        case "project.updated":
-          return `project:${item.project.id}`;
-        case "project.removed":
-          return `project:${item.projectId}`;
         case "thread.updated":
           return `thread:${item.location}:${item.thread.id}`;
         case "thread.removed":
@@ -56,14 +44,12 @@ export const bufferShellLiveStream = <E, R>(
   );
 
 export function buildActiveShellSnapshot(input: {
-  readonly projects: ReadonlyArray<OrchestrationProjectShell>;
   readonly threads: OrchestrationV2ThreadShellSnapshot;
   readonly snapshotSequence: number;
 }): OrchestrationV2ShellSnapshot {
   return {
     schemaVersion: input.threads.schemaVersion,
     snapshotSequence: input.snapshotSequence,
-    projects: input.projects,
     threads: input.threads.threads,
     archivedThreads: [],
   };
@@ -145,10 +131,10 @@ export function omitOlderSettledShells(input: {
     if (thread.lineage.parentThreadId !== null) ancestorIds.add(thread.lineage.parentThreadId);
     ancestorIds.add(thread.lineage.rootThreadId);
   }
-  const counts = new Map<ProjectId, number>();
+  let count = 0;
   const threads = input.threads.filter((thread) => {
     if (!isOlderSettledThreadShell(thread, beforeMs)) return true;
-    counts.set(thread.projectId, (counts.get(thread.projectId) ?? 0) + 1);
+    count += 1;
     return (
       thread.pinnedAt != null ||
       (thread.snoozedUntil != null && DateTime.toEpochMillis(thread.snoozedUntil) > nowMs) ||
@@ -161,7 +147,7 @@ export function omitOlderSettledShells(input: {
     olderSettled: {
       before: DateTime.formatIso(DateTime.makeUnsafe(beforeMs)),
       asOfSequence: input.snapshotSequence,
-      counts: Array.from(counts, ([projectId, count]) => ({ projectId, count })),
+      count,
     },
   };
 }
@@ -207,25 +193,21 @@ export function shellSnapshotForSubscriber(
 export const loadShellSnapshotParts = Effect.fn("ShellStream.loadShellSnapshotParts")(function* <
   E1,
   E2,
-  E3,
   E4,
 >(input: {
   readonly sql: SqlClient.SqlClient;
   readonly readThreads: Effect.Effect<Effect.Effect<OrchestrationV2ThreadShellSnapshot, E2>, E1>;
-  readonly listProjects: Effect.Effect<ReadonlyArray<OrchestrationProjectShell>, E3>;
   readonly latestSequence: Effect.Effect<number, E4>;
 }) {
   const read = yield* input.sql
     .withTransaction(
       Effect.all({
         decodeThreads: input.readThreads,
-        projects: input.listProjects,
         snapshotSequence: input.latestSequence,
       }),
     )
     .pipe(NodeSqliteClient.readOnly);
   return {
-    projects: read.projects,
     threads: yield* read.decodeThreads,
     snapshotSequence: read.snapshotSequence,
   };
@@ -238,7 +220,7 @@ export const loadOlderSettledThreadsPage = Effect.fn("ShellStream.loadOlderSettl
     readonly listThreads: Effect.Effect<
       {
         readonly threadIds: ReadonlyArray<ThreadId>;
-        readonly counts: ReadonlyArray<OrchestrationV2OlderSettledCount>;
+        readonly count: number;
       },
       E1
     >;
@@ -265,27 +247,21 @@ export const loadOlderSettledThreadsPage = Effect.fn("ShellStream.loadOlderSettl
     return {
       snapshotSequence: read.snapshotSequence,
       threads: threads.toSorted((left, right) => order.get(left.id)! - order.get(right.id)!),
-      counts: read.listed.counts,
+      count: read.listed.count,
     };
   },
 );
 
-export type ShellApplicationEvent =
-  | Pick<
-      Extract<ApplicationStoredEvent, { readonly aggregateKind: "project" }>,
-      "aggregateKind" | "aggregateId" | "type" | "sequence"
-    >
-  | {
-      readonly sequence: number;
-      readonly event: Pick<OrchestrationV2StoredEvent["event"], "threadId">;
-    };
+export type ShellApplicationEvent = {
+  readonly sequence: number;
+  readonly event: Pick<OrchestrationV2StoredEvent["event"], "threadId">;
+};
 
 /** Focused subagents receive these updates through their thread subscription. */
 export function shouldPublishShellApplicationEvent(
   stored: ApplicationStoredEvent,
   subagentThreadIds: Set<string>,
 ): boolean {
-  if ("aggregateKind" in stored) return true;
   const { event } = stored;
   if (event.type === "thread.created") {
     if (event.payload.lineage.relationshipToParent === "subagent") {
@@ -308,14 +284,7 @@ export function shouldPublishShellApplicationEvent(
 
 /** Shell updates refetch an aggregate; drop transcript bodies before retaining an event. */
 export function toShellApplicationEvent(stored: ApplicationStoredEvent): ShellApplicationEvent {
-  return "aggregateKind" in stored
-    ? {
-        aggregateKind: stored.aggregateKind,
-        aggregateId: stored.aggregateId,
-        type: stored.type,
-        sequence: stored.sequence,
-      }
-    : { sequence: stored.sequence, event: { threadId: stored.event.threadId } };
+  return { sequence: stored.sequence, event: { threadId: stored.event.threadId } };
 }
 
 export function coalesceShellApplicationEvents<A extends ShellApplicationEvent>(
@@ -323,90 +292,12 @@ export function coalesceShellApplicationEvents<A extends ShellApplicationEvent>(
 ): ReadonlyArray<A> {
   const latestByAggregate = new Map<string, A>();
   for (const stored of events) {
-    const key =
-      "aggregateKind" in stored
-        ? `project:${stored.aggregateId}`
-        : `thread:${stored.event.threadId}`;
+    const key = `thread:${stored.event.threadId}`;
     latestByAggregate.set(key, stored);
   }
   return Array.from(latestByAggregate.values()).sort(
     (left, right) => left.sequence - right.sequence,
   );
-}
-
-/** Emit the authoritative initial snapshot before marked enrichment. */
-export function composeShellStreamWithEnrichment<A, E, R, A2, E2, R2, A3, E3, R3>(input: {
-  readonly initial: Stream.Stream<A, E, R>;
-  readonly tail: Stream.Stream<A2, E2, R2>;
-  readonly enrichment: Stream.Stream<A3, E3, R3>;
-}): Stream.Stream<A | A2 | A3, E | E2 | E3, R | R2 | R3> {
-  const merged = Stream.fromPull(
-    Effect.gen(function* () {
-      const output = yield* Queue.bounded<
-        {
-          readonly items: Arr.NonEmptyReadonlyArray<A2 | A3>;
-          readonly acknowledged?: Deferred.Deferred<void>;
-        },
-        E2 | E3 | Cause.Done
-      >(0);
-      yield* Effect.addFinalizer(() => Queue.shutdown(output));
-      let remaining = 2;
-      const drain = (effect: Effect.Effect<void, E2 | E3, R2 | R3>) =>
-        effect.pipe(
-          Effect.exit,
-          Effect.flatMap((exit) =>
-            Exit.isFailure(exit)
-              ? Queue.failCause(output, exit.cause)
-              : --remaining === 0
-                ? Queue.end(output)
-                : Effect.void,
-          ),
-          Effect.forkScoped,
-        );
-      yield* drain(
-        input.tail.pipe(
-          Stream.runForEachArray((items) =>
-            Effect.gen(function* () {
-              const acknowledged = yield* Deferred.make<void>();
-              yield* Queue.offer(output, { items, acknowledged });
-              yield* Deferred.await(acknowledged);
-            }),
-          ),
-        ),
-      );
-      // Keep draining the sliding enrichment subscription after each handoff,
-      // as Stream.merge does, while only the budgeted tail waits for an ACK.
-      yield* drain(
-        input.enrichment.pipe(Stream.runForEachArray((items) => Queue.offer(output, { items }))),
-      );
-      let previous: Deferred.Deferred<void> | undefined;
-      // Stream.merge pulls ahead after handing off each batch. Wait for the next
-      // downstream pull so shell delivery keeps that batch charged until its RPC ACK.
-      return Effect.gen(function* () {
-        if (previous) yield* Deferred.succeed(previous, undefined);
-        const next = yield* Queue.take(output);
-        previous = next.acknowledged;
-        return next.items;
-      });
-    }),
-  ).pipe(Stream.scoped);
-  return Stream.concat(input.initial, merged);
-}
-
-export function shellStreamItemFromEnrichmentRefresh(input: {
-  readonly snapshot: OrchestrationV2ShellSnapshot;
-  readonly changes: ReadonlyArray<{ readonly workspaceRoot: string }>;
-}): Extract<OrchestrationV2ShellStreamItem, { readonly kind: "snapshot" }> {
-  const roots = new Set(input.changes.map((change) => change.workspaceRoot));
-  return {
-    kind: "snapshot",
-    snapshot: {
-      ...input.snapshot,
-      projects: input.snapshot.projects.filter((project) => roots.has(project.workspaceRoot)),
-      threads: [],
-      archivedThreads: [],
-    },
-  };
 }
 
 export function shellStreamItemsFromInitialSnapshot(input: {

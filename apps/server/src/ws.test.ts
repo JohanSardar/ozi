@@ -6,7 +6,6 @@ import { assert, it } from "@effect/vitest";
 import {
   AuthSessionId,
   EnvironmentId,
-  ProjectId,
   ThreadId,
   ProviderDriverKind,
   ProviderInstanceId,
@@ -15,7 +14,6 @@ import {
   WsSubscribeServerConfigRpc,
   type OrchestrationV2StoredEvent,
   type OrchestrationV2ThreadShell,
-  type OrchestrationProjectShell,
   type ServerConfig,
   type ServerConfigStreamEvent,
   type ServerProvider,
@@ -36,8 +34,6 @@ import * as PreviewAutomationBroker from "./mcp/PreviewAutomationBroker.ts";
 import * as ServerBrowser from "./preview/ServerBrowser.ts";
 import * as AcpRegistryRuntimeCoordinator from "@t3tools/provider-acp-registry/server/AcpRegistryRuntimeCoordinator";
 import * as AcpRegistrySupport from "@t3tools/provider-acp-registry/server/AcpRegistrySupport";
-import * as AgentSessionImporter from "./project/AgentSessionImporter.ts";
-import * as AgentSessionScanner from "./project/AgentSessionScanner.ts";
 import * as AnalyticsService from "./telemetry/AnalyticsService.ts";
 import * as AntigravityInstallation from "./provider/AntigravityInstallation.ts";
 import * as BackgroundPolicy from "./background/BackgroundPolicy.ts";
@@ -48,8 +44,6 @@ import * as DirectEndpoints from "./environment/DirectEndpoints.ts";
 import * as EnvironmentAuth from "./auth/EnvironmentAuth.ts";
 import * as EnvironmentTheme from "./environmentTheme.ts";
 import * as HostResources from "./resourceTelemetry/HostResources.ts";
-import * as ManagedProjectFolders from "./project/ManagedProjectFolders.ts";
-import * as ScratchThreadPromotion from "./project/ScratchThreadPromotion.ts";
 import * as McpAppRequests from "./mcpApps/McpAppRequests.ts";
 import * as ModelManifest from "./provider/ModelManifest.ts";
 import * as Orchestrator from "./orchestration-v2/Orchestrator.ts";
@@ -87,7 +81,6 @@ import * as UsageLimitSources from "./usage/UsageLimitSources.ts";
 import * as UsageService from "./usage/UsageService.ts";
 import * as WorkspaceEntries from "./workspace/WorkspaceEntries.ts";
 import * as WorkspaceFileSystem from "./workspace/WorkspaceFileSystem.ts";
-import * as ProjectFaviconResolver from "./project/ProjectFaviconResolver.ts";
 import * as TraceDiagnostics from "./diagnostics/TraceDiagnostics.ts";
 import * as WorkspacePaths from "./workspace/WorkspacePaths.ts";
 import * as ServerSecretStore from "./auth/ServerSecretStore.ts";
@@ -99,12 +92,9 @@ import * as EventStore from "./orchestration-v2/EventStore.ts";
 import * as ProjectionMaintenance from "./orchestration-v2/ProjectionMaintenance.ts";
 import * as ProjectionStore from "./orchestration-v2/ProjectionStore.ts";
 import * as ThreadManagement from "./orchestration-v2/ThreadManagementService.ts";
-import * as ProjectStore from "./orchestration-v2/ProjectStore.ts";
 import * as OrchestrationEventStore from "./persistence/OrchestrationEventStore.ts";
 import * as SqlitePersistence from "./persistence/Sqlite.ts";
 import * as ExternalLauncher from "./process/externalLauncher.ts";
-import * as ProjectEnrichment from "./project/ProjectEnrichmentService.ts";
-import * as ProjectService from "./project/ProjectService.ts";
 import {
   layerWsRpc,
   subscribeOrchestrationV2Shell,
@@ -184,16 +174,7 @@ it.live.each(["thread", "shell"] as const)(
       const sql = yield* SqlClient.SqlClient;
       const now = "2026-01-05T00:00:00.000Z";
       const threadId = ThreadId.make("thread:replay");
-      const projectId = ProjectId.make("project:replay");
-      const project = {
-        id: projectId,
-        title: "Replay",
-        workspaceRoot: "/tmp/replay",
-        defaultModelSelection: null,
-        scripts: [],
-        createdAt: now,
-        updatedAt: now,
-      } satisfies OrchestrationProjectShell;
+      const projectId = "project:replay";
       const insert = (version: number, unknown = false) => sql<{ sequence: number }>`
         INSERT INTO orchestration_events (
           event_id, aggregate_kind, stream_id, stream_version, event_type,
@@ -205,7 +186,7 @@ it.live.each(["thread", "shell"] as const)(
           ${now}, 'server', ${JSON.stringify(
             scope === "thread"
               ? { providerSessionId: "session:replay", detachedAt: now }
-              : { projectId, updatedAt: now },
+              : { updatedAt: now },
           )}, '{}', 2
         ) RETURNING sequence
       `;
@@ -213,7 +194,7 @@ it.live.each(["thread", "shell"] as const)(
       yield* insert(1, true);
       const [after] = yield* insert(2);
       const [highWater] = yield* insert(3, true);
-      const updates = yield* PubSub.unbounded();
+      yield* PubSub.unbounded();
       let liveSequence = 0;
       const consume = <A extends { readonly kind: string; readonly sequence?: number }, E, R>(
         stream: Stream.Stream<A, E, R>,
@@ -267,15 +248,6 @@ it.live.each(["thread", "shell"] as const)(
               );
           },
         } as unknown as ThreadManagement.ThreadManagementService["Service"]),
-        Effect.provideService(ProjectStore.ProjectStoreV2, {
-          listShells: () => Effect.succeed([]),
-        } as unknown as ProjectStore.ProjectStoreV2["Service"]),
-        Effect.provideService(ProjectService.ProjectService, {
-          getShell: () => Effect.succeedSome(project),
-        } as unknown as ProjectService.ProjectService["Service"]),
-        Effect.provideService(ProjectEnrichment.ProjectEnrichmentService, {
-          subscribeChanges: PubSub.subscribe(updates),
-        } as ProjectEnrichment.ProjectEnrichmentService["Service"]),
       );
       assert.deepEqual(
         items.map((item) => item.kind),
@@ -368,7 +340,6 @@ it.effect("shell snapshots omit idle children and older settled threads only on 
     ) =>
       ({
         id: ThreadId.make(id),
-        projectId: "project",
         archivedAt: null,
         status: activityRunStatus ?? "completed",
         activityRunStatus,
@@ -408,23 +379,6 @@ it.effect("shell snapshots omit idle children and older settled threads only on 
               }),
             ),
         } as unknown as ThreadManagement.ThreadManagementService["Service"]),
-        Effect.provideService(ProjectStore.ProjectStoreV2, {
-          listShells: () => Effect.succeed([]),
-        } as unknown as ProjectStore.ProjectStoreV2["Service"]),
-        Effect.provideService(ProjectService.ProjectService, {
-          getShell: () => Effect.succeedNone,
-        } as unknown as ProjectService.ProjectService["Service"]),
-        Effect.provideServiceEffect(
-          ProjectEnrichment.ProjectEnrichmentService,
-          PubSub.unbounded().pipe(
-            Effect.map(
-              (changes) =>
-                ({
-                  subscribeChanges: PubSub.subscribe(changes),
-                }) as unknown as ProjectEnrichment.ProjectEnrichmentService["Service"],
-            ),
-          ),
-        ),
       );
 
     const recent = threads.slice(3, 28).map((thread) => thread.id);
@@ -444,9 +398,7 @@ it.effect("shell snapshots omit idle children and older settled threads only on 
       withoutOld?.threads.map((thread) => thread.id),
       ["parent", "live", ...recent],
     );
-    assert.deepEqual(withoutOld?.olderSettled?.counts, [
-      { projectId: ProjectId.make("project"), count: 1 },
-    ]);
+    assert.deepEqual(withoutOld?.olderSettled?.count, 1);
   }).pipe(Effect.scoped, Effect.provide(ReplayTestLayer)),
 );
 
@@ -458,12 +410,8 @@ const layerUnusedConfigRpcServices = Layer.mergeAll(
   Layer.mock(ServerSecretStore.ServerSecretStore)({}),
   Layer.mock(WorkspacePaths.WorkspacePaths)({}),
   Layer.mock(TraceDiagnostics.TraceDiagnostics)({}),
-  Layer.mock(ProjectFaviconResolver.ProjectFaviconResolver)({}),
-  Layer.mock(ProjectEnrichment.ProjectEnrichmentService)({}),
   Layer.mock(AcpRegistryRuntimeCoordinator.AcpRegistryRuntimeCoordinator)({}),
   Layer.mock(AcpRegistrySupport.AcpRegistryCatalog)({}),
-  Layer.mock(AgentSessionImporter.AgentSessionImporter)({}),
-  Layer.mock(AgentSessionScanner.AgentSessionScanner)({}),
   Layer.mock(AnalyticsService.AnalyticsService)({}),
   Layer.mock(AntigravityInstallation.AntigravityInstallation)({ managedDirectory: "/unused" }),
   Layer.mock(BackgroundPolicy.BackgroundPolicy)({}),
@@ -483,8 +431,6 @@ const layerUnusedConfigRpcServices = Layer.mergeAll(
   Layer.mock(PreviewManager.PreviewManager)({}),
   Layer.mock(ProcessDiagnostics.ProcessDiagnostics)({}),
   Layer.mock(ProcessResourceMonitor.ProcessResourceMonitor)({}),
-  Layer.mock(ProjectService.ProjectService)({}),
-  Layer.mock(ProjectStore.ProjectStoreV2)({}),
   Layer.mock(ProviderAuthService.ProviderAuthService)({}),
   Layer.mock(ProviderInstanceRegistry.ProviderInstanceRegistry)({}),
   Layer.mock(ProviderLatestVersions.ProviderLatestVersions)({}),
@@ -562,11 +508,6 @@ it.effect(
           resolveTargets: () => Effect.succeed([]),
         }),
         Layer.mock(DirectEndpoints.DirectEndpoints)({ resolve: () => Effect.succeed([]) }),
-        Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({
-          scratchRoot: Effect.succeedNone,
-          namedProjectsRoot: process.cwd(),
-        }),
-        Layer.mock(ScratchThreadPromotion.ScratchThreadPromotion)({}),
         Layer.mock(ServerEnvironment.ServerEnvironment)({
           getDescriptor: Effect.succeed({
             environmentId: EnvironmentId.make("config-test"),
@@ -737,11 +678,6 @@ it.effect("on-demand clients get provider config without workspace snapshots", (
         resolveTargets: () => Effect.succeed([]),
       }),
       Layer.mock(DirectEndpoints.DirectEndpoints)({ resolve: () => Effect.succeed([]) }),
-      Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({
-        scratchRoot: Effect.succeedNone,
-        namedProjectsRoot: process.cwd(),
-      }),
-      Layer.mock(ScratchThreadPromotion.ScratchThreadPromotion)({}),
       Layer.mock(ServerEnvironment.ServerEnvironment)({
         getDescriptor: Effect.succeed({
           environmentId: EnvironmentId.make("config-test"),

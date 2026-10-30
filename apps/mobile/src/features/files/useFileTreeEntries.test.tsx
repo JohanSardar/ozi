@@ -1,8 +1,8 @@
 import {
   EnvironmentId,
-  ProjectListEntriesError,
-  type ProjectEntry,
-  type ProjectListEntriesResult,
+  WorkspaceListEntriesError,
+  type WorkspaceEntry,
+  type WorkspaceListEntriesResult,
 } from "@t3tools/contracts";
 import * as Cause from "effect/Cause";
 import * as Option from "effect/Option";
@@ -22,20 +22,20 @@ type Query = {
 type Result =
   | {
       readonly _tag: "Success";
-      readonly value: ProjectListEntriesResult;
+      readonly value: WorkspaceListEntriesResult;
       readonly timestamp: number;
     }
   | { readonly _tag: "Failure"; readonly cause: Cause.Cause<Error> };
 type QueryState = {
-  success: AsyncResult.Success<ProjectListEntriesResult, Error> | null;
-  data: ProjectListEntriesResult;
+  success: AsyncResult.Success<WorkspaceListEntriesResult, Error> | null;
+  data: WorkspaceListEntriesResult;
   error: string | null;
-  failure: ProjectListEntriesError | null;
+  failure: WorkspaceListEntriesError | null;
   isPending: boolean;
   refresh: () => void;
 };
 
-const rootEntries: ProjectEntry[] = [{ kind: "directory", path: "src" }];
+const rootEntries: WorkspaceEntry[] = [{ kind: "directory", path: "src" }];
 const firstTarget = { cwd: "/first", environmentId: EnvironmentId.make("first") };
 
 const mocks = vi.hoisted(() => {
@@ -52,10 +52,10 @@ const mocks = vi.hoisted(() => {
     results: new WeakMap<
       object,
       {
-        data: ProjectListEntriesResult;
+        data: WorkspaceListEntriesResult;
         error: string | null;
         pending: boolean;
-        result: AsyncResult.AsyncResult<ProjectListEntriesResult, Error>;
+        result: AsyncResult.AsyncResult<WorkspaceListEntriesResult, Error>;
       }
     >(),
   });
@@ -70,7 +70,7 @@ vi.mock("@t3tools/client-runtime/state/runtime", () => ({
 }));
 vi.mock("../../state/atom-registry", () => ({ appAtomRegistry: { refresh: () => {} } }));
 vi.mock("../../state/projects", () => ({
-  projectEnvironment: {
+  workspaceEnvironment: {
     listEntries: (query: Query) => query,
     searchEntries: (query: Query) => query,
   },
@@ -277,7 +277,7 @@ function setup(withBrowser = false) {
         void current.loadDirectory(path, refresh);
       });
     },
-    async succeed(index: number, entries: ProjectEntry[] = []) {
+    async succeed(index: number, entries: WorkspaceEntry[] = []) {
       renders = 0;
       await act(async () => {
         requests[index]!.resolve({
@@ -498,7 +498,7 @@ describe("file tree workspace state", () => {
         ],
         truncated: false,
       };
-      screen.rootQuery.failure = new ProjectListEntriesError({
+      screen.rootQuery.failure = new WorkspaceListEntriesError({
         cwd: "/first",
         failure: "workspace_root_not_found",
       });
@@ -531,7 +531,7 @@ describe("file tree workspace state", () => {
       expect(screen.current.selectedPath).toBe("src/old.ts");
       expect(screen.current.entries.map((entry) => entry.path)).toEqual(["src", "src/old.ts"]);
       if (scenario === "missing root") {
-        screen.rootQuery.failure = new ProjectListEntriesError({
+        screen.rootQuery.failure = new WorkspaceListEntriesError({
           cwd: "/first",
           failure: "workspace_root_not_found",
         });

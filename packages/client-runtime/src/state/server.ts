@@ -1427,7 +1427,7 @@ export function createServerEnvironmentAtoms<R, E>(
       concurrency: {
         mode: "singleFlight",
         key: ({ environmentId, input }) =>
-          `${environmentId}:${input.instanceId}:${input.projectId}:${input.cursor ?? "first"}`,
+          `${environmentId}:${input.instanceId}:${input.cursor ?? "first"}`,
       },
     }),
     importAcpRegistrySession: createEnvironmentRpcCommand(runtime, {
@@ -1436,7 +1436,7 @@ export function createServerEnvironmentAtoms<R, E>(
       concurrency: {
         mode: "singleFlight",
         key: ({ environmentId, input }) =>
-          `${environmentId}:${input.instanceId}:${input.projectId}:${input.sessionId}`,
+          `${environmentId}:${input.instanceId}:${input.sessionId}`,
       },
     }),
     deleteAcpRegistrySession: createEnvironmentRpcCommand(runtime, {
@@ -1445,7 +1445,7 @@ export function createServerEnvironmentAtoms<R, E>(
       concurrency: {
         mode: "singleFlight",
         key: ({ environmentId, input }) =>
-          `${environmentId}:${input.instanceId}:${input.projectId}:${input.sessionId}`,
+          `${environmentId}:${input.instanceId}:${input.sessionId}`,
       },
     }),
     listAcpRegistryProviders: createEnvironmentRpcCommand(runtime, {
@@ -1453,8 +1453,7 @@ export function createServerEnvironmentAtoms<R, E>(
       tag: WS_METHODS.serverListAcpRegistryProviders,
       concurrency: {
         mode: "singleFlight",
-        key: ({ environmentId, input }) =>
-          `${environmentId}:${input.instanceId}:${input.projectId}`,
+        key: ({ environmentId, input }) => `${environmentId}:${input.instanceId}`,
       },
     }),
     setAcpRegistryProvider: createEnvironmentRpcCommand(runtime, {
@@ -1463,7 +1462,7 @@ export function createServerEnvironmentAtoms<R, E>(
       concurrency: {
         mode: "singleFlight",
         key: ({ environmentId, input }) =>
-          `${environmentId}:${input.instanceId}:${input.projectId}:${input.providerId}`,
+          `${environmentId}:${input.instanceId}:${input.providerId}`,
       },
     }),
     disableAcpRegistryProvider: createEnvironmentRpcCommand(runtime, {
@@ -1472,7 +1471,7 @@ export function createServerEnvironmentAtoms<R, E>(
       concurrency: {
         mode: "singleFlight",
         key: ({ environmentId, input }) =>
-          `${environmentId}:${input.instanceId}:${input.projectId}:${input.providerId}`,
+          `${environmentId}:${input.instanceId}:${input.providerId}`,
       },
     }),
     logoutAcpRegistry: createEnvironmentRpcCommand(runtime, {

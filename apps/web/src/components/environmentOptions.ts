@@ -1,7 +1,6 @@
-import type { EnvironmentId, EnvironmentMachineKind, ProjectId } from "@t3tools/contracts";
+import type { EnvironmentId, EnvironmentMachineKind } from "@t3tools/contracts";
 export interface EnvironmentOption {
   environmentId: EnvironmentId;
-  projectId: ProjectId | null;
   label: string;
   isPrimary: boolean;
   machine: EnvironmentMachineKind;

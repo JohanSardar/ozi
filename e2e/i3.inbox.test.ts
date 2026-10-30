@@ -91,13 +91,6 @@ describe("i3.inbox", () => {
       `${origin.replace("http:", "ws:")}/ws?orchestrationProtocol=2&wsTicket=${issued.ticket}`,
     );
     await NodeEvents.once(ws, "open");
-    await rpc("projects.mutate", {
-      type: "project.create",
-      commandId: crypto.randomUUID(),
-      projectId: "project-i3",
-      title: "Inbox",
-      workspaceRoot: home,
-    });
     for (const [threadId, title] of [
       ["dinner-i3", "Friday dinner"],
       ["gym-i3", "Cancel gym"],
@@ -108,7 +101,6 @@ describe("i3.inbox", () => {
         creationSource: "web",
         commandId: crypto.randomUUID(),
         threadId,
-        projectId: "project-i3",
         title,
         modelSelection: { instanceId: "codex", model: "gpt-5.4" },
         runtimeMode: "full-access",
@@ -134,7 +126,7 @@ describe("i3.inbox", () => {
       process.kill(-dev.pid, "SIGTERM");
       await exited;
     }
-    await NodeFSP.rm(home, { recursive: true, force: true });
+    await NodeFSP.rm(home, { recursive: true, force: true, maxRetries: 5 });
   });
 
   const text = async (locator: Playwright.Locator) =>

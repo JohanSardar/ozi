@@ -14,7 +14,7 @@ export function androidActivityData(aggregate: RelayAgentActivityAggregateState 
   const failed = rows.some((row) => row.phase === "failed");
   const clean = (value: string) => value.replace(/\s+/g, " ").trim();
   const lines = rows.map((row) =>
-    [row.status, clean(row.threadTitle), clean(row.projectTitle)].join("\t"),
+    [row.status, clean(row.threadTitle), clean(row.modelTitle)].join("\t"),
   );
   const hero = rows[0];
   const title =
@@ -39,7 +39,7 @@ export function androidActivityData(aggregate: RelayAgentActivityAggregateState 
     activity_active_count: String(activeCount),
     activity_attention_count: String(attentionCount),
     activity_body: hero
-      ? `${hero.status}: ${clean(hero.threadTitle)} · ${clean(hero.projectTitle)}`
+      ? `${hero.status}: ${clean(hero.threadTitle)} · ${clean(hero.modelTitle)}`
       : "",
     ...Object.fromEntries(lines.map((line, index) => [`activity_line_${index}`, line])),
     activity_path: rows[0]?.deepLink ?? "/",

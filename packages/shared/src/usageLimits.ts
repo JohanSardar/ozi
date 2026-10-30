@@ -2,8 +2,7 @@ import {
   type EnvironmentId,
   type ModelSelection,
   type ServerSettings,
-  type ProjectId,
-  resolveProjectProviderInstanceEnabled,
+  isConfiguredProviderInstanceEnabled,
   type UsageLimitsReport,
   type ProviderInstanceId,
   type ProviderConsumeResetCreditInput,
@@ -68,7 +67,6 @@ export function resolveNewThreadModelSelection(input: {
   readonly providers: readonly ServerProvider[];
   readonly now: number;
   readonly settings?: ServerSettings;
-  readonly projectId?: ProjectId | null;
 }) {
   const selection = input.explicitSelection ?? input.defaultSelection;
   const unchanged = { selection, fallback: null };
@@ -86,12 +84,7 @@ export function resolveNewThreadModelSelection(input: {
     fallback.auth.status === "unauthenticated" ||
     !isProviderAvailable(fallback) ||
     exhaustedUsageWindow(fallback, input.now, input.fallbackSelection.model) ||
-    (input.settings &&
-      !resolveProjectProviderInstanceEnabled(
-        input.settings,
-        input.projectId ?? null,
-        fallback.instanceId,
-      ))
+    (input.settings && !isConfiguredProviderInstanceEnabled(input.settings, fallback.instanceId))
   )
     return unchanged;
   return {

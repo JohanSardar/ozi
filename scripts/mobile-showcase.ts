@@ -25,7 +25,6 @@ import showcaseConfig, {
 } from "./mobile-showcase.config.ts";
 import {
   SHOWCASE_ENVIRONMENTS,
-  SHOWCASE_PROJECTS,
   SHOWCASE_THREADS,
   seedShowcaseEnvironment,
 } from "./mobile-showcase-environment.ts";
@@ -654,12 +653,8 @@ export async function startShowcaseEnvironments(
 ): Promise<ShowcaseEnvironment[]> {
   const started: ShowcaseEnvironment[] = [];
   for (const environment of environments) {
-    const projectId = environment.projectIds[0];
-    const project = SHOWCASE_PROJECTS.find((candidate) => candidate.id === projectId);
-    if (!project) throw new Error(`Showcase environment '${environment.id}' has no project.`);
-
     const baseDir = NodePath.join(rootDir, "environments", environment.id);
-    const workspaceRoot = NodePath.join(baseDir, "workspace", project.directory);
+    const workspaceRoot = NodePath.join(baseDir, "workspace");
     const port = await reserveAvailablePort();
     await NodeFSP.mkdir(workspaceRoot, { recursive: true });
     const shellPath = await createShowcaseShell(baseDir);
@@ -673,8 +668,7 @@ export async function startShowcaseEnvironments(
     );
     track(server);
     await waitForPort(port, `${environment.label} server`);
-    await seedShowcaseEnvironment({ baseDir, projectIds: environment.projectIds });
-    // Legacy fixture threads are imported into V2 during server startup.
+    await seedShowcaseEnvironment({ baseDir, environmentIds: [environment.id] });
     await stopProcess(server);
     const seededServer = startShowcaseServer(
       baseDir,
@@ -1103,9 +1097,8 @@ async function unlockIosSimulator(udid: string): Promise<void> {
 
 function showcaseAgentAlert(): { readonly title: string; readonly body: string } {
   const thread = SHOWCASE_THREADS.find((candidate) => candidate.id === "pocket-command-center");
-  const project = SHOWCASE_PROJECTS.find((candidate) => candidate.id === thread?.projectId);
-  if (!thread || !project) throw new Error("The showcase fixture lost its agent-activity thread.");
-  return { title: thread.title, body: `Approval: ${project.title}` };
+  if (!thread) throw new Error("The showcase fixture lost its agent-activity chat.");
+  return { title: thread.title, body: "Approval required" };
 }
 
 async function captureIos(
@@ -1213,7 +1206,7 @@ async function captureIos(
       await waitForScene();
     }
     if (scene === "agent-activity") await presentIosLockScreen(simulator.udid);
-    await delay(scene === "review" ? Math.max(config.settleDelayMs, 8_000) : config.settleDelayMs);
+    await delay(config.settleDelayMs);
     const destination = NodePath.join(
       showcaseCaptureDirectory(outputDirectory, capture),
       `${scene}.png`,
@@ -1477,7 +1470,7 @@ async function captureAndroid(
       await snoozeAndroidSystemNotifications(serial);
       await runAdb(serial, ["shell", "cmd", "statusbar", "expand-notifications"]);
     }
-    await delay(Math.max(config.settleDelayMs, scene === "review" ? 8_000 : 5_000));
+    await delay(Math.max(config.settleDelayMs, 5_000));
     const destination = NodePath.join(
       showcaseCaptureDirectory(outputDirectory, capture),
       `${scene}.png`,

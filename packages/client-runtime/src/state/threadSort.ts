@@ -1,5 +1,4 @@
-import type { ProjectId } from "@t3tools/contracts";
-import type { SidebarProjectSortOrder, SidebarThreadSortOrder } from "@t3tools/contracts/settings";
+import type { SidebarThreadSortOrder } from "@t3tools/contracts/settings";
 import type { EnvironmentThreadShell } from "./models.ts";
 
 export interface ThreadSortInput {
@@ -103,7 +102,7 @@ function getLatestUserMessageTimestamp(thread: ThreadSortInput): number {
 
 export function getThreadSortTimestamp(
   thread: ThreadSortInput,
-  sortOrder: SidebarThreadSortOrder | Exclude<SidebarProjectSortOrder, "manual">,
+  sortOrder: SidebarThreadSortOrder,
 ): number {
   if (sortOrder === "created_at") {
     return (
@@ -136,30 +135,6 @@ export function sortThreads<T extends { readonly id: string } & ThreadSortInput>
         (left.thread.id < right.thread.id ? 1 : left.thread.id > right.thread.id ? -1 : 0),
     )
     .map(({ thread }) => thread);
-}
-
-export function getLatestThreadForProject<
-  T extends {
-    readonly id: string;
-    readonly projectId: ProjectId;
-    readonly archivedAt: string | null;
-  } & ThreadSortInput,
->(threads: readonly T[], projectId: ProjectId, sortOrder: SidebarThreadSortOrder): T | null {
-  let latest: T | null = null;
-  let latestTimestamp = Number.NEGATIVE_INFINITY;
-  for (const thread of threads) {
-    if (thread.projectId !== projectId || thread.archivedAt !== null) continue;
-    const timestamp = getThreadSortTimestamp(thread, sortOrder);
-    if (
-      latest === null ||
-      timestamp > latestTimestamp ||
-      (timestamp === latestTimestamp && thread.id > latest.id)
-    ) {
-      latest = thread;
-      latestTimestamp = timestamp;
-    }
-  }
-  return latest;
 }
 
 const PIN_ORDER_DIGITS = "abcdefghijklmnopqrstuvwxyz";

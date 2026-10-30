@@ -10,10 +10,10 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import { Argument, Command, Flag } from "effect/cli";
 
-import { projectLocationFlags } from "./config.ts";
+import { serverLocationFlags } from "./config.ts";
 import { ThreadUsageError, withThreadTools } from "./thread.ts";
 
-const flags = { ...projectLocationFlags, json: Flag.Boolean("json").pipe(Flag.withDefault(false)) };
+const flags = { ...serverLocationFlags, json: Flag.Boolean("json").pipe(Flag.withDefault(false)) };
 const optional = (name: string) => Flag.String(name).pipe(Flag.optional);
 const duration = (value: string) => {
   const match = /^(\d+(?:\.\d+)?)(ms|s|m|h|d|w)$/.exec(value);

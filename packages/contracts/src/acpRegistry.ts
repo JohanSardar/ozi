@@ -1,7 +1,7 @@
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 
-import { ProjectId, ThreadId, TrimmedNonEmptyString, TrimmedString } from "./baseSchemas.ts";
+import { ThreadId, TrimmedNonEmptyString, TrimmedString } from "./baseSchemas.ts";
 import { ProviderOptionDescriptor } from "./model.ts";
 import { ProviderInstanceId } from "./providerInstance.ts";
 
@@ -154,7 +154,6 @@ export type AcpRegistrySession = typeof AcpRegistrySession.Type;
 
 export const AcpRegistryListSessionsInput = Schema.Struct({
   instanceId: ProviderInstanceId,
-  projectId: ProjectId,
   cursor: Schema.optionalKey(Schema.String.check(Schema.isMaxLength(2_048))),
 });
 export type AcpRegistryListSessionsInput = typeof AcpRegistryListSessionsInput.Type;
@@ -169,8 +168,8 @@ export const AcpRegistryListSessionsResult = Schema.Struct({
 export type AcpRegistryListSessionsResult = typeof AcpRegistryListSessionsResult.Type;
 
 export const AcpRegistryImportSessionInput = Schema.Struct({
+  cwd: AcpRegistrySessionPath,
   instanceId: ProviderInstanceId,
-  projectId: ProjectId,
   sessionId: AcpRegistrySessionId,
   title: Schema.optionalKey(Schema.NullOr(TrimmedNonEmptyString.check(Schema.isMaxLength(1_024)))),
   updatedAt: Schema.optionalKey(
@@ -187,7 +186,6 @@ export type AcpRegistryImportSessionResult = typeof AcpRegistryImportSessionResu
 
 export const AcpRegistryDeleteSessionInput = Schema.Struct({
   instanceId: ProviderInstanceId,
-  projectId: ProjectId,
   sessionId: AcpRegistrySessionId,
 });
 export type AcpRegistryDeleteSessionInput = typeof AcpRegistryDeleteSessionInput.Type;
@@ -213,7 +211,6 @@ export type AcpRegistryConfigurableProvider = typeof AcpRegistryConfigurableProv
 
 export const AcpRegistryListProvidersInput = Schema.Struct({
   instanceId: ProviderInstanceId,
-  projectId: ProjectId,
 });
 export type AcpRegistryListProvidersInput = typeof AcpRegistryListProvidersInput.Type;
 
@@ -224,7 +221,6 @@ export type AcpRegistryListProvidersResult = typeof AcpRegistryListProvidersResu
 
 export const AcpRegistrySetProviderInput = Schema.Struct({
   instanceId: ProviderInstanceId,
-  projectId: ProjectId,
   providerId: AcpRegistryProviderId,
   apiType: AcpRegistryProviderProtocol,
   baseUrl: AcpRegistryUrl,
@@ -243,7 +239,6 @@ export type AcpRegistrySetProviderResult = typeof AcpRegistrySetProviderResult.T
 
 export const AcpRegistryDisableProviderInput = Schema.Struct({
   instanceId: ProviderInstanceId,
-  projectId: ProjectId,
   providerId: AcpRegistryProviderId,
 });
 export type AcpRegistryDisableProviderInput = typeof AcpRegistryDisableProviderInput.Type;

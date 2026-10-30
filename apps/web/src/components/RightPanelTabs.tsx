@@ -116,8 +116,8 @@ function shouldOpenDefaultBrowserProfileFromMenuClick(pointerType: string | unde
 
 const SURFACE_DISABLED_REASONS = {
   browser: "Browser previews are only available in the Ozi desktop app.",
-  terminal: "Terminal surfaces are only available from a project thread.",
-  files: "Files are only available when a project is open.",
+  terminal: "Terminal surfaces are only available from a chat.",
+  files: "Files are only available when a chat is open.",
 } as const;
 
 // Closed keepMounted popups must stop blocking shortcuts once their exit transition ends.
@@ -136,8 +136,8 @@ const LAUNCHER_SHORTCUT_BLOCKING_LAYERS = [
 
 const SURFACE_UNAVAILABLE_HINTS = {
   browser: "Only available in the desktop app.",
-  terminal: "Available when a project is open.",
-  files: "Available when a project is open.",
+  terminal: "Available when a chat is open.",
+  files: "Available when a chat is open.",
 } as const;
 
 type TabContextMenuAction =

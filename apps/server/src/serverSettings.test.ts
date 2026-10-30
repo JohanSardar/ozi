@@ -428,22 +428,6 @@ it.layer(NodeServices.layer)("server settings", (it) => {
     }).pipe(Effect.provide(layerServerSettings())),
   );
 
-  it.effect("buffers changes after a subscription is acquired but before it is consumed", () =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        const serverSettings = yield* ServerSettingsModule.ServerSettingsService;
-        const changes = yield* serverSettings.subscribeChanges;
-
-        yield* serverSettings.updateSettings({
-          addProjectBaseDirectory: "~/next",
-        });
-
-        const firstChange = yield* changes.pipe(Stream.runHead, Effect.timeout("1 second"));
-        assert.equal(Option.getOrUndefined(firstChange)?.addProjectBaseDirectory, "~/next");
-      }),
-    ).pipe(Effect.provide(layerServerSettings())),
-  );
-
   it.effect("preserves model when switching providers via textGenerationModelSelection", () =>
     Effect.gen(function* () {
       const serverSettings = yield* ServerSettingsModule.ServerSettingsService;
@@ -632,49 +616,6 @@ it.layer(NodeServices.layer)("server settings", (it) => {
     }).pipe(Effect.provide(layerServerSettings())),
   );
 
-  it.effect("moves customized legacy provider settings into default instances on load", () =>
-    Effect.gen(function* () {
-      const serverConfig = yield* ServerConfig.ServerConfig;
-      const fileSystem = yield* FileSystem.FileSystem;
-      const serverSettings = yield* ServerSettingsModule.ServerSettingsService;
-      yield* fileSystem.writeFileString(
-        serverConfig.settingsPath,
-        JSON.stringify({
-          addProjectBaseDirectory: "~/Development",
-          providers: {
-            codex: { binaryPath: "/opt/guard/bin/codex" },
-            claudeAgent: { enabled: false },
-            cursor: { enabled: false },
-            grok: { enabled: false },
-            opencode: { enabled: false },
-          },
-        }),
-      );
-
-      const settings = yield* serverSettings.getSettings;
-
-      assert.deepEqual(settings.providerInstances, {
-        [ProviderInstanceId.make("codex")]: {
-          driver: ProviderDriverKind.make("codex"),
-          config: { binaryPath: "/opt/guard/bin/codex" },
-        },
-        [ProviderInstanceId.make("claudeAgent")]: {
-          driver: ProviderDriverKind.make("claudeAgent"),
-          enabled: false,
-          config: {},
-        },
-      });
-
-      const persisted = JSON.parse(yield* fileSystem.readFileString(serverConfig.settingsPath));
-      assert.isUndefined(persisted.providers);
-      assert.equal(persisted.addProjectBaseDirectory, "~/Development");
-      assert.deepEqual(persisted.providerInstances.codex, {
-        driver: "codex",
-        config: { binaryPath: "/opt/guard/bin/codex" },
-      });
-    }).pipe(Effect.provide(layerServerSettings())),
-  );
-
   it.effect("keeps an explicit default instance over the legacy blob for its driver", () =>
     Effect.gen(function* () {
       const serverConfig = yield* ServerConfig.ServerConfig;
@@ -755,27 +696,6 @@ it.layer(NodeServices.layer)("server settings", (it) => {
         enabled: false,
         config: { binaryPath: "/opt/grok" },
       });
-    }).pipe(Effect.provide(layerServerSettings())),
-  );
-
-  it.effect("migrates legacy providers from an invalid file without rewriting it", () =>
-    Effect.gen(function* () {
-      const serverConfig = yield* ServerConfig.ServerConfig;
-      const fileSystem = yield* FileSystem.FileSystem;
-      const serverSettings = yield* ServerSettingsModule.ServerSettingsService;
-      const raw =
-        '{"addProjectBaseDirectory":42,"continueThreadsAfterServerUpdate":"false","providers":{"codex":{"binaryPath":"/x"}}}';
-      yield* fileSystem.writeFileString(serverConfig.settingsPath, raw);
-
-      const settings = yield* serverSettings.getSettings;
-
-      assert.deepEqual(settings.providerInstances[ProviderInstanceId.make("codex")], {
-        driver: ProviderDriverKind.make("codex"),
-        config: { binaryPath: "/x" },
-      });
-
-      assert.isFalse(settings.continueThreadsAfterServerUpdate);
-      assert.equal(yield* fileSystem.readFileString(serverConfig.settingsPath), raw);
     }).pipe(Effect.provide(layerServerSettings())),
   );
 

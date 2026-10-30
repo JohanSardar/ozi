@@ -5,7 +5,6 @@ import { expect, it } from "@effect/vitest";
 import {
   MessageId,
   NodeId,
-  ProjectId,
   ProviderInstanceId,
   ProviderSessionId,
   RunAttemptId,
@@ -276,7 +275,6 @@ it.layer(layerTest)("CursorDriver", (it) => {
           rootNodeId: NodeId.make(`cursor-window-root-${ordinal}`),
           appThread: {
             id: threadId,
-            projectId: ProjectId.make("cursor-window-project"),
             createdBy: "user",
             creationSource: "web",
             title: "Cursor context window",

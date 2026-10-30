@@ -3,7 +3,6 @@ import {
   CommandId,
   EnvironmentId,
   MessageId,
-  ProjectId,
   ProviderInstanceId,
   ThreadId,
 } from "@t3tools/contracts";
@@ -689,7 +688,6 @@ describe("thread outbox recovery rollback", () => {
       ...queuedMessage({ messageId: "message-creation-restore", text: "new task text" }),
       modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.6-sol" },
       creation: {
-        projectId: ProjectId.make("project-1"),
         workspaceMode: "local",
         workingDirectory: null,
       },
@@ -706,11 +704,6 @@ describe("thread outbox recovery rollback", () => {
       text: message.text,
       attachments: message.attachments,
       modelSelection: message.modelSelection,
-      project: {
-        environmentId: message.environmentId,
-        projectId: message.creation!.projectId,
-        createdAt: message.createdAt,
-      },
     });
     expect(remainingMessages()).toEqual([]);
     expect(appAtomRegistry.get(threadComposerErrorsAtom)).toEqual({});

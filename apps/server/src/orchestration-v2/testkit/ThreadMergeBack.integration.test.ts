@@ -6,7 +6,6 @@ import {
   type ModelSelection,
   type OrchestrationV2Command,
   type OrchestrationV2ThreadProjection,
-  ProjectId,
   ProviderInstanceId,
   ProviderDriverKind,
   type ProviderReplayTranscript,
@@ -226,7 +225,6 @@ function normalizePipeSpacing(text: string): string {
 function makeCreateCommand(input: {
   readonly commandId: CommandId;
   readonly threadId: ThreadId;
-  readonly projectId: ProjectId;
   readonly modelSelection: ModelSelection;
 }): OrchestrationV2Command {
   return {
@@ -235,7 +233,6 @@ function makeCreateCommand(input: {
     creationSource: "web",
     commandId: input.commandId,
     threadId: input.threadId,
-    projectId: input.projectId,
     title: "Merge-back source",
     modelSelection: input.modelSelection,
     runtimeMode: "full-access",
@@ -253,10 +250,8 @@ describe("orchestration V2 merge-back provider replay", () => {
         const materialized = yield* Effect.gen(function* () {
           const ids = yield* IdAllocator.IdAllocatorV2;
           const fixtureName = `thread-merge-back-siblings-${variant.driver}`;
-          const projectId = yield* ids.allocate.project({ fixtureName });
           const sourceThreadId = yield* ids.allocate.thread({
             fixtureName: `${fixtureName}-source`,
-            projectId,
           });
           const firstForkThreadId = ThreadId.make(`${fixtureName}-first-fork`);
           const secondForkThreadId = ThreadId.make(`${fixtureName}-second-fork`);
@@ -268,7 +263,6 @@ describe("orchestration V2 merge-back provider replay", () => {
             makeCreateCommand({
               commandId: yield* commandId("create"),
               threadId: sourceThreadId,
-              projectId,
               modelSelection: variant.modelSelection,
             }),
             {

@@ -1,0 +1,160 @@
+import {
+  useActiveWorkspaceTarget,
+  type ActiveWorkspaceTarget,
+} from "../../hooks/useActiveWorkspaceTarget";
+import { useAtomValue } from "@effect/atom-react";
+import { useState, type ReactNode } from "react";
+import { useTheme } from "~/hooks/useTheme";
+import { useRightPanelStore } from "~/rightPanelStore";
+import { primaryServerKeybindingsAtom } from "~/state/server";
+
+import { PierreEntryIcon } from "../chat/PierreEntryIcon";
+import { CommandPaletteContent } from "../CommandPaletteContent";
+import { type CommandPaletteActionItem } from "../CommandPalette.logic";
+import { CommandPaletteResults } from "../CommandPaletteResults";
+import {
+  getWorkspaceFilePickerMatches,
+  PROJECT_FILE_PICKER_RESULT_LIMIT,
+} from "./WorkspaceFilePicker.logic";
+import { useWorkspaceFilePickerQuery } from "./workspaceFilesQueryState";
+
+interface WorkspaceFilePickerProps {
+  readonly setOpen: (open: boolean) => void;
+}
+
+function HighlightedFuzzyText(props: {
+  readonly active: boolean;
+  readonly indices: ReadonlyArray<number>;
+  readonly value: string;
+}) {
+  if (!props.active) return props.value;
+
+  const parts: ReactNode[] = [];
+  let start = 0;
+  for (const index of props.indices) {
+    if (start < index) parts.push(props.value.slice(start, index));
+    parts.push(
+      <strong className="font-semibold text-foreground" key={index}>
+        {props.value[index]}
+      </strong>,
+    );
+    start = index + 1;
+  }
+  if (start < props.value.length) parts.push(props.value.slice(start));
+
+  return <span className="text-muted-foreground">{parts}</span>;
+}
+
+function getEmptyStateMessage(query: string, error: string | null, isPending: boolean): string {
+  if (error) return error;
+  const isSearching = query.trim().length > 0;
+  if (isPending) return isSearching ? "Searching workspace files…" : "Indexing workspace files…";
+  return isSearching ? "No matching files." : "No files found.";
+}
+
+function EmptyWorkspaceFilePicker() {
+  return (
+    <CommandPaletteContent
+      aria-label="File picker"
+      escapeLabel="Back"
+      footerActionLabel="Open file"
+      inputProps={{ disabled: true, placeholder: "Search files…" }}
+      mode="none"
+      testId="project-file-picker"
+      value=""
+    >
+      <div className="py-10 text-center text-sm text-muted-foreground">
+        Select an environment to search files.
+      </div>
+    </CommandPaletteContent>
+  );
+}
+
+function OpenWorkspaceFilePicker(
+  props: WorkspaceFilePickerProps & { target: ActiveWorkspaceTarget },
+) {
+  const { target } = props;
+  const [query, setQuery] = useState("");
+  const [highlightedItemValue, setHighlightedItemValue] = useState<string | null>(null);
+  const result = useWorkspaceFilePickerQuery(
+    target.environmentId,
+    target.cwd,
+    query,
+    PROJECT_FILE_PICKER_RESULT_LIMIT,
+  );
+  const { resolvedTheme } = useTheme();
+  const keybindings = useAtomValue(primaryServerKeybindingsAtom);
+  const matches = getWorkspaceFilePickerMatches(result.entries, result.matchedQuery);
+  const hasMatchedQuery = /\S/.test(result.matchedQuery);
+  const items: CommandPaletteActionItem[] = matches.map((match) => ({
+    kind: "action",
+    value: `file:${match.path}`,
+    searchTerms: [match.name, match.path],
+    title: (
+      <HighlightedFuzzyText
+        active={hasMatchedQuery}
+        value={match.name}
+        indices={match.nameMatchIndices}
+      />
+    ),
+    description: (
+      <HighlightedFuzzyText
+        active={hasMatchedQuery}
+        value={match.path}
+        indices={match.pathMatchIndices}
+      />
+    ),
+    icon: <PierreEntryIcon pathValue={match.path} kind="file" theme={resolvedTheme} />,
+    run: async () => {
+      useRightPanelStore.getState().openFile(target.threadRef, match.path);
+    },
+  }));
+
+  const emptyStateMessage = getEmptyStateMessage(query, result.error, result.isPending);
+
+  return (
+    <CommandPaletteContent
+      aria-label="File picker"
+      autoHighlight="always"
+      escapeLabel="Back"
+      footerActionLabel="Open file"
+      inputProps={{ placeholder: "Search files…" }}
+      mode="none"
+      onItemHighlighted={(value) => {
+        setHighlightedItemValue(typeof value === "string" ? value : null);
+      }}
+      onValueChange={(value) => {
+        setHighlightedItemValue(null);
+        setQuery(value);
+      }}
+      panelSize="tall-list"
+      testId="project-file-picker"
+      value={query}
+    >
+      <CommandPaletteResults
+        groups={
+          items.length > 0 ? [{ value: "project-files", label: target.workspaceName, items }] : []
+        }
+        highlightedItemValue={highlightedItemValue}
+        isActionsOnly={false}
+        keybindings={keybindings}
+        onExecuteItem={(item) => {
+          if (item.kind !== "action") return;
+          props.setOpen(false);
+          void item.run();
+        }}
+        emptyStateMessage={emptyStateMessage}
+      />
+    </CommandPaletteContent>
+  );
+}
+
+export function WorkspaceFilePicker(props: WorkspaceFilePickerProps) {
+  const target = useActiveWorkspaceTarget();
+
+  if (!target) {
+    return <EmptyWorkspaceFilePicker />;
+  }
+
+  return <OpenWorkspaceFilePicker setOpen={props.setOpen} target={target} />;
+}

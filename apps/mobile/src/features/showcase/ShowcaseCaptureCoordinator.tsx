@@ -19,7 +19,6 @@ import {
 import { rootNavigationRef } from "../../lib/rootNavigation";
 import { appAtomRegistry } from "../../state/atom-registry";
 import { mobilePreferencesAtom, updateMobilePreferencesAtom } from "../../state/preferences";
-import { environmentProjects } from "../../state/projects";
 import { enqueueThreadOutboxMessage } from "../../state/thread-outbox";
 import { environmentThreadShells } from "../../state/threads";
 import { holdEditingQueuedMessage } from "../../state/use-thread-outbox";
@@ -47,11 +46,6 @@ import {
   buildShowcasePendingTasks,
   SHOWCASE_PENDING_TASK_DEFINITIONS,
 } from "./showcasePendingTasks";
-import {
-  clearShowcaseRenderSignal,
-  getShowcaseRenderSnapshot,
-  subscribeToShowcaseRenderSignal,
-} from "./showcaseRenderSignal";
 import { retryShowcaseOperation } from "./showcaseRetry";
 import { stageShowcaseAgentActivity } from "./stageShowcaseAgentActivity";
 import { settingsNavigationState } from "../settings/settings-navigation";
@@ -105,8 +99,6 @@ function showcaseNavigationAction(
       return CommonActions.reset(settingsNavigationState(rootState, "SettingsEnvironments"));
     case "terminal":
       return CommonActions.navigate("ThreadTerminal", { ...params, terminalId: "term-1" });
-    case "review":
-      return CommonActions.navigate("ThreadReview", params);
     case "thread":
       return selectWorkspaceDetail({ name: "Thread", params });
   }
@@ -185,15 +177,13 @@ export function installShowcaseCapture(
     const scene = getNativeShowcaseScene();
     if (scene && scene !== requestedScene) {
       requestedScene = scene;
-      // Draws belong to their scene request; revisiting review must wait for its new surface.
-      clearShowcaseRenderSignal();
       agentActivity = cancelRun(agentActivity);
     }
   };
 
   const seedPendingTasks = () => {
     const pendingTaskList = buildShowcasePendingTasks(
-      appAtomRegistry.get(environmentProjects.projectsAtom),
+      appAtomRegistry.get(workspaceConnections.environmentsAtom),
       Date.now(),
     );
     if (pendingTaskList.length !== SHOWCASE_PENDING_TASK_DEFINITIONS.length) return;
@@ -226,7 +216,6 @@ export function installShowcaseCapture(
         const now = Date.now();
         const activity = buildShowcaseAgentActivity(
           appAtomRegistry.get(environmentThreadShells.threadShellsAtom),
-          appAtomRegistry.get(environmentProjects.projectsAtom),
           now,
         );
         const outcome =
@@ -291,14 +280,11 @@ export function installShowcaseCapture(
       appAtomRegistry.set(updateMobilePreferencesAtom, createMobileThemePairPatch(requestedTheme));
     }
     const themeId = themeIds[resolveThemeAppearance(storedPreferences)];
-
-    const projects = appAtomRegistry.get(environmentProjects.projectsAtom);
     const threads = appAtomRegistry.get(environmentThreadShells.threadShellsAtom);
     const showcaseThread = threads.find((thread) => String(thread.id) === SHOWCASE_THREAD_ID);
     const hasServerFixture =
       appAtomRegistry.get(workspaceConnections.stateAtom).hasReadyEnvironment &&
       appAtomRegistry.get(workspaceConnections.environmentsAtom).length >= 3 &&
-      projects.length >= 3 &&
       showcaseThread !== undefined;
     if (hasServerFixture && pendingTasks === null) seedPendingTasks();
     const hasFixture = hasServerFixture && pendingTasks?.done === true;
@@ -333,7 +319,6 @@ export function installShowcaseCapture(
       agentActivity = cancelRun(agentActivity);
     }
 
-    const render = getShowcaseRenderSnapshot();
     updateReadiness(
       showcaseReadinessKey({
         scene,
@@ -343,8 +328,6 @@ export function installShowcaseCapture(
         themeApplied,
         agentActivityStaged: agentActivity?.done === true,
         themeId,
-        renderSignal: render.signal,
-        renderReports: render.reports,
       }),
       scene,
     );
@@ -373,11 +356,9 @@ export function installShowcaseCapture(
 
   const unsubscribers = [
     appAtomRegistry.subscribe(mobilePreferencesAtom, evaluate),
-    appAtomRegistry.subscribe(environmentProjects.projectsAtom, evaluate),
     appAtomRegistry.subscribe(environmentThreadShells.threadShellsAtom, evaluate),
     appAtomRegistry.subscribe(workspaceConnections.stateAtom, evaluate),
     appAtomRegistry.subscribe(workspaceConnections.environmentsAtom, evaluate),
-    subscribeToShowcaseRenderSignal(evaluate),
     rootNavigationRef.addListener("state", evaluate),
   ];
   const appearanceSubscription = Appearance.addChangeListener(evaluate);

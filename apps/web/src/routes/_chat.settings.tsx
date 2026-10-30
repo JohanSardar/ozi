@@ -73,19 +73,14 @@ function SettingsScopeBoundary({ pathname, children }: { pathname: string; child
     searchTarget &&
     !isSettingsSearchScopeAvailable(searchTarget.scope, scope.kind)
   ) {
-    const target =
-      searchTarget.scope === "environment" ||
-      searchTarget.scope === "project" ||
-      searchTarget.scope === "checkout"
-        ? searchTarget.scope
-        : "all";
+    const target = searchTarget.scope === "environment" ? searchTarget.scope : "all";
     return (
       <SettingsScopeNotice target={target} targetId={hash}>
         {`${searchTarget.title} is not available for the selected target. Choose its owning scope to continue.`}
       </SettingsScopeNotice>
     );
   }
-  if (SETTINGS_DEVICE_ONLY_PATHS.has(pathname) || pathname === "/settings/projects") {
+  if (SETTINGS_DEVICE_ONLY_PATHS.has(pathname)) {
     return children;
   }
   if (scope.kind === "unavailable")
@@ -156,9 +151,7 @@ function SettingsRouteLayout() {
         void navigate({
           to: pathname,
           search: () => ({
-            project: next.project,
             machine: next.machine,
-            checkout: next.checkout,
           }),
           hash: "",
           resetScroll: false,

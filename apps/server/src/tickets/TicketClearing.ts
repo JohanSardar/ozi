@@ -104,11 +104,10 @@ const make = Effect.gen(function* () {
       if (chat.thread.archivedAt !== null) {
         return yield* new TicketError({ reason: "invalid_origin" });
       }
-      const source = yield* threads.getThreadRecords(ticket.origin.threadId, []);
+      yield* threads.getThreadRecords(ticket.origin.threadId, []);
       const key = `ticket:${ticket.id}:answer`;
       const text = `Ticket: ${ticket.title}\n${ticket.need}\n${ticket.summary}\nChosen option ${input.choiceIndex + 1}: ${choice.label}\n${choice.detail}`;
       const { message } = yield* threads.sendToThread({
-        projectId: source.thread.projectId,
         threadId: ticket.origin.threadId,
         commandId: CommandId.make(key),
         messageId: MessageId.make(key),

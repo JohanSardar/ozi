@@ -20,7 +20,6 @@ const aggregate: RelayAgentActivityAggregateState = {
       environmentId:
         "env" as RelayAgentActivityAggregateState["activities"][number]["environmentId"],
       threadId: "thread" as RelayAgentActivityAggregateState["activities"][number]["threadId"],
-      projectTitle: "Project",
       threadTitle: "Thread",
       modelTitle: "gpt-5.4",
       phase: "running",

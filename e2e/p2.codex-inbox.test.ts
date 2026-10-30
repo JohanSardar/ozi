@@ -124,7 +124,6 @@ describe("p2.codex-inbox", () => {
       dev.once("error", reject);
       dev.once("exit", (code) => reject(new Error(`Dev exited ${code}: ${output}`)));
     });
-    await exec(process.execPath, [bin, "project", "add", workspace, "--home", home], { env });
   });
 
   afterAll(async () => {
@@ -140,6 +139,7 @@ describe("p2.codex-inbox", () => {
     const started = await cli(
       "thread",
       "start",
+      "--cwd",
       workspace,
       "decision: choose a release channel",
       "--provider",

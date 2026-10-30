@@ -2,7 +2,6 @@ import {
   backgroundWorkHoldsCompletion,
   turnItemUpdateCanEndBackgroundWork,
 } from "@t3tools/shared/orchestrationV2PendingBackgroundWork";
-import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
 import {
   CommandId,
   isOrchestrationV2WorkActive,
@@ -141,26 +140,10 @@ export class ThreadSettlementServiceV2 extends Context.Service<
 >()("ozi/orchestration-v2/ThreadSettlementService/ThreadSettlementServiceV2") {}
 
 function autoSettlementConfigured(settings: import("@t3tools/contracts").ServerSettings): boolean {
-  if (settings.sidebarAutoSettleAfterDays !== null) {
-    return true;
-  }
-  return Object.values(settings.projectSettingsOverrides).some(
-    (entry) =>
-      entry.sidebarAutoSettleAfterDays !== undefined && entry.sidebarAutoSettleAfterDays !== null,
-  );
+  return settings.sidebarAutoSettleAfterDays !== null;
 }
-
-/** @internal Exported for tests. */
-export function autoSettlementSettingsKey(
-  settings: import("@t3tools/contracts").ServerSettings,
-): string {
-  return JSON.stringify([
-    settings.sidebarAutoSettleAfterDays,
-    Object.entries(settings.projectSettingsOverrides).map(([id, value]) => [
-      id,
-      value.sidebarAutoSettleAfterDays,
-    ]),
-  ]);
+function autoSettlementSettingsKey(settings: import("@t3tools/contracts").ServerSettings): string {
+  return JSON.stringify(settings.sidebarAutoSettleAfterDays);
 }
 
 export const make = Effect.gen(function* () {
@@ -183,10 +166,7 @@ export const make = Effect.gen(function* () {
 
     const settleThread = Effect.fn("ThreadSettlementServiceV2.settleThread")(
       function* (thread: (typeof candidates)[number]) {
-        const currentSettings = resolveProjectSettings(
-          yield* settingsService.getSettings,
-          thread.projectId,
-        ).settings;
+        const currentSettings = yield* settingsService.getSettings;
         const decisionNow = yield* DateTime.now;
         const settledAt = resolveAutoSettlementAt({
           thread,

@@ -10,7 +10,6 @@ import {
   ORCHESTRATION_PROTOCOL_HEADER,
   ORCHESTRATION_PROTOCOL_VERSION,
   OrchestrationV2ShellSnapshot,
-  ProjectId,
   ProviderInstanceId,
   ThreadId,
   WsRpcGroup,
@@ -131,28 +130,11 @@ const connectServer = Effect.fn("measure.connectServer")(function* (options: Opt
   const descriptor = yield* http
     .get(`${options.server}/.well-known/ozi/environment`)
     .pipe(Effect.flatMap(HttpClientResponse.schemaBodyJson(ExecutionEnvironmentDescriptor)));
-  const shell = yield* http
+  yield* http
     .get(`${options.server}/api/orchestration/shell`)
     .pipe(Effect.flatMap(HttpClientResponse.schemaBodyJson(OrchestrationV2ShellSnapshot)));
-  let projectId = shell.projects.find(
-    (project) => project.workspaceRoot === options.projectRoot,
-  )?.id;
   // A project record outlives its folder, and turns fail without it.
   yield* (yield* FileSystem.FileSystem).makeDirectory(options.projectRoot, { recursive: true });
-  if (!projectId) {
-    projectId = ProjectId.make(yield* uuid);
-    yield* http.execute(
-      HttpClientRequest.post(`${options.server}/api/projects/mutate`).pipe(
-        HttpClientRequest.bodyJsonUnsafe({
-          type: "project.create",
-          commandId: yield* uuid,
-          projectId,
-          title: "Render measurement",
-          workspaceRoot: options.projectRoot,
-        }),
-      ),
-    );
-  }
   const ticket = yield* http
     .execute(HttpClientRequest.post(`${options.server}/api/auth/websocket-ticket`))
     .pipe(
@@ -170,7 +152,7 @@ const connectServer = Effect.fn("measure.connectServer")(function* (options: Opt
     ),
   );
   const client = yield* RpcClient.make(WsRpcGroup).pipe(Effect.provideContext(protocol));
-  return { client, environmentId: EnvironmentId.make(descriptor.environmentId), projectId };
+  return { client, environmentId: EnvironmentId.make(descriptor.environmentId) };
 });
 
 // Some providers stream only reasoning, so any streaming text item counts.
@@ -186,12 +168,12 @@ const measureStreamReply = Effect.fn("measure.streamReply")(function* (
 ) {
   if (Option.isSome(route)) yield* reloadAndOpen(options, route.value);
   const evaluate = yield* connectInspector(options.metro);
-  const { client, environmentId, projectId } = yield* connectServer(options);
+  const { client, environmentId } = yield* connectServer(options);
   const threadId = ThreadId.make(yield* uuid);
   yield* client["orchestration.launchThread"]({
     commandId: CommandId.make(yield* uuid),
     threadId,
-    projectId,
+    workingDirectory: options.projectRoot,
     title: `Render measurement ${run}`,
     modelSelection: {
       instanceId: ProviderInstanceId.make(options.provider),
@@ -200,7 +182,6 @@ const measureStreamReply = Effect.fn("measure.streamReply")(function* (
     // The prompt needs no tools; approval-required keeps a stray call from acting.
     runtimeMode: "approval-required",
     interactionMode: "default",
-    workspaceStrategy: { type: "root" },
     initialMessage: { text: STREAM_PROMPT, attachments: [] },
   });
   // A failed or interrupted window must not leave a provider turn running.

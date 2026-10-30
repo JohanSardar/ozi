@@ -34,7 +34,6 @@ export type AgentActivityPhase =
 export interface AgentActivityRowProps {
   readonly environmentId: string;
   readonly threadId: string;
-  readonly projectTitle: string;
   readonly threadTitle: string;
   readonly modelTitle: string;
   readonly phase: AgentActivityPhase;
@@ -206,7 +205,7 @@ function AgentActivity(
       </Text>
       {/* Bare texts share shrinkage proportionally; project frames or layoutPriority would prevent balanced truncation. */}
       <Text modifiers={[font({ size: 11 }), foregroundStyle(secondaryForeground), lineLimit(1)]}>
-        {row.projectTitle}
+        {row.modelTitle}
       </Text>
       <Spacer minLength={8} />
       <Text

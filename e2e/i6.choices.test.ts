@@ -168,7 +168,6 @@ describe("i6.choices", () => {
       dev.stderr!.on("data", read);
       dev.once("exit", (code) => reject(new Error(`Dev runner exited: ${code}\n${output}`)));
     });
-    await exec(process.execPath, [bin, "project", "add", workspace, "--home", home], { env });
     ({ pairingUrl } = await cli("pair"));
     browser = await chromium.launch();
     page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
@@ -190,6 +189,7 @@ describe("i6.choices", () => {
     const started = await cli(
       "thread",
       "start",
+      "--cwd",
       workspace,
       "i6-main: file a ticket and delegate.",
       "--wait",
@@ -204,7 +204,14 @@ describe("i6.choices", () => {
   });
 
   it("i6.main: clicking an option answers its Pi main and notes it in the current chat", async () => {
-    ({ threadId: currentId } = await cli("thread", "start", workspace, "i6-current", "--wait"));
+    ({ threadId: currentId } = await cli(
+      "thread",
+      "start",
+      "--cwd",
+      workspace,
+      "i6-current",
+      "--wait",
+    ));
     await page.goto(pairingUrl);
     await page.getByRole("treeitem", { name: /i6-current/ }).click();
     const row = inbox.getByRole("article", { name: main.title });

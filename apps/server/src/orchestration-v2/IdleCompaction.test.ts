@@ -2,7 +2,6 @@ import { describe, expect, it } from "@effect/vitest";
 import {
   MessageId,
   NodeId,
-  ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
   ProviderThreadId,
@@ -31,7 +30,6 @@ function records(
   return {
     thread: {
       id: threadId,
-      projectId: ProjectId.make("project"),
       title: "Idle thread",
       createdBy: "user",
       creationSource: "web",

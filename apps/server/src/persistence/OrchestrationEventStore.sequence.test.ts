@@ -37,7 +37,6 @@ function eventRow(
     payload_json: encodeJson(
       aggregateKind === "project"
         ? {
-            projectId: streamId,
             title: "Sequence fixture",
             workspaceRoot: "/tmp/sequence-fixture",
             defaultModelSelection: null,

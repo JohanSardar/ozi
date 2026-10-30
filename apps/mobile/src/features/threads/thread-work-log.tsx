@@ -1,4 +1,3 @@
-import { Button } from "../../components/ui/Button";
 import { ThreadSubagentGroup } from "./thread-subagent-group";
 import { ProposedPlanCard } from "./ProposedPlanCard";
 import {
@@ -42,17 +41,7 @@ import {
   View,
 } from "react-native";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
-import {
-  ORCHESTRATION_V2_WORKSPACE_PREPARATION_FAILURE_CODE,
-  type EnvironmentId,
-  type RunId,
-  type ThreadId,
-  type ToolActivityIcon,
-} from "@t3tools/contracts";
-import { useAtomValue } from "@effect/atom-react";
-import { scopeThreadRef } from "@t3tools/client-runtime/environment";
-import { environmentThreadDetails, threadEnvironment } from "../../state/threads";
-import { useAtomCommand } from "../../state/use-atom-command";
+import { type EnvironmentId, type ToolActivityIcon } from "@t3tools/contracts";
 import { toolActivityFaviconUrl } from "@t3tools/shared/favicon";
 import { isJavaScriptReplTool } from "@t3tools/shared/toolActivity";
 import { useMarkdownCodeHighlight } from "./markdownCodeHighlightState";
@@ -777,42 +766,6 @@ function workLogRowKey(row: ThreadFeedActivity): string {
   return row.id;
 }
 
-function WorkspacePreparationRetryButton(props: {
-  readonly environmentId: EnvironmentId;
-  readonly threadId: ThreadId;
-  readonly runId: RunId;
-}) {
-  const retryable = useAtomValue(
-    environmentThreadDetails.threadAtom(scopeThreadRef(props.environmentId, props.threadId)),
-    (thread) => {
-      const run = thread?.projection.runs.find((candidate) => candidate.id === props.runId);
-      return run?.status === "failed" && run.workspacePreparation !== undefined;
-    },
-  );
-  const retry = useAtomCommand(threadEnvironment.retryWorkspacePreparation, "retry setup");
-  const [busy, setBusy] = useState(false);
-  if (!retryable) return null;
-  return (
-    <View className="ml-7 mt-2">
-      <Button
-        label="Retry"
-        tone="secondary"
-        accessibilityLabel="Retry workspace preparation"
-        disabled={busy}
-        onPress={() => {
-          setBusy(true);
-          void Haptics.selectionAsync();
-          void retry({
-            environmentId: props.environmentId,
-            input: { threadId: props.threadId, runId: props.runId },
-          }).finally(() => setBusy(false));
-        }}
-        icon="arrow.clockwise"
-      />
-    </View>
-  );
-}
-
 function ReplCodeText({
   code,
   theme,
@@ -932,14 +885,6 @@ const ThreadWorkLogRow = function ThreadWorkLogRow(
             <Text selectable className="ml-7 text-sm text-foreground">
               {failureItem.failure.message}
             </Text>
-          ) : null}
-          {failureItem.failure.code === ORCHESTRATION_V2_WORKSPACE_PREPARATION_FAILURE_CODE &&
-          failureItem.runId !== null ? (
-            <WorkspacePreparationRetryButton
-              environmentId={props.environmentId}
-              threadId={failureItem.threadId}
-              runId={failureItem.runId}
-            />
           ) : null}
         </View>
       </WorkLogPressable>

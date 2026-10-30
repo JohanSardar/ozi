@@ -5,7 +5,6 @@ import { expect, it, vi } from "vite-plus/test";
 import { render, stubGlobal } from "../../../test/render";
 
 const state = vi.hoisted(() => ({
-  projects: [] as never[],
   navigate: vi.fn(async (): Promise<void> => undefined),
   openScratchProject: vi.fn(async () => null),
   confirm: vi.fn(async (_message: string) => true),
@@ -51,14 +50,6 @@ vi.mock(import("../../state/shell"), async (original) => {
 });
 vi.mock(import("../../state/entities"), async (original) => ({
   ...(await original()),
-  readProjects: () => state.projects,
-}));
-vi.mock(import("../../hooks/useScratchProject"), async (original) => ({
-  ...(await original()),
-  useScratchProject: (() => ({
-    scratchEnvironmentId: () => "local",
-    openScratchProject: state.openScratchProject,
-  })) as never,
 }));
 
 vi.mock(import("../../confirmDialog"), async (original) => ({
@@ -93,7 +84,6 @@ function setup() {
   vi.clearAllMocks();
   state.confirm.mockResolvedValue(true);
   state.localEnvironmentDisabled = false;
-  state.projects = [];
   appAtomRegistry.set(discoverySettled, false);
 }
 

@@ -2,7 +2,6 @@ import { assert, describe, it } from "@effect/vitest";
 import {
   EventId,
   MessageId,
-  ProjectId,
   ProviderInstanceId,
   RunId,
   ThreadId,
@@ -142,7 +141,6 @@ describe("EventSink run outcomes", () => {
         createdBy: "user",
         creationSource: "web",
         id,
-        projectId: ProjectId.make("project:metrics"),
         title: id,
         providerInstanceId: provider,
         modelSelection: { instanceId: provider, model: "gpt-6.1" },

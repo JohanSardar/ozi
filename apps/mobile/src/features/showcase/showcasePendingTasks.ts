@@ -1,5 +1,5 @@
-import type { EnvironmentProject } from "@t3tools/client-runtime/state/shell";
 import {
+  EnvironmentId,
   CommandId,
   DEFAULT_PROVIDER_INTERACTION_MODE,
   DEFAULT_RUNTIME_MODE,
@@ -12,13 +12,11 @@ import type { QueuedThreadMessage } from "../../state/thread-outbox-model";
 
 export const SHOWCASE_PENDING_TASK_DEFINITIONS = [
   {
-    projectId: "ozi",
     id: "offline-launch-checklist",
     text: "Ship the offline launch checklist before touchdown ✈️",
     minutesAgo: 8,
   },
   {
-    projectId: "react",
     id: "train-tunnel-suspense",
     text: "Polish the Suspense handoff for the train tunnel 🚇",
     minutesAgo: 27,
@@ -31,30 +29,28 @@ const FALLBACK_MODEL_SELECTION = {
 } as const;
 
 export function buildShowcasePendingTasks(
-  projects: ReadonlyArray<EnvironmentProject>,
+  environments: ReadonlyArray<{ readonly environmentId: EnvironmentId }>,
   now: number,
 ): ReadonlyArray<QueuedThreadMessage> {
   return SHOWCASE_PENDING_TASK_DEFINITIONS.flatMap((definition) => {
-    const project = projects.find((candidate) => String(candidate.id) === definition.projectId);
-    if (!project) return [];
+    const environment = environments[0];
+    if (!environment) return [];
 
     return [
       {
-        environmentId: project.environmentId,
+        environmentId: environment.environmentId,
         threadId: ThreadId.make(`showcase-pending-${definition.id}`),
         messageId: MessageId.make(`showcase-pending-message-${definition.id}`),
         commandId: CommandId.make(`showcase-pending-command-${definition.id}`),
         text: definition.text,
         attachments: [],
-        modelSelection: project.defaultModelSelection ?? FALLBACK_MODEL_SELECTION,
+        modelSelection: FALLBACK_MODEL_SELECTION,
         runtimeMode: DEFAULT_RUNTIME_MODE,
         interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
         creation: {
-          projectId: project.id,
-          projectTitle: project.title,
-          projectCwd: project.workspaceRoot,
+          defaultCwd: "",
           workspaceMode: "local" as const,
-          workingDirectory: project.workspaceRoot,
+          workingDirectory: null,
         },
         createdAt: new Date(now - definition.minutesAgo * 60_000).toISOString(),
       },

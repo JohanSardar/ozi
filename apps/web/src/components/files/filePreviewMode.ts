@@ -1,4 +1,4 @@
-import type { AssetResource, ProjectReadFileError, ScopedThreadRef } from "@t3tools/contracts";
+import type { AssetResource, WorkspaceReadFileError, ScopedThreadRef } from "@t3tools/contracts";
 import { mediaFileReference } from "@t3tools/client-runtime/media-reference";
 import { isHostPath, workspaceRelativeFilePath } from "@t3tools/shared/path";
 
@@ -10,7 +10,7 @@ export function resolveFilePreviewPath(path: string | null, cwd: string): string
 export const isMarkdownPreviewFile = (path: string): boolean =>
   /\.(?:md|mdx|markdown|mdown|mkd)$/i.test(path);
 
-export function filePreviewReadErrorMessage(error: ProjectReadFileError): string {
+export function filePreviewReadErrorMessage(error: WorkspaceReadFileError): string {
   switch (error.failure) {
     case "path_not_file":
       return "The path is a directory or special file, not a regular file.";

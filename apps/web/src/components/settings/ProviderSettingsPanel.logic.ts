@@ -2,11 +2,7 @@ import type { EnvironmentConnectionPhase } from "@t3tools/client-runtime/connect
 import {
   AuthProvidersManageScope,
   type EnvironmentId,
-  type ProjectId,
-  type ProjectSettingsOverrides,
-  type ProviderInstanceId,
   sessionGrantsScope,
-  type ServerSettings,
   type SessionGrantInput,
 } from "@t3tools/contracts";
 
@@ -80,32 +76,6 @@ export function resolveRemoteOperateAccess(input: {
   if (input.hasError) return "denied";
   if (input.session === null) return input.isPending ? "pending" : "denied";
   return sessionGrantsScope(input.session, AuthProvidersManageScope) ? "granted" : "denied";
-}
-
-/** Send providerInstances even when empty; omission preserves the stored map for older clients. */
-
-export function buildProviderInstanceOverridePatch(
-  settings: Pick<ServerSettings, "projectSettingsOverrides">,
-  projectIds: readonly ProjectId[],
-  instanceId: ProviderInstanceId,
-  value: boolean | undefined,
-): Record<ProjectId, ProjectSettingsOverrides | null> {
-  const patch: Record<ProjectId, ProjectSettingsOverrides | null> = {};
-  for (const projectId of projectIds) {
-    const current = settings.projectSettingsOverrides[projectId];
-    const instances = { ...current?.providerInstances };
-    const instance = { ...instances[instanceId] };
-    if (value === undefined) delete instance.enabled;
-    else instance.enabled = value;
-    if (Object.keys(instance).length > 0) instances[instanceId] = instance;
-    else delete instances[instanceId];
-
-    const { providerInstances: _omit, ...rest } = current ?? {};
-    const nextEntry: ProjectSettingsOverrides = { ...rest, providerInstances: instances };
-    patch[projectId] =
-      Object.keys(rest).length === 0 && Object.keys(instances).length === 0 ? null : nextEntry;
-  }
-  return patch;
 }
 
 export function classifyProviderEnvironmentAccess(input: {

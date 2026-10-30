@@ -2,16 +2,15 @@ import { useAtomValue } from "@effect/atom-react";
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
 import { ProviderInstanceId, type ThreadId } from "@t3tools/contracts";
-import { useNavigate, useParams } from "@tanstack/react-router";
+import { useNavigate } from "@tanstack/react-router";
 import { useEffect, useEffectEvent, useState } from "react";
 
 import { newMessageId, newThreadId } from "~/lib/utils";
-import { useProjects, useThreadShell } from "../state/entities";
 import { usePrimaryEnvironmentId } from "../state/environments";
 import { primaryServerProvidersAtom } from "../state/server";
 import { threadEnvironment } from "../state/threads";
 import { useOrchestrationCommand } from "../state/use-orchestration-command";
-import { buildThreadRouteParams, resolveThreadRouteTarget } from "../threadRoutes";
+import { buildThreadRouteParams } from "../threadRoutes";
 import { Button } from "./ui/button";
 import { Dialog, DialogHeader, DialogPanel, DialogPopup, DialogTitle } from "./ui/dialog";
 import { toastManager } from "./ui/toast";
@@ -28,24 +27,17 @@ export function DevReplayHost() {
   const navigate = useNavigate();
   const environmentId = usePrimaryEnvironmentId();
   const providers = useAtomValue(primaryServerProvidersAtom);
-  const projects = useProjects();
-  const target = resolveThreadRouteTarget(useParams({ strict: false }));
-  const routeThread = useThreadShell(target?.kind === "server" ? target.threadRef : null);
   const startTurn = useOrchestrationCommand(threadEnvironment.startTurn, { reportFailure: false });
 
   const replayProvider = providers.find(
     (provider) => provider.instanceId === DEV_REPLAY_INSTANCE_ID && provider.enabled,
   );
   const scenarios = replayProvider?.models ?? [];
-  const environmentProjects = projects.filter((project) => project.environmentId === environmentId);
-  const project =
-    environmentProjects.find((candidate) => candidate.id === routeThread?.projectId) ??
-    environmentProjects[0];
 
   const replay = async (scenario?: string): Promise<ThreadId> => {
     const model = scenario ?? scenarios[0]?.slug;
-    if (environmentId === null || project === undefined || model === undefined) {
-      throw new Error("Replay needs a dev server with a project and the Replay (dev) provider.");
+    if (environmentId === null || model === undefined) {
+      throw new Error("Replay needs a dev server with the Replay (dev) provider.");
     }
     if (!scenarios.some((candidate) => candidate.slug === model)) {
       throw new Error(`Unknown replay scenario "${model}".`);
@@ -64,7 +56,6 @@ export function DevReplayHost() {
         interactionMode: "default",
         bootstrap: {
           createThread: {
-            projectId: project.id,
             title,
             modelSelection,
             runtimeMode: "approval-required",
@@ -122,14 +113,12 @@ export function DevReplayHost() {
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogPopup className="sm:max-w-sm">
         <DialogHeader>
-          <DialogTitle>
-            {project === undefined ? "Replay a recorded turn" : `Replay in ${project.title}`}
-          </DialogTitle>
+          <DialogTitle>Replay a recorded turn</DialogTitle>
         </DialogHeader>
         <DialogPanel>
-          {scenarios.length === 0 || project === undefined ? (
+          {scenarios.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              Needs a project and the Replay (dev) provider, which dev servers start.
+              Needs the Replay (dev) provider, which dev servers start.
             </p>
           ) : (
             <div className="flex flex-col items-start gap-1">

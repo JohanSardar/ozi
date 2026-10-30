@@ -1,10 +1,10 @@
 import {
   OrchestratorMcpFailure,
   OrchestratorMcpThreadListResult,
+  OrchestratorMcpThreadInterruptResult,
   OrchestratorMcpThreadReadResult,
   OrchestratorMcpThreadSendResult,
   OrchestratorMcpThreadWaitResult,
-  ProjectId,
   RunId,
   ThreadId,
   TrimmedNonEmptyString,
@@ -12,13 +12,10 @@ import {
   type OrchestratorMcpThreadStatus,
   type OrchestratorMcpThreadTimelineItem,
 } from "@t3tools/contracts";
-import * as HostProcess from "@t3tools/shared/HostProcess";
 import * as Console from "effect/Console";
 import * as Effect from "effect/Effect";
-import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Option from "effect/Option";
-import * as Path from "effect/Path";
 import * as References from "effect/References";
 import * as Runtime from "effect/Runtime";
 import * as Schema from "effect/Schema";
@@ -31,7 +28,7 @@ import * as EnvironmentAuth from "../auth/EnvironmentAuth.ts";
 import * as ServerConfig from "../config.ts";
 import { mcpToolSession, type McpToolSession } from "../mcp/AcpMcpStdioBridge.ts";
 import { isProcessAlive, readPersistedServerRuntimeState } from "../serverRuntimeState.ts";
-import { projectLocationFlags, resolveCliAuthConfig } from "./config.ts";
+import { serverLocationFlags, resolveCliAuthConfig } from "./config.ts";
 import { readRemoteConnection, RemoteConnectionError, reportRemoteErrors } from "./remote.ts";
 
 /**
@@ -82,16 +79,6 @@ export class ThreadUsageError extends Schema.TaggedError<ThreadUsageError>()("Th
   }
 }
 
-export class ThreadProjectNotFoundError extends Schema.TaggedError<ThreadProjectNotFoundError>()(
-  "ThreadProjectNotFoundError",
-  { identifier: Schema.String },
-) {
-  override readonly [Runtime.errorReported] = false;
-  override get message(): string {
-    return `No Ozi project matches '${this.identifier}'. Pass a project id or a path inside a project.`;
-  }
-}
-
 /** Exit code 2 lets a script tell "needs a human" apart from a failed run. */
 export class ThreadNeedsInputError extends Schema.TaggedError<ThreadNeedsInputError>()(
   "ThreadNeedsInputError",
@@ -121,7 +108,6 @@ const ThreadCliError = Schema.Union([
   ThreadServerUnreachableError,
   ThreadToolFailedError,
   ThreadUsageError,
-  ThreadProjectNotFoundError,
   ThreadNeedsInputError,
   ThreadRunEndedError,
 ]);
@@ -159,16 +145,8 @@ const ToolResult = Schema.Struct({
 
 const decodeToolResult = Schema.decodeUnknownEffect(ToolResult);
 
-const ProjectListResult = Schema.Struct({
-  projects: Schema.Array(
-    Schema.Struct({ id: ProjectId, title: Schema.String, workspaceRoot: Schema.String }),
-  ),
-  nextCursor: Schema.NullOr(Schema.Int),
-});
-
 export const ThreadLaunchResult = Schema.Struct({
   threadId: ThreadId,
-  projectId: ProjectId,
   runId: Schema.NullOr(RunId),
 });
 
@@ -316,55 +294,6 @@ const readMessageArgument = Effect.fn("cli.thread.readMessage")(function* (argum
     return yield* new ThreadUsageError({ detail: "The message is empty." });
   }
   return text;
-});
-
-const listAllProjects = Effect.fn("cli.thread.listAllProjects")(function* (tools: ThreadTools) {
-  const projects: Array<(typeof ProjectListResult.Type)["projects"][number]> = [];
-  let cursor: number | null = 0;
-  while (cursor !== null) {
-    const page: typeof ProjectListResult.Type = yield* tools.call(
-      "t3_project_list",
-      { cursor, limit: 100 },
-      ProjectListResult,
-    );
-    projects.push(...page.projects);
-    cursor = page.nextCursor;
-  }
-  return projects;
-});
-
-/** A project id, or a path inside a project's folder (deepest project wins). */
-export const resolveProject = Effect.fn("cli.thread.resolveProject")(function* (
-  tools: ThreadTools,
-  identifier: string,
-) {
-  const projects = yield* listAllProjects(tools);
-  const byId = projects.find((project) => project.id === identifier);
-  if (byId !== undefined) return byId;
-
-  const path = yield* Path.Path;
-  const fileSystem = yield* FileSystem.FileSystem;
-  // Stored roots keep the path the project was added with, which may pass
-  // through a symlink (macOS /tmp), so both sides compare as real paths.
-  const realPath = (value: string) =>
-    fileSystem.realPath(value).pipe(Effect.orElseSucceed(() => value));
-  const target = yield* realPath(path.resolve(yield* HostProcess.WorkingDirectory, identifier));
-  const roots = yield* Effect.forEach(projects, (project) =>
-    Effect.map(realPath(project.workspaceRoot), (root) => ({ project, root })),
-  );
-  const containing = roots
-    .filter(({ root }) => {
-      const relative = path.relative(root, target);
-      return (
-        relative === "" ||
-        (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))
-      );
-    })
-    .toSorted((left, right) => right.root.length - left.root.length)[0];
-  if (containing === undefined) {
-    return yield* new ThreadProjectNotFoundError({ identifier });
-  }
-  return containing.project;
 });
 
 /** Every item on a timeline view, oldest first. */
@@ -542,25 +471,20 @@ const decodeThreadId = (value: string) =>
   );
 
 const threadListCommand = Command.make("list", {
-  ...projectLocationFlags,
-  project: Flag.String("project").pipe(
-    Flag.withDescription("Project id or a path inside the project. Defaults to this directory."),
-    Flag.withDefault("."),
-  ),
+  ...serverLocationFlags,
   json: jsonFlag,
 }).pipe(
-  Command.withDescription("List a project's threads, newest first."),
+  Command.withDescription("List chats, newest first."),
   Command.withHandler((flags) =>
     withThreadTools(
       flags,
       Effect.fn("cli.thread.list")(function* (tools) {
-        const project = yield* resolveProject(tools, flags.project);
         const threads: Array<OrchestratorMcpThreadListItem> = [];
         let cursor: number | null = 0;
         while (cursor !== null) {
           const page: OrchestratorMcpThreadListResult = yield* tools.call(
             "t3_thread_list",
-            { projectId: project.id, includeSubagents: false, limit: 100, cursor },
+            { includeSubagents: false, limit: 100, cursor },
             OrchestratorMcpThreadListResult,
           );
           threads.push(...page.threads);
@@ -578,9 +502,10 @@ const threadListCommand = Command.make("list", {
 );
 
 const threadStartCommand = Command.make("start", {
-  ...projectLocationFlags,
-  project: Argument.String("project").pipe(
-    Argument.withDescription("Project id or a path inside the project, such as ."),
+  ...serverLocationFlags,
+  cwd: Flag.String("cwd").pipe(
+    Flag.withDescription("Working directory for this chat."),
+    Flag.optional,
   ),
   message: messageArgument,
   title: Flag.String("title").pipe(
@@ -592,13 +517,13 @@ const threadStartCommand = Command.make("start", {
     Flag.optional,
   ),
   model: Flag.String("model").pipe(
-    Flag.withDescription("Model slug. Defaults to the project's default model."),
+    Flag.withDescription("Model slug. Defaults to the environment's default model."),
     Flag.optional,
   ),
   wait: waitFlag,
   json: jsonFlag,
 }).pipe(
-  Command.withDescription("Start a thread in a project and print its id."),
+  Command.withDescription("Start a chat and print its id."),
   Command.withHandler((flags) =>
     Effect.gen(function* () {
       const message = yield* readMessageArgument(flags.message);
@@ -611,13 +536,12 @@ const threadStartCommand = Command.make("start", {
       yield* withThreadTools(
         flags,
         Effect.fn("cli.thread.start")(function* (tools) {
-          const project = yield* resolveProject(tools, flags.project);
           const launched = yield* tools.call(
             "t3_thread_launch",
             {
-              projectId: project.id,
               title,
               message,
+              ...(Option.isSome(flags.cwd) ? { workingDirectory: flags.cwd.value } : {}),
               ...(Option.isSome(flags.provider) && Option.isSome(flags.model)
                 ? {
                     modelSelection: {
@@ -645,7 +569,7 @@ const threadStartCommand = Command.make("start", {
 );
 
 const threadSendCommand = Command.make("send", {
-  ...projectLocationFlags,
+  ...serverLocationFlags,
   thread: threadArgument,
   message: messageArgument,
   wait: waitFlag,
@@ -678,12 +602,36 @@ const threadSendCommand = Command.make("send", {
   ),
 );
 
+const threadStopCommand = Command.make("stop", {
+  ...serverLocationFlags,
+  thread: threadArgument,
+  json: jsonFlag,
+}).pipe(
+  Command.withDescription("Stop a chat and its delegated work."),
+  Command.withHandler((flags) =>
+    Effect.gen(function* () {
+      const threadId = yield* decodeThreadId(flags.thread);
+      yield* withThreadTools(
+        flags,
+        Effect.fn("cli.thread.stop")(function* (tools) {
+          const result = yield* tools.call(
+            "t3_thread_interrupt",
+            { threadId, stop: true },
+            OrchestratorMcpThreadInterruptResult,
+          );
+          yield* flags.json ? printJson(result) : Console.log("Stopped.");
+        }),
+      );
+    }).pipe(reportThreadErrors(flags.json)),
+  ),
+);
+
 const threadShowCommand = Command.make("show", {
   activity: Flag.Boolean("activity").pipe(
     Flag.withDescription("Include work log steps."),
     Flag.withDefault(false),
   ),
-  ...projectLocationFlags,
+  ...serverLocationFlags,
   thread: threadArgument,
   messages: Flag.Int("messages").pipe(
     Flag.withDescription("How many of the latest messages to print."),
@@ -746,7 +694,7 @@ const threadShowCommand = Command.make("show", {
 );
 
 const threadWaitCommand = Command.make("wait", {
-  ...projectLocationFlags,
+  ...serverLocationFlags,
   thread: threadArgument,
   json: jsonFlag,
 }).pipe(
@@ -778,6 +726,7 @@ export const threadCommand = Command.make("thread").pipe(
     threadListCommand,
     threadStartCommand,
     threadSendCommand,
+    threadStopCommand,
     threadShowCommand,
     threadWaitCommand,
   ]),

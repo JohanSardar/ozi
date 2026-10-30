@@ -17,7 +17,7 @@ import {
   pinnedRuntimeVersionsDir,
   windowsShimTarget,
 } from "../cloud/pinnedRuntime.ts";
-import { projectLocationFlags, resolveCliAuthConfig } from "./config.ts";
+import { serverLocationFlags, resolveCliAuthConfig } from "./config.ts";
 import * as CliService from "./service.ts";
 import { findWindowsShim, resolveLauncherPath } from "./update.ts";
 
@@ -86,7 +86,7 @@ const planUninstall = Effect.fn("cli.uninstall.plan")(function* (input: {
 });
 
 export const uninstallCommand = Command.make("uninstall", {
-  ...projectLocationFlags,
+  ...serverLocationFlags,
   yes: Flag.Boolean("yes").pipe(
     Flag.withAlias("y"),
     Flag.withDescription(
@@ -96,7 +96,7 @@ export const uninstallCommand = Command.make("uninstall", {
   ),
 }).pipe(
   Command.withDescription(
-    "Remove ozi from this machine: the background service, the launcher, and every downloaded version. Your projects and threads are kept.",
+    "Remove ozi from this machine: the background service, the launcher, and every downloaded version. Your chats are kept.",
   ),
   Command.withHandler((flags) =>
     Effect.gen(function* () {
@@ -136,7 +136,7 @@ const runUninstall = Effect.fn("cli.uninstall.run")(function* (input: {
     yield* Console.log(`  every downloaded version under ${plan.runtimeDir}`);
   }
   yield* Console.log(
-    `Your projects, threads, and settings under ${plan.userdataDir} are kept. Delete that directory yourself if you want them gone too.`,
+    `Your chats and settings under ${plan.userdataDir} are kept. Delete that directory yourself if you want them gone too.`,
   );
 
   if (!input.assumeYes) {

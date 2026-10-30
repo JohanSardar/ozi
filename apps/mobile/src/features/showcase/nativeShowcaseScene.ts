@@ -6,7 +6,6 @@ const SHOWCASE_SCENES = [
   "threads",
   "thread",
   "terminal",
-  "review",
   "environments",
   "agent-activity",
 ] as const;

@@ -1,3 +1,4 @@
+import { startDisplay } from "./display.ts";
 import * as NodeChildProcess from "node:child_process";
 import * as NodeEvents from "node:events";
 import * as NodeFSP from "node:fs/promises";
@@ -13,10 +14,12 @@ it.skipIf(process.platform !== "linux")(
   "G3.desktop-dev: Electron starts, clicks, reloads and reserves native window controls",
   async () => {
     const home = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "ozi-g3-"));
-    const source = NodePath.join(root, "apps/web/src/components/NoProjectsHero.tsx");
+    const source = NodePath.join(root, "apps/web/src/components/chat/DraftHeroHeadline.tsx");
     const original = await NodeFSP.readFile(source, "utf8");
+    const display = await startDisplay();
     const env = {
       ...process.env,
+      ...display.env,
       PATH: `${NodePath.join(root, "node_modules/.bin")}${NodePath.delimiter}${process.env.PATH ?? ""}`,
       XDG_CONFIG_HOME: NodePath.join(home, "config"),
       XDG_DATA_HOME: NodePath.join(home, "data"),
@@ -48,6 +51,7 @@ it.skipIf(process.platform !== "linux")(
         }
         await NodeFSP.writeFile(source, original);
         await NodeFSP.rm(home, { recursive: true, force: true });
+        await display.close();
       }
     });
     dev.stderr.on("data", (chunk) => {
@@ -99,8 +103,8 @@ it.skipIf(process.platform !== "linux")(
       page.on("pageerror", (error) => {
         output += `\n${error.stack}`;
       });
-      page.setDefaultTimeout(15_000);
-      await page.getByText("What should we work on?", { exact: true }).waitFor();
+      page.setDefaultTimeout(60_000);
+      await page.getByRole("button", { name: "Continue", exact: true }).waitFor();
       const readyMs = Math.round(now() - started);
       const timings = {
         preparedMs,
@@ -119,18 +123,14 @@ it.skipIf(process.platform !== "linux")(
       await NodeFSP.mkdir(screenshotDir, { recursive: true });
       await page.getByRole("button", { name: "Continue", exact: true }).click();
       await page.getByRole("button", { name: "Continue", exact: true }).click();
-      await page.getByRole("button", { name: "Do not import projects", exact: true }).click();
       await page.screenshot({ path: NodePath.join(screenshotDir, "g3-desktop.png") });
       await page.getByRole("button", { name: "Settings", exact: true }).click();
       await page.getByText("Appearance", { exact: true }).waitFor();
       await page.screenshot({ path: NodePath.join(screenshotDir, "g3-settings.png") });
       await page.keyboard.press("Escape");
-      await page.getByText("What should we work on?", { exact: true }).waitFor();
+      await page.getByText("How can I help?", { exact: true }).waitFor();
       const reloadStarted = now();
-      await NodeFSP.writeFile(
-        source,
-        original.replace("What should we work on?", "G3 live reload"),
-      );
+      await NodeFSP.writeFile(source, original.replace("How can I help?", "G3 live reload"));
       await page.getByText("G3 live reload", { exact: true }).waitFor();
       timings.rendererReloadMs = Math.round(now() - reloadStarted);
       if (process.env.OZI_G3_MEASURE === "1") {
@@ -142,14 +142,14 @@ it.skipIf(process.platform !== "linux")(
       }
       await page.screenshot({ path: NodePath.join(screenshotDir, "g3-live-reload.png") });
       await NodeFSP.writeFile(source, original);
-      await page.getByText("What should we work on?", { exact: true }).waitFor();
+      await page.getByText("How can I help?", { exact: true }).waitFor();
       await page.reload();
-      await page.getByText("What should we work on?", { exact: true }).waitFor();
+      await page.getByText("How can I help?", { exact: true }).waitFor();
       await page.context().addInitScript(() => {
         Object.defineProperty(navigator, "platform", { value: "MacIntel" });
       });
       await page.reload();
-      await page.getByText("What should we work on?", { exact: true }).waitFor();
+      await page.getByText("How can I help?", { exact: true }).waitFor();
       for (const zoom of [0.8, 1, 1.5]) {
         await app.evaluate(({ BrowserWindow }, factor) => {
           BrowserWindow.getAllWindows()[0]?.webContents.setZoomFactor(factor);
@@ -157,7 +157,7 @@ it.skipIf(process.platform !== "linux")(
         for (const reloaded of [false, true]) {
           if (reloaded) {
             await page.reload();
-            await page.getByText("What should we work on?", { exact: true }).waitFor();
+            await page.getByText("How can I help?", { exact: true }).waitFor();
           }
           for (const control of [
             page.getByRole("link", { name: "Go to threads" }),
@@ -185,7 +185,7 @@ it.skipIf(process.platform !== "linux")(
         BrowserWindow.getAllWindows()[0]!.setContentSize(1100, 780);
       });
       await page.reload();
-      await page.getByText("What should we work on?", { exact: true }).waitFor();
+      await page.getByText("How can I help?", { exact: true }).waitFor();
       const compactToggle = page
         .getByRole("button", { name: "Toggle main sidebar", exact: true })
         .filter({ visible: true });

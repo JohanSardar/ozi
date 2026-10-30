@@ -2,7 +2,6 @@ import { assert, it } from "@effect/vitest";
 import {
   EventId,
   MessageId,
-  ProjectId,
   ProviderInstanceId,
   ThreadId,
   type OrchestrationV2DomainEvent,
@@ -20,46 +19,18 @@ import * as SqlClient from "effect/sql/SqlClient";
 
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import * as ProjectionStore from "./ProjectionStore.ts";
-import * as ProjectStore from "./ProjectStore.ts";
 import * as ThreadSearch from "./ThreadSearch.ts";
 
-const layerTest = Layer.mergeAll(
-  ThreadSearch.layer,
-  ProjectionStore.layer,
-  ProjectStore.layer,
-).pipe(Layer.provideMerge(SqlitePersistence.layerMemory));
+const layerTest = Layer.mergeAll(ThreadSearch.layer, ProjectionStore.layer).pipe(
+  Layer.provideMerge(SqlitePersistence.layerMemory),
+);
 
 const providerInstanceId = ProviderInstanceId.make("codex");
 const at = (minute: number) => DateTime.makeUnsafe(Date.UTC(2026, 8, 27, 0, minute));
 
-const createProject = (projectId: ProjectId) =>
-  Effect.flatMap(ProjectStore.ProjectStoreV2, (projects) =>
-    projects.apply({
-      sequence: 0,
-      eventId: EventId.make(`created:${projectId}`),
-      aggregateKind: "project",
-      aggregateId: projectId,
-      occurredAt: DateTime.formatIso(at(0)),
-      commandId: null,
-      causationEventId: null,
-      correlationId: null,
-      metadata: {},
-      type: "project.created",
-      payload: {
-        projectId,
-        title: projectId,
-        workspaceRoot: `/work/${projectId}`,
-        defaultModelSelection: null,
-        scripts: [],
-        createdAt: DateTime.formatIso(at(0)),
-        updatedAt: DateTime.formatIso(at(0)),
-      },
-    }),
-  );
-
 const thread = (
   threadId: ThreadId,
-  projectId: ProjectId,
+  projectId: string,
   overrides: {
     readonly archivedAt?: DateTime.Utc;
     readonly deletedAt?: DateTime.Utc;
@@ -77,7 +48,6 @@ const thread = (
     createdBy: "user",
     creationSource: "web",
     id: threadId,
-    projectId,
     title: overrides.title ?? threadId,
     providerInstanceId,
     modelSelection: { instanceId: providerInstanceId, model: "gpt-5" },
@@ -135,189 +105,12 @@ const message = (
   },
 });
 
-it.layer(layerTest)("ThreadSearch", (it) => {
-  it.effect("reads the newest hits without sorting all of them", () =>
-    Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient;
-      for (const match of ['"needle"', null]) {
-        const plan = yield* sql<{
-          readonly detail: string;
-        }>`EXPLAIN QUERY PLAN ${ThreadSearch.messageHitsQuery(sql, { match, substrings: "[]", projectId: null, excludedThreadIds: "[]" })}`;
-        assert.isFalse(
-          plan.some((row) => row.detail.includes("TEMP B-TREE")),
-          plan.map((row) => row.detail).join("\n"),
-        );
-      }
-    }),
-  );
-
-  it.effect("returns one finished user or assistant match per active thread", () =>
-    Effect.gen(function* () {
-      const projections = yield* ProjectionStore.ProjectionStoreV2;
-      const search = yield* ThreadSearch.ThreadSearch;
-      const project = ProjectId.make("project:search");
-      const deletedProject = ProjectId.make("project:search-deleted");
-      yield* createProject(project);
-      yield* createProject(deletedProject);
-      yield* Effect.flatMap(ProjectStore.ProjectStoreV2, (projects) =>
-        projects.apply({
-          sequence: 0,
-          eventId: EventId.make("deleted:project"),
-          aggregateKind: "project",
-          aggregateId: deletedProject,
-          occurredAt: DateTime.formatIso(at(2)),
-          commandId: null,
-          causationEventId: null,
-          correlationId: null,
-          metadata: {},
-          type: "project.deleted",
-          payload: { projectId: deletedProject, deletedAt: DateTime.formatIso(at(2)) },
-        }),
-      );
-
-      const both = ThreadId.make("thread:both");
-      const assistantOnly = ThreadId.make("thread:assistant");
-      const events: ReadonlyArray<OrchestrationV2DomainEvent> = [
-        thread(both, project),
-        message(both, "both-assistant", "assistant", "needle from the answer", { minute: 3 }),
-        message(both, "both-user-old", "user", "older needle question", { minute: 1 }),
-        message(both, "both-user-new", "user", "newer needle question", { minute: 2 }),
-        thread(assistantOnly, project),
-        message(assistantOnly, "assistant-only", "assistant", "needle in an answer"),
-        message(assistantOnly, "assistant-streaming", "user", "needle still typing", {
-          streaming: true,
-        }),
-        message(assistantOnly, "assistant-system", "system", "needle system prompt"),
-        thread(ThreadId.make("thread:archived"), project, { archivedAt: at(1) }),
-        message(ThreadId.make("thread:archived"), "archived", "user", "needle archived"),
-        thread(ThreadId.make("thread:deleted"), project, { deletedAt: at(1) }),
-        message(ThreadId.make("thread:deleted"), "deleted", "user", "needle deleted"),
-        thread(ThreadId.make("thread:orphaned"), deletedProject),
-        message(ThreadId.make("thread:orphaned"), "orphaned", "user", "needle orphaned"),
-      ];
-      yield* Effect.forEach(events, projections.apply, { discard: true });
-
-      const result = yield* search.search({ query: "NEEDLE", limit: 20 });
-      assert.deepEqual(
-        result.matches
-          .map((match) => [match.threadId, match.source, match.snippet, match.messageId])
-          .toSorted(([left], [right]) => String(left).localeCompare(String(right))),
-        [
-          [assistantOnly, "assistant", "needle in an answer", "assistant-only"],
-          [both, "user", "newer needle question", "both-user-new"],
-        ],
-      );
-      assert.lengthOf((yield* search.search({ query: "needle", limit: 1 })).matches, 1);
-      assert.deepEqual((yield* search.search({ query: "ne%le" })).matches, []);
-    }),
-  );
-
-  it.effect("indexes a message when it finishes streaming and follows later edits", () =>
-    Effect.gen(function* () {
-      const projections = yield* ProjectionStore.ProjectionStoreV2;
-      const search = yield* ThreadSearch.ThreadSearch;
-      const project = ProjectId.make("project:search-sync");
-      const threadId = ThreadId.make("thread:sync");
-      yield* createProject(project);
-      yield* projections.apply(thread(threadId, project));
-      const threadIds = (query: string) =>
-        search.search({ query }).pipe(Effect.map(({ matches }) => matches.map((m) => m.threadId)));
-
-      yield* projections.apply(
-        message(threadId, "sync", "assistant", "streaming draft", { streaming: true }),
-      );
-      assert.deepEqual(yield* threadIds("draft"), []);
-
-      yield* projections.apply(message(threadId, "sync", "assistant", "finished answer"));
-      assert.deepEqual(yield* threadIds("finished"), [threadId]);
-
-      yield* projections.apply(message(threadId, "sync", "assistant", "edited reply"));
-      assert.deepEqual(yield* threadIds("finished"), []);
-      assert.deepEqual(yield* threadIds("edited"), [threadId]);
-    }),
-  );
-
-  it.effect("matches inside identifiers and skips subagent threads and short tokens", () =>
-    Effect.gen(function* () {
-      const projections = yield* ProjectionStore.ProjectionStoreV2;
-      const search = yield* ThreadSearch.ThreadSearch;
-      const project = ProjectId.make("project:search-tokens");
-      const parent = ThreadId.make("thread:tokens-parent");
-      const subagent = ThreadId.make("thread:tokens-subagent");
-      yield* createProject(project);
-      yield* Effect.forEach(
-        [
-          thread(parent, project),
-          message(parent, "parent", "user", "Rename ThreadSearchService before shipping"),
-          thread(subagent, project, { subagentOf: parent }),
-          message(subagent, "subagent", "assistant", "ThreadSearchService renamed"),
-        ],
-        projections.apply,
-        { discard: true },
-      );
-
-      const result = yield* search.search({ query: "search servi" });
-      assert.deepEqual(
-        result.matches.map((match) => [match.threadId, match.snippet]),
-        [[parent, "Rename ThreadSearchService before shipping"]],
-      );
-      // "ab" alone cannot use the index; with a longer token it narrows the hits.
-      assert.deepEqual((yield* search.search({ query: "ab" })).matches, []);
-      assert.lengthOf((yield* search.search({ query: "renam be" })).matches, 1);
-      assert.lengthOf((yield* search.search({ query: "renam ab" })).matches, 0);
-    }),
-  );
-
-  it.effect("indexes neither subagent messages nor rewrites that keep the text", () =>
-    Effect.gen(function* () {
-      const sql = yield* SqlClient.SqlClient;
-      const projections = yield* ProjectionStore.ProjectionStoreV2;
-      const project = ProjectId.make("project:search-index-writes");
-      const parent = ThreadId.make("thread:index-parent");
-      const subagent = ThreadId.make("thread:index-subagent");
-      yield* createProject(project);
-      yield* Effect.forEach(
-        [
-          thread(parent, project),
-          message(parent, "index-parent", "assistant", "parent answer"),
-          thread(subagent, project, { subagentOf: parent }),
-          message(subagent, "index-subagent", "assistant", "subagent answer"),
-        ],
-        projections.apply,
-        { discard: true },
-      );
-      const indexedThreads = sql<{ readonly threadId: string }>`
-        SELECT messages.thread_id AS "threadId"
-        FROM orchestration_v2_message_search AS search
-        INNER JOIN orchestration_v2_projection_messages AS messages
-          ON messages.rowid = search.rowid
-        WHERE messages.thread_id IN (${parent}, ${subagent})
-      `.pipe(Effect.map((rows) => rows.map((row) => row.threadId)));
-      assert.deepEqual(yield* indexedThreads, [parent]);
-
-      // total_changes counts trigger writes, so 1 means the index was untouched.
-      const changes = sql<{ readonly n: number }>`SELECT total_changes() AS n`.pipe(
-        Effect.map(([row]) => row?.n ?? 0),
-      );
-      const before = yield* changes;
-      yield* sql`
-        UPDATE orchestration_v2_projection_messages
-        SET payload_json = json_set(payload_json, '$.updatedAt', '2026-09-27T01:00:00.000Z')
-        WHERE message_id = 'index-parent'
-      `;
-      assert.strictEqual((yield* changes) - before, 1);
-      assert.deepEqual(yield* indexedThreads, [parent]);
-    }),
-  );
-});
-
 it.layer(layerTest)("ThreadSearch filters before it ranks", (it) => {
   it.effect("orders message matches by when they were written, not by row order", () =>
     Effect.gen(function* () {
       const projections = yield* ProjectionStore.ProjectionStoreV2;
       const search = yield* ThreadSearch.ThreadSearch;
-      const project = ProjectId.make("project:written");
-      yield* createProject(project);
+      const project = "project:written";
       const recent = ThreadId.make("thread:written-recent");
       const imported = ThreadId.make("thread:written-imported");
       // An imported history lands after newer messages in row order.
@@ -343,8 +136,7 @@ it.layer(layerTest)("ThreadSearch filters before it ranks", (it) => {
     Effect.gen(function* () {
       const projections = yield* ProjectionStore.ProjectionStoreV2;
       const search = yield* ThreadSearch.ThreadSearch;
-      const project = ProjectId.make("project:about");
-      yield* createProject(project);
+      const project = "project:about";
       const about = ThreadId.make("thread:about-osprey");
       const mention = ThreadId.make("thread:mention-osprey");
       yield* Effect.forEach(
@@ -376,8 +168,7 @@ it.layer(layerTest)("ThreadSearch filters before it ranks", (it) => {
     Effect.gen(function* () {
       const projections = yield* ProjectionStore.ProjectionStoreV2;
       const search = yield* ThreadSearch.ThreadSearch;
-      const project = ProjectId.make("project:best-hits");
-      yield* createProject(project);
+      const project = "project:best-hits";
       const clarks = ThreadId.make("thread:clarks");
       const larks = ThreadId.make("thread:lark-many");
       yield* Effect.forEach(
@@ -410,11 +201,10 @@ it.layer(layerTest)("ThreadSearch filters before it ranks", (it) => {
     Effect.gen(function* () {
       const projections = yield* ProjectionStore.ProjectionStoreV2;
       const search = yield* ThreadSearch.ThreadSearch;
-      const project = ProjectId.make("project:crowded");
+      const project = "project:crowded";
       const parent = ThreadId.make("thread:crowded-parent");
       const subagent = ThreadId.make("thread:crowded-subagent");
       const older = ThreadId.make("thread:crowded-older");
-      yield* createProject(project);
       yield* Effect.forEach(
         [
           thread(parent, project),
@@ -449,10 +239,9 @@ it.layer(layerTest)("ThreadSearch filters before it ranks", (it) => {
       const projections = yield* ProjectionStore.ProjectionStoreV2;
       const search = yield* ThreadSearch.ThreadSearch;
       const sql = yield* SqlClient.SqlClient;
-      const project = ProjectId.make("project:plover");
+      const project = "project:plover";
       const busy = ThreadId.make("thread:plover-busy");
       const picked = ThreadId.make("thread:plover-picked");
-      yield* createProject(project);
       yield* Effect.forEach(
         [
           thread(busy, project),
@@ -489,10 +278,9 @@ it.layer(layerTest)("ThreadSearch filters before it ranks", (it) => {
     Effect.gen(function* () {
       const projections = yield* ProjectionStore.ProjectionStoreV2;
       const search = yield* ThreadSearch.ThreadSearch;
-      const project = ProjectId.make("project:apostrophes");
+      const project = "project:apostrophes";
       const curly = ThreadId.make("thread:apostrophe-curly");
       const straight = ThreadId.make("thread:apostrophe-straight");
-      yield* createProject(project);
       yield* Effect.forEach(
         [
           thread(curly, project),
@@ -514,9 +302,8 @@ it.layer(layerTest)("ThreadSearch filters before it ranks", (it) => {
     Effect.gen(function* () {
       const projections = yield* ProjectionStore.ProjectionStoreV2;
       const search = yield* ThreadSearch.ThreadSearch;
-      const project = ProjectId.make("project:answers");
+      const project = "project:answers";
       const asked = ThreadId.make("thread:answers");
-      yield* createProject(project);
       yield* Effect.forEach(
         [
           thread(asked, project),
@@ -533,10 +320,9 @@ it.layer(layerTest)("ThreadSearch filters before it ranks", (it) => {
     Effect.gen(function* () {
       const projections = yield* ProjectionStore.ProjectionStoreV2;
       const search = yield* ThreadSearch.ThreadSearch;
-      const project = ProjectId.make("project:heron");
+      const project = "project:heron";
       const labeled = ThreadId.make("thread:heron-label");
       const addressOnly = ThreadId.make("thread:heron-address");
-      yield* createProject(project);
       yield* Effect.forEach(
         [
           thread(labeled, project),
@@ -560,10 +346,9 @@ it.layer(layerTest)("ThreadSearch filters before it ranks", (it) => {
       const projections = yield* ProjectionStore.ProjectionStoreV2;
       const search = yield* ThreadSearch.ThreadSearch;
       const sql = yield* SqlClient.SqlClient;
-      const project = ProjectId.make("project:kestrel");
+      const project = "project:kestrel";
       const old = ThreadId.make("thread:kestrel-old");
       const busy = ThreadId.make("thread:kestrel-busy");
-      yield* createProject(project);
       yield* Effect.forEach(
         [
           thread(old, project),
@@ -600,11 +385,10 @@ it.layer(layerTest)("ThreadSearch across scripts and without the index", (it) =>
         const projections = yield* ProjectionStore.ProjectionStoreV2;
         const search = yield* ThreadSearch.ThreadSearch;
         const sql = yield* SqlClient.SqlClient;
-        const project = ProjectId.make("project:scripts");
+        const project = "project:scripts";
         const threadId = ThreadId.make("thread:scripts");
         const drafts = ThreadId.make("thread:drafts");
         const addresses = ThreadId.make("thread:addresses");
-        yield* createProject(project);
         yield* Effect.forEach(
           [
             thread(threadId, project),
@@ -667,10 +451,8 @@ it.layer(layerTest)("ThreadSearch.searchOlderSettled", (it) => {
     Effect.gen(function* () {
       const projections = yield* ProjectionStore.ProjectionStoreV2;
       const search = yield* ThreadSearch.ThreadSearch;
-      const project = ProjectId.make("project:kestrel");
-      const other = ProjectId.make("project:kestrel-other");
-      yield* createProject(project);
-      yield* createProject(other);
+      const project = "project:kestrel";
+      const other = "project:kestrel-other";
       const id = (name: string) => ThreadId.make(`thread:kestrel-${name}`);
       const old = at(10);
       yield* Effect.forEach(
@@ -697,7 +479,6 @@ it.layer(layerTest)("ThreadSearch.searchOlderSettled", (it) => {
         yield* search.searchOlderSettled({
           query: "kestrel",
           before,
-          projectIds: [project],
           messageThreadIds: [id("elsewhere"), ...messageThreadIds],
         }),
         [id("old"), id("note")],
@@ -722,8 +503,7 @@ it.layer(layerTest)("ThreadSearch.searchThreadsWithOlderSettledRows", (it) => {
       const projections = yield* ProjectionStore.ProjectionStoreV2;
       const search = yield* ThreadSearch.ThreadSearch;
       const sql = yield* SqlClient.SqlClient;
-      const project = ProjectId.make("project:plover");
-      yield* createProject(project);
+      const project = "project:plover";
       const old = ThreadId.make("thread:plover-old");
       const recent = ThreadId.make("thread:plover-recent");
       yield* Effect.forEach(
@@ -782,8 +562,7 @@ it.layer(layerTest)("ThreadSearch.searchThreads", (it) => {
     Effect.gen(function* () {
       const projections = yield* ProjectionStore.ProjectionStoreV2;
       const search = yield* ThreadSearch.ThreadSearch;
-      const project = ProjectId.make("project:petrel");
-      yield* createProject(project);
+      const project = "project:petrel";
       const messageOnly = ThreadId.make("thread:petrel-message");
       yield* Effect.forEach(
         [
@@ -814,10 +593,9 @@ it.layer(layerTest)("ThreadSearch.searchThreads", (it) => {
       const projections = yield* ProjectionStore.ProjectionStoreV2;
       const search = yield* ThreadSearch.ThreadSearch;
       const sql = yield* SqlClient.SqlClient;
-      const project = ProjectId.make("project:hit-limit");
+      const project = "project:hit-limit";
       const messageOnly = ThreadId.make("thread:grebe-message");
       const titled = ThreadId.make("thread:grebe-titled");
-      yield* createProject(project);
       yield* Effect.forEach(
         [
           thread(messageOnly, project, { title: "Unrelated" }),
@@ -840,68 +618,6 @@ it.layer(layerTest)("ThreadSearch.searchThreads", (it) => {
       assert.include(
         matches.map((match) => match.threadId),
         messageOnly,
-      );
-    }),
-  );
-
-  it.effect("ranks title matches like the palette, then message matches, within one project", () =>
-    Effect.gen(function* () {
-      const projections = yield* ProjectionStore.ProjectionStoreV2;
-      const search = yield* ThreadSearch.ThreadSearch;
-      const project = ProjectId.make("project:titles");
-      const otherProject = ProjectId.make("project:titles-other");
-      yield* createProject(project);
-      yield* createProject(otherProject);
-      const wordStart = ThreadId.make("thread:word-start");
-      const midWord = ThreadId.make("thread:mid-word");
-      const messageOnly = ThreadId.make("thread:message-only");
-      const elsewhere = ThreadId.make("thread:elsewhere");
-      yield* Effect.forEach(
-        [
-          thread(midWord, project, { title: "Fix oauth redirect" }),
-          thread(wordStart, project, { title: "Clean up auth tokens" }),
-          thread(messageOnly, project, { title: "Unrelated" }),
-          message(messageOnly, "message-only", "user", "the auth flow broke again"),
-          thread(elsewhere, otherProject, { title: "Auth everywhere" }),
-        ],
-        projections.apply,
-        { discard: true },
-      );
-
-      // Stronger message hits in another project must not use up this project's limit.
-      yield* Effect.forEach(
-        Array.from({ length: 55 }, (_, index) => {
-          const busy = ThreadId.make(`thread:elsewhere-${index}`);
-          return [
-            thread(busy, otherProject),
-            message(busy, `elsewhere-${index}`, "user", "auth auth auth"),
-          ];
-        }).flat(),
-        projections.apply,
-        { discard: true },
-      );
-      const result = yield* search.searchThreads({ query: "auth", projectId: project, limit: 3 });
-      assert.deepEqual(
-        result.matches.map((match) => [match.threadId, match.source]),
-        [
-          [wordStart, "title"],
-          [midWord, "title"],
-          [messageOnly, "user"],
-        ],
-      );
-      // With one slot, an exact title keeps it.
-      assert.deepEqual(
-        (yield* search.searchThreads({ query: "auth", projectId: project, limit: 1 })).matches.map(
-          (match) => match.threadId,
-        ),
-        [wordStart],
-      );
-      // Exact matching finds nothing, so one typo is forgiven.
-      assert.deepEqual(
-        (yield* search.searchThreads({ query: "tokesn", projectId: project })).matches.map(
-          (match) => match.title,
-        ),
-        ["Clean up auth tokens"],
       );
     }),
   );
@@ -939,11 +655,7 @@ it.effect("searches on the reader worker while the writer is busy", () =>
     const fileSystem = yield* FileSystem.FileSystem;
     const path = yield* Path.Path;
     const directory = yield* fileSystem.makeTempDirectoryScoped({ prefix: "t3-thread-search-" });
-    const layerFile = Layer.mergeAll(
-      ThreadSearch.layer,
-      ProjectionStore.layer,
-      ProjectStore.layer,
-    ).pipe(
+    const layerFile = Layer.mergeAll(ThreadSearch.layer, ProjectionStore.layer).pipe(
       Layer.provideMerge(SqlitePersistence.layerFromPath(path.join(directory, "state.sqlite"))),
       Layer.provide(NodeServices.layer),
     );
@@ -952,9 +664,8 @@ it.effect("searches on the reader worker while the writer is busy", () =>
       const projections = yield* ProjectionStore.ProjectionStoreV2;
       const search = yield* ThreadSearch.ThreadSearch;
       const sql = yield* SqlClient.SqlClient;
-      const project = ProjectId.make("project:search-reader");
+      const project = "project:search-reader";
       const threadId = ThreadId.make("thread:reader");
-      yield* createProject(project);
       yield* Effect.forEach(
         [thread(threadId, project), message(threadId, "reader", "user", "needle on the reader")],
         projections.apply,

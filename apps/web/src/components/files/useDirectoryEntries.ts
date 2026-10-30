@@ -1,4 +1,6 @@
-import type { EnvironmentId, ProjectEntry } from "@t3tools/contracts";
+import { workspaceEnvironment } from "~/state/workspaceFiles";
+
+import type { EnvironmentId, WorkspaceEntry } from "@t3tools/contracts";
 import { useAtomMount, useAtomSubscribe } from "@effect/atom-react";
 import { executeAtomQuery } from "@t3tools/client-runtime/state/runtime";
 import * as Cause from "effect/Cause";
@@ -6,10 +8,9 @@ import { useEffect, useRef, useState } from "react";
 
 import { environmentCatalog } from "~/connection/catalog";
 import { appAtomRegistry } from "~/rpc/atomRegistry";
-import { projectEnvironment } from "~/state/projects";
 
 export function useDirectoryEntries(environmentId: EnvironmentId, cwd: string) {
-  const [directories, setDirectories] = useState(new Map<string, readonly ProjectEntry[]>());
+  const [directories, setDirectories] = useState(new Map<string, readonly WorkspaceEntry[]>());
   const [errors, setErrors] = useState(new Map<string, string>());
   const [pending, setPending] = useState(1);
   const [loadingDirectories, setLoadingDirectories] = useState<ReadonlySet<string>>(
@@ -25,7 +26,7 @@ export function useDirectoryEntries(environmentId: EnvironmentId, cwd: string) {
   const startRequest = (directoryPath: string, refresh: boolean): Promise<void> => {
     loaded.current.add(directoryPath);
     requested.current.add(directoryPath);
-    const atom = projectEnvironment.listEntries({ environmentId, input: { cwd, directoryPath } });
+    const atom = workspaceEnvironment.listEntries({ environmentId, input: { cwd, directoryPath } });
     const request = (async () => {
       if (running.current >= 4) await new Promise<void>((resolve) => waiting.current.push(resolve));
       else running.current++;
@@ -112,7 +113,7 @@ export function useDirectoryEntries(environmentId: EnvironmentId, cwd: string) {
     for (const path of errors.keys()) void load(path);
   });
 
-  const entries: ProjectEntry[] = [];
+  const entries: WorkspaceEntry[] = [];
   const visit = (path: string) => {
     for (const entry of directories.get(path) ?? []) {
       entries.push(entry);

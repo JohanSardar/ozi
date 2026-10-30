@@ -178,11 +178,9 @@ describe("i5.ticket-reply", () => {
   it("i5.row: a reply typed on a row goes into the chat the user is in with the ticket", async () => {
     const project = NodePath.join(directory, "project");
     await NodeFSP.mkdir(project);
-    await run("project", "add", project);
-    dentist = (await ozi("thread", "start", project, "Book the dentist")).threadId;
-    friday = (await ozi("thread", "start", project, "Plan Friday")).threadId;
+    dentist = (await ozi("thread", "start", "--cwd", project, "Book the dentist")).threadId;
+    friday = (await ozi("thread", "start", "--cwd", project, "Plan Friday")).threadId;
     ticketId = (await file()).id;
-    await page.getByRole("treeitem", { name: /^Settled/ }).click();
     await page.getByRole("treeitem", { name: /Plan Friday/ }).click();
     await page.getByText("Fake reply: Plan Friday", { exact: true }).waitFor();
     expect(threadId()).toBe(friday);
@@ -240,7 +238,7 @@ describe("i5.ticket-reply", () => {
   });
 
   it("i5.new-chat: replying from a new chat starts that chat", async () => {
-    await page.getByRole("button", { name: "New thread" }).first().click();
+    await page.getByRole("button", { name: "New chat" }).first().click();
     await page.waitForURL(/\/draft\//);
     await inbox
       .getByRole("button", { name: /Pick a dentist slot/ })

@@ -3,7 +3,6 @@ import {
   CommandId,
   EnvironmentId,
   MessageId,
-  ProjectId,
   ProviderInstanceId,
   ThreadId,
 } from "@t3tools/contracts";
@@ -232,8 +231,6 @@ beforeEach(() => {
     pendingAttachmentIds: [],
   }));
 });
-
-describe("queued PR checkout", () => {});
 afterEach(() => {
   state.cleanups.splice(0).forEach((cleanup) => cleanup());
 });
@@ -330,8 +327,7 @@ describe("queued task operation access", () => {
               threadId: ThreadId.make("new-thread"),
               modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.4" },
               creation: {
-                projectId: ProjectId.make("project"),
-                projectCwd: "/repo",
+                defaultCwd: "/repo",
                 workspaceMode: "local",
                 workingDirectory: null,
               },
@@ -383,8 +379,7 @@ describe("queued task operation access", () => {
               threadId: ThreadId.make("new-thread"),
               modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.4" },
               creation: {
-                projectId: ProjectId.make("project"),
-                projectCwd: "/repo",
+                defaultCwd: "/repo",
                 workspaceMode: "local",
                 workingDirectory: null,
               },

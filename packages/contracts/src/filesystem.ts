@@ -46,7 +46,7 @@ export type FilesystemBrowseResult = typeof FilesystemBrowseResult.Type;
 
 export const FilesystemBrowseFailure = Schema.Literals([
   "windows_path_unsupported",
-  "current_project_required",
+  "working_directory_required",
   "read_directory_failed",
 ]);
 export type FilesystemBrowseFailure = typeof FilesystemBrowseFailure.Type;

@@ -35,10 +35,6 @@
       "types": "./src/load-balancing.ts",
       "default": "./src/load-balancing.ts"
     },
-    "./project-favicon-cache": {
-      "types": "./src/projectFaviconCache.ts",
-      "default": "./src/projectFaviconCache.ts"
-    },
     "./user-message": {
       "types": "./src/userMessage.ts",
       "default": "./src/userMessage.ts"
@@ -98,10 +94,6 @@
     "./operations": {
       "types": "./src/operations/index.ts",
       "default": "./src/operations/index.ts"
-    },
-    "./operations/projects": {
-      "types": "./src/operations/projects.ts",
-      "default": "./src/operations/projects.ts"
     },
     "./platform": {
       "types": "./src/platform/index.ts",
@@ -187,10 +179,6 @@
       "types": "./src/state/orchestration.ts",
       "default": "./src/state/orchestration.ts"
     },
-    "./state/orchestration-v2-projection": {
-      "types": "./src/state/orchestrationV2Projection.ts",
-      "default": "./src/state/orchestrationV2Projection.ts"
-    },
     "./state/presentation": {
       "types": "./src/state/presentation.ts",
       "default": "./src/state/presentation.ts"
@@ -207,17 +195,9 @@
       "types": "./src/state/preview.ts",
       "default": "./src/state/preview.ts"
     },
-    "./state/projects": {
-      "types": "./src/state/projects.ts",
-      "default": "./src/state/projects.ts"
-    },
     "./state/provider-instance-display": {
       "types": "./src/state/providerInstanceDisplay.ts",
       "default": "./src/state/providerInstanceDisplay.ts"
-    },
-    "./state/project-grouping": {
-      "types": "./src/state/projectGrouping.ts",
-      "default": "./src/state/projectGrouping.ts"
     },
     "./state/relay": {
       "types": "./src/state/relayDiscovery.ts",
@@ -394,6 +374,14 @@
     "./state/preview-stream-access": {
       "types": "./src/state/previewStreamAccess.ts",
       "default": "./src/state/previewStreamAccess.ts"
+    },
+    "./state/workspace": {
+      "types": "./src/state/workspace.ts",
+      "import": "./src/state/workspace.ts"
+    },
+    "./state/orchestration-v2-projection": {
+      "types": "./src/state/orchestrationV2Projection.ts",
+      "default": "./src/state/orchestrationV2Projection.ts"
     }
   },
   "scripts": {

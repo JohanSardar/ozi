@@ -1,8 +1,5 @@
 import * as Dialog from "../components/ui/Dialog";
-import {
-  type EnvironmentProject,
-  type EnvironmentThreadShell,
-} from "@t3tools/client-runtime/state/shell";
+import { type EnvironmentThreadShell } from "@t3tools/client-runtime/state/shell";
 import {
   type AtomCommand,
   type AtomCommandResult,
@@ -24,7 +21,7 @@ import { AsyncResult, Atom } from "effect/reactivity";
 
 import { createDebugLogger } from "../lib/debugLog";
 import { scopedThreadKey } from "../lib/scopedEntities";
-import { buildProjectThreadStartTurnInput } from "../lib/projectThreadStartTurn";
+import { buildThreadStartTurnInput } from "../lib/threadStartTurn";
 import { serializeComposerMessageForServer, uploadedComposerContext } from "../lib/composerContext";
 import { prepareTurnAttachments, type PreparedTurnAttachments } from "../lib/attachmentUpload";
 import {
@@ -42,7 +39,6 @@ import {
   pendingThreadCreationOutcomesAtom,
   recordPendingThreadCreationOutcome,
 } from "./pending-thread-creation";
-import { environmentProjects } from "./projects";
 import { environmentServerConfigsAtom, serverEnvironment } from "./server";
 import { environmentSession, readEnvironmentScope, sessionHasScope } from "./session";
 import {
@@ -166,17 +162,6 @@ function findThread(
   return threads.find(
     (candidate) =>
       candidate.environmentId === message.environmentId && candidate.id === message.threadId,
-  );
-}
-
-function findCreationProject(
-  projects: ReadonlyArray<EnvironmentProject>,
-  message: QueuedThreadMessage,
-): EnvironmentProject | undefined {
-  return projects.find(
-    (candidate) =>
-      candidate.environmentId === message.environmentId &&
-      candidate.id === message.creation?.projectId,
   );
 }
 
@@ -424,7 +409,7 @@ export async function restoreRejectedQueuedMessage(
     }
     let mergedDraft: ComposerDraft;
     try {
-      stampRecoveryDraftProject(queuedMessage, draftKey);
+      stampRecoveryDraftEnvironment(queuedMessage, draftKey);
       await mergeComposerDraftContent(draftKey, {
         text: queuedMessage.text,
         context: queuedMessage.context,
@@ -504,17 +489,11 @@ function recoveryDraftKey(queuedMessage: QueuedThreadMessage): string {
     : scopedThreadKey(queuedMessage.environmentId, queuedMessage.threadId);
 }
 
-function stampRecoveryDraftProject(queuedMessage: QueuedThreadMessage, draftKey: string): void {
+function stampRecoveryDraftEnvironment(queuedMessage: QueuedThreadMessage, draftKey: string): void {
   if (!queuedMessage.creation) {
     return;
   }
-  updateComposerDraftSettings(draftKey, {
-    project: {
-      environmentId: queuedMessage.environmentId,
-      projectId: queuedMessage.creation.projectId,
-      createdAt: queuedMessage.createdAt,
-    },
-  });
+  updateComposerDraftSettings(draftKey, {});
 }
 
 async function preserveUploadedAttachmentsForEditor(
@@ -575,7 +554,6 @@ const deliveryInputsAtom = Atom.make((get) => {
     queuedMessagesByThreadKey: get(threadOutboxManager.queuedMessagesByThreadKeyAtom),
     shellStatuses: get(threadOutboxShellStatusesAtom),
     threads: get(environmentThreadShells.threadShellsAtom),
-    projects: get(environmentProjects.projectsAtom),
     serverConfigs: get(environmentServerConfigsAtom),
     connectedEnvironments,
     operableEnvironments,
@@ -757,11 +735,10 @@ export function createThreadOutboxDelivery(): {
     );
     if (!serverConfig) return false;
     const settings = resolveQueuedThreadSettings(queuedMessage, thread, serverConfig.providers);
-    if (isModelSelectionUnavailable(serverConfig, settings.modelSelection, thread.projectId)) {
+    if (isModelSelectionUnavailable(serverConfig, settings.modelSelection)) {
       const { title, detail } = describeUnavailableModelSelection(
         serverConfig,
         settings.modelSelection,
-        thread.projectId,
       );
       return restoreQueuedMessage(queuedMessage, `${title}. ${detail}`);
     }
@@ -834,11 +811,10 @@ export function createThreadOutboxDelivery(): {
       serverEnvironment.configValueAtom(queuedMessage.environmentId),
     );
     if (!currentConfig) return false;
-    if (isModelSelectionUnavailable(currentConfig, settings.modelSelection, thread.projectId)) {
+    if (isModelSelectionUnavailable(currentConfig, settings.modelSelection)) {
       const { title, detail } = describeUnavailableModelSelection(
         currentConfig,
         settings.modelSelection,
-        thread.projectId,
       );
       return restoreQueuedMessage(persistedMessage, `${title}. ${detail}`);
     }
@@ -902,7 +878,7 @@ export function createThreadOutboxDelivery(): {
   const sendQueuedCreation = async (
     queuedMessage: QueuedThreadMessage,
     creation: QueuedThreadCreation,
-    projectCwd: string,
+    defaultCwd: string,
   ): Promise<boolean> => {
     const hasAccess = () =>
       readEnvironmentScope(queuedMessage.environmentId, AuthOrchestrationOperateScope);
@@ -924,11 +900,10 @@ export function createThreadOutboxDelivery(): {
       },
       serverConfig.providers,
     );
-    if (isModelSelectionUnavailable(serverConfig, settings.modelSelection, creation.projectId)) {
+    if (isModelSelectionUnavailable(serverConfig, settings.modelSelection)) {
       const { title, detail } = describeUnavailableModelSelection(
         serverConfig,
         settings.modelSelection,
-        creation.projectId,
       );
       return restoreQueuedMessage(queuedMessage, `${title}. ${detail}`);
     }
@@ -965,11 +940,10 @@ export function createThreadOutboxDelivery(): {
       serverEnvironment.configValueAtom(queuedMessage.environmentId),
     );
     if (!currentConfig) return false;
-    if (isModelSelectionUnavailable(currentConfig, settings.modelSelection, creation.projectId)) {
+    if (isModelSelectionUnavailable(currentConfig, settings.modelSelection)) {
       const { title, detail } = describeUnavailableModelSelection(
         currentConfig,
         settings.modelSelection,
-        creation.projectId,
       );
       return restoreQueuedMessage(persistedMessage, `${title}. ${detail}`);
     }
@@ -982,9 +956,8 @@ export function createThreadOutboxDelivery(): {
     let workspace = creation;
     const deliveryResult = await runDeliveryCommand(threadEnvironment.startTurn, {
       environmentId: queuedMessage.environmentId,
-      input: buildProjectThreadStartTurnInput({
-        projectId: creation.projectId,
-        projectCwd,
+      input: buildThreadStartTurnInput({
+        defaultCwd,
         threadId: queuedMessage.threadId,
         commandId: queuedMessage.commandId,
         messageId: queuedMessage.messageId,
@@ -1060,7 +1033,6 @@ export function createThreadOutboxDelivery(): {
       queuedMessagesByThreadKey,
       shellStatuses,
       threads,
-      projects,
       serverConfigs,
       connectedEnvironments,
       operableEnvironments,
@@ -1225,17 +1197,12 @@ export function createThreadOutboxDelivery(): {
         );
         return;
       }
-      const creationProjectCwd =
-        creation !== undefined
-          ? (findCreationProject(projects, nextQueuedMessage)?.workspaceRoot ??
-            creation.projectCwd ??
-            null)
-          : null;
+      const creationCwd = creation?.defaultCwd ?? serverConfig?.cwd ?? null;
       if (deliveryAction === "send" && creation !== undefined) {
         if (!isQueuedThreadCreationSendable(nextQueuedMessage)) {
           continue;
         }
-        if (creationProjectCwd === null && shellStatus !== "live") {
+        if (creationCwd === null && shellStatus !== "live") {
           continue;
         }
       }
@@ -1284,8 +1251,8 @@ export function createThreadOutboxDelivery(): {
               recoverEditedCreationAfterDelivery(nextQueuedMessage)
             : removeQueuedMessage("[thread-outbox] failed to remove message for a missing thread")
           : creation !== undefined
-            ? creationProjectCwd !== null
-              ? sendQueuedCreation(nextQueuedMessage, creation, creationProjectCwd)
+            ? creationCwd !== null
+              ? sendQueuedCreation(nextQueuedMessage, creation, creationCwd)
               : removeQueuedMessage("[thread-outbox] dropped pending task for a missing project")
             : thread !== undefined
               ? sendQueuedMessage(nextQueuedMessage, thread)

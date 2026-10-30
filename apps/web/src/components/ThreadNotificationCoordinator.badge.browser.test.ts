@@ -117,7 +117,6 @@ function toV2ThreadShell(input: typeof thread) {
   const latestTurn = input.latestTurn;
   return {
     id: input.id,
-    projectId: "project",
     title: input.title,
     providerInstanceId: "codex",
     modelSelection: { instanceId: "codex", model: "gpt-5.4" },

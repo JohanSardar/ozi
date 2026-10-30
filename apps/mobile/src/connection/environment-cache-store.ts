@@ -13,10 +13,6 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
 import * as MobileDatabase from "../persistence/mobile-database";
-import {
-  attachProjectFaviconDatabase,
-  projectFaviconDatabaseCache,
-} from "../lib/projectFaviconDatabaseCache";
 import { decodeStoredShellSnapshot } from "./shell-cache-decoding";
 
 const SERVER_CONFIG_CACHE_SCHEMA_VERSION = 1;
@@ -85,7 +81,6 @@ function loadDecodedCache<A, B>(input: {
 
 export const make = Effect.fn("MobileEnvironmentCacheStore.make")(function* () {
   const database = yield* MobileDatabase.MobileDatabase;
-  attachProjectFaviconDatabase(database);
   const encodeStoredShellSnapshot = makeStoredShellSnapshotEncoder();
   return Persistence.EnvironmentCacheStore.of({
     loadShell: Effect.fn("MobileEnvironmentCache.loadShell")((environmentId) =>
@@ -98,13 +93,7 @@ export const make = Effect.fn("MobileEnvironmentCacheStore.make")(function* () {
         decode: decodeStoredShellSnapshot,
         select: (stored) =>
           stored.environmentId === environmentId ? Option.some(stored.snapshot) : Option.none(),
-      }).pipe(
-        Effect.zipWith(
-          Effect.promise(() => projectFaviconDatabaseCache.hydrate()),
-          (snapshot) => snapshot,
-          { concurrent: true },
-        ),
-      ),
+      }).pipe(),
     ),
     saveShell: Effect.fn("MobileEnvironmentCache.saveShell")(function* (environmentId, snapshot) {
       const payload = yield* encodeStoredShellSnapshot({
@@ -177,10 +166,9 @@ export const make = Effect.fn("MobileEnvironmentCacheStore.make")(function* () {
       },
     ),
     clear: Effect.fn("MobileEnvironmentCache.clear")((environmentId) =>
-      Effect.promise(() => projectFaviconDatabaseCache.clearEnvironment(environmentId)).pipe(
-        Effect.andThen(database.clearEnvironmentCache(environmentId)),
-        Effect.mapError(mapDatabaseError("clear-environment")),
-      ),
+      database
+        .clearEnvironmentCache(environmentId)
+        .pipe(Effect.mapError(mapDatabaseError("clear-environment"))),
     ),
   });
 });

@@ -1,11 +1,5 @@
 import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/shell";
-import {
-  EnvironmentId,
-  ProjectId,
-  ProviderInstanceId,
-  ThreadId,
-  type ServerConfig,
-} from "@t3tools/contracts";
+import { EnvironmentId, ProviderInstanceId, ThreadId, type ServerConfig } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 import { Atom, AtomRegistry } from "effect/reactivity";
 
@@ -35,7 +29,6 @@ function makeThread(environmentId: EnvironmentId, instanceId: string): Environme
   return {
     environmentId,
     id: ThreadId.make("thread-1"),
-    projectId: ProjectId.make("project-1"),
     title: "Thread",
     modelSelection: { instanceId: ProviderInstanceId.make(instanceId), model: "gpt-5.4" },
     runtimeMode: "full-access",

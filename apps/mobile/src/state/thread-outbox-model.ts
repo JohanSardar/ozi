@@ -12,12 +12,10 @@ import {
   MessageId,
   ModelSelection,
   OrchestrationMessageContext,
-  ProjectId,
   ProviderInteractionMode,
   RuntimeMode,
   ThreadId,
   type ModelSelection as ModelSelectionType,
-  type ProjectId as ProjectIdType,
   type ProviderInteractionMode as ProviderInteractionModeType,
   type RuntimeMode as RuntimeModeType,
   type ServerProvider,
@@ -35,9 +33,7 @@ const THREAD_OUTBOX_SCHEMA_VERSION = 3;
 const THREAD_OUTBOX_MAX_RETRY_DELAY_MS = 16_000;
 
 const QueuedThreadCreationSchema = Schema.Struct({
-  projectId: ProjectId,
-  projectTitle: Schema.optional(Schema.String),
-  projectCwd: Schema.optional(Schema.String),
+  defaultCwd: Schema.optional(Schema.String),
   workspaceMode: Schema.Literals(["local"]),
   workingDirectory: Schema.NullOr(Schema.String),
 });
@@ -63,9 +59,7 @@ const decodeStoredQueuedThreadMessage = Schema.decodeUnknownSync(QueuedThreadMes
 const encodeStoredQueuedThreadMessage = Schema.encodeUnknownSync(QueuedThreadMessageSchema);
 
 export interface QueuedThreadCreation {
-  readonly projectId: ProjectIdType;
-  readonly projectTitle?: string;
-  readonly projectCwd?: string;
+  readonly defaultCwd?: string;
   readonly workspaceMode: "local";
   readonly workingDirectory: string | null;
 }

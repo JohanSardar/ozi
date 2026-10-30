@@ -132,10 +132,9 @@ describe("i7.clearing", () => {
       dev.stderr!.on("data", read);
       dev.once("exit", (code) => reject(new Error(`Dev runner exited: ${code}\n${output}`)));
     });
-    await exec(process.execPath, [bin, "project", "add", workspace, "--home", home], { env });
     const [{ pairingUrl }, started] = await Promise.all([
       cli("pair"),
-      cli("thread", "start", workspace, "i7-chat", "--wait"),
+      cli("thread", "start", "--cwd", workspace, "i7-chat", "--wait"),
     ]);
     chatId = started.threadId;
     browser = await chromium.launch();

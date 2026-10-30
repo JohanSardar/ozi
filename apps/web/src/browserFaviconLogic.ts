@@ -45,7 +45,10 @@ function migratePersistedFaviconKey(key: string): string | null {
   if (key.length === 0 || key.length > BROWSER_FAVICON_MAX_KEY_LENGTH) return null;
   const separator = key.indexOf(" ");
   if (separator <= 0) return null;
-  const scope = key.slice(0, separator);
+  const previousScope = key.slice(0, separator);
+  const scope = previousScope.includes(":")
+    ? previousScope.slice(0, previousScope.indexOf(":"))
+    : previousScope;
   const origin = key.slice(separator + 1);
   try {
     const parsed = new URL(origin);
@@ -58,7 +61,7 @@ function migratePersistedFaviconKey(key: string): string | null {
       parsed.password !== ""
     )
       return null;
-    if (normalizeHostname(parsed.hostname) !== "local") return key;
+    if (normalizeHostname(parsed.hostname) !== "local") return `${scope} ${origin}`;
     const port = parsed.port || (parsed.protocol === "https:" ? "443" : "80");
     return `${scope} ${parsed.protocol}//localhost:${port}`;
   } catch {
@@ -79,11 +82,11 @@ function persistedFaviconAlias(value: unknown): string | null {
 }
 
 export function faviconKey(
-  projectRefKey: string,
+  environmentKey: string,
   url: string,
   environmentHostname: string | null,
 ): string | null {
-  if (projectRefKey.length === 0) return null;
+  if (environmentKey.length === 0) return null;
   try {
     const parsed = new URL(url);
     if (parsed.protocol !== "http:" && parsed.protocol !== "https:") return null;
@@ -95,18 +98,18 @@ export function faviconKey(
         ? "localhost"
         : host;
     const port = parsed.port || (parsed.protocol === "https:" ? "443" : "80");
-    return `${projectRefKey} ${parsed.protocol}//${formatFaviconHost(canonicalHost)}:${port}`;
+    return `${environmentKey} ${parsed.protocol}//${formatFaviconHost(canonicalHost)}:${port}`;
   } catch {
     return null;
   }
 }
 
 export function faviconStorageLocation(
-  projectRefKey: string,
+  environmentKey: string,
   url: string,
   environmentHostname: string | null,
 ): { readonly aliases: ReadonlyArray<string>; readonly key: string } | null {
-  const canonicalKey = faviconKey(projectRefKey, url, environmentHostname);
+  const canonicalKey = faviconKey(environmentKey, url, environmentHostname);
   if (!canonicalKey) return null;
   if (environmentHostname === null) return { aliases: [], key: canonicalKey };
   try {

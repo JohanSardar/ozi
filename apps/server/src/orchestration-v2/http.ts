@@ -1,8 +1,4 @@
-import {
-  AuthOrchestrationReadScope,
-  EnvironmentHttpApi,
-  type OrchestrationProjectShell,
-} from "@t3tools/contracts";
+import { AuthOrchestrationReadScope, EnvironmentHttpApi } from "@t3tools/contracts";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Result from "effect/Result";
@@ -21,7 +17,6 @@ import {
 import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
 import { traceLocalHandlerWork } from "../cloud/traceRelayRequest.ts";
 import * as OrchestrationEventStore from "../persistence/OrchestrationEventStore.ts";
-import * as ProjectEnrichmentService from "../project/ProjectEnrichmentService.ts";
 import {
   buildBoundedThreadProjection,
   decodeThreadHistoryCursor,
@@ -31,7 +26,6 @@ import {
   OLDER_THREAD_USER_TURN_LIMIT,
 } from "./threadHistoryPaging.ts";
 import * as ThreadManagementService from "./ThreadManagementService.ts";
-import * as ProjectStore from "./ProjectStore.ts";
 import {
   buildActiveShellSnapshot,
   loadShellSnapshotParts,
@@ -60,23 +54,6 @@ export const layer = HttpApiBuilder.group(
     const environment = yield* ServerEnvironment.ServerEnvironmentIdentity;
     const threadManagement = yield* ThreadManagementService.ThreadManagementService;
     const applicationEvents = yield* OrchestrationEventStore.OrchestrationEventStore;
-    const projectStore = yield* ProjectStore.ProjectStoreV2;
-    const projectEnrichment = yield* ProjectEnrichmentService.ProjectEnrichmentService;
-
-    const enrichProjectShells = Effect.fn("http.orchestration.enrichProjectShells")(
-      (projects: ReadonlyArray<OrchestrationProjectShell>) =>
-        Effect.forEach(
-          projects,
-          (project) =>
-            // Use available enrichment only; git probes can take a minute and exceed shell-snapshot budgets.
-            projectEnrichment.getAvailable(project.workspaceRoot).pipe(
-              Effect.map(() => ({
-                ...project,
-              })),
-            ),
-          { concurrency: 16 },
-        ),
-    );
 
     const loadShellSnapshot = Effect.fn("http.orchestration.loadShellSnapshot")(
       function* (options: {
@@ -87,7 +64,6 @@ export const layer = HttpApiBuilder.group(
           yield* loadShellSnapshotParts({
             sql,
             readThreads: threadManagement.readShellSnapshot({ location: "active" }),
-            listProjects: projectStore.listShells(),
             latestSequence: applicationEvents.latestApplicationSequence,
           }),
         );
@@ -95,8 +71,7 @@ export const layer = HttpApiBuilder.group(
           ...options,
           now: yield* DateTime.now,
         });
-        const projects = yield* enrichProjectShells(base.projects);
-        return { ...snapshot, projects };
+        return snapshot;
       },
     );
 

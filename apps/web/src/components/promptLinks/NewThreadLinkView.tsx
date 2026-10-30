@@ -1,4 +1,3 @@
-import { scopeProjectRef } from "@t3tools/client-runtime/environment";
 import { resolvePromptLinkModelSelection } from "@t3tools/client-runtime/prompt-links";
 import type { NewThreadLink } from "@t3tools/shared/promptLinks";
 import { useAtomValue } from "@effect/atom-react";
@@ -7,7 +6,6 @@ import * as Effect from "effect/Effect";
 import { AsyncResult } from "effect/reactivity";
 import { useComposerDraftStore } from "~/composerDraftStore";
 import { useNewThreadHandler } from "~/hooks/useHandleNewThread";
-import { useScratchProject } from "~/hooks/useScratchProject";
 import { appAtomRegistry } from "~/rpc/atomRegistry";
 import { usePrimaryEnvironmentId } from "~/state/environments";
 import { environmentPresentations } from "~/state/presentation";
@@ -24,18 +22,15 @@ export function NewThreadLinkView({ link }: { readonly link: NewThreadLink }) {
   const ready = useAtomValue(allReachableShellsLiveAtom);
   const primaryEnvironmentId = usePrimaryEnvironmentId();
   const handleNewThread = useNewThreadHandler();
-  const { scratchEnvironmentId, openScratchProject } = useScratchProject();
   const openAtom = Atom.make(
     Effect.promise(async () => {
       if (!ready) return null;
       if (openedLinkKeys.has(locationKey)) return null;
       openedLinkKeys.add(locationKey);
       try {
-        const environmentId = scratchEnvironmentId(primaryEnvironmentId);
+        const environmentId = primaryEnvironmentId;
         if (environmentId === null) throw new Error("No connected environment can start a chat.");
-        const project = await openScratchProject(environmentId);
-        if (project === null) throw new Error("Could not open a chat.");
-        const opened = await handleNewThread(scopeProjectRef(environmentId, project.id), {
+        const opened = await handleNewThread(environmentId, {
           replace: true,
         });
         if (opened === null) throw new Error("Could not open a chat.");

@@ -163,12 +163,10 @@ it("p3.pi-inbox: isolated native forks file, acknowledge and skip small talk wit
       server.once("error", reject);
       server.once("exit", (code) => reject(new Error(`Server exited ${code}: ${output}`)));
     });
-    await exec(process.execPath, [cli, "project", "add", workspace, "--home", home], {
-      env: environment,
-    });
     const result = await run(
       "thread",
       "start",
+      "--cwd",
       workspace,
       "p3-result: finish this report.",
       "--wait",

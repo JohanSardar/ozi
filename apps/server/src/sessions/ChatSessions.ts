@@ -6,8 +6,12 @@ import {
   ChatSessionInput,
   ChatSessionResult,
   ChatSessionAnswerInput,
-  CommandId,
   EventId,
+  TurnItemId,
+  type OrchestrationV2DomainEvent,
+  type OrchestrationV2ConversationMessage,
+  type OrchestrationV2TurnItem,
+  CommandId,
   MessageId,
   ProviderDriverKind,
   ThreadId,
@@ -33,10 +37,7 @@ import * as ServerConfig from "../config.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as ThreadManagement from "../orchestration-v2/ThreadManagementService.ts";
 import * as ProviderSessionManager from "../orchestration-v2/ProviderSessionManager.ts";
-import * as ManagedProjectFolders from "../project/ManagedProjectFolders.ts";
-import * as ProjectService from "../project/ProjectService.ts";
 import * as EventSink from "../orchestration-v2/EventSink.ts";
-import { messageEvents } from "../project/AgentSessionImporter.ts";
 import { attachmentRelativePath } from "../attachmentStore.ts";
 
 const PiRecord = Schema.Struct({
@@ -44,6 +45,7 @@ const PiRecord = Schema.Struct({
   id: Schema.String,
   parentId: Schema.optional(Schema.NullOr(Schema.String)),
   version: Schema.optional(Schema.Number),
+  cwd: Schema.optional(Schema.String),
   timestamp: Schema.String,
   message: Schema.optional(
     Schema.Struct({
@@ -108,11 +110,92 @@ export class ChatSessions extends Context.Service<
   }
 >()("ozi/sessions/ChatSessions") {}
 
+export function messageEvents(input: {
+  readonly threadId: ThreadId;
+  readonly index: number;
+  readonly message: {
+    readonly role: "user" | "assistant";
+    readonly text: string;
+    readonly createdAt: string;
+  };
+}): ReadonlyArray<OrchestrationV2DomainEvent> {
+  const ordinal = input.index + 1;
+  const suffix = String(input.index).padStart(6, "0");
+  const messageId = MessageId.make(`${input.threadId}:${suffix}`);
+  const turnItemId = TurnItemId.make(
+    `${"chat-session-import:v2"}:turn-item:${input.threadId}:${suffix}`,
+  );
+  const at = DateTime.makeUnsafe(input.message.createdAt);
+  const message: OrchestrationV2ConversationMessage = {
+    createdBy: input.message.role === "user" ? "user" : "agent",
+    creationSource: "server",
+    id: messageId,
+    threadId: input.threadId,
+    runId: null,
+    nodeId: null,
+    role: input.message.role,
+    text: input.message.text,
+    attachments: [],
+    streaming: false,
+    createdAt: at,
+    updatedAt: at,
+  };
+  const common = {
+    id: turnItemId,
+    threadId: input.threadId,
+    runId: null,
+    nodeId: null,
+    providerThreadId: null,
+    providerTurnId: null,
+    nativeItemRef: null,
+    parentItemId: null,
+    ordinal,
+    status: "completed" as const,
+    title: null,
+    startedAt: at,
+    completedAt: at,
+    updatedAt: at,
+  };
+  const turnItem: OrchestrationV2TurnItem =
+    input.message.role === "user"
+      ? {
+          ...common,
+          createdBy: "user",
+          creationSource: "server",
+          type: "user_message",
+          messageId,
+          inputIntent: "turn_start",
+          text: input.message.text,
+          attachments: [],
+        }
+      : {
+          ...common,
+          type: "assistant_message",
+          messageId,
+          text: input.message.text,
+          streaming: false,
+        };
+  return [
+    {
+      id: EventId.make(`${"chat-session-import:v2"}:message:${input.threadId}:${suffix}`),
+      type: "message.updated",
+      threadId: input.threadId,
+      occurredAt: at,
+      payload: message,
+    },
+    {
+      id: EventId.make(`${"chat-session-import:v2"}:turn-item:${input.threadId}:${suffix}`),
+      type: "turn-item.updated",
+      threadId: input.threadId,
+      occurredAt: at,
+      payload: turnItem,
+    },
+  ];
+}
+
 const make = Effect.gen(function* () {
   const threads = yield* ThreadManagement.ThreadManagementService;
   const providerSessions = yield* ProviderSessionManager.ProviderSessionManagerV2;
-  const folders = yield* ManagedProjectFolders.ManagedProjectFolders;
-  const projects = yield* ProjectService.ProjectService;
   const sink = yield* EventSink.EventSinkV2;
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
@@ -226,15 +309,9 @@ const make = Effect.gen(function* () {
     fork?: boolean;
   }) {
     const source = input.threadId === undefined ? undefined : yield* load(input.threadId);
-    const projectId =
-      source?.thread.projectId ??
-      (yield* threads.listProjectThreads({ includeSubagents: false }))[0]?.projectId ??
-      (yield* folders.ensureScratchProject).projectId;
-    const project = yield* projects.getById(projectId);
     const selection =
       input.modelSelection ??
       source?.thread.modelSelection ??
-      (project._tag === "Some" ? project.value.defaultModelSelection : null) ??
       (yield* settings.getSettings).defaultModelSelection;
     if (selection == null) return yield* new ChatSessionError({ reason: "model_required" });
     const provider = (yield* settings.getSettings).providerInstances[selection.instanceId];
@@ -253,13 +330,12 @@ const make = Effect.gen(function* () {
       type: "thread.create",
       commandId: yield* commandId(),
       threadId,
-      projectId,
       title:
         input.title?.trim() || (input.content === undefined ? "New chat" : "Imported Pi session"),
       modelSelection: selection,
       runtimeMode: source?.thread.runtimeMode ?? "full-access",
       interactionMode: source?.thread.interactionMode ?? "default",
-      workingDirectory: null,
+      workingDirectory: source?.thread.workingDirectory ?? imported?.entries[0]?.cwd ?? null,
       createdBy: "user",
       creationSource: "server",
       ...(sessionFile === undefined
@@ -307,7 +383,7 @@ const make = Effect.gen(function* () {
   const execute = Effect.fn("ChatSessions.execute")(
     function* (input: ChatSessionInput): Effect.fn.Return<ChatSessionResult, unknown> {
       if (input.action === "list") {
-        const sessions = yield* threads.listProjectThreads({ includeSubagents: false });
+        const sessions = yield* threads.listThreads({ includeSubagents: false });
         const archived = (yield* threads.getShellSnapshot({ location: "archive" })).threads.filter(
           (thread) => thread.lineage.relationshipToParent !== "subagent",
         );
@@ -453,7 +529,7 @@ const make = Effect.gen(function* () {
   const print = (input: ChatPrintInput) =>
     Stream.unwrap(
       Effect.gen(function* () {
-        const projection = yield* load(input.threadId);
+        yield* load(input.threadId);
         const attachments: ChatAttachment[] = [];
         for (const file of input.files) {
           const bytes = Buffer.from(file.base64, "base64");
@@ -473,7 +549,6 @@ const make = Effect.gen(function* () {
         }
         const afterSequence = yield* threads.getThreadEventSequence(input.threadId);
         const sent = yield* threads.sendToThread({
-          projectId: projection.thread.projectId,
           commandId: yield* commandId(),
           threadId: input.threadId,
           messageId: MessageId.make(yield* uuid()),

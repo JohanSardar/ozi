@@ -1,3 +1,5 @@
+import { workspaceEnvironment } from "../state/workspaceFiles";
+
 import { resolveCodeThemeName } from "~/lib/syntaxHighlighting";
 
 import { buildFileLinkParentSuffixByPath, fileLinkLabel } from "@t3tools/shared/fileLinks";
@@ -146,7 +148,6 @@ import { readLocalApi } from "../localApi";
 import { cn } from "../lib/utils";
 import { resolveRemoteOpenState, useRemoteOpenResolution } from "../remoteOpen";
 import { useRightPanelStore } from "../rightPanelStore";
-import { useProjects } from "../state/entities";
 import { serverEnvironment } from "../state/server";
 import { shellEnvironment } from "../state/shell";
 import { assetEnvironment } from "../state/assets";
@@ -158,7 +159,6 @@ import {
 import { previewEnvironment } from "../state/preview";
 import { useAtomCommand } from "../state/use-atom-command";
 import { useAtomQueryRunner } from "../state/use-atom-query-runner";
-import { projectEnvironment } from "../state/projects";
 import { filesystemEnvironment } from "../state/filesystem";
 import {
   claimWorkspaceBasenameLookup,
@@ -473,7 +473,7 @@ function useChatMarkdownState({
     reportFailure: false,
     refresh: true,
   });
-  const searchProjectEntries = useAtomQueryRunner(projectEnvironment.searchEntries, {
+  const searchWorkspaceEntries = useAtomQueryRunner(workspaceEnvironment.searchEntries, {
     reportFailure: false,
   });
   const getFilesystemMetadata = useAtomQueryRunner(filesystemEnvironment.getMetadata, {
@@ -558,7 +558,6 @@ function useChatMarkdownState({
   const { availableEditors, revealInFileManagerLabel } = useAtomValue(
     markdownServerConfigFieldsAtom(environmentId),
   );
-  const projects = useProjects();
   const [preferredEditor] = usePreferredEditor(availableEditors);
   const preferredEditorMenuLabel = openInEditorMenuLabel(preferredEditor);
   const openInPreferredEditor = useOpenInPreferredEditor(environmentId, availableEditors);
@@ -711,7 +710,7 @@ function useChatMarkdownState({
       ? null
       : stripRepeatedWorkspacePrefix(workspaceRelativePath, cwd);
     if (!isBasename && strippedPath === null) return null;
-    const result = await searchProjectEntries({
+    const result = await searchWorkspaceEntries({
       environmentId,
       input: {
         cwd,
@@ -854,7 +853,6 @@ function useChatMarkdownState({
     openDeferredMarkdownLink,
     openExternalLinkInPreview,
     openMarkdownMedia,
-    projects,
     resolvedTheme,
     skills,
     threadRef,

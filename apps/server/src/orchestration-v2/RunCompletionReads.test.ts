@@ -2,7 +2,6 @@ import { assert, it } from "@effect/vitest";
 import {
   EventId,
   MessageId,
-  ProjectId,
   ProviderInstanceId,
   RunId,
   ThreadId,
@@ -33,7 +32,6 @@ it.effect.each(["sqlite"] as const)(
       const instanceId = ProviderInstanceId.make("codex");
       const thread: OrchestrationV2AppThread = {
         id: threadId,
-        projectId: ProjectId.make("project:completion-reads"),
         title: "Completion controls",
         providerInstanceId: instanceId,
         modelSelection: { instanceId, model: "test" },

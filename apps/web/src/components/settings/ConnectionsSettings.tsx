@@ -1259,14 +1259,14 @@ export function ConnectionsSettings({ view }: { readonly view: "environments" | 
                 <AlertDialogDescription>
                   {pendingWslChange?.kind === "disable"
                     ? pendingWslChange.wasWslOnly
-                      ? "Ozi will restart on the Windows backend. Threads and projects opened against WSL stay safe inside the distro and become available again when you re-enable WSL."
-                      : "The WSL backend will stop. Threads and projects opened against WSL stay safe inside the distro, but they'll be unavailable in Ozi until you re-enable WSL."
+                      ? "Ozi will restart on the Windows backend. Chats opened against WSL stay safe inside the distro and become available again when you re-enable WSL."
+                      : "The WSL backend will stop. Chats opened against WSL stay safe inside the distro, but they'll be unavailable in Ozi until you re-enable WSL."
                     : pendingWslChange?.kind === "distro"
                       ? "Ozi will restart the WSL backend on the new distro. Sessions still running on the current distro will be interrupted."
                       : pendingWslChange?.kind === "enable"
                         ? "Run the WSL backend alongside the Windows one, or stop the Windows backend and use only WSL? You can change this later from Settings."
                         : pendingWslChange?.nextValue
-                          ? "Ozi will restart and start only the WSL backend. Your Windows-side projects won't be accessible until you turn this off again."
+                          ? "Ozi will restart and start only the WSL backend. Your Windows-side chats won't be accessible until you turn this off again."
                           : "Ozi will restart and bring the Windows backend back up alongside WSL."}
                 </AlertDialogDescription>
               </AlertDialogHeader>

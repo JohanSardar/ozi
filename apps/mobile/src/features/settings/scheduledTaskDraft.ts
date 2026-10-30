@@ -2,7 +2,6 @@ import { isWebhookDedupeTemplate } from "@t3tools/contracts";
 import type {
   ModelSelection,
   ServerConfig,
-  ProjectId,
   RuntimeMode,
   ScheduledTask,
   ScheduledTaskUpsertSchedule,
@@ -18,35 +17,22 @@ import {
   type WebhookFilterDraft,
 } from "@t3tools/client-runtime/scheduled-task-webhook";
 import {
-  resolveProjectSettings,
-  type LegacyProjectSettingsFields,
-} from "@t3tools/shared/projectSettings";
-import {
   buildModelOptions,
   resolveDefaultableModelSelection,
   resolveNewTaskModelSelection,
 } from "../../lib/modelOptions";
 
-export function scheduledTaskDefaultModel(
-  config: ServerConfig | null,
-  project: (LegacyProjectSettingsFields & { readonly id: ProjectId }) | null,
-): ModelSelection | null {
+export function scheduledTaskDefaultModel(config: ServerConfig | null): ModelSelection | null {
   const settings = config?.settings ?? DEFAULT_SERVER_SETTINGS;
-  const configured = resolveProjectSettings(settings, project?.id ?? null, project).settings
-    .defaultModelSelection;
-  const projectDefaultSelection =
-    resolveDefaultableModelSelection(config, configured, project?.id ?? null) ??
-    resolveDefaultableModelSelection(config, settings.defaultModelSelection, project?.id ?? null);
+  const configured = settings.defaultModelSelection;
+  const defaultSelection =
+    resolveDefaultableModelSelection(config, configured) ??
+    resolveDefaultableModelSelection(config, settings.defaultModelSelection);
   return resolveNewTaskModelSelection({
     draftSelection: null,
-    projectDefaultSelection,
+    defaultSelection,
     stickySelection: null,
-    modelOptions: buildModelOptions(
-      config,
-      projectDefaultSelection,
-      undefined,
-      project?.id ?? null,
-    ),
+    modelOptions: buildModelOptions(config, defaultSelection, undefined),
   });
 }
 
@@ -181,19 +167,13 @@ export function scheduleFromDraft(draft: ScheduleDraft): ScheduledTaskUpsertSche
     ...(weekdays.length === 7 ? {} : { weekdays }),
   };
 }
-
-type Workspace = "root";
 export type ScheduledTaskDraft = {
   readonly task: ScheduledTask | null;
   readonly title: string;
   readonly prompt: string;
-  readonly projectId: ProjectId | null;
   readonly modelSelection: ModelSelection | null;
   readonly modelSelectionIsExplicit: boolean;
   readonly schedule: ScheduleDraft;
-  readonly workspace: Workspace;
-  readonly baseRef: string;
-  readonly checkoutPath: string;
   readonly enabled: boolean;
   readonly runtimeMode: RuntimeMode;
 };
@@ -202,7 +182,6 @@ function draftSignature(draft: ScheduledTaskDraft): string {
   return JSON.stringify([
     draft.title,
     draft.prompt,
-    draft.projectId,
     draft.modelSelection?.instanceId,
     draft.modelSelection?.model,
     [...(draft.modelSelection?.options ?? [])]
@@ -217,9 +196,6 @@ function draftSignature(draft: ScheduledTaskDraft): string {
     draft.schedule.coalesceKey,
     draft.schedule.coalesceWindowSeconds,
     draft.schedule.filters.map(({ path, op, value }) => [path, op, value]),
-    draft.workspace,
-    draft.baseRef,
-    draft.checkoutPath,
     draft.enabled,
     draft.runtimeMode,
   ]);
@@ -232,21 +208,14 @@ export function hasScheduledTaskDraftChanges(
   return draftSignature(initial) !== draftSignature(current);
 }
 
-export function createDraft(
-  projectId: ProjectId | null,
-  modelSelection: ModelSelection | null,
-): ScheduledTaskDraft {
+export function createDraft(modelSelection: ModelSelection | null): ScheduledTaskDraft {
   return {
     task: null,
     title: "",
     prompt: "",
-    projectId,
     modelSelection,
     modelSelectionIsExplicit: false,
     schedule: DEFAULT_SCHEDULE,
-    workspace: "root",
-    baseRef: "main",
-    checkoutPath: "",
     enabled: true,
     runtimeMode: "full-access",
   };
@@ -257,13 +226,9 @@ export function editDraft(task: ScheduledTask): ScheduledTaskDraft {
     task,
     title: task.title,
     prompt: task.prompt,
-    projectId: task.projectId,
     modelSelection: task.modelSelection,
     modelSelectionIsExplicit: true,
     schedule: scheduleDraftForTask(task),
-    workspace: task.workspaceStrategy.type,
-    baseRef: "main",
-    checkoutPath: "",
     enabled: task.enabled,
     runtimeMode: task.runtimeMode,
   };

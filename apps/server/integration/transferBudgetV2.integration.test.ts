@@ -30,7 +30,6 @@ import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
-import * as PubSub from "effect/PubSub";
 import * as Queue from "effect/Queue";
 import * as Schema from "effect/Schema";
 import * as Scope from "effect/Scope";
@@ -46,9 +45,6 @@ import * as EventStore from "../src/orchestration-v2/EventStore.ts";
 import * as EventSink from "../src/orchestration-v2/EventSink.ts";
 import * as ProjectionStore from "../src/orchestration-v2/ProjectionStore.ts";
 import * as ThreadManagementService from "../src/orchestration-v2/ThreadManagementService.ts";
-import * as ProjectStore from "../src/orchestration-v2/ProjectStore.ts";
-import * as ProjectService from "../src/project/ProjectService.ts";
-import * as ProjectEnrichmentService from "../src/project/ProjectEnrichmentService.ts";
 import * as OrchestrationHttp from "../src/orchestration-v2/http.ts";
 import * as ServerHttp from "../src/http.ts";
 import { subscribeOrchestrationV2Thread, subscribeOrchestrationV2Shell } from "../src/ws.ts";
@@ -126,27 +122,12 @@ const layerManagement = Layer.unwrap(
     });
   }),
 );
-const layerEnrichment = Layer.unwrap(
-  Effect.gen(function* () {
-    const changes = yield* PubSub.unbounded<never>();
-    return Layer.mock(ProjectEnrichmentService.ProjectEnrichmentService)({
-      getAvailable: () =>
-        Effect.succeed({
-          faviconPath: null,
-        }),
-      subscribeChanges: PubSub.subscribe(changes),
-    });
-  }),
-);
 const layerServices = layerManagement.pipe(
   Layer.provideMerge(
     Layer.succeed(ServerEnvironment.ServerEnvironmentIdentity, {
       getEnvironmentId: Effect.succeed(EnvironmentId.make("transfer-test")),
     }),
   ),
-  Layer.provideMerge(ProjectStore.layer),
-  Layer.provideMerge(Layer.mock(ProjectService.ProjectService)({})),
-  Layer.provideMerge(layerEnrichment),
   Layer.provideMerge(layerPersistence),
 );
 class TransferApi extends HttpApi.make("environment").add(

@@ -2,7 +2,6 @@ import { presentThreadShell } from "@t3tools/client-runtime/state/shell";
 import type {
   EnvironmentId,
   ThreadId,
-  ProjectId,
   ModelSelection,
   RuntimeMode,
   ProviderInteractionMode,
@@ -12,7 +11,6 @@ import * as DateTime from "effect/DateTime";
 export function draftThreadShell(input: {
   readonly environmentId: EnvironmentId;
   readonly threadId: ThreadId;
-  readonly projectId: ProjectId;
   readonly modelSelection: ModelSelection;
   readonly runtimeMode: RuntimeMode;
   readonly interactionMode: ProviderInteractionMode;
@@ -22,7 +20,6 @@ export function draftThreadShell(input: {
   const timestamp = DateTime.makeUnsafe(input.createdAt);
   return presentThreadShell(input.environmentId, {
     id: input.threadId,
-    projectId: input.projectId,
     title: "New thread",
     providerInstanceId: input.modelSelection.instanceId,
     modelSelection: input.modelSelection,

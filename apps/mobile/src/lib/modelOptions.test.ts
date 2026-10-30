@@ -2,17 +2,14 @@ import { describe, expect, it } from "vite-plus/test";
 
 import {
   DEFAULT_SERVER_SETTINGS,
-  ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
   type ModelSelection,
   type ServerConfig,
-  type ServerSettings,
 } from "@t3tools/contracts";
 
 import {
   buildModelOptions,
-  describeUnavailableModelSelection,
   isModelSelectionUnavailable,
   resolveDefaultableModelSelection,
   resolveNewTaskModelSelection,
@@ -63,7 +60,6 @@ describe("mobile model options", () => {
         model: "gpt-test",
       },
       undefined,
-      null,
     );
 
     expect(option?.capabilities?.optionDescriptors?.[0]?.id).toBe("serviceTier");
@@ -77,7 +73,6 @@ describe("mobile model options", () => {
         options: [],
       },
       undefined,
-      null,
     );
     expect(emptyOption?.selection).toEqual(option?.selection);
 
@@ -89,7 +84,6 @@ describe("mobile model options", () => {
         options: [{ id: "serviceTier", value: "priority" }],
       },
       undefined,
-      null,
     );
     expect(explicitOption?.selection.options).toEqual([{ id: "serviceTier", value: "priority" }]);
   });
@@ -107,10 +101,10 @@ describe("mobile model options", () => {
     const selection = { instanceId: ProviderInstanceId.make("codex"), model: "test" };
 
     expect(
-      buildModelOptions(config, selection, undefined, null).map((option) => option.providerKey),
+      buildModelOptions(config, selection, undefined).map((option) => option.providerKey),
     ).toEqual(["codex", "claudeAgent"]);
-    expect(buildModelOptions(config, selection, selection.instanceId, null)).toEqual(
-      buildModelOptions(config, selection, undefined, null).filter(
+    expect(buildModelOptions(config, selection, selection.instanceId)).toEqual(
+      buildModelOptions(config, selection, undefined).filter(
         (option) => option.providerKey === "codex",
       ),
     );
@@ -132,7 +126,7 @@ describe("mobile model options", () => {
       })),
     } as unknown as ServerConfig;
     expect(
-      buildModelOptions(config, null, ProviderInstanceId.make("codex"), null).map(
+      buildModelOptions(config, null, ProviderInstanceId.make("codex")).map(
         (option) => option.providerKey,
       ),
     ).toEqual(["codex", "codex_work"]);
@@ -154,12 +148,12 @@ describe("mobile model options", () => {
       })),
     } as unknown as ServerConfig;
     expect(
-      buildModelOptions(config, null, ProviderInstanceId.make("codex"), null).map(
+      buildModelOptions(config, null, ProviderInstanceId.make("codex")).map(
         (option) => option.providerKey,
       ),
     ).toEqual(["codex", "codex_work"]);
     expect(
-      buildModelOptions(config, null, ProviderInstanceId.make("google"), null).map(
+      buildModelOptions(config, null, ProviderInstanceId.make("google")).map(
         (option) => option.providerKey,
       ),
     ).toEqual(["google"]);
@@ -179,7 +173,7 @@ describe("mobile model options", () => {
       })),
     } as unknown as ServerConfig;
     const selection = { instanceId: ProviderInstanceId.make("codex_work"), model: "saved" };
-    const options = buildModelOptions(config, selection, undefined, null);
+    const options = buildModelOptions(config, selection, undefined);
     expect(options[0]?.providerBadge).toEqual({ displayName: "Personal", showBadge: true });
     expect(options[1]?.providerBadge).toEqual({
       displayName: "Work",
@@ -188,12 +182,8 @@ describe("mobile model options", () => {
     });
     expect(options[2]?.providerBadge).toEqual(options[1]?.providerBadge);
     expect(
-      buildModelOptions(
-        { ...config, providers: config.providers.slice(0, 1) },
-        null,
-        undefined,
-        null,
-      )[0]?.providerBadge?.showBadge,
+      buildModelOptions({ ...config, providers: config.providers.slice(0, 1) }, null, undefined)[0]
+        ?.providerBadge?.showBadge,
     ).toBe(false);
   });
 
@@ -216,9 +206,7 @@ describe("mobile model options", () => {
       })),
     } as unknown as ServerConfig;
     expect(
-      buildModelOptions(config, null, undefined, null).map(
-        (option) => option.providerBadge?.showBadge,
-      ),
+      buildModelOptions(config, null, undefined).map((option) => option.providerBadge?.showBadge),
     ).toEqual([false, false]);
     const shared = {
       ...config,
@@ -231,9 +219,7 @@ describe("mobile model options", () => {
       },
     };
     expect(
-      buildModelOptions(shared, null, undefined, null).map(
-        (option) => option.providerBadge?.showBadge,
-      ),
+      buildModelOptions(shared, null, undefined).map((option) => option.providerBadge?.showBadge),
     ).toEqual([true, true]);
   });
 
@@ -259,8 +245,8 @@ describe("mobile model options", () => {
         providers: state === "missing" ? [] : [provider],
         settings: { providerInstances: { google_work: { driver: "antigravity" } } },
       } as unknown as ServerConfig;
-      const options = buildModelOptions(config, selection, selection.instanceId, null);
-      expect(options).toEqual(buildModelOptions(config, selection, undefined, null));
+      const options = buildModelOptions(config, selection, selection.instanceId);
+      expect(options).toEqual(buildModelOptions(config, selection, undefined));
       expect(options).toHaveLength(1);
       expect(options[0]).toMatchObject({ selection, isUnavailable: true });
     },
@@ -301,12 +287,12 @@ describe("mobile model options", () => {
       model: "gpt-5.6-sol",
     };
 
-    expect(resolveSelectableModelSelection(config, usable, null)).toBe(usable);
-    expect(resolveSelectableModelSelection(config, disabled, null)).toBeNull();
-    expect(resolveSelectableModelSelection(config, removed, null)).toBeNull();
-    expect(isModelSelectionUnavailable(config, disabled, null)).toBe(true);
-    expect(isModelSelectionUnavailable(config, removed, null)).toBe(false);
-    expect(resolveSelectableModelSelection(null, disabled, null)).toBe(disabled);
+    expect(resolveSelectableModelSelection(config, usable)).toBe(usable);
+    expect(resolveSelectableModelSelection(config, disabled)).toBeNull();
+    expect(resolveSelectableModelSelection(config, removed)).toBeNull();
+    expect(isModelSelectionUnavailable(config, disabled)).toBe(true);
+    expect(isModelSelectionUnavailable(config, removed)).toBe(false);
+    expect(resolveSelectableModelSelection(null, disabled)).toBe(disabled);
   });
 
   describe("Antigravity selections", () => {
@@ -357,11 +343,11 @@ describe("mobile model options", () => {
         providers: config.providers.map((provider) => ({ ...provider, ...update })),
       };
 
-      expect(resolveSelectableModelSelection(unavailableConfig, selection, null)).toBe(selection);
-      expect(resolveDefaultableModelSelection(unavailableConfig, selection, null)).toBe(selection);
-      expect(isModelSelectionUnavailable(unavailableConfig, selection, null)).toBe(true);
-      expect(buildModelOptions(unavailableConfig, null, undefined, null)).toEqual([]);
-      const [option] = buildModelOptions(unavailableConfig, selection, undefined, null);
+      expect(resolveSelectableModelSelection(unavailableConfig, selection)).toBe(selection);
+      expect(resolveDefaultableModelSelection(unavailableConfig, selection)).toBe(selection);
+      expect(isModelSelectionUnavailable(unavailableConfig, selection)).toBe(true);
+      expect(buildModelOptions(unavailableConfig, null, undefined)).toEqual([]);
+      const [option] = buildModelOptions(unavailableConfig, selection, undefined);
       expect(option).toMatchObject({
         key: `google_work:${selection.model}`,
         label: model.name,
@@ -386,9 +372,9 @@ describe("mobile model options", () => {
         })),
       };
 
-      expect(resolveDefaultableModelSelection(changedConfig, selection, null)).toBe(selection);
-      expect(isModelSelectionUnavailable(changedConfig, selection, null)).toBe(true);
-      const options = buildModelOptions(changedConfig, selection, undefined, null);
+      expect(resolveDefaultableModelSelection(changedConfig, selection)).toBe(selection);
+      expect(isModelSelectionUnavailable(changedConfig, selection)).toBe(true);
+      const options = buildModelOptions(changedConfig, selection, undefined);
       const missing = options.find((option) => option.selection.model === selection.model);
       expect(missing).toMatchObject({
         label: selection.model,
@@ -401,20 +387,18 @@ describe("mobile model options", () => {
       expect(
         resolveNewTaskModelSelection({
           draftSelection: null,
-          projectDefaultSelection: resolveDefaultableModelSelection(changedConfig, selection, null),
+          defaultSelection: resolveDefaultableModelSelection(changedConfig, selection),
           stickySelection: null,
           modelOptions: options,
         }),
       ).toBe(selection);
 
-      const [restored] = buildModelOptions(config, selection, undefined, null);
-      expect(isModelSelectionUnavailable(config, selection, null)).toBe(false);
+      const [restored] = buildModelOptions(config, selection, undefined);
+      expect(isModelSelectionUnavailable(config, selection)).toBe(false);
       expect(restored?.isUnavailable).not.toBe(true);
       expect(restored?.selection).toBe(selection);
-      expect(resolveDefaultableModelSelection(config, selection, null)).toBe(selection);
-      expect(
-        buildModelOptions(config, null, undefined, null)[0]?.selection.options,
-      ).toBeUndefined();
+      expect(resolveDefaultableModelSelection(config, selection)).toBe(selection);
+      expect(buildModelOptions(config, null, undefined)[0]?.selection.options).toBeUndefined();
     });
 
     it("uses configured instance metadata when provider status is missing", () => {
@@ -427,11 +411,9 @@ describe("mobile model options", () => {
         },
       } as unknown as ServerConfig;
 
-      expect(resolveDefaultableModelSelection(missingStatusConfig, selection, null)).toBe(
-        selection,
-      );
-      expect(isModelSelectionUnavailable(missingStatusConfig, selection, null)).toBe(true);
-      expect(buildModelOptions(missingStatusConfig, selection, undefined, null)).toMatchObject([
+      expect(resolveDefaultableModelSelection(missingStatusConfig, selection)).toBe(selection);
+      expect(isModelSelectionUnavailable(missingStatusConfig, selection)).toBe(true);
+      expect(buildModelOptions(missingStatusConfig, selection, undefined)).toMatchObject([
         {
           providerDriver: "antigravity",
           providerLabel: "Google Work",
@@ -444,12 +426,12 @@ describe("mobile model options", () => {
     it("keeps offline selections without assuming that an unknown instance is Antigravity", () => {
       const unknownConfig = { ...config, providers: [] };
 
-      expect(resolveDefaultableModelSelection(null, selection, null)).toBe(selection);
-      expect(isModelSelectionUnavailable(null, selection, null)).toBe(false);
-      expect(buildModelOptions(null, selection, undefined, null)[0]?.selection).toBe(selection);
-      expect(buildModelOptions(null, selection, undefined, null)[0]?.isUnavailable).not.toBe(true);
-      expect(isModelSelectionUnavailable(unknownConfig, selection, null)).toBe(false);
-      expect(resolveSelectableModelSelection(unknownConfig, selection, null)).toBeNull();
+      expect(resolveDefaultableModelSelection(null, selection)).toBe(selection);
+      expect(isModelSelectionUnavailable(null, selection)).toBe(false);
+      expect(buildModelOptions(null, selection, undefined)[0]?.selection).toBe(selection);
+      expect(buildModelOptions(null, selection, undefined)[0]?.isUnavailable).not.toBe(true);
+      expect(isModelSelectionUnavailable(unknownConfig, selection)).toBe(false);
+      expect(resolveSelectableModelSelection(unknownConfig, selection)).toBeNull();
     });
   });
 
@@ -480,9 +462,9 @@ describe("mobile model options", () => {
     const current = { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.6-sol" };
     const legacy = { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.4" };
 
-    expect(resolveDefaultableModelSelection(config, current, null)).toBe(current);
-    expect(resolveDefaultableModelSelection(config, legacy, null)).toBeNull();
-    expect(resolveDefaultableModelSelection(null, legacy, null)).toBe(legacy);
+    expect(resolveDefaultableModelSelection(config, current)).toBe(current);
+    expect(resolveDefaultableModelSelection(config, legacy)).toBeNull();
+    expect(resolveDefaultableModelSelection(null, legacy)).toBe(legacy);
   });
 
   it("resolves new tasks from draft, project, sticky, then provider defaults", () => {
@@ -495,12 +477,12 @@ describe("mobile model options", () => {
     } as ModelOption;
     const resolve = (
       draftSelection: ModelSelection | null,
-      projectDefaultSelection: ModelSelection | null,
+      defaultSelection: ModelSelection | null,
       stickySelection: ModelSelection | null,
     ) =>
       resolveNewTaskModelSelection({
         draftSelection,
-        projectDefaultSelection,
+        defaultSelection,
         stickySelection,
         modelOptions: [providerDefault],
       });
@@ -514,149 +496,11 @@ describe("mobile model options", () => {
     expect(
       resolveNewTaskModelSelection({
         draftSelection: null,
-        projectDefaultSelection: null,
+        defaultSelection: null,
         stickySelection: null,
         modelOptions: [unavailable],
       }),
     ).toBeNull();
-  });
-
-  describe("project-aware enablement", () => {
-    const projectId = ProjectId.make("project-a");
-    const instanceId = ProviderInstanceId.make("codex_work");
-
-    function configWith(settings: ServerSettings): ServerConfig {
-      return {
-        providers: [
-          {
-            instanceId,
-            driver: "codex",
-            displayName: "Codex Work",
-            enabled: true,
-            installed: true,
-            auth: { status: "authenticated" },
-            models: [{ slug: "model-a", name: "Model A", isCustom: false, capabilities: null }],
-          },
-        ],
-        settings,
-      } as unknown as ServerConfig;
-    }
-
-    it("refuses to send a non-Antigravity model the project turned off", () => {
-      const settings: ServerSettings = {
-        ...DEFAULT_SERVER_SETTINGS,
-        providerInstances: {
-          [instanceId]: { driver: ProviderDriverKind.make("codex"), enabled: true },
-        },
-        projectSettingsOverrides: {
-          [projectId]: { providerInstances: { [instanceId]: { enabled: false } } },
-        },
-      };
-      const selection = { instanceId, model: "model-a" };
-
-      expect(isModelSelectionUnavailable(configWith(settings), selection, projectId)).toBe(true);
-      expect(isModelSelectionUnavailable(configWith(settings), selection, null)).toBe(false);
-    });
-
-    it("hides an instance the project disables even though the machine enables it", () => {
-      const settings: ServerSettings = {
-        ...DEFAULT_SERVER_SETTINGS,
-        providerInstances: {
-          [instanceId]: { driver: ProviderDriverKind.make("codex"), enabled: true },
-        },
-        projectSettingsOverrides: {
-          [projectId]: { providerInstances: { [instanceId]: { enabled: false } } },
-        },
-      };
-
-      expect(buildModelOptions(configWith(settings), null, undefined, projectId)).toEqual([]);
-    });
-
-    it("hides a machine-disabled instance for a project with no override, even though another project's keep-alive left it running", () => {
-      const otherProjectId = ProjectId.make("project-b");
-      const settings: ServerSettings = {
-        ...DEFAULT_SERVER_SETTINGS,
-        providerInstances: {
-          [instanceId]: { driver: ProviderDriverKind.make("codex"), enabled: false },
-        },
-        projectSettingsOverrides: {
-          [otherProjectId]: { providerInstances: { [instanceId]: { enabled: true } } },
-        },
-      };
-
-      expect(buildModelOptions(configWith(settings), null, undefined, projectId)).toEqual([]);
-    });
-
-    it("refuses to send an instance the project merely inherits as disabled, not just an explicit override", () => {
-      const settings: ServerSettings = {
-        ...DEFAULT_SERVER_SETTINGS,
-        providerInstances: {
-          [instanceId]: { driver: ProviderDriverKind.make("codex"), enabled: false },
-        },
-      };
-      const selection = { instanceId, model: "model-a" };
-
-      expect(isModelSelectionUnavailable(configWith(settings), selection, projectId)).toBe(true);
-      expect(
-        describeUnavailableModelSelection(configWith(settings), selection, projectId).title,
-      ).toBe("Model turned off for this project");
-      expect(isModelSelectionUnavailable(configWith(settings), selection, null)).toBe(true);
-    });
-
-    it("marks a project-disabled instance's fallback selection unavailable instead of reviving it", () => {
-      const settings: ServerSettings = {
-        ...DEFAULT_SERVER_SETTINGS,
-        providerInstances: {
-          [instanceId]: { driver: ProviderDriverKind.make("codex"), enabled: true },
-        },
-        projectSettingsOverrides: {
-          [projectId]: { providerInstances: { [instanceId]: { enabled: false } } },
-        },
-      };
-      const fallback = { instanceId, model: "model-a" };
-
-      const options = buildModelOptions(configWith(settings), fallback, undefined, projectId);
-
-      expect(options).toHaveLength(1);
-      expect(options[0]).toMatchObject({ selection: fallback, isUnavailable: true });
-    });
-
-    it("rejects a project-disabled antigravity instance's selection instead of keeping it", () => {
-      const antigravityInstanceId = ProviderInstanceId.make("antigravity_work");
-      const config = {
-        providers: [
-          {
-            instanceId: antigravityInstanceId,
-            driver: "antigravity",
-            displayName: "Antigravity Work",
-            enabled: true,
-            installed: true,
-            auth: { status: "authenticated" },
-            availability: "available",
-            models: [{ slug: "model-a", name: "Model A", isCustom: false, capabilities: null }],
-          },
-        ],
-        settings: {
-          ...DEFAULT_SERVER_SETTINGS,
-          providerInstances: {
-            [antigravityInstanceId]: {
-              driver: ProviderDriverKind.make("antigravity"),
-              enabled: true,
-            },
-          },
-          projectSettingsOverrides: {
-            [projectId]: { providerInstances: { [antigravityInstanceId]: { enabled: false } } },
-          },
-        },
-      } as unknown as ServerConfig;
-      const selection = { instanceId: antigravityInstanceId, model: "model-a" };
-
-      expect(resolveSelectableModelSelection(config, selection, projectId)).toBeNull();
-      expect(resolveSelectableModelSelection(config, selection, null)).toBe(selection);
-      expect(
-        resolveSelectableModelSelection({ ...config, providers: [] }, selection, projectId),
-      ).toBeNull();
-    });
   });
 });
 
@@ -695,7 +539,7 @@ describe("synchronized mobile model visibility", () => {
   } as unknown as ServerConfig;
 
   it("applies server visibility and ordering independently to each provider instance", () => {
-    const options = buildModelOptions(config, null, undefined, null);
+    const options = buildModelOptions(config, null, undefined);
     expect(
       options
         .filter((option) => option.providerKey === provider)
@@ -713,7 +557,6 @@ describe("synchronized mobile model visibility", () => {
       config,
       { instanceId: provider, model: "hidden" },
       provider,
-      null,
       true,
     );
     expect(options.map((option) => option.selection.model)).toEqual([
@@ -734,7 +577,7 @@ describe("synchronized mobile model visibility", () => {
 
   it.each(["hidden", "missing"])("does not resurrect the hidden fallback %s", (model) => {
     expect(
-      buildModelOptions(config, { instanceId: provider, model }, provider, null).map(
+      buildModelOptions(config, { instanceId: provider, model }, provider).map(
         (option) => option.selection.model,
       ),
     ).toEqual(["second", "first", "custom"]);
@@ -743,13 +586,13 @@ describe("synchronized mobile model visibility", () => {
   // regression: #16816 sync model favorites and visibility across clients
   it("keeps custom models visible and restores built-in models when the server clears hidden models", () => {
     expect(
-      buildModelOptions(config, { instanceId: provider, model: "custom" }, provider, null).map(
+      buildModelOptions(config, { instanceId: provider, model: "custom" }, provider).map(
         (option) => option.selection.model,
       ),
     ).toContain("custom");
     const cleared = { ...config, settings: { ...config.settings, providerModelPreferences: {} } };
     expect(
-      buildModelOptions(cleared, null, provider, null).map((option) => option.selection.model),
+      buildModelOptions(cleared, null, provider).map((option) => option.selection.model),
     ).toEqual(["hidden", "first", "second", "custom"]);
   });
 });

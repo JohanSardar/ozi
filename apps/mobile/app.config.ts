@@ -456,7 +456,6 @@ const config: ExpoConfig = {
       tracesToken: repoEnv.EXPO_PUBLIC_OTLP_TRACES_TOKEN ?? null,
     },
     eas: {
-      projectId: repoEnv.OZI_EXPO_PROJECT_ID,
       observe: { endpointUrl: observeEndpointUrl },
     },
   },

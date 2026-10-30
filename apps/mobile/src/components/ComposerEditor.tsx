@@ -247,8 +247,7 @@ export function ComposerEditor({
               threadId: String(thread.threadId),
             });
           }}
-          environmentId={environmentId ?? draft.project?.environmentId}
-          projectId={draft.project?.projectId}
+          environmentId={environmentId ?? draft.environmentStamp?.environmentId}
           records={draft.context?.records}
           attachments={draft.attachments}
           onClose={() => setSelected(null)}

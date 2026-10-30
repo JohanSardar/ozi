@@ -9,7 +9,6 @@ import {
   type OrchestrationV2TurnItem,
   type OrchestrationV2Run,
   type OrchestrationV2ThreadHistoryPage,
-  ProjectId,
   ProviderInstanceId,
   ThreadId,
   type OrchestrationV2DomainEvent,
@@ -22,7 +21,6 @@ import * as Stream from "effect/Stream";
 
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import * as ProjectionStore from "./ProjectionStore.ts";
-import * as ProjectStore from "./ProjectStore.ts";
 import * as EventStore from "./EventStore.ts";
 import {
   encodeThreadHistoryCursor,
@@ -31,41 +29,16 @@ import {
 } from "./threadHistoryPaging.ts";
 import { projectTurnItemForWire } from "./WireProjection.ts";
 
-const layerTest = Layer.mergeAll(EventStore.layer, ProjectionStore.layer, ProjectStore.layer).pipe(
+const layerTest = Layer.mergeAll(EventStore.layer, ProjectionStore.layer).pipe(
   Layer.provideMerge(SqlitePersistence.layerMemory),
 );
 
 const providerInstanceId = ProviderInstanceId.make("codex");
 const at = (minute: number) => DateTime.makeUnsafe(Date.UTC(2026, 8, 27, 0, minute));
 
-const createProject = (projectId: ProjectId) =>
-  Effect.flatMap(ProjectStore.ProjectStoreV2, (projects) =>
-    projects.apply({
-      sequence: 0,
-      eventId: EventId.make(`created:${projectId}`),
-      aggregateKind: "project",
-      aggregateId: projectId,
-      occurredAt: DateTime.formatIso(at(0)),
-      commandId: null,
-      causationEventId: null,
-      correlationId: null,
-      metadata: {},
-      type: "project.created",
-      payload: {
-        projectId,
-        title: projectId,
-        workspaceRoot: `/work/${projectId}`,
-        defaultModelSelection: null,
-        scripts: [],
-        createdAt: DateTime.formatIso(at(0)),
-        updatedAt: DateTime.formatIso(at(0)),
-      },
-    }),
-  );
-
 const thread = (
   threadId: ThreadId,
-  projectId: ProjectId,
+  projectId: string,
   overrides: { readonly archivedAt?: DateTime.Utc; readonly deletedAt?: DateTime.Utc } = {},
 ): OrchestrationV2DomainEvent => ({
   id: EventId.make(`created:${threadId}`),
@@ -77,7 +50,6 @@ const thread = (
     createdBy: "user",
     creationSource: "web",
     id: threadId,
-    projectId,
     title: threadId,
     providerInstanceId,
     modelSelection: { instanceId: providerInstanceId, model: "gpt-5" },
@@ -98,7 +70,7 @@ const thread = (
 });
 
 const threadId = ThreadId.make("thread:find");
-const projectId = ProjectId.make("project:find");
+const projectId = "project:find";
 const runId = RunId.make("run:find");
 
 function item(
@@ -193,7 +165,6 @@ const putItems = (items: readonly OrchestrationV2TurnItem[], version = "initial"
     })),
   );
 const setup = Effect.gen(function* () {
-  yield* createProject(projectId);
   yield* commit([thread(threadId, projectId), run()]);
   return yield* ProjectionStore.ProjectionStoreV2;
 });

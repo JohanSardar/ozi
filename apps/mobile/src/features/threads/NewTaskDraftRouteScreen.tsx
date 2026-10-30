@@ -8,9 +8,8 @@ export function NewTaskDraftRouteScreen({ route }: StaticScreenProps<NewTaskDraf
   const first = (value: string | string[] | undefined) => (Array.isArray(value) ? value[0] : value);
   return (
     <NewTaskDraftScreen
-      initialProjectRef={{
+      initialEnvironmentRef={{
         environmentId: first(params.environmentId),
-        projectId: first(params.projectId),
         workingDirectory: params.workingDirectory,
       }}
       incomingShareId={first(params.incomingShareId)}

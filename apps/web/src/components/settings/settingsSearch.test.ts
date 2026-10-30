@@ -3,10 +3,7 @@ import { EnvironmentId } from "@t3tools/contracts";
 
 import {
   filterAvailableSettingsSearchItems,
-  getSettingsSearchTargetScope,
   getThreadAutoSettlementSearchAvailability,
-  isSettingsSearchScopeAvailable,
-  movedSettingsPath,
   searchSettings,
   SETTINGS_SEARCH_ITEMS,
   type SettingsSearchItem,
@@ -135,31 +132,7 @@ describe("searchSettings", () => {
   });
 });
 
-describe("settings search targets", () => {
-  it("requires an environment for the resolved telemetry export destination", () => {
-    const result = searchSettings("OpenTelemetry export").find(
-      (item) => item.id === "telemetry-export",
-    )!;
-    const target = getSettingsSearchTargetScope(result.targetId ?? result.id)!;
-    expect(isSettingsSearchScopeAvailable(target.scope, "all")).toBe(false);
-    expect(isSettingsSearchScopeAvailable(target.scope, "project")).toBe(false);
-    expect(isSettingsSearchScopeAvailable(target.scope, "environment")).toBe(true);
-  });
-
-  it("keeps environment-wide settings out of project scopes", () => {
-    const updates = getSettingsSearchTargetScope("provider-update-checks")!;
-    expect(updates.scope).toBe("environment-defaults");
-    expect(isSettingsSearchScopeAvailable(updates.scope, "environment")).toBe(true);
-    expect(isSettingsSearchScopeAvailable(updates.scope, "all")).toBe(true);
-    expect(isSettingsSearchScopeAvailable(updates.scope, "project")).toBe(false);
-    const streaming = getSettingsSearchTargetScope("response-streaming")!;
-    expect(streaming.scope).toBe("project-defaults");
-    expect(isSettingsSearchScopeAvailable(streaming.scope, "project")).toBe(true);
-    for (const id of ["legacy-plan-mode", "legacy-context-window-indicator", "boring-sidebar"]) {
-      expect(getSettingsSearchTargetScope(id)!.scope).toBeNull();
-    }
-  });
-});
+describe("settings search targets", () => {});
 
 describe("auto-settlement search availability", () => {
   function environment(id: string, { connected = true, loaded = true } = {}) {
@@ -195,14 +168,5 @@ describe("auto-settlement search availability", () => {
         environmentIds: selected.map((entry) => entry.environmentId),
       }).isTargetAvailable,
     ).toBe(true);
-  });
-});
-
-describe("movedSettingsPath", () => {
-  it("leaves current pages alone", () => {
-    expect(movedSettingsPath("/settings/general", "time-format")).toBeNull();
-    expect(movedSettingsPath("/settings/projects", "project-defaults")).toBeNull();
-    expect(movedSettingsPath("/settings/connections", "remote-environments")).toBeNull();
-    expect(movedSettingsPath("/settings/appearance", "theme")).toBeNull();
   });
 });

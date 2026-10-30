@@ -1,7 +1,6 @@
 import type {
   OrchestrationV2ThreadShell,
   OrchestrationV2TurnItemStatus,
-  OrchestrationProjectShell,
   ServerProvider,
   ProviderDriverKind,
   ProviderInstanceId,
@@ -39,10 +38,8 @@ export function SubagentTooltipContent(props: {
   providers?: ReadonlyArray<ServerProvider> | undefined;
   driver?: ProviderDriverKind | undefined;
   elapsed?: ReactNode;
-  parentThread?: Pick<OrchestrationV2ThreadShell, "projectId" | "workingDirectory"> | undefined;
+  parentThread?: Pick<OrchestrationV2ThreadShell, "workingDirectory"> | undefined;
   childThread?: Pick<OrchestrationV2ThreadShell, "workingDirectory" | "modelSelection"> | undefined;
-  parentProject?: Pick<OrchestrationProjectShell, "workspaceRoot"> | undefined;
-  childProject?: Pick<OrchestrationProjectShell, "id" | "title" | "workspaceRoot"> | undefined;
   status: OrchestrationV2TurnItemStatus;
   result?: string | null | undefined;
   progress?: string | null | undefined;

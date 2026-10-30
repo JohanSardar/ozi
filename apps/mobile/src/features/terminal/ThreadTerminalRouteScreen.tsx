@@ -1,3 +1,4 @@
+import { useSelectedThreadDirectory } from "../../state/use-thread-directory";
 import * as Dialog from "../../components/ui/Dialog";
 import {
   AuthTerminalReadScope,
@@ -382,7 +383,8 @@ function ThreadTerminal(props: {
   readonly knownSessions: ReturnType<typeof useKnownTerminalSessions>;
 }) {
   const { params, routeEnvironmentId, thread: selectedThread, terminalId } = props;
-  const { selectedThreadProject, selectedEnvironmentConnection } = props.selection;
+  const { selectedEnvironmentConnection } = props.selection;
+  const { selectedThreadCwd } = useSelectedThreadDirectory();
   const {
     session: terminalSession,
     isAuthenticated,
@@ -480,11 +482,11 @@ function ThreadTerminal(props: {
     canRead: canReadTerminal,
     canOperate: canOperateTerminal,
     hasLoadedSessions: knownSessions !== null,
-    location: selectedThreadProject?.workspaceRoot
+    location: selectedThreadCwd
       ? {
           terminalLocation: activeKnownSession?.state.summary ?? null,
           activeSessionLocation: activeKnownSession?.state.summary ?? null,
-          workspaceRoot: selectedThreadProject.workspaceRoot,
+          workspaceRoot: selectedThreadCwd,
           workingDirectory: selectedThread?.workingDirectory ?? null,
         }
       : null,
@@ -537,7 +539,7 @@ function ThreadTerminal(props: {
   );
   const isRunning = terminal.status === "running" || terminal.status === "starting";
 
-  const cwd = terminal.summary?.cwd ?? selectedThreadProject?.workspaceRoot ?? null;
+  const cwd = terminal.summary?.cwd ?? selectedThreadCwd ?? null;
   const serverConfigs = useServerConfigs();
   const hostOs =
     routeEnvironmentId === null
@@ -551,7 +553,7 @@ function ThreadTerminal(props: {
   );
 
   const terminalTheme = getMobileTerminalTheme(themeId, appearanceScheme);
-  const headerSubtitle = selectedThreadProject?.title ?? "";
+  const headerSubtitle = selectedThreadCwd?.split("/").at(-1) ?? "";
   const terminalToolbarActions = useMemo<ReadonlyArray<TerminalToolbarAction>>(() => {
     const modifierActions: ReadonlyArray<TerminalToolbarAction> =
       hostPlatform === "mac"
@@ -605,7 +607,7 @@ function ThreadTerminal(props: {
 
   const terminalMenuSessions: ReadonlyArray<TerminalMenuSession> = buildTerminalMenuSessions({
     knownSessions: knownSessions ?? [],
-    workspaceRoot: selectedThreadProject?.workspaceRoot ?? null,
+    workspaceRoot: selectedThreadCwd ?? null,
     currentSession: {
       terminalId,
       cwd: cwd ?? null,
@@ -794,7 +796,7 @@ function ThreadTerminal(props: {
     }
   };
 
-  if (!selectedThreadProject?.workspaceRoot) {
+  if (!selectedThreadCwd) {
     return (
       <View className="flex-1 bg-screen">
         <EmptyState
@@ -836,7 +838,7 @@ function ThreadTerminal(props: {
           status: terminal.status,
           hasRunningSubprocess: terminal.hasRunningSubprocess,
         }}
-        workspaceRoot={selectedThreadProject.workspaceRoot}
+        workspaceRoot={selectedThreadCwd}
         onCloseTerminal={handleCloseTerminal}
         onDecreaseFontSize={handleDecreaseFontSize}
         onIncreaseFontSize={handleIncreaseFontSize}

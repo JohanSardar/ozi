@@ -254,7 +254,6 @@ layer("066_RepairClientSettlementTimestamps", (it) => {
         const badStamp = plusSeconds(sweptAt, index * 2);
         const thread = {
           id,
-          projectId: "project-1",
           title: id,
           providerInstanceId: "codex",
           modelSelection: { instanceId: "codex", model: "gpt-5.4" },

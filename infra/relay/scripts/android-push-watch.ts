@@ -6,7 +6,6 @@ import {
   ORCHESTRATION_V2_WS_METHODS,
   WS_METHODS,
   WsRpcGroup,
-  type OrchestrationProjectShell,
   type OrchestrationV2ThreadShell,
 } from "@t3tools/contracts";
 import type { RelayAgentActivityState } from "@t3tools/contracts/relay";
@@ -128,7 +127,6 @@ const main = Effect.gen(function* () {
     const rpc = yield* RpcClient.make(WsRpcGroup);
     const sender = yield* FcmClient.FcmClient;
     const config = yield* rpc[WS_METHODS.serverGetConfig]({});
-    const projects = new Map<string, OrchestrationProjectShell>();
     const threads = new Map<string, OrchestrationV2ThreadShell>();
     let states = new Map<string, RelayAgentActivityState>();
     let previouslyActive = false;
@@ -140,16 +138,8 @@ const main = Effect.gen(function* () {
             case "synchronized":
               return;
             case "snapshot":
-              projects.clear();
               threads.clear();
-              for (const project of item.snapshot.projects) projects.set(project.id, project);
               for (const thread of item.snapshot.threads) threads.set(thread.id, thread);
-              break;
-            case "project.updated":
-              projects.set(item.project.id, item.project);
-              break;
-            case "project.removed":
-              projects.delete(item.projectId);
               break;
             case "thread.updated":
               threads.set(item.thread.id, item.thread);
@@ -160,11 +150,9 @@ const main = Effect.gen(function* () {
           }
           const next = new Map<string, RelayAgentActivityState>();
           for (const thread of threads.values()) {
-            const project = projects.get(thread.projectId);
-            if (!project || thread.archivedAt) continue;
+            if (thread.archivedAt) continue;
             const state = projectThreadAwarenessV2({
               environmentId: config.environment.environmentId,
-              project,
               thread,
             });
             if (state) next.set(thread.id, state);

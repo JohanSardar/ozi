@@ -96,7 +96,6 @@ vi.mock("../features/sharing/incoming-share-storage", () => ({
   loadIncomingShareDrafts: async () => [],
 }));
 vi.mock("./entities", () => ({
-  useProjects: () => [],
   useServerConfigs: () => new Map([["environment-1", config]]),
   useThreadShells: () => [],
 }));

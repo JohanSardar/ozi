@@ -19,7 +19,7 @@ describe("scheduled task voice draft", () => {
   const editor = {
     environmentId: EnvironmentId.make("environment"),
     environmentLabel: "Environment",
-    draft: createDraft(null, null),
+    draft: createDraft(null),
   };
 
   it("keeps the prompt outside the screen and retains its original change baseline", () => {
@@ -63,7 +63,7 @@ describe("new scheduled task link", () => {
   const editing = {
     environmentId: EnvironmentId.make("environment"),
     environmentLabel: "Environment",
-    draft: createDraft(null, null),
+    draft: createDraft(null),
   };
   const newTaskLink = {
     routes: [

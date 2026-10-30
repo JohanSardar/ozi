@@ -1,9 +1,8 @@
 import { describe, expect, it } from "vite-plus/test";
 import {
   workspaceRelativeFilePath,
-  newProjectFolderName,
-  normalizeProjectPathForComparison,
-  normalizeProjectPathForDispatch,
+  normalizePathForComparison,
+  normalizePathForDispatch,
   resolveWorkspaceFilePath,
 } from "./path.ts";
 
@@ -18,22 +17,11 @@ describe("path helpers", () => {
   });
 
   it("normalizes a bare Windows drive root the same as one with a trailing separator", () => {
-    expect(normalizeProjectPathForDispatch("C:")).toBe("C:\\");
-    expect(normalizeProjectPathForComparison("C:")).toBe("c:\\");
-    expect(normalizeProjectPathForComparison("C:")).toBe(normalizeProjectPathForComparison("C:\\"));
-    expect(normalizeProjectPathForComparison("C:")).toBe(normalizeProjectPathForComparison("C:/"));
-    expect(normalizeProjectPathForDispatch("C:\\repo\\")).toBe("C:\\repo");
-  });
-
-  it("names a new project's folder from any typed name", () => {
-    expect(newProjectFolderName("Pinball Stats")).toBe("pinball-stats");
-    expect(newProjectFolderName("  Café & Crème!  ")).toBe("cafe-creme");
-    expect(newProjectFolderName("../../etc")).toBe("etc");
-    expect(newProjectFolderName("🎱🎱")).toBe("project");
-    expect(newProjectFolderName(`${"a".repeat(63)} b`)).toBe("a".repeat(63));
-    expect(newProjectFolderName("Con")).toBe("con-project");
-    expect(newProjectFolderName("LPT1")).toBe("lpt1-project");
-    expect(newProjectFolderName("console")).toBe("console");
+    expect(normalizePathForDispatch("C:")).toBe("C:\\");
+    expect(normalizePathForComparison("C:")).toBe("c:\\");
+    expect(normalizePathForComparison("C:")).toBe(normalizePathForComparison("C:\\"));
+    expect(normalizePathForComparison("C:")).toBe(normalizePathForComparison("C:/"));
+    expect(normalizePathForDispatch("C:\\repo\\")).toBe("C:\\repo");
   });
 });
 

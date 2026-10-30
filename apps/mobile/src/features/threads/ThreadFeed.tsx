@@ -1,3 +1,5 @@
+import { workspaceEnvironment } from "../../state/workspaceFiles";
+
 import { tryOpenExternalUrl } from "../../lib/openExternalUrl";
 import { Button } from "../../components/ui/Button";
 import * as Dialog from "../../components/ui/Dialog";
@@ -7,7 +9,6 @@ import { useMarkdownImageSource } from "../../native/useMarkdownImageSource";
 import {
   enrichedContextLinkCustomization,
   enrichedThreadLinkCustomization,
-  withChipIcon,
 } from "../../native/useEnrichedLinkVariants";
 import {
   enrichedSkillDisplayName,
@@ -216,7 +217,6 @@ import { ThreadMcpApp } from "./McpAppWebView";
 import { assetEnvironment, useAssetUrl, useRefreshAssetUrl } from "../../state/assets";
 import { useAtomQueryRunner } from "../../state/use-atom-query-runner";
 import { readEnvironmentScope, usePreparedConnection } from "../../state/session";
-import { projectEnvironment } from "../../state/projects";
 import {
   needsWorkspaceBasenameLookup,
   pickWorkspaceBasenameMatch,
@@ -226,7 +226,6 @@ import {
   resolveThreadLink,
   useLiveThreadLinkLabels,
   useQuietThreadShell,
-  useThreadChipIcons,
 } from "../../state/entities";
 import { useThreadSelection } from "../../state/use-thread-selection";
 import { useEnvironmentQuery } from "../../state/query";
@@ -891,11 +890,9 @@ const AssistantMarkdownContent = memo(function AssistantMarkdownContent(props: {
 }) {
   const liveMarkdown = useLiveThreadLinkLabels(props.markdown, props.environmentId);
   const segments = useMemo(() => splitCodexArtifactTemplateMarkdown(liveMarkdown), [liveMarkdown]);
-  const threadIcons = useThreadChipIcons(props.environmentId, liveMarkdown);
   const linkHandlers: MarkdownLinkHandlers = {
     ...props.linkHandlers,
-    linkCustomization: (href) =>
-      withChipIcon(props.linkHandlers.linkCustomization?.(href), threadIcons.get(href)),
+    linkCustomization: (href) => props.linkHandlers.linkCustomization?.(href),
   };
 
   return segments.map((segment) => {
@@ -1865,7 +1862,6 @@ function UserMessageContent(props: UserMessageContentProps) {
   const openLinkedThread = useOpenLinkedThread();
   const { selectedThread } = useThreadSelection();
   const liveText = useLiveThreadLinkLabels(props.text, props.environmentId);
-  const threadIcons = useThreadChipIcons(props.environmentId, liveText, props.context?.records);
   const text = replaceComposerContextReferences(liveText, (ref) => {
     const available = props.context?.records.some((record) => record.contextId === ref.contextId);
     return `[${ref.label}${available ? "" : " (unavailable)"}](t3-context://v1/${ref.kind}/${ref.contextId})`;
@@ -1949,11 +1945,8 @@ function UserMessageContent(props: UserMessageContentProps) {
             }
           },
           linkCustomization: (href) =>
-            withChipIcon(
-              enrichedContextLinkCustomization(href, props.context?.records ?? []) ??
-                props.linkHandlers.linkCustomization?.(href),
-              threadIcons.get(href),
-            ),
+            enrichedContextLinkCustomization(href, props.context?.records ?? []) ??
+            props.linkHandlers.linkCustomization?.(href),
         }}
       />
       {selected ? (
@@ -2262,7 +2255,7 @@ export const ThreadFeed = memo(function ThreadFeed({
       ) {
         void executeAtomQuery(
           appAtomRegistry,
-          projectEnvironment.fileMetadata({
+          workspaceEnvironment.fileMetadata({
             environmentId: props.environmentId,
             input: { path: mediaPath },
           }),
@@ -2306,7 +2299,7 @@ export const ThreadFeed = memo(function ThreadFeed({
         const originalPath = resolveWorkspaceFilePath(props.workspaceRoot, relativePath);
         void executeAtomQuery(
           appAtomRegistry,
-          projectEnvironment.searchEntries({
+          workspaceEnvironment.searchEntries({
             environmentId: props.environmentId,
             input: {
               cwd: props.workspaceRoot,
@@ -2329,7 +2322,7 @@ export const ThreadFeed = memo(function ThreadFeed({
             if (request.signal.aborted) return;
             void executeAtomQuery(
               appAtomRegistry,
-              projectEnvironment.fileMetadata({
+              workspaceEnvironment.fileMetadata({
                 environmentId: props.environmentId,
                 input: { path: originalPath },
               }),

@@ -31,7 +31,7 @@ export function useThreadListSearchMatches(
     const subjectByKey = new Map(
       threads.map((thread) => [
         threadSearchMatchKey({ environmentId: thread.environmentId, threadId: thread.id }),
-        threadSearchSubject(thread, null),
+        threadSearchSubject(thread),
       ]),
     );
     return rankMessageMatches(

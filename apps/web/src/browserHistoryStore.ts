@@ -1,14 +1,5 @@
-import {
-  scopedProjectKey,
-  scopedThreadKey,
-  scopeProjectRef,
-} from "@t3tools/client-runtime/environment";
-import type {
-  EnvironmentId,
-  PreviewSessionSnapshot,
-  ScopedProjectRef,
-  ScopedThreadRef,
-} from "@t3tools/contracts";
+import { scopedThreadKey } from "@t3tools/client-runtime/environment";
+import type { PreviewSessionSnapshot, ScopedThreadRef } from "@t3tools/contracts";
 import { create } from "zustand";
 import { createJSONStorage, persist } from "zustand/middleware";
 import { useShallow } from "zustand/react/shallow";
@@ -21,38 +12,15 @@ import {
   type ThreadPreviewState,
 } from "~/previewStateStore";
 import { appAtomRegistry } from "~/rpc/atomRegistry";
-import {
-  readProject,
-  readProjects,
-  readThreadShell,
-  useProjects,
-  useQuietThreadShell,
-} from "~/state/entities";
-import { readPrimaryEnvironmentId, usePrimaryEnvironmentId } from "~/state/environments";
 import { readPreparedConnection } from "~/state/session";
 
 import { isLocalLoopbackHost, normalizeHostname } from "./browser/browserTargetResolver";
-import { useComposerDraftStore } from "./composerDraftStore";
-import {
-  ensureClientSettingsHydrated,
-  getClientSettings,
-  isClientSettingsHydrated,
-  useClientSettings,
-} from "./hooks/useSettings";
 import { resolveStorage } from "./lib/storage";
-import {
-  deriveLogicalProjectKeyFromSettings,
-  derivePhysicalProjectKey,
-  selectProjectGroupingSettings,
-  type ProjectGroupingSettings,
-} from "@t3tools/client-runtime/state/project-grouping";
-import { buildPhysicalToLogicalProjectKeyMap } from "./sidebarProjectGrouping";
-import type { Project } from "./types";
 
 export type BrowserHistoryEntry = { url: string; lastVisitedAt: number; title?: string };
 
-export const BROWSER_HISTORY_MAX_ENTRIES_PER_PROJECT = 50;
-export const BROWSER_HISTORY_MAX_PROJECTS = 20;
+export const BROWSER_HISTORY_MAX_ENTRIES_PER_ENVIRONMENT = 50;
+export const BROWSER_HISTORY_MAX_ENVIRONMENTS = 20;
 const BROWSER_HISTORY_MAX_URL_LENGTH = 2048;
 const BROWSER_HISTORY_MAX_TITLE_LENGTH = 512;
 const MAX_VALID_DATE_MS = 8_640_000_000_000_000;
@@ -116,34 +84,47 @@ export function upsertHistoryEntry(
     ? { ...existing, url: storedUrl, lastVisitedAt: visitedAt }
     : { url, lastVisitedAt: visitedAt };
   if (!options?.insertOrdered)
-    return [entry, ...rest].slice(0, BROWSER_HISTORY_MAX_ENTRIES_PER_PROJECT);
+    return [entry, ...rest].slice(0, BROWSER_HISTORY_MAX_ENTRIES_PER_ENVIRONMENT);
   const index = rest.findIndex((candidate) => candidate.lastVisitedAt < entry.lastVisitedAt);
   const next = index === -1 ? [...rest, entry] : rest.toSpliced(index, 0, entry);
-  return next.slice(0, BROWSER_HISTORY_MAX_ENTRIES_PER_PROJECT);
+  return next.slice(0, BROWSER_HISTORY_MAX_ENTRIES_PER_ENVIRONMENT);
 }
 
-function evictExcessProjects(
-  byProjectKey: Record<string, BrowserHistoryEntry[]>,
+function evictExcessEnvironments(
+  byEnvironmentKey: Record<string, BrowserHistoryEntry[]>,
 ): Record<string, BrowserHistoryEntry[]> {
-  const keys = Object.keys(byProjectKey);
-  if (keys.length <= BROWSER_HISTORY_MAX_PROJECTS) return byProjectKey;
+  const keys = Object.keys(byEnvironmentKey);
+  if (keys.length <= BROWSER_HISTORY_MAX_ENVIRONMENTS) return byEnvironmentKey;
   const kept = keys
     .toSorted(
       (a, b) =>
-        (byProjectKey[b]?.[0]?.lastVisitedAt ?? 0) - (byProjectKey[a]?.[0]?.lastVisitedAt ?? 0),
+        (byEnvironmentKey[b]?.[0]?.lastVisitedAt ?? 0) -
+        (byEnvironmentKey[a]?.[0]?.lastVisitedAt ?? 0),
     )
-    .slice(0, BROWSER_HISTORY_MAX_PROJECTS);
-  return Object.fromEntries(kept.map((key) => [key, byProjectKey[key] ?? []]));
+    .slice(0, BROWSER_HISTORY_MAX_ENVIRONMENTS);
+  return Object.fromEntries(kept.map((key) => [key, byEnvironmentKey[key] ?? []]));
 }
 
 export function migratePersistedBrowserHistoryState(persistedState: unknown): {
-  byProjectKey: Record<string, BrowserHistoryEntry[]>;
+  byEnvironmentKey: Record<string, BrowserHistoryEntry[]>;
 } {
-  if (!persistedState || typeof persistedState !== "object") return { byProjectKey: {} };
-  const raw = (persistedState as { byProjectKey?: unknown }).byProjectKey;
-  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return { byProjectKey: {} };
-  const byProjectKey: Record<string, BrowserHistoryEntry[]> = {};
-  for (const [projectKey, value] of Object.entries(raw as Record<string, unknown>)) {
+  if (!persistedState || typeof persistedState !== "object") return { byEnvironmentKey: {} };
+  const document = persistedState as Record<string, unknown>;
+  const raw: Record<string, unknown[]> = {};
+  for (const [legacy, source] of [
+    [true, document.byProjectKey],
+    [false, document.byEnvironmentKey],
+  ] as const) {
+    if (!source || typeof source !== "object" || Array.isArray(source)) continue;
+    for (const [key, entries] of Object.entries(source)) {
+      if (!Array.isArray(entries)) continue;
+      const separator = key.indexOf(":");
+      const environmentKey = legacy && separator > 0 ? key.slice(0, separator) : key;
+      raw[environmentKey] = [...(raw[environmentKey] ?? []), ...entries];
+    }
+  }
+  const byEnvironmentKey: Record<string, BrowserHistoryEntry[]> = {};
+  for (const [environmentKey, value] of Object.entries(raw as Record<string, unknown>)) {
     if (!Array.isArray(value)) continue;
     const seenUrls = new Set<string>();
     const entries = value
@@ -171,10 +152,10 @@ export function migratePersistedBrowserHistoryState(persistedState: unknown): {
         seenUrls.add(key);
         return true;
       })
-      .slice(0, BROWSER_HISTORY_MAX_ENTRIES_PER_PROJECT);
-    if (entries.length > 0) byProjectKey[projectKey] = entries;
+      .slice(0, BROWSER_HISTORY_MAX_ENTRIES_PER_ENVIRONMENT);
+    if (entries.length > 0) byEnvironmentKey[environmentKey] = entries;
   }
-  return { byProjectKey: evictExcessProjects(byProjectKey) };
+  return { byEnvironmentKey: evictExcessEnvironments(byEnvironmentKey) };
 }
 
 const BROWSER_HISTORY_STORAGE_KEY = "ozi:browser-history:v1";
@@ -185,23 +166,23 @@ const PENDING_MAX_THREADS = 20;
 type PendingVisit = { url: string; at: number; environmentHostname: string | null };
 
 interface BrowserHistoryStoreState {
-  byProjectKey: Record<string, BrowserHistoryEntry[]>;
-  projectKeyByThreadKey: Record<string, string>;
+  byEnvironmentKey: Record<string, BrowserHistoryEntry[]>;
+  environmentKeyByThreadKey: Record<string, string>;
   pendingVisitsByThreadKey: Record<string, PendingVisit[]>;
   recordVisit: (
-    projectKey: string,
+    environmentKey: string,
     url: string,
     at: number,
     options?: { insertOrdered?: boolean; environmentHostname?: string | null },
   ) => void;
   setTitleForUrl: (
-    projectKey: string,
+    environmentKey: string,
     url: string,
     title: string,
     environmentHostname?: string | null,
   ) => void;
-  removeUrl: (projectKey: string, url: string) => void;
-  registerThreadProject: (ref: ScopedThreadRef, projectKey: string) => void;
+  removeUrl: (environmentKey: string, url: string) => void;
+  registerThreadEnvironment: (ref: ScopedThreadRef, environmentKey: string) => void;
 }
 
 function addPendingByThread<T>(
@@ -223,18 +204,18 @@ function addPendingByThread<T>(
 export const useBrowserHistoryStore = create<BrowserHistoryStoreState>()(
   persist(
     (set, get) => ({
-      byProjectKey: {},
-      projectKeyByThreadKey: {},
+      byEnvironmentKey: {},
+      environmentKeyByThreadKey: {},
       pendingVisitsByThreadKey: {},
-      recordVisit: (projectKey, url, at, options) => {
+      recordVisit: (environmentKey, url, at, options) => {
         const normalized = normalizeHistoryUrl(url);
         if (!normalized) return;
         set((state) => {
           return {
-            byProjectKey: evictExcessProjects({
-              ...state.byProjectKey,
-              [projectKey]: upsertHistoryEntry(
-                state.byProjectKey[projectKey] ?? [],
+            byEnvironmentKey: evictExcessEnvironments({
+              ...state.byEnvironmentKey,
+              [environmentKey]: upsertHistoryEntry(
+                state.byEnvironmentKey[environmentKey] ?? [],
                 normalized,
                 at,
                 options,
@@ -243,10 +224,10 @@ export const useBrowserHistoryStore = create<BrowserHistoryStoreState>()(
           };
         });
       },
-      setTitleForUrl: (projectKey, url, title, environmentHostname) => {
+      setTitleForUrl: (environmentKey, url, title, environmentHostname) => {
         const normalized = normalizeHistoryUrl(url);
         const state = get();
-        const entries = state.byProjectKey[projectKey];
+        const entries = state.byEnvironmentKey[environmentKey];
         const trimmed = title.trim().slice(0, BROWSER_HISTORY_MAX_TITLE_LENGTH);
         if (!normalized || !entries || trimmed.length === 0) return;
         const key = titleLookupKey(normalized, environmentHostname);
@@ -255,41 +236,44 @@ export const useBrowserHistoryStore = create<BrowserHistoryStoreState>()(
         );
         if (index === -1 || entries[index]?.title === trimmed) return;
         set({
-          byProjectKey: {
-            ...state.byProjectKey,
-            [projectKey]: entries.map((candidate, candidateIndex) =>
+          byEnvironmentKey: {
+            ...state.byEnvironmentKey,
+            [environmentKey]: entries.map((candidate, candidateIndex) =>
               candidateIndex === index ? { ...candidate, title: trimmed } : candidate,
             ),
           },
         });
       },
-      removeUrl: (projectKey, url) => {
+      removeUrl: (environmentKey, url) => {
         const normalized = normalizeHistoryUrl(url);
         const state = get();
-        const entries = state.byProjectKey[projectKey];
+        const entries = state.byEnvironmentKey[environmentKey];
         if (!normalized || !entries) return;
         const next = entries.filter((candidate) => candidate.url !== normalized);
         if (next.length === entries.length) return;
         if (next.length === 0) {
-          const { [projectKey]: _removed, ...rest } = state.byProjectKey;
-          set({ byProjectKey: rest });
+          const { [environmentKey]: _removed, ...rest } = state.byEnvironmentKey;
+          set({ byEnvironmentKey: rest });
           return;
         }
-        set({ byProjectKey: { ...state.byProjectKey, [projectKey]: next } });
+        set({ byEnvironmentKey: { ...state.byEnvironmentKey, [environmentKey]: next } });
       },
-      registerThreadProject: (ref, projectKey) => {
+      registerThreadEnvironment: (ref, environmentKey) => {
         const threadKey = scopedThreadKey(ref);
         const state = get();
         const pendingVisits = state.pendingVisitsByThreadKey[threadKey];
-        if (state.projectKeyByThreadKey[threadKey] === projectKey && !pendingVisits) return;
+        if (state.environmentKeyByThreadKey[threadKey] === environmentKey && !pendingVisits) return;
         const nextPendingVisits = { ...state.pendingVisitsByThreadKey };
         delete nextPendingVisits[threadKey];
         set({
-          projectKeyByThreadKey: { ...state.projectKeyByThreadKey, [threadKey]: projectKey },
+          environmentKeyByThreadKey: {
+            ...state.environmentKeyByThreadKey,
+            [threadKey]: environmentKey,
+          },
           pendingVisitsByThreadKey: nextPendingVisits,
         });
         for (const visit of pendingVisits ?? [])
-          get().recordVisit(projectKey, visit.url, visit.at, {
+          get().recordVisit(environmentKey, visit.url, visit.at, {
             insertOrdered: true,
             environmentHostname: visit.environmentHostname,
           });
@@ -306,8 +290,8 @@ export const useBrowserHistoryStore = create<BrowserHistoryStoreState>()(
         resolveStorage(typeof window !== "undefined" ? window.localStorage : undefined),
       ),
       partialize: (state) => ({
-        byProjectKey: state.byProjectKey,
-        projectKeyByThreadKey: state.projectKeyByThreadKey,
+        byEnvironmentKey: state.byEnvironmentKey,
+        environmentKeyByThreadKey: state.environmentKeyByThreadKey,
       }),
       migrate: migratePersistedBrowserHistoryState,
       merge: mergeBrowserHistoryState,
@@ -323,89 +307,44 @@ export function mergeBrowserHistoryState(
   return {
     ...currentState,
     ...migrated,
-    projectKeyByThreadKey: migratePersistedThreadProjectKeys(persistedState, migrated.byProjectKey),
+    environmentKeyByThreadKey: migratePersistedThreadProjectKeys(
+      persistedState,
+      migrated.byEnvironmentKey,
+    ),
     pendingVisitsByThreadKey: {},
   };
 }
 
 function migratePersistedThreadProjectKeys(
   persistedState: unknown,
-  byProjectKey: Record<string, BrowserHistoryEntry[]>,
+  byEnvironmentKey: Record<string, BrowserHistoryEntry[]>,
 ): Record<string, string> {
   if (!persistedState || typeof persistedState !== "object") return {};
-  const raw = (persistedState as { projectKeyByThreadKey?: unknown }).projectKeyByThreadKey;
+  const raw = (persistedState as { environmentKeyByThreadKey?: unknown }).environmentKeyByThreadKey;
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
   return Object.fromEntries(
     Object.entries(raw as Record<string, unknown>)
       .filter(
         (entry): entry is [string, string] =>
-          typeof entry[1] === "string" && entry[1] in byProjectKey,
+          typeof entry[1] === "string" && entry[1] in byEnvironmentKey,
       )
       .slice(-100),
   );
 }
 
-/**
- * History follows the sidebar's project rows, so a duplicate row shares the
- * history of the group it is listed under rather than keying by its own path.
- */
-function deriveHistoryProjectKey(
-  project: Project,
-  projects: ReadonlyArray<Project>,
-  settings: ProjectGroupingSettings,
-  primaryEnvironmentId: EnvironmentId | null,
-): string {
-  return (
-    buildPhysicalToLogicalProjectKeyMap({ projects, settings, primaryEnvironmentId }).get(
-      derivePhysicalProjectKey(project),
-    ) ?? deriveLogicalProjectKeyFromSettings(project, settings)
-  );
-}
-
-/** Server threads name their project in the shell; drafts in the composer draft store. */
-function readThreadProjectRef(ref: ScopedThreadRef): ScopedProjectRef | null {
-  const projectId = readThreadShell(ref)?.projectId;
-  if (projectId) return scopeProjectRef(ref.environmentId, projectId);
-  const draft = useComposerDraftStore.getState().getDraftSessionByRef(ref);
-  return draft ? scopeProjectRef(draft.environmentId, draft.projectId) : null;
-}
-
-/**
- * Registers the thread under its current project so queued visits and titles
- * land. Until the project loads, or client settings hydrate (the grouping is
- * unknown before then), the last registration stands and writes stay queued.
- */
-function resolveThreadProjectKey(ref: ScopedThreadRef): string | undefined {
-  const state = useBrowserHistoryStore.getState();
-  const registered = state.projectKeyByThreadKey[scopedThreadKey(ref)];
-  if (!isClientSettingsHydrated()) {
-    void ensureClientSettingsHydrated().then(
-      () => resolveThreadProjectKey(ref),
-      () => undefined,
-    );
-    return registered;
-  }
-  const projectRef = readThreadProjectRef(ref);
-  const project = projectRef ? readProject(projectRef) : null;
-  if (!project) return registered;
-  const projectKey = deriveHistoryProjectKey(
-    project,
-    readProjects(),
-    selectProjectGroupingSettings(getClientSettings()),
-    readPrimaryEnvironmentId(),
-  );
-  state.registerThreadProject(ref, projectKey);
-  return projectKey;
+function resolveThreadEnvironmentKey(ref: ScopedThreadRef): string {
+  useBrowserHistoryStore.getState().registerThreadEnvironment(ref, ref.environmentId);
+  return ref.environmentId;
 }
 
 export function recordVisitForThread(ref: ScopedThreadRef, url: string, at?: number): void {
   const threadKey = scopedThreadKey(ref);
-  const projectKey = resolveThreadProjectKey(ref);
+  const environmentKey = resolveThreadEnvironmentKey(ref);
   const state = useBrowserHistoryStore.getState();
   const visitAt = at ?? Date.now();
   const connection = readPreparedConnection(ref.environmentId);
   const environmentHostname = connection ? new URL(connection.httpBaseUrl).hostname : null;
-  if (!projectKey) {
+  if (!environmentKey) {
     useBrowserHistoryStore.setState({
       pendingVisitsByThreadKey: addPendingByThread(state.pendingVisitsByThreadKey, threadKey, {
         url,
@@ -415,7 +354,7 @@ export function recordVisitForThread(ref: ScopedThreadRef, url: string, at?: num
     });
     return;
   }
-  state.recordVisit(projectKey, url, visitAt, { environmentHostname });
+  state.recordVisit(environmentKey, url, visitAt, { environmentHostname });
   // A page can settle before the address bar records its visit.
   recordPreviewTitles(ref, readThreadPreviewState(ref), { urls: [url] });
 }
@@ -433,8 +372,8 @@ function recordPreviewTitles(
     | { readonly changedSince: ThreadPreviewState["sessions"] },
 ): void {
   const state = useBrowserHistoryStore.getState();
-  const projectKey = state.projectKeyByThreadKey[scopedThreadKey(ref)];
-  if (!projectKey || !state.byProjectKey[projectKey]?.length) return;
+  const environmentKey = state.environmentKeyByThreadKey[scopedThreadKey(ref)];
+  if (!environmentKey || !state.byEnvironmentKey[environmentKey]?.length) return;
   const connection = readPreparedConnection(ref.environmentId);
   const environmentHostname = connection ? new URL(connection.httpBaseUrl).hostname : null;
   const titleKey = (url: string) => {
@@ -443,7 +382,7 @@ function recordPreviewTitles(
   };
   const titled = new Set(
     "urls" in only
-      ? state.byProjectKey[projectKey]?.flatMap((entry) =>
+      ? state.byEnvironmentKey[environmentKey]?.flatMap((entry) =>
           entry.title ? [titleLookupKey(entry.url, environmentHostname)] : [],
         )
       : [],
@@ -469,7 +408,7 @@ function recordPreviewTitles(
   for (const session of sessions) {
     const status = session.navStatus;
     if (status._tag !== "Success" || !status.title || !include(session, status.url)) continue;
-    state.setTitleForUrl(projectKey, status.url, status.title, environmentHostname);
+    state.setTitleForUrl(environmentKey, status.url, status.title, environmentHostname);
   }
 }
 
@@ -502,46 +441,21 @@ export function startPreviewTitleRecording(): () => void {
 }
 
 export function removeUrlForThread(ref: ScopedThreadRef, url: string): void {
-  const projectKey = resolveThreadProjectKey(ref);
-  if (!projectKey) return;
-  useBrowserHistoryStore.getState().removeUrl(projectKey, url);
+  const environmentKey = resolveThreadEnvironmentKey(ref);
+  if (!environmentKey) return;
+  useBrowserHistoryStore.getState().removeUrl(environmentKey, url);
 }
 
 const EMPTY_HISTORY: ReadonlyArray<BrowserHistoryEntry> = [];
-
-function useThreadHistoryProjectKey(ref: ScopedThreadRef): string | null {
-  const threadKey = scopedThreadKey(ref);
-  const shellProjectId = useQuietThreadShell(ref)?.projectId ?? null;
-  const draftProjectKey = useComposerDraftStore((state) => {
-    const draft = state.getDraftSessionByRef(ref);
-    return draft ? scopedProjectKey(scopeProjectRef(draft.environmentId, draft.projectId)) : null;
-  });
-  const projectKey = shellProjectId
-    ? scopedProjectKey(scopeProjectRef(ref.environmentId, shellProjectId))
-    : draftProjectKey;
-  const projects = useProjects();
-  const settings = useClientSettings(selectProjectGroupingSettings);
-  const primaryEnvironmentId = usePrimaryEnvironmentId();
-  const registered = useBrowserHistoryStore(
-    (state) => state.projectKeyByThreadKey[threadKey] ?? null,
-  );
-  const project = projects.find(
-    (candidate) =>
-      scopedProjectKey(scopeProjectRef(candidate.environmentId, candidate.id)) === projectKey,
-  );
-  return project
-    ? deriveHistoryProjectKey(project, projects, settings, primaryEnvironmentId)
-    : registered;
-}
 
 export function useThreadRecentHistory(
   ref: ScopedThreadRef,
   limit: number,
 ): ReadonlyArray<BrowserHistoryEntry> {
-  const projectKey = useThreadHistoryProjectKey(ref);
+  const environmentKey = ref.environmentId;
   return useBrowserHistoryStore(
     useShallow((state) => {
-      const entries = projectKey ? state.byProjectKey[projectKey] : undefined;
+      const entries = environmentKey ? state.byEnvironmentKey[environmentKey] : undefined;
       return entries && entries.length > 0 ? entries.slice(0, limit) : EMPTY_HISTORY;
     }),
   );
@@ -549,8 +463,8 @@ export function useThreadRecentHistory(
 
 export function resetBrowserHistoryForTests(): void {
   useBrowserHistoryStore.setState({
-    byProjectKey: {},
-    projectKeyByThreadKey: {},
+    byEnvironmentKey: {},
+    environmentKeyByThreadKey: {},
     pendingVisitsByThreadKey: {},
   });
   useBrowserHistoryStore.persist.clearStorage();

@@ -19,7 +19,7 @@ export interface WslEnvironmentConfiguration {
   }>;
 }
 
-export interface WslProjectSelection<TEnvironmentId extends string = string> extends WslUncPath {
+export interface WslPathSelection<TEnvironmentId extends string = string> extends WslUncPath {
   readonly environmentId: TEnvironmentId;
 }
 
@@ -49,10 +49,10 @@ export function parseWslUncPath(input: string): WslUncPath | null {
   };
 }
 
-export function resolveWslProjectSelection<TEnvironmentId extends string>(
+export function resolveWslPathSelection<TEnvironmentId extends string>(
   input: string,
   candidates: ReadonlyArray<WslEnvironmentCandidate<TEnvironmentId>>,
-): WslProjectSelection<TEnvironmentId> | null {
+): WslPathSelection<TEnvironmentId> | null {
   const parsed = parseWslUncPath(input);
   if (!parsed) {
     return null;
@@ -100,28 +100,6 @@ function resolveConfiguredWslBackend(
   );
   const resolvedDistro = installedDistro?.name ?? configuredDistro;
   return { backendId: `wsl:${resolvedDistro}`, runningDistro: resolvedDistro };
-}
-
-export function resolveProjectPickerTarget<TEnvironmentId extends string>(input: {
-  readonly browseEnvironmentId: TEnvironmentId | null;
-  readonly primaryEnvironmentId: TEnvironmentId | null;
-  readonly desktopInstanceId: string | null;
-  readonly wslConfiguration: WslEnvironmentConfiguration | null;
-}): string | null {
-  if (input.desktopInstanceId !== null) {
-    return input.desktopInstanceId;
-  }
-
-  if (
-    input.browseEnvironmentId === null ||
-    input.browseEnvironmentId !== input.primaryEnvironmentId ||
-    !input.wslConfiguration?.enabled ||
-    !input.wslConfiguration.wslOnly
-  ) {
-    return null;
-  }
-
-  return resolveConfiguredWslBackend(input.wslConfiguration)?.backendId ?? null;
 }
 
 export function applyWslEnvironmentConfiguration<TEnvironmentId extends string>(

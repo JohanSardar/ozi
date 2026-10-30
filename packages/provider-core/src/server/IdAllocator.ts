@@ -8,7 +8,6 @@ import {
   MessageId,
   NodeId,
   PlanId,
-  ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
   ProviderSessionId,
@@ -32,7 +31,6 @@ export const IdAllocatorV2Kind = Schema.Literals([
   "command",
   "event",
   "raw_event",
-  "project",
   "thread",
   "message",
   "run",
@@ -81,12 +79,8 @@ export interface IdAllocatorV2Allocate {
     readonly providerSessionId: ProviderSessionId;
     readonly method: string | null;
   }) => Effect.Effect<RawEventId, IdAllocatorV2Error>;
-  readonly project: (input: {
-    readonly fixtureName: string;
-  }) => Effect.Effect<ProjectId, IdAllocatorV2Error>;
-  readonly thread: (input: {
+  readonly thread: (input?: {
     readonly fixtureName?: string;
-    readonly projectId?: ProjectId;
   }) => Effect.Effect<ThreadId, IdAllocatorV2Error>;
   readonly message: (input: {
     readonly threadId: ThreadId;
@@ -328,21 +322,11 @@ export const layer: Layer.Layer<IdAllocatorV2> = Layer.succeed(
           ],
           make: RawEventId.make,
         })(input),
-      project: (input) =>
-        randomId<ProjectId, typeof input>({
-          kind: "project",
-          prefix: "project",
-          parts: ["fixture", input.fixtureName],
-          make: ProjectId.make,
-        })(input),
       thread: (input) =>
         randomId<ThreadId, typeof input>({
           kind: "thread",
           prefix: "thread",
-          parts: [
-            ...(input.fixtureName === undefined ? [] : ["fixture", input.fixtureName]),
-            ...(input.projectId === undefined ? [] : ["project", input.projectId]),
-          ],
+          parts: input?.fixtureName === undefined ? [] : ["fixture", input.fixtureName],
           make: ThreadId.make,
         })(input),
       message: (input) =>

@@ -95,7 +95,6 @@ export const layer = McpToolAccess.toLayer(
             const commandId = yield* newCommandId();
             const messageId = MessageId.make(commandId);
             const result = yield* ThreadMessageIntake.sendToThread({
-              projectId: projection.thread.projectId,
               threadId: projection.thread.id,
               commandId,
               messageId,

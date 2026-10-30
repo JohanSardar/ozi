@@ -1,7 +1,6 @@
 import {
   type OrchestrationV2ThreadProjection,
   type OrchestrationV2ThreadShell,
-  ProjectId,
   type ProviderInteractionMode,
   ProviderInstanceId,
   RunId,
@@ -27,7 +26,6 @@ export const liveThreadShell = (
   const providerInstanceId = ProviderInstanceId.make("codex");
   return {
     id,
-    projectId: ProjectId.make("project:mcp-test"),
     title: id,
     providerInstanceId,
     modelSelection: { instanceId: providerInstanceId, model: "gpt-5" },

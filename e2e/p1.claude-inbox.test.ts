@@ -130,9 +130,6 @@ it("p1.claude-inbox: Stop forks full context, files and closes tickets without c
       server.once("error", reject);
       server.once("exit", (code) => reject(new Error(`Server exited ${code}: ${output}`)));
     });
-    await exec(process.execPath, [cli, "project", "add", workspace, "--home", home], {
-      env: environment,
-    });
     const watch = NodeChildProcess.spawn(
       process.execPath,
       [cli, "ticket", "subscribe", "--input", '{"status":"all"}', "--home", home, "--json"],
@@ -166,6 +163,7 @@ it("p1.claude-inbox: Stop forks full context, files and closes tickets without c
       const result = await run(
         "thread",
         "start",
+        "--cwd",
         workspace,
         "p1-context: present the release for approval.",
         "--provider",

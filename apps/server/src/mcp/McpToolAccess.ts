@@ -301,7 +301,7 @@ export const either = <P, A, E, R, A2, E2, R2>(
 };
 
 const fullAccessRequired =
-  "Changing projects or environment settings needs a live full-access/default calling thread or a full-access client.";
+  "Changing environment settings needs a live full-access/default calling thread or a full-access client.";
 
 /** Recheck after waits before writing; caller modes may have changed. */
 export const writesEnvironment = <P, A, E, R>(
@@ -321,7 +321,7 @@ export const writesEnvironment = <P, A, E, R>(
     Effect.tap((caller) =>
       options?.linkedCallers === "allowed"
         ? Effect.void
-        : assertNotLinked(caller, "change projects or environment settings"),
+        : assertNotLinked(caller, "change environment settings"),
     ),
     Effect.tap((caller) => assertFullAccess(caller, fullAccessRequired)),
   );

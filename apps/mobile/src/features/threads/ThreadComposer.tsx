@@ -208,7 +208,7 @@ export interface ThreadComposerProps {
   readonly activeThreadBusy: boolean;
   readonly canStopThread: boolean;
   readonly environmentId: EnvironmentId;
-  readonly projectCwd: string | null;
+  readonly defaultCwd: string | null;
   readonly sendBlockedReason?: string | null;
   readonly interactionLocked?: boolean;
   readonly draftKey?: string;
@@ -475,11 +475,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
   const currentModelSelection = props.selectedThread.modelSelection;
   const modelUnavailable =
     props.connectionState === "connected" &&
-    isModelSelectionUnavailable(
-      props.serverConfig,
-      currentModelSelection,
-      props.selectedThread.projectId,
-    );
+    isModelSelectionUnavailable(props.serverConfig, currentModelSelection);
   const selectedProviderStatus = (() => {
     if (!props.serverConfig) return null;
     return (
@@ -533,7 +529,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
       : NO_MACHINES,
     linkedEnvironments: useLinkedEnvironments(props.environmentId),
     currentThreadId: props.selectedThread.id,
-    projectCwd: props.projectCwd,
+    defaultCwd: props.defaultCwd,
     selectedProviderStatus,
     hasThread: !props.isDraft,
     hasCompactableConversation: props.hasCompactableConversation,
@@ -684,7 +680,6 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     armAgentAwarenessLiveActivityForLocalWork({
       environmentId: props.environmentId,
       threadTitle: props.selectedThread.title,
-      projectTitle: props.environmentLabel ?? "Ozi",
     });
   };
 
@@ -695,7 +690,6 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
     props.serverConfig,
     currentModelSelection,
     lockedProviderInstanceId,
-    props.selectedThread.projectId,
   );
   const currentModelOption =
     modelOptions.find(
@@ -967,7 +961,7 @@ export const ThreadComposer = function ThreadComposer(props: ThreadComposerProps
                   if (props.isDraft) {
                     navigation.navigate("NewTaskFile", {
                       environmentId: String(props.environmentId),
-                      cwd: props.projectCwd ?? undefined,
+                      cwd: props.defaultCwd ?? undefined,
                       path: fileRoutePathSegments(path),
                     });
                   } else {

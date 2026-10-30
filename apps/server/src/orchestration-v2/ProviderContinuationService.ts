@@ -140,7 +140,6 @@ export const layer = Layer.effectDiscard(
                     "orchestration-v2.provider-continuation.delegated-completion-disabled",
                     {
                       threadId: request.threadId,
-                      projectId: error.projectId,
                       instanceId: error.instanceId,
                     },
                   ).pipe(
@@ -211,7 +210,6 @@ export const layer = Layer.effectDiscard(
           Effect.logInfo("orchestration-v2.provider-continuation.instance-disabled", {
             threadId: request.threadId,
             providerThreadId: request.providerThreadId,
-            projectId: error.projectId,
             instanceId: error.instanceId,
           }).pipe(
             Effect.andThen(

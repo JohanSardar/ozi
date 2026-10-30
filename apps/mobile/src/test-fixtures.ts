@@ -4,7 +4,6 @@ import {
 } from "@t3tools/client-runtime/state/shell";
 import {
   EnvironmentId,
-  ProjectId,
   ProviderInstanceId,
   ThreadId,
   type OrchestrationV2ThreadShell,
@@ -21,7 +20,6 @@ export function makeRawThreadShell(
   const now = DateTime.makeUnsafe(DEFAULT_TIMESTAMP);
   return {
     id,
-    projectId: ProjectId.make("project-test"),
     title: "Thread",
     providerInstanceId,
     modelSelection: { instanceId: providerInstanceId, model: "gpt-5.4" },
@@ -58,7 +56,6 @@ export function makeThreadShellFixture(
   const environmentId = overrides.environmentId ?? EnvironmentId.make("environment-test");
   const raw = makeRawThreadShell({
     id: overrides.id,
-    projectId: overrides.projectId,
     title: overrides.title,
     providerInstanceId: overrides.providerInstanceId,
     modelSelection: overrides.modelSelection,

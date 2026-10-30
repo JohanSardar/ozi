@@ -2,16 +2,15 @@ import {
   AuthTerminalOperateScope,
   AuthTerminalReadScope,
   type ScopedThreadRef,
+  type EnvironmentId,
 } from "@t3tools/contracts";
-import { scopeProjectRef } from "@t3tools/client-runtime/environment";
 import { isAtomCommandInterrupted } from "@t3tools/client-runtime/state/runtime";
-import { projectScriptCwd, projectScriptRuntimeEnv } from "@t3tools/shared/projectScripts";
 import { nextTerminalId } from "@t3tools/shared/terminalLabels";
 import { useComposerDraftStore } from "../../composerDraftStore";
 import { useStableCallback } from "../../hooks/useStableCallback";
 import { randomUUID } from "~/lib/utils";
 import { selectThreadRightPanelState, useRightPanelStore } from "../../rightPanelStore";
-import { useProject, useQuietThreadShell } from "../../state/entities";
+import { useServerConfigs, useQuietThreadShell } from "../../state/entities";
 import { readEnvironmentScope } from "../../state/session";
 import { terminalEnvironment } from "../../state/terminal";
 import { useKnownTerminalSessions } from "../../state/terminalSessions";
@@ -33,12 +32,8 @@ export function useThreadTerminalActions(threadRef: ScopedThreadRef | null) {
   const draftThread = useComposerDraftStore((store) =>
     threadRef ? store.getDraftThreadByRef(threadRef) : null,
   );
-  const projectRef = serverThread
-    ? scopeProjectRef(serverThread.environmentId, serverThread.projectId)
-    : draftThread
-      ? scopeProjectRef(draftThread.environmentId, draftThread.projectId)
-      : null;
-  const project = useProject(projectRef);
+  const defaultCwd =
+    useServerConfigs().get(threadRef?.environmentId ?? ("" as EnvironmentId))?.cwd ?? null;
   const threadWorkingDirectory =
     serverThread?.workingDirectory ?? draftThread?.workingDirectory ?? null;
   const knownSessions = useKnownTerminalSessions({
@@ -72,12 +67,9 @@ export function useThreadTerminalActions(threadRef: ScopedThreadRef | null) {
   };
 
   const defaultLaunchLocation = (): TerminalLaunchLocation | null =>
-    project
+    defaultCwd
       ? {
-          cwd: projectScriptCwd({
-            project: { cwd: project.workspaceRoot },
-            workingDirectory: threadWorkingDirectory,
-          }),
+          cwd: threadWorkingDirectory ?? defaultCwd,
           workingDirectory: threadWorkingDirectory,
         }
       : null;
@@ -90,7 +82,7 @@ export function useThreadTerminalActions(threadRef: ScopedThreadRef | null) {
     readonly extraEnv?: Record<string, string>;
     readonly size?: { readonly cols: number; readonly rows: number };
   }) => {
-    if (!threadRef || !canWrite() || !project) return null;
+    if (!threadRef || !canWrite()) return null;
     const location = input.location ?? defaultLaunchLocation();
     if (!location) return null;
     const terminalId = input.terminalId ?? allocateTerminalId();
@@ -104,11 +96,7 @@ export function useThreadTerminalActions(threadRef: ScopedThreadRef | null) {
         ...(location.workingDirectory !== null
           ? { workingDirectory: location.workingDirectory }
           : {}),
-        env: projectScriptRuntimeEnv({
-          project: { cwd: project.workspaceRoot },
-          workingDirectory: location.workingDirectory,
-          ...(input.extraEnv ? { extraEnv: input.extraEnv } : {}),
-        }),
+        env: input.extraEnv ?? {},
         ...input.size,
       },
     });

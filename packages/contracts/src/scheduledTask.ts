@@ -4,18 +4,13 @@ import {
   CommandId,
   ForwardCompatibleArray,
   IsoDateTime,
-  ProjectId,
   ScheduledTaskId,
   SecretRef,
   ThreadId,
   TrimmedNonEmptyString,
 } from "./baseSchemas.ts";
 import { ModelSelection } from "./modelSelection.ts";
-import {
-  OrchestrationV2Actor,
-  OrchestrationV2CreationSource,
-  OrchestrationV2ThreadLaunchWorkspaceStrategy,
-} from "./orchestrationV2.ts";
+import { OrchestrationV2Actor, OrchestrationV2CreationSource } from "./orchestrationV2.ts";
 import { ProviderInteractionMode, RuntimeMode } from "./providerPolicy.ts";
 
 const TimeOfDay = TrimmedNonEmptyString.check(
@@ -200,9 +195,7 @@ export const ScheduledTask = Schema.Struct({
   prompt: TrimmedNonEmptyString,
   enabled: Schema.Boolean,
   schedule: ScheduledTaskSchedule,
-  projectId: ProjectId,
   threadId: Schema.NullOr(ThreadId),
-  workspaceStrategy: OrchestrationV2ThreadLaunchWorkspaceStrategy,
   modelSelection: ModelSelection,
   runtimeMode: RuntimeMode,
   interactionMode: ProviderInteractionMode,
@@ -237,9 +230,7 @@ export const ScheduledTaskUpsertInput = Schema.Struct({
   prompt: TrimmedNonEmptyString,
   enabled: Schema.Boolean,
   schedule: ScheduledTaskUpsertSchedule,
-  projectId: ProjectId,
   threadId: Schema.optional(Schema.NullOr(ThreadId)),
-  workspaceStrategy: OrchestrationV2ThreadLaunchWorkspaceStrategy,
   modelSelection: ModelSelection,
   runtimeMode: RuntimeMode,
   interactionMode: ProviderInteractionMode,

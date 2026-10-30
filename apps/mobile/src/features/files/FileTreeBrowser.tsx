@@ -1,7 +1,7 @@
 import { NativeScrollView } from "../../native/NativeScrollViewMarker";
 import { Button } from "../../components/ui/Button";
 import { LegendList } from "@legendapp/list/react-native";
-import type { ProjectEntry } from "@t3tools/contracts";
+import type { WorkspaceEntry } from "@t3tools/contracts";
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
 import { SymbolView } from "../../components/ui/AppSymbol";
 import { useEffect, useRef, useState } from "react";
@@ -19,10 +19,10 @@ import {
   type VisibleFileTreeNode,
 } from "./fileTree";
 
-const fileTreeCache = new WeakMap<ReadonlyArray<ProjectEntry>, ReadonlyArray<FileTreeNode>>();
+const fileTreeCache = new WeakMap<ReadonlyArray<WorkspaceEntry>, ReadonlyArray<FileTreeNode>>();
 const OPTIMISTIC_SELECTION_TIMEOUT_MS = 1_000;
 
-function cachedFileTree(entries: ReadonlyArray<ProjectEntry>): ReadonlyArray<FileTreeNode> {
+function cachedFileTree(entries: ReadonlyArray<WorkspaceEntry>): ReadonlyArray<FileTreeNode> {
   const cached = fileTreeCache.get(entries);
   if (cached !== undefined) {
     return cached;
@@ -103,7 +103,7 @@ export function FileTreeBrowser(props: {
   readonly setExpandedPaths: (
     update: (current: ReadonlySet<string>) => ReadonlySet<string>,
   ) => void;
-  readonly entries: ReadonlyArray<ProjectEntry>;
+  readonly entries: ReadonlyArray<WorkspaceEntry>;
   readonly error: string | null;
   readonly isPending: boolean;
   readonly isRefreshing: boolean;

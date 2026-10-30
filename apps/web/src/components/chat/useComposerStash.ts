@@ -72,7 +72,7 @@ export function useComposerStash(input: {
   readonly readAttachmentDraft: () => Pick<ComposerThreadDraftState, "images" | "files">;
   readonly readTerminalContexts: () => ComposerThreadDraftState["terminalContexts"];
   readonly routeThreadRef: ChatComposerProps["routeThreadRef"];
-  readonly projectSelectionRequired: boolean;
+  readonly environmentSelectionRequired: boolean;
   readonly pendingUserInputs: ReadonlyArray<PendingUserInput>;
   readonly activePendingProgress: ChatComposerProps["activePendingProgress"];
   readonly prompt: string;
@@ -101,7 +101,7 @@ export function useComposerStash(input: {
     readAttachmentDraft,
     readTerminalContexts,
     routeThreadRef,
-    projectSelectionRequired,
+    environmentSelectionRequired,
     pendingUserInputs,
     activePendingProgress,
     prompt,
@@ -669,7 +669,7 @@ export function useComposerStash(input: {
       setIsStashMenuOpen((open) => !open);
       return;
     }
-    if (projectSelectionRequired || activePendingProgress !== null) return;
+    if (environmentSelectionRequired || activePendingProgress !== null) return;
     void stashCurrentPromptStable();
   });
   // Capture phase while the composer is mounted, so Mod+S never reaches the browser's save

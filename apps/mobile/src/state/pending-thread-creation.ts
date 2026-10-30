@@ -7,7 +7,7 @@ import { DEFAULT_PROVIDER_INTERACTION_MODE, DEFAULT_RUNTIME_MODE } from "@t3tool
 import { Atom } from "effect/reactivity";
 import * as DateTime from "effect/DateTime";
 
-import { deriveThreadTitleFromPrompt } from "../lib/projectThreadStartTurn";
+import { deriveThreadTitleFromPrompt } from "../lib/threadStartTurn";
 import { scopedThreadKey } from "../lib/scopedEntities";
 import { appAtomRegistry } from "./atom-registry";
 import type { QueuedThreadMessage } from "./thread-outbox-model";
@@ -143,7 +143,6 @@ export function pendingThreadCreationShell(
   const timestamp = DateTime.makeUnsafe(message.createdAt);
   return presentThreadShell(message.environmentId, {
     id: message.threadId,
-    projectId: creation.projectId,
     title: deriveThreadTitleFromPrompt(message.text),
     providerInstanceId: message.modelSelection.instanceId,
     modelSelection: message.modelSelection,

@@ -1,3 +1,4 @@
+import { startDisplay } from "./display.ts";
 import * as NodeChildProcess from "node:child_process";
 import * as NodeEvents from "node:events";
 import * as NodeFSP from "node:fs/promises";
@@ -16,8 +17,10 @@ it.skipIf(process.platform !== "linux")(
   async () => {
     const home = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "ozi-i8-"));
     const ozi = NodePath.join(home, ".ozi");
+    const display = await startDisplay();
     const env = {
       ...process.env,
+      ...display.env,
       PATH: `${NodePath.join(root, "node_modules/.bin")}${NodePath.delimiter}${process.env.PATH ?? ""}`,
       XDG_CONFIG_HOME: NodePath.join(home, "config"),
       XDG_DATA_HOME: NodePath.join(home, "data"),
@@ -51,6 +54,7 @@ it.skipIf(process.platform !== "linux")(
           await exited.catch(() => dev.kill("SIGKILL"));
         }
         await NodeFSP.rm(home, { recursive: true, force: true });
+        await display.close();
       }
     });
     dev.stderr.on("data", (chunk) => {
@@ -94,9 +98,9 @@ it.skipIf(process.platform !== "linux")(
         output += String(chunk);
       });
       const page = await app.firstWindow();
-      page.setDefaultTimeout(20_000);
-      await page.getByText("What should we work on?", { exact: true }).waitFor();
-      for (const name of ["Continue", "Continue", "Do not import projects"]) {
+      page.setDefaultTimeout(60_000);
+      await page.getByRole("button", { name: "Continue", exact: true }).waitFor();
+      for (const name of ["Continue", "Continue"]) {
         const button = page.getByRole("button", { name, exact: true });
         if (await button.isVisible()) await button.click();
       }

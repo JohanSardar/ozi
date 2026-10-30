@@ -7,7 +7,7 @@ import {
 import {
   type EnvironmentId,
   type EnvironmentMachineKind,
-  type ProjectEntry,
+  type WorkspaceEntry,
   type ProviderDriverKind,
   type ScopedThreadRef,
   type ServerProviderSkill,
@@ -36,7 +36,7 @@ export type ComposerCommandItem =
       id: string;
       type: "path";
       path: string;
-      pathKind: ProjectEntry["kind"];
+      pathKind: WorkspaceEntry["kind"];
       searchTarget: ComposerPathSearchTarget;
       label: string;
       description: string;

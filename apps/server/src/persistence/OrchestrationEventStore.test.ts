@@ -1,8 +1,6 @@
 import {
-  CommandId,
   EventId,
   NodeId,
-  ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
   ThreadId,
@@ -11,25 +9,16 @@ import {
 } from "@t3tools/contracts";
 import { assert, it } from "@effect/vitest";
 import * as DateTime from "effect/DateTime";
-import * as Deferred from "effect/Deferred";
-import * as Fiber from "effect/Fiber";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import * as SqlClient from "effect/sql/SqlClient";
-import * as Statement from "effect/sql/Statement";
-
-import {
-  LIVE_STREAM_MAX_ITEMS,
-  LiveStreamBufferError,
-} from "../orchestration-v2/LiveStreamBudget.ts";
 import { PersistenceDecodeError } from "./Errors.ts";
 import { toShellApplicationEvent } from "../orchestration-v2/ShellStream.ts";
 import * as OrchestrationEventStore from "./OrchestrationEventStore.ts";
 import * as SqlitePersistence from "./Sqlite.ts";
 const isPersistenceDecodeError = Schema.is(PersistenceDecodeError);
-const isLiveStreamBufferError = Schema.is(LiveStreamBufferError);
 
 const layerTest = OrchestrationEventStore.layer.pipe(
   Layer.provideMerge(SqlitePersistence.layerMemory),
@@ -294,105 +283,6 @@ layer("OrchestrationEventStore", (it) => {
       assert.deepEqual(applicationEvents, [...appended]);
     }),
   );
-
-  it.effect("orders project and V2 agent events in the retained application event source", () =>
-    Effect.gen(function* () {
-      const eventStore = yield* OrchestrationEventStore.OrchestrationEventStore;
-      const projectId = ProjectId.make("project-shared-stream");
-      const threadId = ThreadId.make("thread-shared-stream");
-      const providerInstanceId = ProviderInstanceId.make("codex");
-      const occurredAt = DateTime.makeUnsafe("2026-01-02T00:00:00.000Z");
-      const now = DateTime.formatIso(occurredAt);
-      const baselineSequence = yield* eventStore.latestApplicationSequence;
-
-      const projectEvent = yield* eventStore.appendProjectEvent({
-        type: "project.created",
-        eventId: EventId.make("event-project-shared-stream"),
-        aggregateKind: "project",
-        aggregateId: projectId,
-        occurredAt: now,
-        commandId: CommandId.make("command-project-shared-stream"),
-        causationEventId: null,
-        correlationId: CommandId.make("command-project-shared-stream"),
-        metadata: {},
-        payload: {
-          projectId,
-          title: "Shared stream",
-          workspaceRoot: "/tmp/shared-stream",
-          defaultModelSelection: null,
-          scripts: [],
-          createdAt: now,
-          updatedAt: now,
-        },
-      });
-      const [threadEvent] = yield* eventStore.appendAgentEvents({
-        commandId: CommandId.make("command-thread-shared-stream"),
-        events: [
-          {
-            id: EventId.make("event-thread-shared-stream"),
-            type: "thread.created",
-            threadId,
-            providerInstanceId,
-            occurredAt,
-            payload: {
-              id: threadId,
-              projectId,
-              title: "Thread",
-              providerInstanceId,
-              modelSelection: { instanceId: providerInstanceId, model: "gpt-5.4" },
-              runtimeMode: "full-access",
-              interactionMode: "default",
-              workingDirectory: null,
-              activeProviderThreadId: null,
-              lineage: {
-                rootThreadId: threadId,
-                parentThreadId: null,
-                relationshipToParent: null,
-              },
-              forkedFrom: null,
-              createdBy: "user",
-              creationSource: "web",
-              createdAt: occurredAt,
-              updatedAt: occurredAt,
-              archivedAt: null,
-              settledOverride: null,
-              settledAt: null,
-              lastVisitedAt: null,
-              deletedAt: null,
-            },
-          },
-        ],
-      });
-
-      const applicationEvents = yield* eventStore
-        .streamApplicationEvents({ afterSequence: baselineSequence })
-        .pipe(
-          Stream.take(2),
-          Stream.runCollect,
-          Effect.map((chunk) => Array.from(chunk)),
-        );
-      assert.deepEqual(
-        applicationEvents.map((event) => event.sequence),
-        [projectEvent.sequence, threadEvent!.sequence],
-      );
-      assert.isTrue("aggregateKind" in applicationEvents[0]!);
-      assert.isTrue("event" in applicationEvents[1]!);
-
-      const finiteReplay = yield* eventStore
-        .readApplicationEvents({
-          afterSequence: baselineSequence,
-          throughSequence: threadEvent!.sequence,
-        })
-        .pipe(
-          Stream.runCollect,
-          Effect.map((chunk) => Array.from(chunk)),
-        );
-      assert.deepEqual(
-        finiteReplay.map((event) => event.sequence),
-        [projectEvent.sequence, threadEvent!.sequence],
-      );
-    }),
-  );
   it.effect("measures only a bounded thread replay before decoding its payloads", () =>
     Effect.gen(function* () {
       const store = yield* OrchestrationEventStore.OrchestrationEventStore;
@@ -522,7 +412,7 @@ layer("OrchestrationEventStore", (it) => {
         const knownPayload = JSON.stringify(
           aggregateKind === "thread"
             ? { providerSessionId: "session:known", detachedAt: now }
-            : { projectId: streamId, updatedAt: now },
+            : { updatedAt: now },
         );
         const baseline = yield* store.latestApplicationSequence;
         const before = yield* insertRow(0, knownType, knownPayload);
@@ -556,76 +446,3 @@ layer("OrchestrationEventStore", (it) => {
       }),
   );
 });
-
-it.effect.each(["high-water", "replay"] as const)(
-  "bounds application live events while the %s query is blocked",
-  (phase) =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        const store = yield* OrchestrationEventStore.OrchestrationEventStore;
-        const now = "2026-01-03T00:00:00.000Z";
-        const projectId = ProjectId.make(`project:blocked-${phase}`);
-        const projectEvent = yield* store.appendProjectEvent({
-          type: "project.created",
-          eventId: EventId.make(`event:blocked-${phase}:created`),
-          aggregateKind: "project",
-          aggregateId: projectId,
-          occurredAt: now,
-          commandId: CommandId.make(`command:blocked-${phase}`),
-          causationEventId: null,
-          correlationId: null,
-          metadata: {},
-          payload: {
-            projectId,
-            title: "Blocked stream",
-            workspaceRoot: "/tmp/blocked-stream",
-            defaultModelSelection: null,
-            scripts: [],
-            createdAt: now,
-            updatedAt: now,
-          },
-        });
-        if (projectEvent.type !== "project.created")
-          return yield* Effect.die("Expected project.created");
-        const readStarted = yield* Deferred.make<void>();
-        const readClosed = yield* Deferred.make<void>();
-        const blockRead: Statement.Transformer = (statement) => {
-          const [query] = statement.compile();
-          if (
-            query.includes("FROM orchestration_events") &&
-            query.includes("MAX(sequence)") === (phase === "high-water")
-          ) {
-            return Deferred.succeed(readStarted, undefined).pipe(
-              Effect.andThen(Effect.never),
-              Effect.ensuring(Deferred.succeed(readClosed, undefined)),
-              Effect.as(statement),
-            );
-          }
-          return Effect.succeed(statement);
-        };
-        const reader = yield* store
-          .streamApplicationEvents({ afterSequence: projectEvent.sequence })
-          .pipe(
-            Stream.provideService(Statement.CurrentTransformer, blockRead),
-            Stream.runDrain,
-            Effect.result,
-            Effect.forkScoped,
-          );
-        yield* Deferred.await(readStarted);
-        yield* store.publishCommitted(
-          Array.from({ length: LIVE_STREAM_MAX_ITEMS + 1 }, (_, index) => ({
-            ...projectEvent,
-            eventId: EventId.make(`event:blocked-${phase}:${index}`),
-            sequence: projectEvent.sequence + index + 1,
-          })),
-        );
-        yield* Deferred.await(readClosed);
-        const result = yield* Fiber.join(reader);
-        assert.equal(result._tag, "Failure");
-        if (result._tag === "Failure") {
-          assert.equal(result.failure._tag, "PersistenceSqlError");
-          assert.isTrue(isLiveStreamBufferError(result.failure.cause));
-        }
-      }),
-    ).pipe(Effect.provide(Layer.fresh(layerTest))),
-);

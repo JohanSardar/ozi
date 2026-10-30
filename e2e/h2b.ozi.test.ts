@@ -95,12 +95,10 @@ it("h2b.ozi: the default chat runs the packaged harness through Pi on the Claude
       server.once("error", reject);
       server.once("exit", (code) => reject(new Error(`Server exited ${code}: ${output}`)));
     });
-    await exec(process.execPath, [cli, "project", "add", workspace, "--home", home], {
-      env: environment,
-    });
     const result = await run(
       "thread",
       "start",
+      "--cwd",
       workspace,
       "Check the GUI capabilities, then reply h2b-ozi-ok.",
       "--wait",

@@ -86,7 +86,6 @@ function makeAgentActivityRows(
       const activeState: RelayAgentActivityState = {
         environmentId: "env-1" as RelayAgentActivityState["environmentId"],
         threadId: "thread-1" as RelayAgentActivityState["threadId"],
-        projectTitle: "Project",
         threadTitle: "Implement APNs",
         modelTitle: "gpt-5.4",
         phase: "running",

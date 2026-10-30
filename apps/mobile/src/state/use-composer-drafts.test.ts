@@ -19,7 +19,6 @@ import {
   ComposerContextId,
   EnvironmentId,
   MessageId,
-  ProjectId,
   ProviderInstanceId,
   ThreadId,
   type OrchestrationV2ThreadShell,
@@ -1761,7 +1760,6 @@ describe("mobile composer drafts", () => {
       text: "",
       attachments: [],
       importedShareIds: ["share-1"],
-      project: { environmentId: "environment-1", projectId: "project-1" },
     });
     expect(stripped[0]?.modelSelection).toBeUndefined();
 
@@ -1787,21 +1785,11 @@ describe("mobile composer drafts", () => {
     expect(draft).toEqual({
       text: "keep me",
       attachments: [],
-      project: {
-        environmentId: EnvironmentId.make("environment-1"),
-        projectId: ProjectId.make("project-1"),
-        createdAt: now,
-      },
     });
 
     const stamped: ComposerDraft = {
       text: "x",
       attachments: [],
-      project: {
-        environmentId: EnvironmentId.make("environment-1"),
-        projectId: ProjectId.make("project-1"),
-        createdAt: now,
-      },
     };
     expect(migrateLegacyNewTaskDraft("new-task:some-id", stamped, now)).toEqual([
       "new-task:some-id",
@@ -1820,13 +1808,12 @@ describe("mobile composer drafts", () => {
   it("keeps a freshly minted new-task draft bound until content arrives, then lists it per project", () => {
     const project = {
       environmentId: EnvironmentId.make("environment-1"),
-      projectId: ProjectId.make("project-1"),
     };
     const first = createNewTaskDraft(project);
     const second = createNewTaskDraft(project);
     expect(first).not.toBe(second);
 
-    expect(appAtomRegistry.get(composerDraftsAtom)[first]?.project).toMatchObject(project);
+    expect(appAtomRegistry.get(composerDraftsAtom)[first]?.environmentStamp).toMatchObject(project);
 
     setComposerDraftText(first, "first idea");
     setComposerDraftText(second, "second idea");
@@ -2007,7 +1994,6 @@ describe("mobile composer drafts", () => {
     };
     const key = createNewTaskDraft({
       environmentId: EnvironmentId.make("environment-1"),
-      projectId: ProjectId.make("project-1"),
     });
     appAtomRegistry.set(composerDraftsAtom, {
       ...appAtomRegistry.get(composerDraftsAtom),
@@ -2020,7 +2006,6 @@ describe("mobile composer drafts", () => {
 
     retargetNewTaskDraft(key, {
       environmentId: EnvironmentId.make("environment-2"),
-      projectId: ProjectId.make("project-2"),
     });
 
     expect(getComposerDraftSnapshot(key).attachments).toEqual([
@@ -2165,19 +2150,9 @@ describe("mobile composer drafts", () => {
 
     const cloudDraft: ComposerDraft = {
       ...DRAFT,
-      project: {
-        environmentId,
-        projectId: ProjectId.make("project-cloud"),
-        createdAt: "2026-09-05T00:00:00.000Z",
-      },
     };
     const localDraft: ComposerDraft = {
       ...DRAFT,
-      project: {
-        environmentId: retainedEnvironmentId,
-        projectId: ProjectId.make("project-local"),
-        createdAt: "2026-09-05T00:00:00.000Z",
-      },
     };
 
     expect(
@@ -2202,11 +2177,6 @@ describe("mobile composer drafts", () => {
     appAtomRegistry.set(composerDraftsAtom, {
       "new-task:removed-draft": {
         ...DRAFT,
-        project: {
-          environmentId,
-          projectId: ProjectId.make("project-removed"),
-          createdAt: "2026-09-05T00:00:00.000Z",
-        },
       },
       "environment-kept:thread-kept": DRAFT,
     });

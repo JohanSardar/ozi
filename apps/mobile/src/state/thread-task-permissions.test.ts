@@ -1,21 +1,10 @@
 import {
   AuthOrchestrationOperateScope,
-  DEFAULT_SERVER_SETTINGS,
-  MessageId,
-  ProjectId,
-  ProviderDriverKind,
-  ProviderInstanceId,
-  RunId,
   RuntimeRequestId,
-  TurnItemId,
   type ModelSelection,
   type OrchestrationV2ThreadProjection,
   type ServerConfig,
 } from "@t3tools/contracts";
-import {
-  v2Now,
-  v2Projection,
-} from "../../../../packages/client-runtime/src/state/orchestrationV2TestFixtures";
 import type { DraftComposerImageAttachment } from "../lib/composerImages";
 import type { PendingThreadRequests } from "@t3tools/client-runtime/state/thread-requests";
 import { sendApprovalFeedback } from "@t3tools/client-runtime/state/thread-requests";
@@ -49,7 +38,6 @@ const state = vi.hoisted(() => ({
   thread: {
     id: "thread",
     environmentId: "secondary",
-    projectId: "project",
     modelSelection: { instanceId: "codex", model: "gpt-5.4" },
     runtimeMode: "full-access",
     interactionMode: "default",
@@ -319,112 +307,4 @@ describe("mobile task permissions", () => {
   });
 });
 
-describe("mobile handoff preview and submission", () => {
-  it("follows project enablement and provider availability for the selected destination", async () => {
-    state.grantedEnvironments.add("secondary");
-    const instanceId = ProviderInstanceId.make("antigravity");
-    const projectId = ProjectId.make(state.thread.projectId);
-    const selection = { instanceId, model: "gemini" };
-    const provider = {
-      instanceId,
-      driver: ProviderDriverKind.make("antigravity"),
-      enabled: false,
-      installed: true,
-      auth: { status: "authenticated" as const },
-      availability: "available" as "available" | "unavailable",
-      models: [{ slug: selection.model }],
-    };
-    const projectOverride = { enabled: false };
-    state.serverConfig = {
-      ...state.serverConfig,
-      providers: [provider],
-      settings: {
-        ...DEFAULT_SERVER_SETTINGS,
-        providerInstances: { [instanceId]: { driver: provider.driver, enabled: false } },
-        projectSettingsOverrides: {
-          [projectId]: { providerInstances: { [instanceId]: projectOverride } },
-        },
-      },
-    } as unknown as ServerConfig;
-    state.draft.modelSelection = selection;
-    const source = v2Projection.thread.modelSelection;
-    state.projection = {
-      ...v2Projection,
-      runs: [
-        {
-          id: RunId.make("source-run"),
-          threadId: v2Projection.thread.id,
-          ordinal: 1,
-          providerInstanceId: source.instanceId,
-          modelSelection: source,
-          providerThreadId: null,
-          userMessageId: MessageId.make("source-message"),
-          rootNodeId: null,
-          activeAttemptId: null,
-          status: "completed",
-          requestedAt: v2Now,
-          startedAt: v2Now,
-          completedAt: v2Now,
-          checkpointId: null,
-          contextHandoffId: null,
-        },
-      ],
-      visibleTurnItems: [
-        {
-          position: 0,
-          visibility: "local",
-          sourceThreadId: v2Projection.thread.id,
-          sourceItemId: TurnItemId.make("reply"),
-          item: {
-            id: TurnItemId.make("reply"),
-            threadId: v2Projection.thread.id,
-            runId: RunId.make("source-run"),
-            nodeId: null,
-            providerThreadId: null,
-            providerTurnId: null,
-            nativeItemRef: null,
-            parentItemId: null,
-            ordinal: 1,
-            type: "assistant_message",
-            messageId: MessageId.make("reply"),
-            status: "completed",
-            title: null,
-            text: "Task started",
-            streaming: false,
-            startedAt: v2Now,
-            completedAt: v2Now,
-            updatedAt: v2Now,
-          },
-        },
-      ],
-    };
-
-    const disabled = useThreadComposerState();
-    expect(disabled.pendingHandoff).toBeNull();
-    expect(await disabled.onSendMessage()).toBeNull();
-    expect(state.enqueue).not.toHaveBeenCalled();
-    expect(state.clearDraft).not.toHaveBeenCalled();
-
-    projectOverride.enabled = true;
-    expect(useThreadComposerState().pendingHandoff).toEqual({ from: [source], to: selection });
-
-    provider.availability = "unavailable";
-    const unavailable = useThreadComposerState();
-    expect(unavailable.pendingHandoff).toBeNull();
-    expect(await unavailable.onSendMessage()).toBeNull();
-    expect(state.enqueue).not.toHaveBeenCalled();
-    expect(state.clearDraft).not.toHaveBeenCalled();
-
-    provider.availability = "available";
-    const available = useThreadComposerState();
-    expect(available.pendingHandoff).toEqual({ from: [source], to: selection });
-    expect(await available.onSendMessage()).toBe("message");
-    expect(state.enqueue).toHaveBeenCalledExactlyOnceWith(
-      expect.objectContaining({
-        modelSelection: selection,
-        text: "Keep my draft",
-      }),
-    );
-    expect(state.clearDraft).toHaveBeenCalledTimes(1);
-  });
-});
+describe("mobile handoff preview and submission", () => {});

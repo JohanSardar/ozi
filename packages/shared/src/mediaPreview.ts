@@ -19,7 +19,7 @@ export function fileIconPathForMimeType(path: string, mimeType?: string): string
   return extension ? `file.${extension}` : path;
 }
 
-export const WORKSPACE_IMAGE_PREVIEW_EXTENSIONS = [
+const WORKSPACE_IMAGE_PREVIEW_EXTENSIONS = [
   ".avif",
   ".bmp",
   ".gif",

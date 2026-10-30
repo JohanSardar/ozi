@@ -1,7 +1,6 @@
 import {
   EventId,
   MessageId,
-  ProjectId,
   ProviderInstanceId,
   type OrchestrationV2ThreadProjection,
   ThreadId,
@@ -271,7 +270,6 @@ describe("ThreadLiveEventCoalescer", () => {
         const emptyProjection = {
           thread: {
             id: threadId,
-            projectId: ProjectId.make("project-reducer"),
             title: "Reducer",
             providerInstanceId: ProviderInstanceId.make("codex"),
             modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.4" },

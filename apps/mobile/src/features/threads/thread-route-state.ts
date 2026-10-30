@@ -1,7 +1,6 @@
 export type NewTaskDraftRouteParams = {
   readonly requestId?: string;
   readonly environmentId?: string | string[];
-  readonly projectId?: string | string[];
   readonly workingDirectory?: string | null;
   readonly title?: string | string[];
   readonly cloning?: string | string[];
@@ -32,7 +31,6 @@ export function draftRouteIdentity(draft: NewTaskDraftRouteParams): string {
     draft.requestId,
     first(draft.draftId),
     first(draft.environmentId),
-    first(draft.projectId),
     draft.workingDirectory ?? null,
     first(draft.incomingShareId),
   ]);

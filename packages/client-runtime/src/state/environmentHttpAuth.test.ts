@@ -73,7 +73,6 @@ const UNAUTHENTICATED_SESSION = { authenticated: false, auth: AUTH } satisfies A
 const SHELL = {
   schemaVersion: 1,
   snapshotSequence: 1,
-  projects: [],
   threads: [],
   archivedThreads: [],
 } satisfies OrchestrationV2ShellSnapshot;

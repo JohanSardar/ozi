@@ -5,7 +5,7 @@ import type { ModelSelection, ProviderInstanceId } from "@t3tools/contracts";
 import {
   isProviderAvailable,
   isProviderTextGenerationCapable,
-  resolveProjectProviderInstanceEnabled,
+  isConfiguredProviderInstanceEnabled,
 } from "@t3tools/contracts";
 import * as DateTime from "effect/DateTime";
 import { exhaustedUsageWindow } from "@t3tools/shared/usageLimits";
@@ -91,7 +91,7 @@ export const make = Effect.gen(function* () {
             return (
               instanceId !== selection.instanceId &&
               provider?.enabled === true &&
-              resolveProjectProviderInstanceEnabled(settings, null, instanceId) &&
+              isConfiguredProviderInstanceEnabled(settings, instanceId) &&
               provider.installed &&
               provider.auth.status !== "unauthenticated" &&
               isProviderAvailable(provider) &&

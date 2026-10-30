@@ -1,3 +1,4 @@
+import { startAnthropic, type AnthropicReply } from "./fakes/anthropic.ts";
 import * as NodeChildProcess from "node:child_process";
 import * as NodeEvents from "node:events";
 import * as NodeFSP from "node:fs/promises";
@@ -17,6 +18,7 @@ const { chromium } = NodeModule.createRequire(NodePath.join(root, "apps/web/pack
 
 describe("l5.handoff", () => {
   let home: string;
+  let transport: Awaited<ReturnType<typeof startAnthropic>>;
   let env: NodeJS.ProcessEnv;
   let dev: NodeChildProcess.ChildProcess;
   let browser: Playwright.Browser;
@@ -54,7 +56,10 @@ describe("l5.handoff", () => {
 
   beforeAll(async () => {
     home = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "ozi-l5-"));
+    transport = await startAnthropic(() => new Promise<AnthropicReply>(() => {}));
     env = {
+      CLAUDE_CODE_OAUTH_TOKEN: "sk-ant-oat01-ozi-test-only",
+      ANTHROPIC_BASE_URL: transport.url,
       ...process.env,
       HOME: home,
       OZI_HOME: home,
@@ -92,22 +97,14 @@ describe("l5.handoff", () => {
       `${origin.replace("http:", "ws:")}/ws?orchestrationProtocol=2&wsTicket=${issued.ticket}`,
     );
     await NodeEvents.once(ws, "open");
-    await rpc("projects.mutate", {
-      type: "project.create",
-      commandId: crypto.randomUUID(),
-      projectId: "project-l5",
-      title: "Handoff",
-      workspaceRoot: home,
-    });
     await rpc("orchestration.dispatchCommand", {
       type: "thread.create",
       createdBy: "user",
       creationSource: "web",
       commandId: crypto.randomUUID(),
       threadId: "dinner-l5",
-      projectId: "project-l5",
       title: "Friday dinner",
-      modelSelection: { instanceId: "codex", model: "gpt-5.4" },
+      modelSelection: { instanceId: "ozi", model: "default" },
       runtimeMode: "full-access",
       interactionMode: "default",
       workingDirectory: null,
@@ -121,7 +118,7 @@ describe("l5.handoff", () => {
       messageId: "message-l5",
       text: "Find a table for Friday",
       attachments: [],
-      dispatchMode: { type: "defer_start" },
+      dispatchMode: { type: "start_immediately" },
     });
     const { runs } = (await rpc("orchestration.getThreadProjection", {
       threadId: "dinner-l5",
@@ -136,10 +133,9 @@ describe("l5.handoff", () => {
       parentNodeId: runs[0]!.rootNodeId,
       title: "Restaurant for Friday",
       task: "Find a table",
-      modelSelection: { instanceId: "codex", model: "gpt-5.4" },
+      modelSelection: { instanceId: "ozi", model: "default" },
       runtimeMode: "full-access",
       interactionMode: "default",
-      workspaceStrategy: { type: "root" },
     });
     const { subagents } = (await rpc("orchestration.getThreadProjection", {
       threadId: "dinner-l5",
@@ -150,11 +146,17 @@ describe("l5.handoff", () => {
     page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
     await page.goto(pairingUrl);
     inbox = page.getByRole("complementary", { name: "Inbox" });
-    await page.getByRole("treeitem", { name: /^Working/ }).click();
     await page.getByRole("treeitem", { name: /Friday dinner/ }).click();
   });
 
   afterAll(async () => {
+    if (dev?.exitCode === null && workerId) {
+      await cli("thread", "stop", "dinner-l5", "--json");
+      await cli("thread", "wait", "dinner-l5", "--json").catch((error) =>
+        expect(error.stderr).toContain("ThreadRunEndedError"),
+      );
+    }
+    await transport?.close();
     ws?.close();
     await browser?.close();
     if (dev?.pid && dev.exitCode === null) {
@@ -162,7 +164,7 @@ describe("l5.handoff", () => {
       process.kill(-dev.pid, "SIGTERM");
       await exited;
     }
-    await NodeFSP.rm(home, { recursive: true, force: true });
+    await NodeFSP.rm(home, { recursive: true, force: true, maxRetries: 3 });
   });
 
   it("l5.handoff: the job's line shows its state and opens its ticket in the inbox", async () => {

@@ -588,7 +588,7 @@ export const listAcpRegistrySessions = Effect.fn("AcpRegistryProbe.listSessions"
   function* (input: AcpRegistryManagementInput & { readonly cursor?: string }) {
     const runtime = yield* makeAcpRegistryManagementRuntime(input);
     const initialized = yield* runtime.initialize();
-    const listed = yield* runtime.listSessions(input.cursor);
+    const listed = yield* runtime.listSessions(input.cursor, true);
     const sessions = listed.sessions.slice(0, 256).flatMap((session) => {
       const sessionId = boundedOpaqueValue(session.sessionId, 1_024);
       const cwd = boundedOpaqueValue(session.cwd, 4_096);

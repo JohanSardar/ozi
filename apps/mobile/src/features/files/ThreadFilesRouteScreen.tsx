@@ -1,3 +1,5 @@
+import { workspaceEnvironment } from "../../state/workspaceFiles";
+
 import { useSelectedThreadDirectory } from "../../state/use-thread-directory";
 import { formatFilePathForClipboard } from "@t3tools/client-runtime/media-actions";
 import { resolvePathLinkTarget } from "@t3tools/shared/fileLinks";
@@ -9,7 +11,7 @@ import { useId, useState } from "react";
 import { Platform, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import Svg, { Defs, LinearGradient, Rect, Stop } from "react-native-svg";
-import { EnvironmentId, type ProjectReadFileResult, ThreadId } from "@t3tools/contracts";
+import { EnvironmentId, type WorkspaceReadFileResult, ThreadId } from "@t3tools/contracts";
 import { videoMimeType } from "@t3tools/shared/video";
 import {
   isWorkspaceBrowserPreviewPath,
@@ -35,7 +37,6 @@ import { type MediaActionsSource } from "../../lib/mediaActionsSource";
 import { useThreadSelection } from "../../state/use-thread-selection";
 import { useEnvironmentQuery } from "../../state/query";
 import { useEnvironmentPresentation } from "../../state/presentation";
-import { projectEnvironment } from "../../state/projects";
 import type { AssetUrlFailureReason } from "../../state/asset-url-state";
 import {
   useAdaptiveWorkspaceLayout,
@@ -72,7 +73,7 @@ import {
 import { useWorkspaceFileAssetUrlState } from "./workspaceFileAssetUrl";
 
 function FilesBrowserHeader(props: {
-  readonly projectName: string;
+  readonly workspaceName: string;
   readonly searchQuery: string;
   readonly onSearchQueryChange: (query: string) => void;
   readonly onRefresh: () => void;
@@ -81,7 +82,7 @@ function FilesBrowserHeader(props: {
   return (
     <AppBar
       title="Files"
-      subtitle={props.projectName}
+      subtitle={props.workspaceName}
       onBack={props.onBack}
       hideBottomBorder
       matchSearchSurface
@@ -344,7 +345,7 @@ type ThreadFilesRouteScreenProps = StaticScreenProps<{
   readonly environmentId: string;
   readonly threadId?: string;
   readonly cwd?: string;
-  readonly projectName?: string;
+  readonly workspaceName?: string;
 }>;
 
 type ThreadFileRouteScreenProps = StaticScreenProps<{
@@ -353,35 +354,31 @@ type ThreadFileRouteScreenProps = StaticScreenProps<{
   readonly path: string[];
   readonly line?: string;
   readonly cwd?: string;
-  readonly projectName?: string;
+  readonly workspaceName?: string;
 }>;
 
 function useThreadFilesWorkspace(params: {
   readonly environmentId?: string | string[];
   readonly threadId?: string | string[];
   readonly cwd?: string | string[];
-  readonly projectName?: string | string[];
+  readonly workspaceName?: string | string[];
 }) {
   const routeEnvironmentId = firstRouteParam(params.environmentId);
   const routeThreadId = firstRouteParam(params.threadId);
   const routeCwd = firstRouteParam(params.cwd);
-  const routeProjectName = firstRouteParam(params.projectName);
-  const { selectedThread, selectedThreadProject } = useThreadSelection();
+  const routeProjectName = firstRouteParam(params.workspaceName);
+  const { selectedThread } = useThreadSelection();
   const { selectedThreadCwd } = useSelectedThreadDirectory();
   const environmentId =
     routeEnvironmentId !== null
       ? EnvironmentId.make(routeEnvironmentId)
       : (selectedThread?.environmentId ?? null);
   const threadId = routeThreadId !== null ? ThreadId.make(routeThreadId) : null;
-  const project = selectedThreadProject as {
-    readonly title?: string;
-    readonly workspaceRoot?: string;
-  } | null;
 
   return {
-    cwd: routeCwd ?? selectedThreadCwd ?? project?.workspaceRoot ?? null,
+    cwd: routeCwd ?? selectedThreadCwd ?? null,
     environmentId,
-    projectName: routeProjectName ?? project?.title ?? "Files",
+    workspaceName: routeProjectName ?? "Files",
     selectedThread,
     threadId,
   };
@@ -434,7 +431,7 @@ export function ThreadFilesTreeScreen(props: ThreadFilesRouteScreenProps) {
   const { fileInspector, layout } = useAdaptiveWorkspaceLayout();
   const [searchQuery, setSearchQuery] = useState("");
   const { themeAppearance: highlightTheme } = useAppearancePreferences();
-  const { cwd, environmentId, projectName, selectedThread, threadId } = useThreadFilesWorkspace(
+  const { cwd, environmentId, workspaceName, selectedThread, threadId } = useThreadFilesWorkspace(
     props.route.params,
   );
   const hasFileInspector = fileInspector.supported && threadId !== null;
@@ -475,7 +472,7 @@ export function ThreadFilesTreeScreen(props: ThreadFilesRouteScreenProps) {
     }
     const params = {
       environmentId: String(environmentId),
-      ...(threadId === null ? { cwd, projectName } : { threadId: String(threadId) }),
+      ...(threadId === null ? { cwd, workspaceName } : { threadId: String(threadId) }),
       path: path.split("/").filter((segment) => segment.length > 0),
     };
     if (threadId === null) {
@@ -494,7 +491,7 @@ export function ThreadFilesTreeScreen(props: ThreadFilesRouteScreenProps) {
         cwd={cwd}
         environmentId={environmentId}
         headerInset={headerInset}
-        projectName={projectName}
+        workspaceName={workspaceName}
         selectedPath={null}
         onSelectFile={handleSelectFile}
       />
@@ -548,7 +545,7 @@ export function ThreadFilesTreeScreen(props: ThreadFilesRouteScreenProps) {
   const content = (
     <>
       <FilesBrowserHeader
-        projectName={projectName}
+        workspaceName={workspaceName}
         searchQuery={searchQuery}
         onSearchQueryChange={setSearchQuery}
         onRefresh={entriesQuery.refresh}
@@ -594,7 +591,7 @@ export function ThreadFileScreen(props: ThreadFileRouteScreenProps) {
   const params = props.route.params;
   const relativePath = normalizeRoutePath(params.path);
   const targetLine = normalizeRouteLine(firstRouteParam(params.line));
-  const { cwd, environmentId, projectName, selectedThread, threadId } = useThreadFilesWorkspace(
+  const { cwd, environmentId, workspaceName, selectedThread, threadId } = useThreadFilesWorkspace(
     props.route.params,
   );
   const fileAccessSession = useEnvironmentQuery(
@@ -612,7 +609,7 @@ export function ThreadFileScreen(props: ThreadFileRouteScreenProps) {
     cwd !== null && relativePath !== null ? resolveWorkspaceFilePath(cwd, relativePath) : null;
   const metadata = useEnvironmentQuery(
     canReadFiles && environmentId !== null && targetPath !== null
-      ? projectEnvironment.fileMetadata({ environmentId, input: { path: targetPath } })
+      ? workspaceEnvironment.fileMetadata({ environmentId, input: { path: targetPath } })
       : null,
   );
   const metadataPending = !metadata.isSuccess && metadata.error === null;
@@ -722,13 +719,13 @@ export function ThreadFileScreen(props: ThreadFileRouteScreenProps) {
       cwd !== null &&
       relativePath !== null &&
       needsFileContents
-      ? projectEnvironment.readFile({
+      ? workspaceEnvironment.readFile({
           environmentId,
           input: { cwd, relativePath },
         })
       : null,
   );
-  const fileData = fileQuery.data as ProjectReadFileResult | null;
+  const fileData = fileQuery.data as WorkspaceReadFileResult | null;
 
   const handleSelectFile = (path: string) => {
     const targetPath =
@@ -743,7 +740,7 @@ export function ThreadFileScreen(props: ThreadFileRouteScreenProps) {
         StackActions.push("NewTaskFile", {
           environmentId: String(environmentId),
           ...(cwd === null ? {} : { cwd }),
-          projectName,
+          workspaceName,
           path: segments,
         }),
       );
@@ -763,7 +760,7 @@ export function ThreadFileScreen(props: ThreadFileRouteScreenProps) {
         cwd={directoryPath ?? cwd}
         environmentId={environmentId}
         headerInset={headerInset}
-        projectName={directoryPath ?? projectName}
+        workspaceName={directoryPath ?? workspaceName}
         selectedPath={directoryPath === null ? relativePath : null}
         onSelectFile={(path) => {
           if (directoryPath !== null) entriesQuery.selectPath(path);
@@ -937,7 +934,7 @@ export function ThreadFileScreen(props: ThreadFileRouteScreenProps) {
     return (
       <View className={Platform.OS === "android" ? "flex-1 bg-header" : "flex-1 bg-sheet"}>
         <FilesBrowserHeader
-          projectName={directoryPath}
+          workspaceName={directoryPath}
           searchQuery={searchQuery}
           onSearchQueryChange={setSearchQuery}
           onRefresh={entriesQuery.refresh}
@@ -971,7 +968,7 @@ export function ThreadFileScreen(props: ThreadFileRouteScreenProps) {
     );
   }
 
-  const headerSubtitle = fileHeaderSubtitle(projectName, relativePath);
+  const headerSubtitle = fileHeaderSubtitle(workspaceName, relativePath);
 
   return (
     <View className="flex-1 bg-sheet">

@@ -1,7 +1,6 @@
 import {
   DEFAULT_UNIFIED_SETTINGS,
   EnvironmentId,
-  ProjectId,
   ProviderInstanceId,
   ScheduledTaskId,
   type ScheduledTask,
@@ -14,16 +13,13 @@ import { render } from "../../../test/render";
 import { ScheduledTasksSettings } from "./ScheduledTasksSettings";
 
 const environmentId = EnvironmentId.make("laptop");
-const projectId = ProjectId.make("project");
 const task: ScheduledTask = {
   id: ScheduledTaskId.make("nightly"),
   title: "Review issues",
   prompt: "Review open issues",
   enabled: true,
   schedule: { type: "interval", everyMs: 60_000 },
-  projectId,
   threadId: null,
-  workspaceStrategy: { type: "root" },
   modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.4" },
   runtimeMode: "full-access",
   interactionMode: "default",
@@ -97,7 +93,6 @@ vi.mock(import("../../state/environments"), async (original) => ({
 }));
 vi.mock(import("../../state/entities"), async (original) => ({
   ...(await original()),
-  useProjects: (() => [{ id: projectId, environmentId, title: "Project" }]) as never,
 }));
 vi.mock(import("../../hooks/useSettings"), async (original) => ({
   ...(await original()),

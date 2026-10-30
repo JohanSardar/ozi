@@ -1,4 +1,4 @@
-import { CommandId, EnvironmentId, MessageId, ProjectId, ThreadId } from "@t3tools/contracts";
+import { CommandId, EnvironmentId, MessageId, ThreadId } from "@t3tools/contracts";
 import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 const harness = vi.hoisted(() => ({
@@ -68,7 +68,6 @@ function queuedMessage(input: {
     ...(input.creation
       ? {
           creation: {
-            projectId: ProjectId.make(`project-${input.messageId}`),
             workspaceMode: "local" as const,
             workingDirectory: null,
           },

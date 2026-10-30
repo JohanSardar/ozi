@@ -20,8 +20,6 @@ import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import { McpSchema, McpServer, Tool, Toolkit } from "effect/ai";
 import { HttpBody, HttpClient, HttpClientRequest, HttpRouter } from "effect/http";
-
-import * as ProjectService from "../project/ProjectService.ts";
 import * as ServerConfig from "../config.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import { advertisedJsonSchema } from "./advertisedJsonSchema.ts";
@@ -34,7 +32,6 @@ import * as OrchestratorMcpService from "./OrchestratorMcpService.ts";
 import * as PreviewAutomationBroker from "./PreviewAutomationBroker.ts";
 import { OrchestratorToolkit } from "./toolkits/orchestrator/tools.ts";
 import { PreviewToolkit } from "./toolkits/preview/tools.ts";
-import { ProjectToolkit } from "./toolkits/project/tools.ts";
 
 const environmentId = EnvironmentId.make("environment-mcp-test");
 const threadId = ThreadId.make("thread-mcp-test");
@@ -129,7 +126,6 @@ const layerRecordingTools = (calls: Array<unknown>) => {
     OrchestratorToolkit.tools.delegate_task,
     OrchestratorToolkit.tools.t3_thread_read,
     OrchestratorToolkit.tools.t3_thread_wait,
-    ProjectToolkit.tools.t3_project_update,
   );
   const record = McpToolAccess.reads((params: unknown) =>
     Effect.sync(() => calls.push(params)).pipe(
@@ -144,7 +140,6 @@ const layerRecordingTools = (calls: Array<unknown>) => {
       delegate_task: record,
       t3_thread_read: record,
       t3_thread_wait: record,
-      t3_project_update: record,
     }),
   ).pipe(
     Layer.provideMerge(McpServer.McpServer.layer),
@@ -152,7 +147,6 @@ const layerRecordingTools = (calls: Array<unknown>) => {
       Layer.mergeAll(
         McpToolAccessTestkit.liveThreadsLayer,
         Layer.mock(OrchestratorMcpService.OrchestratorMcpService)({}),
-        Layer.mock(ProjectService.ProjectService)({}),
         NodeServices.layer,
       ),
     ),
@@ -382,23 +376,6 @@ it.effect("checks each preview_act action against that action's own input", () =
     }),
   ).pipe(Effect.provide(layerTest)),
 );
-
-it.effect("decodes null optional arguments the way it decodes omitted ones", () => {
-  const calls: Array<unknown> = [];
-  return Effect.gen(function* () {
-    const thread = { threadId: "thread-null-arguments" };
-    yield* callTool("t3_thread_read", thread);
-    yield* callTool("t3_thread_read", { ...thread, afterPosition: null, view: null });
-    yield* callTool("delegate_task", { task: "Inspect", target: {} });
-    yield* callTool("delegate_task", { task: "Inspect", title: null, target: { model: null } });
-    yield* callTool("t3_project_update", { projectId: "project-1", projectIcon: null });
-
-    expect(calls).toHaveLength(5);
-    expect(calls[1]).toEqual(calls[0]);
-    expect(calls[3]).toEqual(calls[2]);
-    expect(calls[4]).toStrictEqual({ projectId: "project-1", projectIcon: null });
-  }).pipe(Effect.provide(layerRecordingTools(calls)));
-});
 
 it.effect(
   "clamps t3_thread_read page sizes above their maximum instead of rejecting the call",

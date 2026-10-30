@@ -427,7 +427,6 @@ function environmentPublishesAgentActivity(environmentId: EnvironmentId): boolea
 export function armAgentAwarenessLiveActivityForLocalWork(input: {
   readonly environmentId: EnvironmentId;
   readonly threadTitle: string;
-  readonly projectTitle: string;
 }): void {
   if (!canRegisterRemoteLiveActivities() || !relayTokenProvider) {
     return;
@@ -447,7 +446,6 @@ export function armAgentAwarenessLiveActivityForLocalWork(input: {
 
 function armAgentAwarenessLiveActivityForLocalWorkNow(input: {
   readonly threadTitle: string;
-  readonly projectTitle: string;
 }): void {
   try {
     if (getAgentLiveActivities().length > 0) {
@@ -464,7 +462,6 @@ function armAgentAwarenessLiveActivityForLocalWorkNow(input: {
           {
             environmentId: "",
             threadId: "",
-            projectTitle: input.projectTitle,
             threadTitle: input.threadTitle,
             modelTitle: "",
             phase: "starting",

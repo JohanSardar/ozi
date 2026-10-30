@@ -4,7 +4,6 @@ import { ForwardCompatibleArray, TrimmedString } from "./baseSchemas.ts";
 const MAX_KEYBINDING_VALUE_LENGTH = 64;
 const MAX_KEYBINDING_WHEN_LENGTH = 256;
 export const MAX_WHEN_EXPRESSION_DEPTH = 64;
-export const MAX_SCRIPT_ID_LENGTH = 24;
 export const MAX_KEYBINDINGS_COUNT = 256;
 
 export const THREAD_JUMP_KEYBINDING_COMMANDS = [
@@ -79,7 +78,7 @@ export const STATIC_KEYBINDING_COMMANDS = [
   "preview.resetZoom",
   "commandPalette.toggle",
   "filePicker.toggle",
-  "projectSearch.toggle",
+  "workspaceSearch.toggle",
   "usage.open",
   "theme.select",
   "appearance.cycle",
@@ -97,7 +96,6 @@ export const STATIC_KEYBINDING_COMMANDS = [
   "composer.workspace",
   "chat.new",
   "chat.newLocal",
-  "chat.newWithoutProject",
   "chat.find",
   "editor.openFavorite",
   "usage.cost",
@@ -111,19 +109,7 @@ export const STATIC_KEYBINDING_COMMANDS = [
   ...THREAD_KEYBINDING_COMMANDS,
 ] as const;
 
-export const SCRIPT_RUN_COMMAND_PATTERN = Schema.TemplateLiteral([
-  Schema.Literal("script."),
-  Schema.NonEmptyString.check(
-    Schema.isMaxLength(MAX_SCRIPT_ID_LENGTH),
-    Schema.isPattern(/^[a-z0-9][a-z0-9-]*$/),
-  ),
-  Schema.Literal(".run"),
-]);
-
-export const KeybindingCommand = Schema.Union([
-  Schema.Literals(STATIC_KEYBINDING_COMMANDS),
-  SCRIPT_RUN_COMMAND_PATTERN,
-]);
+export const KeybindingCommand = Schema.Literals(STATIC_KEYBINDING_COMMANDS);
 export type KeybindingCommand = typeof KeybindingCommand.Type;
 
 export const KeybindingValue = TrimmedString.check(

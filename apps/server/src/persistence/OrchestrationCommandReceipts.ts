@@ -1,4 +1,4 @@
-import { CommandId, IsoDateTime, NonNegativeInt, ProjectId, ThreadId } from "@t3tools/contracts";
+import { CommandId, IsoDateTime, NonNegativeInt, ThreadId } from "@t3tools/contracts";
 import * as NodeSqliteClient from "@t3tools/shared/nodeSqliteClient";
 import * as SqlClient from "effect/sql/SqlClient";
 import * as SqlSchema from "effect/sql/SqlSchema";
@@ -16,7 +16,7 @@ import {
 export const OrchestrationCommandReceipt = Schema.Struct({
   commandId: CommandId,
   aggregateKind: Schema.Literals(["project", "thread"]),
-  aggregateId: Schema.Union([ProjectId, ThreadId]),
+  aggregateId: ThreadId,
   commandType: Schema.String,
   acceptedAt: IsoDateTime,
   resultSequence: NonNegativeInt,

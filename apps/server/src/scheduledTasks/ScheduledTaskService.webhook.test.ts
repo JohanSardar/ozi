@@ -125,9 +125,7 @@ const webhookTaskInput = (overrides: Record<string, unknown> = {}) =>
     prompt: "Review this PR: {{body.pull_request.url}}",
     enabled: true,
     schedule: { type: "webhook" },
-    projectId: "project-webhook",
     threadId: "thread-webhook",
-    workspaceStrategy: { type: "root" },
     modelSelection: { instanceId: "codex", model: "gpt-5.4" },
     runtimeMode: "full-access",
     interactionMode: "default",
@@ -210,7 +208,7 @@ const withService = <A, E>(
               }),
           }),
       Layer.mock(ThreadManagementService.ThreadManagementService)({
-        getThreadShell: () => Effect.succeed({ projectId: "project-webhook", deletedAt: null, archivedAt: null } as never),
+        getThreadShell: () => Effect.succeed({ deletedAt: null, archivedAt: null } as never),
         sendToThread: (input) =>
           Effect.suspend(() => {
             if (options.completedLaunches?.has(input.commandId))
@@ -900,10 +898,7 @@ it.effect.each([1, 3])(
           yield* TestClock.adjust(count === 1 ? "10 seconds" : "6 seconds");
           yield* workers.get("webhook-coalescing")!;
           const launched = yield* Queue.take(launches);
-          assert.equal(
-            (launched.text.match(new RegExp(`>${count}<`, "g")) ?? []).length,
-            3,
-          );
+          assert.equal((launched.text.match(new RegExp(`>${count}<`, "g")) ?? []).length, 3);
           yield* workers.get("webhook-coalescing")!;
           assert.equal(yield* Queue.size(launches), 0);
           const outcomes = (yield* service.listWebhookDeliveries({
@@ -1659,8 +1654,7 @@ it.effect.each([false, true])(
         {
           workers,
           completedLaunches,
-          gateForTask: (input) =>
-            input.text.includes(">immediate<") ? gate : undefined,
+          gateForTask: (input) => (input.text.includes(">immediate<") ? gate : undefined),
         },
       );
     });

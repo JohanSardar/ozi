@@ -44,7 +44,6 @@ const threadShell = vi.hoisted(() => ({
   pinOrderKey: "a0",
   pinnedAt: null as string | null,
   snoozedUntil: null as string | null,
-  projectId: "project",
   environmentId: "undo-env",
   session: null,
 }));
