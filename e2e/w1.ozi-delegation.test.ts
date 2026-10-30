@@ -17,7 +17,7 @@ it.each([
   { selection: "inherited", name: "w1.inherited-ozi-model: a delegated Pi worker writes a file" },
   {
     selection: "completion",
-    name: "H7.task-id: completion checks resolve a delegated task before Review",
+    name: "H7.task-id C6.worker-scope: completion checks resolve a delegated task before Review",
   },
 ])(
   "$name",
@@ -47,6 +47,9 @@ it.each([
     const fake = await startAnthropic((request) => {
       const messages = JSON.stringify(request.messages);
       if (JSON.stringify(request.system).includes("OZI COMPLETION CHECK")) {
+        const system = JSON.stringify(request.system);
+        if (!system.includes("Check main's own reply"))
+          expect(system).toContain("Check only the supplied worker's completed job");
         return {
           text: JSON.stringify({
             verdict: { verdict: "done", useful: false },
