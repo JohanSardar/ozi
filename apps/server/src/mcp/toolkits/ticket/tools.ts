@@ -2,6 +2,7 @@ import {
   OrchestratorMcpFailure,
   Ticket,
   TicketContent,
+  TICKET_WRITING,
   TicketError,
   TicketGetInput,
   TicketListInput,
@@ -31,14 +32,14 @@ export const TicketToolkit = Toolkit.make(
   Tool.make("ticket_create", {
     ...shared,
     description:
-      "File a ticket when the user needs to answer, act, review or acknowledge something. Skip small talk. Session and transcript links are attached automatically. Delegated workers use this only when their task tells them to.",
+      `File a ticket when the user needs to answer, act, review or acknowledge something. Skip small talk. ${TICKET_WRITING} Session and transcript links are attached automatically. Delegated workers use this only when their task tells them to.`,
     parameters: TicketContent,
     success: Ticket,
   }).annotate(Tool.Destructive, true),
   Tool.make("ticket_update", {
     ...shared,
     description:
-      "Update an open ticket when its context, request or choices change. Delegated workers use this only when their task tells them to.",
+      `Update an open ticket when its context, request or choices change. ${TICKET_WRITING} Delegated workers use this only when their task tells them to.`,
     parameters: TicketUpdateInput,
     success: Ticket,
   }).annotate(Tool.Destructive, true),

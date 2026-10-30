@@ -7,7 +7,7 @@ import * as Layer from "effect/Layer";
 
 import * as ProjectionStore from "../orchestration-v2/ProjectionStore.ts";
 import * as McpSessionRegistry from "../mcp/McpSessionRegistry.ts";
-import { TicketListResult } from "@t3tools/contracts";
+import { TICKET_WRITING, TicketListResult } from "@t3tools/contracts";
 import * as Tickets from "./Tickets.ts";
 
 export class InboxChecks extends Context.Service<
@@ -60,8 +60,8 @@ const make = Effect.gen(function* () {
         close: registry.revokeProviderSession(config.providerSessionId),
         prompt: `Inbox check. You are an isolated fork of the agent's completed turn. Do not continue its task or reply to the user.
 Use ticket_create, ticket_update, ticket_close and ticket_list only.
-File a ticket, with everything in it, for anything from this turn that needs the user's answer or acknowledgement: a question, approval, something only the user can do, finished result, failure, or something the user should see. Skip small talk. File nothing if nothing fits.
-Include the group (Decide, Do, Review or Read), short title, one line saying what the user needs to do, a 2–4 line summary, up to four labelled choices with one-line details when useful, and full markdown details, attachments and HTML pages. Put all the information in the ticket so the user can act without reading the chat.
+File a ticket for anything from this turn that needs the user's answer or acknowledgement: a question, approval, something only the user can do, finished result, failure, or something the user should see. Skip small talk. File nothing if nothing fits.
+Give it a group (Decide, Do, Review or Read), a title saying what happened or what's needed, one sentence on what to do, a short summary of the context, and up to four choices when useful. The user should be able to act without reading the chat. ${TICKET_WRITING}
 Do not duplicate an existing ticket; update it when needed. Close the listed open tickets that the user's last message acknowledged. Do not treat silence or viewing as acknowledgement.
 Listed open tickets:
 ${listed}`,

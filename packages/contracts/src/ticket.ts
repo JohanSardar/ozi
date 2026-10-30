@@ -16,8 +16,12 @@ export type TicketId = typeof TicketId.Type;
 
 export const TicketGroup = Schema.Literals(["Decide", "Do", "Review", "Read"]);
 export const TicketChoice = Schema.Struct({
-  label: TrimmedNonEmptyString,
-  detail: TrimmedNonEmptyString,
+  label: TrimmedNonEmptyString.annotate({
+    description: "A short action in plain words, e.g. \"Book Nella at 7:30\".",
+  }),
+  detail: TrimmedNonEmptyString.annotate({
+    description: "One plain line on what happens if the user picks it.",
+  }),
 });
 export const TicketHtmlPage = Schema.Struct({
   title: TrimmedNonEmptyString,
@@ -26,13 +30,27 @@ export const TicketHtmlPage = Schema.Struct({
     mimeType: Schema.Literal("text/html"),
   }),
 });
+export const TICKET_WRITING =
+  "Write it like a short note to a busy person who wasn't watching: plain everyday words, short sentences, no jargon. Leave out IDs, error codes, check names, tool names, file paths and commands unless the user needs one to act; then give just that one.";
+
 export const TicketContent = Schema.Struct({
   group: TicketGroup,
-  title: TrimmedNonEmptyString,
-  need: TrimmedNonEmptyString,
-  summary: TrimmedNonEmptyString,
+  title: TrimmedNonEmptyString.annotate({
+    description:
+      "What happened or what's needed, like a good email subject: \"Your habit tracker is ready to try\", \"Pick a restaurant for tonight\". Never internal names like \"sleep 30 job finished\".",
+  }),
+  need: TrimmedNonEmptyString.annotate({
+    description: "One plain sentence saying exactly what the user should do, or that there is nothing to do.",
+  }),
+  summary: TrimmedNonEmptyString.annotate({
+    description:
+      "Two to four short plain sentences: what happened, why it matters and anything the user should know before acting.",
+  }),
   choices: Schema.Array(TicketChoice).check(Schema.isMaxLength(4)),
-  markdown: Schema.String,
+  markdown: Schema.String.annotate({
+    description:
+      "Optional: more context for someone who wants it, still plain language. Mention a file, link or command only when the user needs it.",
+  }),
   attachments: Schema.Array(ChatAttachment),
   htmlPages: Schema.Array(TicketHtmlPage),
 });
