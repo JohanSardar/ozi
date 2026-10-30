@@ -47,6 +47,8 @@ Screenshots: [Linux desktop](screenshots/g3-desktop.png), [Settings click](scree
 
 ## Verifying a new feature
 
+These steps are for shipping. While iterating on a live dev copy, check each change with one quick look using CLI-made test content, and skip E2E and real-agent runs until the work is about to ship.
+
 1. **E2E**: the feature's scenarios in one test file, with fake providers.
 2. **Real behaviour**: open the dev app in a browser, pair, and give real Ozi (Pi with Opus on the subscription) the scenario through the composer. Check the reply, the inbox and the workers against what the scenario expects, take screenshots, and attach them to the PR. Agents use T3's shared browser tools (open, click, type, screenshot, read the page; one tab per agent, watchable in the browser panel) or Playwright.
 3. **Second look**: for bigger features, another agent reruns the scenario before merging.
