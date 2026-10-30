@@ -27,7 +27,7 @@ Three columns: chats, conversation, inbox.
 ### Conversation (center)
 
 - As T3: user messages are bubbles on the right; assistant text is plain and full width, centered in a 46rem column.
-- The top bar shows the chat title and, while it works, a spinner with the elapsed time.
+- The top bar shows the chat title and, while it works, a spinner with the elapsed time. It has no Sessions or panel buttons; thread details, the terminal drawer and the right panel open with their keybindings.
 - Tool work folds into one "Worked for 1m 20s" row; it expands to steps, and each step to its details.
 - A delegated job shows as a line "↳ ‹job› · waiting on you" that opens its ticket.
 - Hovering or selecting assistant text offers Reply; the quote sits above the composer and goes with the message.
@@ -36,7 +36,7 @@ Three columns: chats, conversation, inbox.
 
 ### Sessions (C3)
 
-- Chats are T3 threads. Sessions in the chat header offers New chat, Clone, Fork, Reload, Pi import/export and a searchable resume list. New chat retains the current model and options with no history. Clone copies the conversation; Fork selects a user message, keeps the history before it and puts its text in the new composer's draft. The source stays unchanged.
+- Chats are T3 threads. Session operations are New chat, Clone, Fork, Reload, Pi import/export and a searchable resume list. They run through the CLI; the chat header has no Sessions button until they get a new UI. New chat retains the current model and options with no history. Clone copies the conversation; Fork selects a user message, keeps the history before it and puts its text in the new composer's draft. The source stays unchanged.
 - Resume opens an existing thread and unarchives it. Reload releases an idle provider session; the next message resumes its native history. Clone, fork, reload and export require an idle chat.
 - Pi imports upload file content and copy it into server-owned storage. They display the active branch and resume its full native context, including tool history. JSONL export preserves Pi's file; HTML export uses Pi. Downloads and CLI output files are written on the client.
 - `ozi session new|list|show|clone|fork|resume|import|export|reload` exposes the same operations with `--json`. `fork <id> <message-id>` gets IDs from `session show`. `new` and `import` accept `--thread <id>` to inherit a chat's model, or paired `--provider` and `--model` flags. Without either they use the configured default model.

@@ -51,7 +51,6 @@ function PreviewPanelShellFrame(
   const open = props.open ?? true;
   const maximized = props.maximized ?? false;
   const hostRef = useRef<HTMLDivElement | null>(null);
-  const returnedFocus = useRef(false);
   const { width, handlers, observeRow } = props.inlineSize;
   // Width animates only for an open or close. Any other width change disables
   // the transition in the same commit that changes the width, so the browser
@@ -84,35 +83,9 @@ function PreviewPanelShellFrame(
       stopObservingRow();
     };
   };
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- on unmount, returns DOM focus to the panel toggle if removal dropped it on the body
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- sets inert on the host DOM node before a collapse paints
   useLayoutEffect(() => {
-    const host = hostRef.current;
-    if (!host || !collapsible) return;
-    return () => {
-      if (!host.contains(host.ownerDocument.activeElement) && !returnedFocus.current) return;
-      // Unmount moves the toggle; restore focus at its committed location if removal sent focus to body.
-      queueMicrotask(() => {
-        if (host.ownerDocument.activeElement === host.ownerDocument.body) {
-          host.ownerDocument.querySelector<HTMLButtonElement>("[data-right-panel-toggle]")?.focus();
-        }
-      });
-    };
-  }, [collapsible, hostRef]);
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- moves focus to the toggle and sets inert on the host DOM node before a collapse paints
-  useLayoutEffect(() => {
-    const host = hostRef.current;
-    if (!host) return;
-    const collapsed = collapsible && !open;
-    if (!collapsed) returnedFocus.current = false;
-    // Move focus before making its current owner inert, while the toggle is reachable.
-    if (collapsed && host.contains(host.ownerDocument.activeElement)) {
-      const toggle = host.ownerDocument.querySelector<HTMLButtonElement>(
-        "[data-right-panel-toggle]",
-      );
-      toggle?.focus();
-      returnedFocus.current = toggle !== null && host.ownerDocument.activeElement === toggle;
-    }
-    host.toggleAttribute("inert", collapsed);
+    hostRef.current?.toggleAttribute("inert", collapsible && !open);
   }, [collapsible, open, hostRef]);
   return (
     <div

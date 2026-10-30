@@ -140,7 +140,6 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
     }
     setTerminalOpen(nextOpen);
   };
-  const toggleTerminalVisibilityStable = useStableCallback(toggleTerminalVisibility);
   const splitTerminal = (direction: "horizontal" | "vertical" = "horizontal") => {
     if (!activeThreadRef || hasReachedSplitLimit) return;
     const launched = terminalActions.launchTerminal({
@@ -374,6 +373,5 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
     splitPanelTerminalStable,
     splitPanelTerminalVerticalStable,
     splitTerminalStable,
-    toggleTerminalVisibilityStable,
   };
 }
