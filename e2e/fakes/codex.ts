@@ -23,8 +23,6 @@ const fixture = JSON.parse(
   ),
 ).responses;
 const directory = process.env.OZI_CODEX_FAKE!;
-if (!process.argv.some((arg) => arg.startsWith("hooks.Stop=")))
-  throw new Error("Ozi stop hook was not installed");
 const threads = new Map<string, { config: Record<string, any>; turns: any[]; fork: boolean }>();
 const send = (value: unknown) => process.stdout.write(`${JSON.stringify(value)}\n`);
 const notify = <M extends ServerNotificationMethod>(
@@ -33,6 +31,7 @@ const notify = <M extends ServerNotificationMethod>(
 ) => send({ jsonrpc: "2.0", method, params });
 const record = (value: unknown) =>
   NodeFS.appendFileSync(NodePath.join(directory, "wire.jsonl"), `${JSON.stringify(value)}\n`);
+record({ event: "launch", inboxHook: process.argv.some((arg) => arg.startsWith("hooks.Stop=")) });
 const snapshot = (id: string) => ({
   ...fixture.threadStart.thread,
   id,

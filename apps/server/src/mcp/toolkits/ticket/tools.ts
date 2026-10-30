@@ -31,20 +31,21 @@ export const TicketToolkit = Toolkit.make(
   Tool.make("ticket_create", {
     ...shared,
     description:
-      "File a ticket when the user needs to answer, act, review or acknowledge something. Skip small talk. Session and transcript links are attached automatically.",
+      "File a ticket when the user needs to answer, act, review or acknowledge something. Skip small talk. Session and transcript links are attached automatically. Delegated workers use this only when their task tells them to.",
     parameters: TicketContent,
     success: Ticket,
   }).annotate(Tool.Destructive, true),
   Tool.make("ticket_update", {
     ...shared,
-    description: "Update an open ticket when its context, request or choices change.",
+    description:
+      "Update an open ticket when its context, request or choices change. Delegated workers use this only when their task tells them to.",
     parameters: TicketUpdateInput,
     success: Ticket,
   }).annotate(Tool.Destructive, true),
   Tool.make("ticket_close", {
     ...shared,
     description:
-      "Close a ticket after the user acknowledges it in this chat. The server records the calling session's user message as the acknowledgement.",
+      "Close a ticket after the user acknowledges it in this chat. The server records the calling session's user message as the acknowledgement. Delegated workers use this only when their task tells them to.",
     parameters: TicketGetInput,
     success: Ticket,
   })
@@ -53,7 +54,7 @@ export const TicketToolkit = Toolkit.make(
   Tool.make("ticket_list", {
     ...shared,
     description:
-      "List open tickets before filing duplicates or closing acknowledged ones. Filter by chat, search text or archived/all status to find earlier tickets.",
+      "List open tickets before filing duplicates or closing acknowledged ones. Filter by chat, search text or archived/all status to find earlier tickets. Delegated workers use this only when their task tells them to.",
     parameters: TicketListInput,
     success: TicketListResult,
   })
