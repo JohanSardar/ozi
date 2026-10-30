@@ -230,120 +230,138 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks; page?:
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [tab, details, current, hooks]);
 
+  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- window keydown listener that leaves the full-screen ticket on Escape
+  useEffect(() => {
+    if (!page || archivedPick === null) return;
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !isEditableFocused(event.target)) setArchivedPick(null);
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [page, archivedPick]);
+
   if (page) {
-    const pageTicket =
+    const expanded =
       tab === "inbox"
-        ? (current ?? ordered[0])
-        : (archived.find((ticket) => ticket.id === archivedPick) ?? archived[0]);
-    const row = (ticket: Ticket, detail: string, onSelect: () => void) => (
+        ? ordered.find((ticket) => ticket.id === archivedPick)
+        : archived.find((ticket) => ticket.id === archivedPick);
+    const tile = (ticket: Ticket) => (
       <button
         key={ticket.id}
         type="button"
-        aria-current={pageTicket?.id === ticket.id ? "true" : undefined}
-        onClick={onSelect}
-        className={cn(
-          "flex w-full flex-col rounded-lg px-3 py-2 text-left transition-colors",
-          pageTicket?.id === ticket.id ? "bg-accent text-accent-foreground" : "hover:bg-accent/60",
-        )}
+        onClick={() => setArchivedPick(ticket.id)}
+        className="flex h-52 flex-col rounded-xl border border-border bg-card p-4 text-left transition-colors hover:border-ring/40 hover:bg-accent/40"
       >
-        <span className="truncate text-sm font-medium">{ticket.title}</span>
-        <span className="truncate text-xs text-muted-foreground">{detail}</span>
+        <span className="line-clamp-2 text-sm font-medium">{ticket.title}</span>
+        <span className="mt-1.5 line-clamp-2 text-sm font-semibold leading-snug">
+          {ticket.need}
+        </span>
+        <span className="mt-1.5 line-clamp-3 text-xs leading-relaxed text-muted-foreground">
+          {ticket.summary}
+        </span>
+        <span className="mt-auto flex items-center gap-1 pt-3 text-xs text-muted-foreground">
+          <span className="min-w-0 truncate">
+            {ticket.status === "open" ? "" : `${clearedBy(ticket)} · `}
+            {titles.get(ticket.origin.chatId) ?? ""}
+          </span>
+          <span className="shrink-0">
+            · <Age iso={ticket.createdAt} />
+          </span>
+          {ticket.status === "open" && ticket.choices.length > 0 ? (
+            <span className="ms-auto shrink-0 tabular-nums">{ticket.choices.length} choices</span>
+          ) : null}
+        </span>
       </button>
     );
+    const grid = "grid grid-cols-[repeat(auto-fill,minmax(17rem,1fr))] gap-3";
     return (
       <main aria-label="Inbox" className="flex min-h-0 min-w-0 flex-1 flex-col bg-background">
-        <div
-          role="tablist"
-          className="flex h-(--workspace-topbar-height) shrink-0 items-stretch gap-5 border-b border-border px-5"
-        >
-          {(["inbox", "archive"] as const).map((name) => (
-            <button
-              key={name}
-              type="button"
-              role="tab"
-              aria-selected={tab === name}
-              onClick={() => setTab(name)}
-              className={cn(
-                "inline-flex items-center gap-1.5 border-b-2 pt-0.5 text-sm font-medium transition-colors",
-                tab === name
-                  ? "border-foreground text-foreground"
-                  : "border-transparent text-muted-foreground hover:text-foreground",
-              )}
+        {expanded ? (
+          <TicketWindow
+            key={expanded.id}
+            inline
+            environmentId={environmentId}
+            ticket={expanded}
+            titles={titles}
+            onClose={() => setArchivedPick(null)}
+            onChoose={(index) => hooks.choose?.(expanded, index)}
+            onReply={(text) => hooks.reply?.(expanded, text)}
+            onGotIt={() => gotIt(expanded)}
+          />
+        ) : (
+          <>
+            <div
+              role="tablist"
+              className="flex h-(--workspace-topbar-height) shrink-0 items-stretch gap-5 border-b border-border px-5"
             >
-              {name === "inbox" ? "Inbox" : "Archive"}
-              {name === "inbox" && open.length > 0 ? (
-                <span className="font-normal text-muted-foreground tabular-nums">{open.length}</span>
-              ) : null}
-            </button>
-          ))}
-        </div>
-        <div className="flex min-h-0 flex-1">
-          <div className="flex w-96 shrink-0 flex-col border-r border-border">
-            {tab === "archive" ? (
-              <div className="relative shrink-0 px-3 pt-3 pb-1">
-                <SearchIcon className="pointer-events-none absolute start-5.5 top-1/2 mt-1 size-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  type="search"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search archive"
-                  aria-label="Search archive"
-                  className="ps-7"
-                />
-              </div>
-            ) : null}
-            <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
-              {tab === "inbox"
-                ? GROUPS.map(([group, hint]) => {
-                    const tickets = ordered.filter((ticket) => ticket.group === group);
-                    return tickets.length === 0 ? null : (
-                      <section key={group} aria-label={group}>
-                        <h2 className="flex items-baseline gap-2 px-3 pt-4 pb-1.5 text-sm font-semibold">
-                          {group}
-                          <span className="font-normal text-muted-foreground tabular-nums">
-                            {tickets.length}
-                          </span>
-                          <span className="ml-auto text-xs font-normal text-muted-foreground">
-                            {hint}
-                          </span>
-                        </h2>
-                        {tickets.map((ticket) =>
-                          row(
-                            ticket,
-                            `${titles.get(ticket.origin.chatId) ?? ""}`,
-                            () => setSelected({ id: ticket.id, index: ordered.indexOf(ticket) }),
-                          ),
-                        )}
-                      </section>
-                    );
-                  })
-                : archived.map((ticket) =>
-                    row(
-                      ticket,
-                      `${clearedBy(ticket)} · ${titles.get(ticket.origin.chatId) ?? ""}`,
-                      () => setArchivedPick(ticket.id),
-                    ),
+              {(["inbox", "archive"] as const).map((name) => (
+                <button
+                  key={name}
+                  type="button"
+                  role="tab"
+                  aria-selected={tab === name}
+                  onClick={() => setTab(name)}
+                  className={cn(
+                    "inline-flex items-center gap-1.5 border-b-2 pt-0.5 text-sm font-medium transition-colors",
+                    tab === name
+                      ? "border-foreground text-foreground"
+                      : "border-transparent text-muted-foreground hover:text-foreground",
                   )}
+                >
+                  {name === "inbox" ? "Inbox" : "Archive"}
+                  {name === "inbox" && open.length > 0 ? (
+                    <span className="font-normal text-muted-foreground tabular-nums">
+                      {open.length}
+                    </span>
+                  ) : null}
+                </button>
+              ))}
+              {tab === "archive" ? (
+                <div className="relative ms-auto w-72 self-center">
+                  <SearchIcon className="pointer-events-none absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    type="search"
+                    value={search}
+                    onChange={(event) => setSearch(event.target.value)}
+                    placeholder="Search archive"
+                    aria-label="Search archive"
+                    className="ps-7"
+                  />
+                </div>
+              ) : null}
             </div>
-          </div>
-          {pageTicket ? (
-            <TicketWindow
-              key={pageTicket.id}
-              inline
-              environmentId={environmentId}
-              ticket={pageTicket}
-              titles={titles}
-              onClose={() => undefined}
-              onChoose={(index) => hooks.choose?.(pageTicket, index)}
-              onReply={(text) => hooks.reply?.(pageTicket, text)}
-              onGotIt={() => gotIt(pageTicket)}
-            />
-          ) : (
-            <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
-              {tab === "inbox" ? "You're all caught up" : "Cleared tickets show up here."}
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-8">
+              {tab === "inbox" ? (
+                GROUPS.map(([group, hint]) => {
+                  const tickets = ordered.filter((ticket) => ticket.group === group);
+                  return tickets.length === 0 ? null : (
+                    <section key={group} aria-label={group}>
+                      <h2 className="flex items-baseline gap-2 pt-6 pb-3 text-sm font-semibold">
+                        {group}
+                        <span className="font-normal text-muted-foreground tabular-nums">
+                          {tickets.length}
+                        </span>
+                        <span className="text-xs font-normal text-muted-foreground">· {hint}</span>
+                      </h2>
+                      <div className={grid}>{tickets.map(tile)}</div>
+                    </section>
+                  );
+                })
+              ) : (
+                <div className={cn(grid, "pt-6")}>{archived.map(tile)}</div>
+              )}
+              {(tab === "inbox" ? ordered : archived).length === 0 ? (
+                <div className="py-24 text-center text-sm text-muted-foreground">
+                  {tab === "inbox"
+                    ? "You're all caught up"
+                    : query
+                      ? `Nothing matches “${query}”`
+                      : "Cleared tickets show up here."}
+                </div>
+              ) : null}
             </div>
-          )}
-        </div>
+          </>
+        )}
       </main>
     );
   }

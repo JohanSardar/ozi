@@ -2,7 +2,7 @@ import { resolveAssetUrl } from "@t3tools/client-runtime/state/assets";
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import type { EnvironmentId, ThreadId, Ticket } from "@t3tools/contracts";
 import { useNavigate } from "@tanstack/react-router";
-import { ArrowUpIcon, CheckIcon, ReplyIcon } from "lucide-react";
+import { ArrowLeftIcon, ArrowUpIcon, CheckIcon, ReplyIcon } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
 import { useRelativeTimeState } from "../../hooks/useRelativeTimeState";
@@ -135,6 +135,12 @@ export function TicketWindow(props: {
 
   const header = (
         <header className="flex h-12 shrink-0 items-center gap-2 border-b ps-5 pe-2 text-sm">
+          {inline ? (
+            <Button variant="ghost" size="sm" className="-ms-3 me-1" onClick={onClose}>
+              <ArrowLeftIcon />
+              Inbox
+            </Button>
+          ) : null}
           <span className="font-medium">{open ? ticket.group : "Archived"}</span>
           <span className="min-w-0 flex-1 truncate text-muted-foreground">
             · {titles.get(ticket.origin.chatId) ?? ""} · <Age iso={ticket.createdAt} />
