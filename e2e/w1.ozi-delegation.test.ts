@@ -12,9 +12,16 @@ const exec = NodeUtil.promisify(NodeChildProcess.execFile);
 const root = NodePath.resolve(import.meta.dirname, "..");
 const cli = NodePath.join(root, "apps/server/src/bin.ts");
 
-it.each(["explicit", "inherited"])(
-  "w1.%s-ozi-model: a delegated Pi worker writes a file",
-  async (selection) => {
+it.each([
+  { selection: "explicit", name: "w1.explicit-ozi-model: a delegated Pi worker writes a file" },
+  { selection: "inherited", name: "w1.inherited-ozi-model: a delegated Pi worker writes a file" },
+  {
+    selection: "completion",
+    name: "H7.task-id: completion checks resolve a delegated task before Review",
+  },
+])(
+  "$name",
+  async ({ selection }: { selection: "explicit" | "inherited" | "completion"; name: string }) => {
     const directory = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "ozi-w1-"));
     const home = NodePath.join(directory, "home");
     const workspace = NodePath.join(directory, "workspace");
@@ -34,24 +41,31 @@ it.each(["explicit", "inherited"])(
     const model = "claude-bridge/claude-opus-5-5";
     let step = 0;
     let results = "";
+    let taskId = "";
+    let childThreadId = "";
+    let attempts = 0;
     const fake = await startAnthropic((request) => {
       const messages = JSON.stringify(request.messages);
-      if (JSON.stringify(request.system).includes("OZI COMPLETION CHECK"))
+      if (JSON.stringify(request.system).includes("OZI COMPLETION CHECK")) {
         return {
           text: JSON.stringify({
             verdict: { verdict: "done", useful: false },
             verified: ["The requested test reply is present."],
           }),
         };
+      }
       const tool = (suffix: string) => {
-        const found = request.tools.find((entry) => entry.name.endsWith(`__${suffix}`));
+        const found = request.tools.find((entry) => entry.name.split(/__|\./).at(-1) === suffix);
         if (!found) throw new Error(`Missing ${suffix}`);
         return found.name;
       };
       if (!messages.includes("Check capabilities and delegate the W1 file task.")) {
         return messages.includes('"tool_result"')
           ? { text: "w1-worker-done" }
-          : { tool: tool("write"), arguments: { path: "w1-worker.txt", content: "w1-worker-ok" } };
+          : {
+              tool: tool("write"),
+              arguments: { path: "w1-worker.txt", content: "w1-worker-ok" },
+            };
       }
       if (step++ === 0) return { tool: tool("orchestrator_capabilities"), arguments: {} };
       if (step === 2) {
@@ -66,6 +80,53 @@ it.each(["explicit", "inherited"])(
           },
         };
       }
+      let checkState: string | undefined;
+      if (selection === "completion" && step >= 3) {
+        const visit = (value: unknown): void => {
+          if (typeof value === "string") {
+            try {
+              visit(JSON.parse(value));
+            } catch {}
+          } else if (value && typeof value === "object") {
+            if ("taskId" in value && "childThreadId" in value) {
+              taskId = String(value.taskId);
+              childThreadId = String(value.childThreadId);
+            } else if ("workerId" in value && "fingerprint" in value && "state" in value) {
+              checkState = String(value.state);
+            } else for (const entry of Object.values(value)) visit(entry);
+          }
+        };
+        visit(request.messages);
+        if (!taskId)
+          return { text: `Missing delegated task: ${JSON.stringify(request.messages.at(-1))}` };
+        expect(taskId).not.toBe("");
+        expect(childThreadId).not.toBe(taskId);
+      }
+      if (
+        selection === "completion" &&
+        attempts < 3 &&
+        (step === 3 || checkState === "superseded")
+      ) {
+        attempts++;
+        return {
+          tool: tool("completion_check"),
+          arguments: {
+            workerId: taskId,
+            files: ["w1-worker.txt"],
+            ticket: {
+              group: "Review",
+              title: "H7 verified worker",
+              need: "Review the file.",
+              summary: "The delegated worker wrote the requested file.",
+              markdown: "w1-worker.txt contains w1-worker-ok.",
+              choices: [],
+              attachments: [],
+              htmlPages: [],
+            },
+          },
+        };
+      }
+
       results = messages;
       return { text: "w1-main-done" };
     });
@@ -143,6 +204,37 @@ it.each(["explicit", "inherited"])(
       );
       expect(result.status).toBe("completed");
       expect(results, output).toContain("w1-worker-done");
+      if (selection === "completion") {
+        const tickets = await run(
+          "ticket",
+          "list",
+          "--input",
+          JSON.stringify({ search: "H7 verified worker" }),
+        );
+        expect(tickets.tickets, JSON.stringify(tickets)).toHaveLength(1);
+        expect(tickets.tickets[0].group, JSON.stringify(tickets)).toBe("Review");
+        expect(tickets.tickets[0].markdown).toContain("Verified by completion check");
+        const checks = JSON.parse(
+          (
+            await exec(
+              process.execPath,
+              [
+                NodePath.join(root, "apps/server/node_modules/@ozi/pi/src/cli.mjs"),
+                "checks",
+                "--data-root",
+                NodePath.join(home, "harness"),
+                "--json",
+              ],
+              { env: environment },
+            )
+          ).stdout,
+        ).filter((row: { workerId: string | null }) => row.workerId !== null);
+        expect(checks.length).toBeGreaterThan(0);
+        expect(checks.every((row: { workerId: string }) => row.workerId === childThreadId)).toBe(
+          true,
+        );
+        expect(checks.at(-1).state, JSON.stringify(checks)).toBe("checked");
+      }
       expect(await NodeFSP.readFile(NodePath.join(workspace, "w1-worker.txt"), "utf8")).toBe(
         "w1-worker-ok",
       );
