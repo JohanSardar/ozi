@@ -1,7 +1,6 @@
 /** Keep bundler externals and staged runtime dependency roots aligned. */
 // Filesystem-loaded externals need dependencies outside the bundle.
 const CLI_RUNTIME_EXTERNAL_PREFIXES = [
-  "@ozi/pi",
   "@earendil-works/pi-coding-agent",
   // Cursor ships computed Webpack imports and platform helper packages.
   "@cursor/sdk",
@@ -35,7 +34,9 @@ const CURSOR_RUNTIME_DEPENDENCIES = [
 export function isRuntimeExternalCliDependency(id: string): boolean {
   return (
     CLI_RUNTIME_EXTERNAL_PREFIXES.some((prefix) => id.startsWith(prefix)) ||
-    CURSOR_RUNTIME_DEPENDENCIES.some((name) => id === name || id.startsWith(`${name}/`))
+    ["@ozi/pi", ...CURSOR_RUNTIME_DEPENDENCIES].some(
+      (name) => id === name || id.startsWith(`${name}/`),
+    )
   );
 }
 
