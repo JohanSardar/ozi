@@ -57,6 +57,7 @@ const Report = Schema.Struct({
   schedules: Schema.Number,
   webhooks: Schema.Number,
   secretFiles: Schema.Number,
+  skippedChats: Schema.Array(Schema.String),
   files: Schema.Array(FileMove),
 });
 type Report = typeof Report.Type;
@@ -264,6 +265,23 @@ export const layer = Layer.effect(
                   provider.id === thread.activeProviderThreadId && provider.driver === "pi",
               )),
         );
+        const skippedChats: string[] = [];
+        const kept: typeof old.threads = [];
+        for (const thread of old.threads) {
+          const provider = old.providers.find((item) => item.id === thread.activeProviderThreadId);
+          const nativeId =
+            provider?.driver === "pi"
+              ? (provider.nativeThreadRef as { nativeId?: string } | null)?.nativeId
+              : undefined;
+          if (
+            thread.role === "worker" &&
+            nativeId !== undefined &&
+            (!contains(fromHome, path.resolve(nativeId)) || !(yield* fs.exists(nativeId)))
+          )
+            skippedChats.push(String(thread.id));
+          else kept.push(thread);
+        }
+        old.threads = kept;
         const main = old.threads.find((thread) => thread.id === "ozi-main");
         if (main === undefined) return yield* fail("Source has no main chat.");
         const referenced = new Set(
@@ -495,6 +513,7 @@ export const layer = Layer.effect(
           secretFiles: files.filter((file) =>
             file.from.startsWith(path.join(fromHome, "userdata/secrets") + path.sep),
           ).length,
+          skippedChats,
           files: [...files, { from: settingsPath, to: path.join(home, "userdata/settings.json") }],
         };
         if (input.dryRun) return { ...report, status: "dry-run" };

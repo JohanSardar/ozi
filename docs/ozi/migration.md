@@ -30,7 +30,7 @@ The import preserves:
   directory. Only their header's working directory and parent-session path change;
   every history entry and branch stays verbatim. Provider bindings point there. Imported history is passive and
   starts no agent turn. Runtime runs, checks and background effects are not
-  restarted. Old non-Pi workers remain available in the untouched source.
+  restarted. Old non-Pi workers, and Pi workers whose native session is missing or outside the old home, remain available in the untouched source; the report lists the skipped Pi workers as `skippedChats`.
 - Schedule IDs, prompts, enabled state, intervals, local times/weekdays, due
   times, run history, webhook tokens, signing keys, filters, replay records and
   pending/coalesced deliveries. Their existing chat IDs remain stable. Webhook
