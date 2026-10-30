@@ -295,6 +295,9 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks }) {
                   <span className="font-normal text-muted-foreground tabular-nums">
                     {jobs.length}
                   </span>
+                  <span className="ml-auto text-xs font-normal text-muted-foreground">
+                    {workingOpen ? "hide" : "show"}
+                  </span>
                 </button>
                 {workingOpen ? (
                   <div className="overflow-hidden rounded-lg border border-border bg-card">
