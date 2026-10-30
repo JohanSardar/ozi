@@ -364,6 +364,8 @@ export const layer: Layer.Layer<
                 attachments: message.attachments,
                 createdBy: message.createdBy,
                 creationSource: message.creationSource,
+                isNotification:
+                  message.notification !== undefined || message.delegatedCompletion !== undefined,
                 ...(message.scheduledTaskId === undefined
                   ? {}
                   : { scheduledTaskId: message.scheduledTaskId }),

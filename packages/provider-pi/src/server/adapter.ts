@@ -92,6 +92,11 @@ const encodeCommandResult = Schema.encodeEffect(Schema.fromJsonString(Schema.Unk
 export const PI_PROVIDER = ProviderDriverKind.make("pi");
 const PI_DRIVER_KIND = PI_PROVIDER;
 const DEFAULT_PI_SETTINGS = Schema.decodeSync(PiSettings)({});
+const encodeInputContext = Schema.encodeSync(
+  Schema.fromJsonString(
+    Schema.Struct({ id: Schema.String, text: Schema.String, request: Schema.Boolean }),
+  ),
+);
 
 // Inherit Pi's configured defaultProvider/defaultModel without calling set_model.
 const PI_INHERIT_MODEL_SLUG = "default";
@@ -483,13 +488,30 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
         .digest("SHA-256", new TextEncoder().encode(input.providerSessionId))
         .pipe(Effect.map(Hex.encode), Effect.orDie);
       const inboxContextPath = `${host.paths.providerStatusCacheDir}/pi-inbox-${inboxContextKey}.txt`;
+      const inputContextPath = `${inboxContextPath}.inputs.jsonl`;
+      yield* provideCacheFs(fileSystem.writeFileString(inputContextPath, "", { mode: 0o600 }));
+      const recordInput = Effect.fn("PiAdapter.recordInput")(function* (
+        message: ProviderAdapter.ProviderAdapterV2TurnMessage,
+        text: string,
+      ) {
+        yield* fileSystem.writeFileString(
+          inputContextPath,
+          `${encodeInputContext({ id: message.messageId, text, request: message.isNotification !== true })}\n`,
+          { flag: "a" },
+        );
+      });
       yield* provideCacheFs(
         fileSystem.writeFileString(inboxPath, `export default ${inbox.toString()}`),
       );
       yield* Effect.addFinalizer(() => fileSystem.remove(inboxContextPath).pipe(Effect.ignore));
+      yield* Effect.addFinalizer(() => fileSystem.remove(inputContextPath).pipe(Effect.ignore));
       const launch = buildPiRpcLaunch({
         launchArgs: [...resolvedLaunchArgs.args, "--extension", inboxPath],
-        environment: { ...options.environment, OZI_PI_INBOX_CONTEXT_FILE: inboxContextPath },
+        environment: {
+          ...options.environment,
+          OZI_PI_INBOX_CONTEXT_FILE: inboxContextPath,
+          OZI_PI_INPUT_CONTEXT_FILE: inputContextPath,
+        },
         mcpSession,
         extensionPath,
         runtimeMode: input.runtimePolicy.runtimeMode,
@@ -2699,6 +2721,7 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
                   kind: "turn_start",
                 });
               } else if (payload !== null) {
+                yield* recordInput(turnInput.message, payload.message);
                 yield* connection.send({
                   type: "prompt",
                   message: payload.message,
@@ -2815,6 +2838,7 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
                     kind: "steer",
                   });
                 } else if (payload !== null) {
+                  yield* recordInput(steerInput.message, payload.message);
                   yield* connection.send({
                     type: "prompt",
                     message: payload.message,

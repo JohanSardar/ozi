@@ -245,6 +245,20 @@ export default async function t3McpExtension(pi: ExtensionAPI) {
   // Keep skill chips in the request. Pi expands only one leading /skill:
   // command, so use its own frontmatter loader for every selected chip here.
   pi.on("input", async (event, ctx) => {
+    const inputContext = env("OZI_PI_INPUT_CONTEXT_FILE");
+    if (inputContext && event.source === "rpc" && process.env.OZI_INBOX_FORK !== "1") {
+      const consumed = new Set(ctx.sessionManager.getBranch().flatMap((entry) =>
+        entry.type === "custom" && entry.customType === "ozi-input"
+          ? [(entry.data as { id: string }).id]
+          : [],
+      ));
+      const inputs = (await NodeFSP.readFile(inputContext, "utf8")).split("\\n").slice(0, -1)
+        .map((line) => JSON.parse(line) as { id: string; text: string; request: boolean });
+      const input = inputs.find((input) => input.text === event.text && !consumed.has(input.id));
+      if (!input) throw new Error("Missing Ozi input provenance");
+      pi.appendEntry("ozi-input", { id: input.id });
+      if (input.request) pi.appendEntry("ozi-request", { id: input.id, text: event.text });
+    }
     if (!event.text.includes("$")) return;
     const commands = pi.getCommands().filter((command) => command.source === "skill");
     const nativeSkill = /^\\/skill:([^ ]+)(?: |$)/.exec(event.text)?.[1];
