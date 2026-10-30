@@ -11,9 +11,14 @@ import { startAnthropic } from "./fakes/anthropic.ts";
 
 const exec = NodeUtil.promisify(NodeChildProcess.execFile);
 const root = NodePath.resolve(import.meta.dirname, "..");
-const { chromium } = NodeModule.createRequire(NodePath.join(root, "apps/web/package.json"))(
-  "playwright",
-) as typeof import("playwright");
+const webRequire = NodeModule.createRequire(NodePath.join(root, "apps/web/package.json"));
+const { chromium } = webRequire("playwright") as typeof import("playwright");
+const viteBin = NodePath.join(
+  NodePath.dirname(
+    NodeModule.createRequire(webRequire.resolve("vite-plus")).resolve("vite/package.json"),
+  ),
+  "dist/vite/bin/vite.js",
+);
 
 async function freePort() {
   const socket = NodeNet.createServer().listen(0, "127.0.0.1");
@@ -178,20 +183,16 @@ it.each(["tools", "chat"] as const)("g1.source-control-removed: %s", async (scen
       expect(chat.thread).not.toHaveProperty("worktreePath");
       await expect(NodeFSP.stat(NodePath.join(workspace, ".git"))).rejects.toThrow();
     } else {
-      web = NodeChildProcess.spawn(
-        NodePath.join(root, "node_modules/.bin/vp"),
-        ["dev", "--strictPort"],
-        {
-          cwd: NodePath.join(root, "apps/web"),
-          env: {
-            ...process.env,
-            OZI_PORT: String(port),
-            OZI_SINGLE_ORIGIN_DEV: "1",
-            PORT: String(webPort),
-          },
-          stdio: ["ignore", "pipe", "pipe"],
+      web = NodeChildProcess.spawn(process.execPath, [viteBin, "dev", "--strictPort"], {
+        cwd: NodePath.join(root, "apps/web"),
+        env: {
+          ...process.env,
+          OZI_PORT: String(port),
+          OZI_SINGLE_ORIGIN_DEV: "1",
+          PORT: String(webPort),
         },
-      );
+        stdio: ["ignore", "pipe", "pipe"],
+      });
       await new Promise<void>((resolve, reject) => {
         let output = "";
         const receive = (chunk: Buffer) => {
