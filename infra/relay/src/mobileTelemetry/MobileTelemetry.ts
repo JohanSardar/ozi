@@ -153,7 +153,7 @@ export class MobileTelemetry extends Context.Service<
   {
     readonly handle: (
       request: HttpServerRequest.HttpServerRequest,
-      params: { readonly projectId: string; readonly signal: RelayMobileTelemetrySignal },
+      params: { readonly signal: RelayMobileTelemetrySignal },
     ) => Effect.Effect<HttpServerResponse.HttpServerResponse>;
   }
 >()("ozi-relay/mobileTelemetry/MobileTelemetry") {}
@@ -251,15 +251,11 @@ const make = Effect.gen(function* () {
 
   const handle = Effect.fn("relay.mobile_telemetry.ingest")(function* (
     request: HttpServerRequest.HttpServerRequest,
-    {
-      projectId,
-      signal,
-    }: { readonly projectId: string; readonly signal: RelayMobileTelemetrySignal },
+    { signal }: { readonly signal: RelayMobileTelemetrySignal },
   ) {
     const outcome = (value: string) =>
       Effect.annotateCurrentSpan({ "relay.mobile_telemetry.outcome": value });
     yield* Effect.annotateCurrentSpan({
-      "relay.mobile_telemetry.project_id": projectId,
       "relay.mobile_telemetry.signal": signal,
     });
 

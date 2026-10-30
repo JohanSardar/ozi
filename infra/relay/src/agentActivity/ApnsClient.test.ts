@@ -37,7 +37,6 @@ describe("ApnsClient", () => {
       {
         environmentId: EnvironmentId.make("env"),
         threadId: ThreadId.make("thread"),
-        projectTitle: "Project",
         threadTitle: "Thread",
         modelTitle: "gpt-5.4",
         phase: "running" as const,

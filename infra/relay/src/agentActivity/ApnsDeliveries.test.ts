@@ -63,7 +63,6 @@ const signingConfig = RelayConfiguration.RelayConfiguration.of({
 const state: RelayAgentActivityState = {
   environmentId: "env" as RelayAgentActivityState["environmentId"],
   threadId: "thread" as RelayAgentActivityState["threadId"],
-  projectTitle: "Project",
   threadTitle: "Thread",
   modelTitle: "gpt-5.4",
   phase: "running",
@@ -81,7 +80,6 @@ const aggregate: RelayAgentActivityAggregateState = {
     {
       environmentId: state.environmentId,
       threadId: state.threadId,
-      projectTitle: state.projectTitle,
       threadTitle: state.threadTitle,
       modelTitle: state.modelTitle,
       phase: state.phase,
@@ -238,7 +236,6 @@ describe("ApnsDeliveries", () => {
       subtitle: longTitle,
       activities: [0, 1, 2, 3, 4, 5].map((index) =>
         Object.assign({}, aggregate.activities[0]!, {
-          projectTitle: longTitle,
           threadTitle: longTitle,
           modelTitle: longTitle,
           status: longTitle,
@@ -260,7 +257,7 @@ describe("ApnsDeliveries", () => {
       expect(payloadAggregate?.title.length).toBeLessThanOrEqual(120);
       expect(payloadAggregate?.subtitle.length).toBeLessThanOrEqual(120);
       expect(payloadAggregate?.activities).toHaveLength(5);
-      expect(payloadAggregate?.activities[0]?.projectTitle.length).toBeLessThanOrEqual(120);
+      expect(payloadAggregate?.activities[0]?.modelTitle.length).toBeLessThanOrEqual(120);
       expect(payloadAggregate?.activities[0]?.status.length).toBeLessThanOrEqual(40);
       expect(payloadAggregate?.activities[0]?.deepLink).toBe("/");
       expect(attempts).toEqual([]);
@@ -397,7 +394,7 @@ describe("ApnsDeliveries", () => {
               },
               notification: {
                 title: "Thread",
-                body: "Input: Project",
+                body: "Input: gpt-5.4",
                 environmentId: "env",
                 threadId: "thread",
                 deepLink: "/",
@@ -494,7 +491,7 @@ describe("ApnsDeliveries", () => {
               },
               notification: {
                 title: "Thread",
-                body: "Input: Project",
+                body: "Input: gpt-5.4",
                 environmentId: "env",
                 threadId: "thread",
                 deepLink: "/",
@@ -516,7 +513,7 @@ describe("ApnsDeliveries", () => {
       activities: [
         {
           ...aggregate.activities[0]!,
-          projectTitle: longTitle,
+          modelTitle: longTitle,
           threadTitle: longTitle,
           phase: "waiting_for_input",
           status: "Input",
@@ -615,7 +612,7 @@ describe("ApnsDeliveries", () => {
       aggregate: null,
       notification: {
         title: "Thread",
-        body: "Input: Project",
+        body: "Input: gpt-5.4",
         environmentId: "env",
         threadId: "thread",
         deepLink: "/",
@@ -677,7 +674,7 @@ describe("ApnsDeliveries", () => {
       aggregate: null,
       notification: {
         title: "Thread",
-        body: "Input: Project",
+        body: "Input: gpt-5.4",
         environmentId: "env",
         threadId: "thread",
         deepLink: "/",
@@ -796,7 +793,7 @@ describe("ApnsDeliveries", () => {
       deviceId: target.device_id,
       token: target.activity_push_token ?? "activity-token",
       aggregate: completedAggregate,
-      alert: { title: "Thread", body: "Done: Project" },
+      alert: { title: "Thread", body: "Done: gpt-5.4" },
       createdAt: completedAt,
       expiresAt: "1970-01-01T00:10:00.000Z",
       jobId: "job-update-superseded-by-running",
@@ -858,7 +855,7 @@ describe("ApnsDeliveries", () => {
       aggregate: null,
       notification: {
         title: "Thread",
-        body: "Input: Project",
+        body: "Input: gpt-5.4",
         environmentId: "env",
         threadId: "thread",
         deepLink: "/",
@@ -912,7 +909,7 @@ describe("ApnsDeliveries", () => {
       aggregate: null,
       notification: {
         title: "Thread",
-        body: "Failed: Project",
+        body: "Failed: gpt-5.4",
         environmentId: "env",
         threadId: "thread",
         deepLink: "/",
@@ -1042,7 +1039,7 @@ describe("live activity alert decisions", () => {
       },
       preferences,
     });
-    expect(alert).toEqual({ title: "Blocked thread", body: "Approval: Project" });
+    expect(alert).toEqual({ title: "Blocked thread", body: "Approval: gpt-5.4" });
   });
 
   it("stays silent without a delivered baseline so replays cannot buzz", () => {
@@ -1073,7 +1070,7 @@ describe("live activity alert decisions", () => {
         preferences,
         nowMs: 0,
       }),
-    ).toEqual({ title: "Thread", body: "Done: Project" });
+    ).toEqual({ title: "Thread", body: "Done: gpt-5.4" });
     expect(
       AgentActivityAlerts.alertForNewlyTerminal({
         previousAggregate: aggregate,
@@ -1187,7 +1184,7 @@ describe("signed APNs registration metadata", () => {
         ? {
             notification: {
               title: "Thread",
-              body: "Input: Project",
+              body: "Input: gpt-5.4",
               environmentId: "env",
               threadId: "thread",
               deepLink: "/",

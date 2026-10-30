@@ -35,7 +35,6 @@ function aggregateRowForState(state: RelayAgentActivityState) {
   return {
     environmentId: state.environmentId,
     threadId: state.threadId,
-    projectTitle: state.projectTitle,
     threadTitle: state.threadTitle,
     modelTitle: state.modelTitle,
     phase: state.phase,

@@ -29,7 +29,6 @@ const encodeJson = Schema.encodeSync(Schema.fromJsonString(Schema.Unknown));
 const state: RelayAgentActivityState = {
   environmentId: EnvironmentId.make("env"),
   threadId: ThreadId.make("thread"),
-  projectTitle: "Project",
   threadTitle: "Fix notifications",
   phase: "running",
   headline: "Working",
@@ -261,7 +260,7 @@ describe("Android delivery routing", () => {
       yield* delivery.process({ ...h.job, state: h.current.state });
       expect(h.sent[0]?.data).toMatchObject({
         alert_title: "Second thread",
-        alert_body: "Input: Project",
+        alert_body: "Input: Codex",
         alert_path: "/threads/env/second-thread",
       });
     }).pipe(Effect.provide(h.layer));
@@ -291,7 +290,7 @@ describe("Android delivery routing", () => {
       yield* delivery.process({ ...h.job, state: h.current.state });
       expect(h.sent[0]?.data).toMatchObject({
         alert_title: "Second thread",
-        alert_body: "Input: Project",
+        alert_body: "Input: Codex",
       });
       yield* delivery.process({ ...h.job, state: h.current.otherStates[0] });
       expect(h.sent.filter((message) => message.alert)).toHaveLength(1);
@@ -347,7 +346,7 @@ describe("Android delivery routing", () => {
         yield* delivery.process({ ...h.job, state: h.current.state });
         expect(h.sent[0]?.data).toMatchObject({
           alert_title: "Fix notifications",
-          alert_body: "Approval: Project",
+          alert_body: "Approval: Codex",
         });
       }).pipe(Effect.provide(h.layer));
     },
@@ -407,7 +406,7 @@ describe("Android delivery routing", () => {
         preferences,
         nowMs: 0,
       }),
-    ).toMatchObject({ alert_title: "Second thread", alert_body: "Input: Project" });
+    ).toMatchObject({ alert_title: "Second thread", alert_body: "Input: Codex" });
   });
 
   it("keeps notification groups distinct when identifiers contain slashes", () => {
@@ -448,7 +447,7 @@ describe("Android delivery routing", () => {
         expect(h.sent[0]?.data).toMatchObject({
           active: "false",
           alert_title: "Fix notifications",
-          alert_body: "Done: Project",
+          alert_body: "Done: Codex",
           alert_path: "/threads/env/thread",
         });
       }).pipe(Effect.provide(h.layer));
@@ -468,7 +467,7 @@ describe("Android delivery routing", () => {
       expect(h.sent[0]?.data).toMatchObject({
         active: "false",
         alert_title: "Fix notifications",
-        alert_body: "Done: Project",
+        alert_body: "Done: Codex",
       });
       expect(h.sent[0]?.data.user_id).toBe("user");
     }).pipe(Effect.provide(h.layer));
@@ -546,7 +545,7 @@ describe("Android delivery routing", () => {
         ...state,
         threadId: ThreadId.make(`thread-${i}`),
         threadTitle: longTitle,
-        projectTitle: longTitle,
+        modelTitle: longTitle,
       })),
     );
     const data = fitFcmData({

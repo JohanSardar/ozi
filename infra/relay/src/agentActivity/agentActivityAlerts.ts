@@ -119,7 +119,7 @@ export function alertForActivityRows(
   const first = rows[0];
   if (!first) return null;
   if (rows.length === 1) {
-    return { title: first.threadTitle, body: `${first.status}: ${first.projectTitle}` };
+    return { title: first.threadTitle, body: `${first.status}: ${first.modelTitle}` };
   }
   return {
     title: `${rows.length} agents ${isAttentionPhase(first.phase) ? "need attention" : "finished"}`,

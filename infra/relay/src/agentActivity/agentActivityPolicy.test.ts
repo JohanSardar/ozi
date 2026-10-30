@@ -11,7 +11,6 @@ import {
 const state: RelayAgentActivityState = {
   environmentId: EnvironmentId.make("env"),
   threadId: ThreadId.make("thread"),
-  projectTitle: "Project",
   threadTitle: "Thread",
   modelTitle: "Model",
   headline: "Working",

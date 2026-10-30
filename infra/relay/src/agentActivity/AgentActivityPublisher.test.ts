@@ -23,7 +23,6 @@ const layerPublisher = AgentActivityPublisher.layer.pipe(
 const state: RelayAgentActivityState = {
   environmentId: "env" as RelayAgentActivityState["environmentId"],
   threadId: "thread" as RelayAgentActivityState["threadId"],
-  projectTitle: "Project",
   threadTitle: "Thread",
   modelTitle: "gpt-5.4",
   phase: "running",
