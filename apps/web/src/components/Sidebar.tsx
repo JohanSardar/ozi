@@ -2,6 +2,7 @@ import { useStableCallback } from "../hooks/useStableCallback";
 import { registerSettleAndAdvance } from "../settleAndAdvance";
 import {
   resolveShortcutCommand,
+  shortcutLabelForCommand,
   threadJumpIndexFromCommand,
   threadTraversalDirectionFromCommand,
 } from "../keybindings";
@@ -56,7 +57,10 @@ import {
   useEnvironmentMachines,
   useEnvironmentProviders,
   useEnvironments,
+  usePrimaryEnvironmentId,
 } from "../state/environments";
+import { useEnvironmentQuery } from "../state/query";
+import { ticketList } from "../state/tickets";
 import { useThreadSearch } from "../state/queries";
 import { threadEnvironment } from "../state/threads";
 import { useOrchestrationCommand } from "../state/use-orchestration-command";
@@ -81,6 +85,7 @@ import { SidebarDraftBlock } from "./sidebar/SidebarDraftBlock";
 import { useActiveRowReveal, type SidebarRouteReveal } from "./sidebar/routeReveal";
 import { canShareWithGuestAtom } from "./chat/guestShareAvailability";
 import { Button } from "./ui/button";
+import { Kbd } from "./ui/kbd";
 import { SidebarContent, SidebarGroup, SidebarInput, useSidebar } from "./ui/sidebar";
 import { useOlderSettledShelf, useOlderSettledShelfGrowth } from "../state/olderSettledShelf";
 import { discardComposerDraft } from "../lib/discardComposerDraft";
@@ -121,7 +126,7 @@ function ChatRow(props: {
   return (
     <SortableThreadRow
       thread={thread}
-      variant="card"
+      variant="slim"
       sortableId={key}
       sortableDisabled={false}
       contextDrag={false}
@@ -240,42 +245,45 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     expanded: true,
     visibleCount: settledLimit,
   });
+  const ticketEnvironmentId = usePrimaryEnvironmentId();
+  const ticketChats = new Set(
+    (
+      useEnvironmentQuery(
+        ticketEnvironmentId ? ticketList({ environmentId: ticketEnvironmentId, input: {} }) : null,
+      ).data?.tickets ?? []
+    ).map((ticket) => `${ticketEnvironmentId}:${ticket.origin.chatId}`),
+  );
   const groups = new Map<string, EnvironmentThreadShell[]>([
-    ["Pinned", []],
     ["Needs you", []],
     ["Working", []],
+    ["Pinned", []],
     ["Recent", []],
-    ["Snoozed", []],
-    ["Settled", []],
   ]);
+  const settled: EnvironmentThreadShell[] = [];
   for (const thread of listed) {
     const status = resolveSidebarThreadStatus(thread);
     const section =
-      thread.pinnedAt !== null
-        ? "Pinned"
-        : ["approval", "input", "request"].includes(status)
-          ? "Needs you"
-          : status === "working"
-            ? "Working"
-            : effectiveSnoozed(thread, { now: new Date(now).toISOString() })
-              ? "Snoozed"
-              : thread.settledOverride === "settled"
-                ? "Settled"
-                : "Recent";
-    if (section !== "Settled" || settledShelf.isListed(thread)) groups.get(section)!.push(thread);
+      ticketChats.has(`${thread.environmentId}:${thread.id}`) ||
+      ["approval", "input", "request"].includes(status)
+        ? "Needs you"
+        : status === "working"
+          ? "Working"
+          : thread.pinnedAt !== null
+            ? "Pinned"
+            : "Recent";
+    if (section === "Recent" && thread.settledOverride === "settled") {
+      if (settledShelf.isListed(thread)) settled.push(thread);
+    } else groups.get(section)!.push(thread);
   }
   for (const [label, group] of groups)
     groups.set(
       label,
-      label === "Pinned"
-        ? sortPinnedThreadsByOrderKey(group)
-        : label === "Settled"
-          ? sortSettledThreads(group)
-          : sortActiveThreadsByOrderKey(group),
+      label === "Pinned" ? sortPinnedThreadsByOrderKey(group) : sortActiveThreadsByOrderKey(group),
     );
-  useOlderSettledShelfGrowth(settledShelf, groups.get("Settled")!);
-  const settledCount = (groups.get("Settled")?.length ?? 0) + settledShelf.unloadedCount(threads);
-  groups.set("Settled", groups.get("Settled")!.slice(0, settledLimit));
+  const settledSorted = sortSettledThreads(settled);
+  useOlderSettledShelfGrowth(settledShelf, settledSorted);
+  const settledCount = settledSorted.length + settledShelf.unloadedCount(threads);
+  groups.set("Recent", [...groups.get("Recent")!, ...settledSorted.slice(0, settledLimit)]);
   const onBulkMenu = async (
     refs: ReadonlyArray<ScopedThreadRef>,
     position: { x: number; y: number },
@@ -317,6 +325,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
 
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const terminalFocused = useTerminalFocus();
+  const newChatShortcut = shortcutLabelForCommand(keybindings, "chat.new");
   function onOpen(ref: ScopedThreadRef, event?: MouseEvent) {
     if (event && isSidebarNestedLinkClick(event.target)) return;
     const key = scopedThreadKey(ref);
@@ -485,7 +494,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               <SearchIcon className="size-4" />
               <SidebarInput
                 aria-label="Search chats"
-                placeholder="Search"
+                placeholder="Search chats"
                 value={query}
                 onChange={(event) => setQuery(event.currentTarget.value)}
               />
@@ -500,6 +509,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
             >
               <SquarePenIcon className="size-4" />
               New chat
+              {newChatShortcut ? <Kbd className="ml-auto">{newChatShortcut}</Kbd> : null}
             </Button>
           </SidebarGroup>
         }
