@@ -25,6 +25,8 @@ import {
 } from "@t3tools/contracts";
 import { PiSettings } from "../settings.ts";
 import * as Cause from "effect/Cause";
+import * as Crypto from "effect/Crypto";
+import * as Hex from "effect/encoding/Hex";
 import * as DateTime from "effect/DateTime";
 import * as Deferred from "effect/Deferred";
 import * as Option from "effect/Option";
@@ -421,6 +423,7 @@ interface PiWake {
 export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
   options: PiAdapterV2Options,
 ) {
+  const crypto = yield* Crypto.Crypto;
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
   const agentScope = yield* AgentScope;
   const fileSystem = yield* FileSystem.FileSystem;
@@ -472,7 +475,10 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
         return yield* protocolError(resolvedLaunchArgs.message);
       }
       const inboxPath = `${host.paths.providerStatusCacheDir}/pi-inbox-extension.ts`;
-      const inboxContextPath = `${host.paths.providerStatusCacheDir}/pi-inbox-${encodeURIComponent(input.providerSessionId)}.txt`;
+      const inboxContextKey = yield* crypto
+        .digest("SHA-256", new TextEncoder().encode(input.providerSessionId))
+        .pipe(Effect.map(Hex.encode), Effect.orDie);
+      const inboxContextPath = `${host.paths.providerStatusCacheDir}/pi-inbox-${inboxContextKey}.txt`;
       yield* provideCacheFs(
         fileSystem.writeFileString(inboxPath, `export default ${inbox.toString()}`),
       );
@@ -3363,6 +3369,7 @@ function piUiResponse(
 }
 
 export type PiAdapterV2DriverEnv =
+  | Crypto.Crypto
   | ChildProcessSpawner.ChildProcessSpawner
   | FileSystem.FileSystem
   | IdAllocator.IdAllocatorV2
