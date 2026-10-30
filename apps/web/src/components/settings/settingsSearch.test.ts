@@ -52,9 +52,11 @@ describe("searchSettings", () => {
     expect(searchSettings("glass").map((item) => item.id)).toEqual(["setting-glass-opacity"]);
     expect(searchSettings("panel animations").map((item) => item.id)).toEqual(["panel-animations"]);
     expect(searchSettings("thè\u{1ab0}mes")[0]?.id).toBe("theme");
-    const localeLowerCase = vi.spyOn(String.prototype, "toLocaleLowerCase").mockReturnValue("gıt");
+    const localeLowerCase = vi
+      .spyOn(String.prototype, "toLocaleLowerCase")
+      .mockReturnValue("ınterface");
     try {
-      expect(searchSettings("GIT")[0]?.id).toBe("git-fetch-interval");
+      expect(searchSettings("INTERFACE")[0]?.id).toBe("interface-font");
       expect(localeLowerCase).not.toHaveBeenCalled();
     } finally {
       localeLowerCase.mockRestore();
@@ -128,5 +130,3 @@ describe("searchSettings", () => {
     expect(new Set(ids).size).toBe(ids.length);
   });
 });
-
-describe("settings search targets", () => {});
