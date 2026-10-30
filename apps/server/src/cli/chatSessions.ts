@@ -40,6 +40,7 @@ import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 import { PiSettings } from "@t3tools/provider-pi/settings";
 import { piCliLaunch } from "@t3tools/provider-pi/server";
 import { mergeProviderInstanceEnvironment } from "@t3tools/provider-core/server/instanceEnvironment";
+import * as PiConfig from "../sessions/PiConfig.ts";
 import packageJson from "../../package.json" with { type: "json" };
 
 class SessionCliError extends Schema.TaggedError<SessionCliError>()("SessionCliError", {
@@ -623,7 +624,7 @@ export const piCommand = Command.make("pi", {
             if (flags.json) yield* printJson({ stdout, stderr, exitCode: Number(code) });
             process.exitCode = Number(code);
           }),
-        );
+        ).pipe(Effect.ensuring(PiConfig.invalidate(config.baseDir).pipe(Effect.orDie)));
       }),
     ),
   ),
