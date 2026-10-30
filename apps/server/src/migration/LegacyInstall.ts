@@ -365,6 +365,7 @@ export const layer = Layer.effect(
             return yield* fail(
               "A saved chat uses another provider. Export it before migrating this Pi install.",
             );
+          let nativeHistory: Effect.Success<ReturnType<typeof parseSession>> | undefined;
           if (native !== undefined) {
             if (!contains(fromHome, path.resolve(native)) || !(yield* fs.exists(native)))
               return yield* fail(
@@ -372,7 +373,7 @@ export const layer = Layer.effect(
               );
             if (!files.some((file) => file.from === native && file.to === relocate(native)))
               yield* walk(native, relocate(native));
-            yield* parseSession(yield* fs.readFileString(native));
+            nativeHistory = yield* parseSession(yield* fs.readFileString(native));
             nativeFiles.add(native);
           }
           const thread = decodeThread({
@@ -428,6 +429,24 @@ export const layer = Layer.effect(
             });
           }
           const messages = old.messages.filter((message) => message.threadId === thread.id);
+          if (messages.length === 0 && nativeHistory !== undefined)
+            for (const [index, entry] of nativeHistory.branch.entries()) {
+              if (entry.message?.role !== "user" && entry.message?.role !== "assistant") continue;
+              const text =
+                typeof entry.message.content === "string"
+                  ? entry.message.content
+                  : entry.message.content
+                      .filter((part) => part.type === "text")
+                      .map((part) => part.text ?? "")
+                      .join("\n");
+              events.push(
+                ...messageEvents({
+                  threadId: thread.id,
+                  index,
+                  message: { role: entry.message.role, text, createdAt: entry.timestamp },
+                }),
+              );
+            }
           for (const [index, originalMessage] of messages.entries()) {
             const message = decodeMessage({
               ...originalMessage,

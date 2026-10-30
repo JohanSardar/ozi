@@ -172,6 +172,9 @@ beforeAll(async () => {
   );
   await old.ozi("thread", session.threadId, "--message", "C5 session message");
   await old.wait(session.threadId, "completed", 20);
+  const exported = NodePath.join(old.root, "saved-session.jsonl");
+  await old.ozi("session", "export", session.threadId, "--format", "jsonl", "--output", exported);
+  await old.ozi("session", "import", exported, "--title", "C5 imported session");
   await NodeFSP.writeFile(NodePath.join(old.dataRoot, "adhd.md"), "C5 remembered rule\n");
   await NodeFSP.mkdir(NodePath.join(old.dataRoot, "skills/c5"), { recursive: true });
   await NodeFSP.writeFile(NodePath.join(old.dataRoot, "skills/c5/SKILL.md"), "C5 skill\n");
@@ -209,8 +212,8 @@ it.skipIf(!legacyRepo)(
   async () => {
     const result = await migrate("--dry-run");
     expect(result.status).toBe("dry-run");
-    expect(result.chats).toBe(3);
-    expect(result.piSessions).toBe(3);
+    expect(result.chats).toBe(4);
+    expect(result.piSessions).toBe(4);
     expect(result.schedules).toBe(3);
     expect(result.webhooks).toBe(1);
     expect(result.secretFiles).toBeGreaterThan(0);
@@ -345,6 +348,14 @@ it.skipIf(!legacyRepo)(
       const session = sessions.find(
         (entry: { title: string }) => entry.title === "C5 saved session",
       );
+      const imported = sessions.find(
+        (entry: { title: string }) => entry.title === "C5 imported session",
+      );
+      expect(
+        (await run("thread", "show", imported.threadId)).messages.some(
+          (message: { text: string }) => message.text.includes("C5 session message"),
+        ),
+      ).toBe(true);
       const resumed = await run("print", "C5 resumed", "--thread", session.threadId);
       expect(resumed.text).toBe("C5 native context resumed");
       expect(
