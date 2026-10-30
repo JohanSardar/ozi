@@ -1095,6 +1095,8 @@ const SidebarThreadRow = memo(function SidebarThreadRow(props: SidebarThreadRowP
                         <AlarmClockIcon aria-hidden className="size-3" />
                         {props.snoozeWakeLabelText}
                       </span>
+                    ) : status === "working" ? (
+                      <Spinner aria-label="Working" size="sm" tone="muted" />
                     ) : (inFolder ? isWokeStatus : isWoke) ? (
                       <Tooltip>
                         <TooltipTrigger

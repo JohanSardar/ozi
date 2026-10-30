@@ -1,9 +1,10 @@
-import { ChartNoAxesColumnIcon, SettingsIcon } from "lucide-react";
+import { SettingsIcon, UserRoundIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { memo } from "react";
 import { Link, useNavigate } from "@tanstack/react-router";
 
 import { useEnvironmentIdentificationMode } from "../../hooks/useSettings";
+import { useEnvironments, usePrimaryEnvironmentId } from "../../state/environments";
 import { cn } from "../../lib/utils";
 import { T3Wordmark } from "../T3Wordmark";
 import {
@@ -148,35 +149,33 @@ function SidebarUtilityItem({
 const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
   const navigate = useNavigate();
   const { isMobile, setOpenMobile } = useSidebar();
-  const closeMobileSidebar = () => {
-    if (isMobile) {
-      setOpenMobile(false);
-    }
-  };
+  const environmentId = usePrimaryEnvironmentId();
+  const environmentLabel = useEnvironments().environments.find(
+    (environment) => environment.environmentId === environmentId,
+  )?.label;
   const handleSettingsClick = () => {
-    closeMobileSidebar();
-    void navigate({ to: "/settings" });
-  };
-
-  const handleUsageClick = () => {
     if (isMobile) {
       setOpenMobile(false);
     }
-    void navigate({ to: "/usage" });
+    void navigate({ to: "/settings" });
   };
 
   return (
     <SidebarMenu className="flex-row items-center">
-      <SidebarUtilityItem icon={<SettingsIcon />} label="Settings" onClick={handleSettingsClick} />
-
-      <SidebarUtilityItem
-        icon={<ChartNoAxesColumnIcon />}
-        label="Usage"
-        onClick={handleUsageClick}
-      />
-
+      <SidebarMenuItem className="flex min-w-0 flex-1 items-center">
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-primary-foreground">
+          <UserRoundIcon className="size-4" />
+        </span>
+        <span className="ml-2 flex min-w-0 flex-col text-sm leading-tight">
+          <span>You</span>
+          {environmentLabel ? (
+            <span className="truncate text-xs text-muted-foreground">{environmentLabel}</span>
+          ) : null}
+        </span>
+      </SidebarMenuItem>
       <SidebarThreadUndoNotice />
       <SidebarUpdatePill />
+      <SidebarUtilityItem icon={<SettingsIcon />} label="Settings" onClick={handleSettingsClick} />
     </SidebarMenu>
   );
 });
