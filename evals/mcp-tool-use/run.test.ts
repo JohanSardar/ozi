@@ -90,7 +90,6 @@ it("passes a good run and names every rule a bad run breaks", () => {
     shellMustNot: ["\\bsleep\\b"],
     textMust: ["t3-thread://v2/"],
     textMustNot: ["Paste .*token"],
-    linked: ["~/pull/124"],
   };
   const good: SampleRun = {
     calls: [
@@ -103,7 +102,6 @@ it("passes a good run and names every rule a bad run breaks", () => {
     ],
     text: "Started <t3-thread://v2/eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee/11111111-1111-4111-8111-111111111111>. Do not paste a token.",
     stopReason: "end_turn",
-    linked: ["https://github.com/acme/app/pull/124"],
   };
   assert.deepEqual(failed(expect, good), []);
 
@@ -132,7 +130,6 @@ it("passes a good run and names every rule a bad run breaks", () => {
     "shellMustNot /\\bsleep\\b/",
     "textMust /t3-thread://v2//",
     "textMustNot /Paste .*token/",
-    "linked ~/pull/124",
   ]);
 });
 
@@ -302,30 +299,6 @@ it("answers simple mocked commands itself and gives the simulator the sample's h
     history?.text,
     '<call>Bash {"command":"git push"}</call>\n<output>\npushed\n</output>\n\nNew call:\n<call>Bash {"command":"git push && gh pr create --fill"}</call>',
   );
-});
-
-it("links a PR a shell command created, as T3 does, but not one it only read", () => {
-  const base = buildBase(template, { model: "claude-sonnet-5-5", keepUserInstructions: false });
-  const bash = (command: string, result: string) => ({ tool: "Bash", input: { command }, result });
-  const sample = makeSample(
-    {
-      ...childCase,
-      setup: {
-        ...childCase.setup,
-        priorTurns: [
-          {
-            role: "assistant",
-            toolCalls: [
-              bash("gh pr create --fill", "https://github.com/acme/app/pull/124"),
-              bash("gh pr view 123 --json url -q .url", "https://github.com/acme/app/pull/123"),
-            ],
-          },
-        ],
-      },
-    },
-    base,
-  );
-  assert.deepEqual([...sample.linked], ["https://github.com/acme/app/pull/124"]);
 });
 
 it("reads the tool output from the simulator's JSON reply", () => {

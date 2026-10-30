@@ -101,8 +101,6 @@ export type SampleRun = {
   stopReason: string;
   /** The agent's final answer: its last response's text, if it ended its turn. */
   readonly finalText?: string;
-  /** PRs linked to the thread when the sample ends, by the agent or by T3. */
-  readonly linked?: ReadonlyArray<string>;
 };
 
 const Rest = [Schema.Record(Schema.String, Schema.Unknown)] as const;
@@ -142,8 +140,6 @@ const McpToolUseExpect = Schema.Struct({
   /** Case-sensitive regexes on the agent's visible text. */
   textMust: Schema.optional(Schema.Array(Schema.String)),
   textMustNot: Schema.optional(Schema.Array(Schema.String)),
-  /** Each entry matches a PR URL linked at the end, as `args` values match. */
-  linked: Schema.optional(Schema.Array(Schema.String)),
 });
 
 /**
@@ -474,6 +470,7 @@ export const buildBase = (
     (value) =>
       options.keepUserInstructions || !value.includes("Codebase and user instructions are"),
   );
+  const gitStatusAt = reminders.findIndex((value) => value.includes("# gitStatus"));
   // Claude Code sends no schema for tools it only names. Web tools get their usual one, the
   // rest load open.
   const open = { type: "object", additionalProperties: true };
@@ -627,7 +624,7 @@ const codexMessages = (messages: ReadonlyArray<ApiMessage>): Array<Block> =>
 type ShellEntry = { readonly tool: string; readonly input: unknown; readonly output: string };
 /**
  * One sample's state. ToolSearch adds loaded schemas to `tools`, like Claude Code. `shell` is the
- * history the simulator keeps consistent with; `linked` and `nextTask` do the same for T3 results.
+ * history the simulator keeps consistent with; `nextTask` does the same for T3 results.
  */
 type Sample = {
   readonly testCase: McpToolUseCase;
@@ -636,7 +633,6 @@ type Sample = {
   readonly repo: string;
   readonly shell: Array<ShellEntry>;
   readonly shellUsage: Usage;
-  readonly linked: Set<string>;
   readonly codeStore: Record<string, unknown>;
   nextTask: number;
 };
@@ -646,9 +642,6 @@ const SHELL_TOOLS = new Set(["Bash", "Read", "Edit", "Write", "WebFetch"]);
 export const makeSample = (testCase: McpToolUseCase, base: Base): Sample => {
   const prior = testCase.setup.priorTurns ?? [];
   const priorCalls = prior.flatMap((turn) => turn.toolCalls ?? []);
-  const urls = priorCalls.flatMap((call) =>
-    ["watch_pull_request"].includes(call.tool) && isRecord(call.input) ? [] : [],
-  );
   const taskNumbers = [...valueText(prior).matchAll(/task-(\d+)/g)].map((match) =>
     Number(match[1]),
   );
@@ -662,10 +655,45 @@ export const makeSample = (testCase: McpToolUseCase, base: Base): Sample => {
     repo: testCase.setup.world?.repo ?? "acme/app",
     shell,
     shellUsage: emptyUsage(),
-    linked: new Set([...urls, ...shell.flatMap()]),
     codeStore: {},
     nextTask: Math.max(0, ...taskNumbers) + 1,
   };
+};
+
+// Main's history under every case's world.
+const MAIN_COMMITS = [
+  { sha: "9f2c1ab", subject: "feat(web): show the model name in the thread header" },
+  { sha: "4e7d2c0", subject: "fix(server): retry provider start once on ENOENT" },
+  { sha: "b81f3d9", subject: "chore: update dependencies" },
+];
+
+/**
+ * The gitStatus Claude Code shows when a session starts, built from the case's world. Commits and
+ * a branch that the prior turns made (their tool results show it) came later, so they are left out.
+ */
+const gitStatus = ({ setup }: McpToolUseCase) => {
+  const prior = valueText(setup.priorTurns ?? []);
+  const branch = setup.world?.branch ?? "main";
+  const commits = [...(setup.world?.commits ?? []), ...MAIN_COMMITS].filter(
+    (commit) => !prior.includes(` ${commit.sha}] `),
+  );
+  return [
+    "As you answer the user's questions, you can use the following context:",
+    "# gitStatus",
+    "This is the git status at the start of the conversation. Note that this status is a snapshot in time, and will not update during the conversation.",
+    "",
+    `Current branch: ${prior.includes(`Switched to a new branch '${branch}'`) ? "main" : branch}`,
+    "",
+    "Main branch (you will usually use this for PRs): main",
+    "",
+    "Status:",
+    setup.world?.status || "(clean)",
+    "",
+    "Recent commits:",
+    ...commits.slice(0, 5).map((commit) => `${commit.sha} ${commit.subject}`),
+    "",
+    "Claude Code attached this context automatically; it isn't part of the user's message. It describes the user's own account and workspace, so they don't need it reported back.",
+  ].join("\n");
 };
 
 const findTool = (base: Base, bare: string) =>
@@ -698,7 +726,7 @@ export const buildMessages = (sample: Sample) => {
       : undefined,
     context,
   ];
-  const reminders = base.reminders.toSpliced(0, reminder(gitStatus(testCase)));
+  const reminders = [reminder(gitStatus(testCase)), ...base.reminders];
   push("user", ...reminders, ...notes.flatMap((note) => (note ? [reminder(note)] : [])));
   const toolSearch = findTool(base, "ToolSearch")?.name ?? "ToolSearch";
   let nextId = 0;
@@ -929,9 +957,6 @@ const searchTools = (base: Base, query: string, max: number) => {
   return found.toSorted((a, b) => hits(b).length - hits(a).length).slice(0, max);
 };
 
-const SUBAGENT_WATCH_ERROR =
-  "This thread is a subagent, so it cannot watch pull requests. Its parent thread owns the pull request: finish your task and report back instead.";
-
 /** Result for a native tool the case does not mock, other than shell, file, and web tools. */
 const nativeResult = (name: string, input: Readonly<Record<string, unknown>>) => {
   const skill = valueText(input.skill);
@@ -1044,7 +1069,6 @@ const simulate = Effect.fn("evaluateMcpToolUse.simulate")(function* (
   if (call.tool === "Bash" && output === "") output = "(Bash completed with no output)";
   const entry = { ...call, output };
   sample.shell.push(entry);
-  for (const url of createdPullRequests(entry)) sample.linked.add(url);
   return output;
 });
 
@@ -1084,19 +1108,15 @@ const answerToolCall = Effect.fn("evaluateMcpToolUse.answerToolCall")(function* 
       call.id,
       name === "orchestrator_capabilities"
         ? capabilities(sample, mock)
-        : withProductFields(name, mock, testCase.setup.role === "delegated-child"),
+        : withProductFields(name, mock),
     );
   if (isT3Name(call.name)) {
-    // T3 refuses a watch from a delegated child.
-    if (name === "watch_pull_request" && testCase.setup.role === "delegated-child") {
-      return failed(SUBAGENT_WATCH_ERROR);
-    }
     const value = t3Default(sample, name, input);
     return toolResult(
       call.id,
       name === "orchestrator_capabilities"
         ? capabilities(sample, value)
-        : withProductFields(name, value, testCase.setup.role === "delegated-child"),
+        : withProductFields(name, value),
     );
   }
   if (call.name === "clock__curr_time")
@@ -1153,7 +1173,6 @@ export const gradeSample = (expect: McpToolUseCase["expect"], run: SampleRun) =>
   const add = (check: string, pass: boolean) => checks.push({ check, pass });
   const calls = run.calls.map((call) => ({ ...call, input: withOptionsObject(call.input) }));
   const count = (tool: string) => calls.filter((call) => call.tool === tool).length;
-  // `tool` may list alternatives, as in "link_pull_request|watch_pull_request".
   const found = ({ tool, args = {} }: McpToolUseCall) =>
     calls.some((call) => tool.split("|").includes(call.tool) && matches(args, call.input));
   const label = ({ tool, args }: McpToolUseCall) => (args ? `${tool} ${valueText(args)}` : tool);
@@ -1184,8 +1203,6 @@ export const gradeSample = (expect: McpToolUseCase["expect"], run: SampleRun) =>
     add(`shellMustNot /${p}/`, !shell.some((c) => test(p, c)));
   for (const p of expect.textMust ?? []) add(`textMust /${p}/`, test(p, run.text));
   for (const p of expect.textMustNot ?? []) add(`textMustNot /${p}/`, !test(p, run.text));
-  const isLinked = (url: string) => (run.linked ?? []).some((at) => matches(url, at));
-  for (const url of expect.linked ?? []) add(`linked ${url}`, isLinked(url));
   return checks;
 };
 
@@ -1530,7 +1547,6 @@ const runSample = Effect.fn("evaluateMcpToolUse.runSample")(function* (
     text: said.join("\n\n"),
     stopReason,
     finalText,
-    linked: [...sample.linked],
     usage,
     shellUsage: sample.shellUsage,
     transcript: input ? transcript : messages.slice(start),
