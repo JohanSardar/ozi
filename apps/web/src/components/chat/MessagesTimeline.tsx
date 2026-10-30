@@ -1565,7 +1565,7 @@ function TurnFoldTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "turn-
   );
 
   return (
-    <div className="group/timeline-row border-b border-border/60 pb-2 pe-0.5 pt-1">
+    <div className="group/timeline-row pb-1 pe-0.5 pt-1">
       <div className="relative flex items-center gap-1">
         <button
           type="button"
@@ -1573,13 +1573,13 @@ function TurnFoldTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "turn-
           data-scroll-anchor-ignore
           onClick={toggle}
           aria-busy={loading}
-          className="flex cursor-pointer select-none items-center gap-1 rounded-md px-1 text-sm leading-relaxed text-muted-foreground tabular-nums transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70"
+          className="-ms-1.5 flex h-6.5 cursor-pointer select-none items-center gap-1.5 rounded-md ps-1.5 pe-2 text-sm text-muted-foreground tabular-nums transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring/70"
         >
+          <MorphIcon className="size-3.5" icon={row.expanded ? ChevronDown : ChevronRight} />
           <span>
             {row.label}
             {error ? ` · ${error}` : ""}
           </span>
-          <MorphIcon className="size-3.5" icon={row.expanded ? ChevronDown : ChevronRight} />
         </button>
         <TimelineRowTimestamp
           createdAt={row.createdAt}

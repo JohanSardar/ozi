@@ -1269,7 +1269,7 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
   @variant dark {
     --background: #000;
     --foreground: #f1f3f7;
-    --card: #000;
+    --card: color-mix(in srgb, var(--color-neutral-950) 97%, var(--color-white));
     --card-foreground: var(--foreground);
     --accent: #191a1d;
     --accent-foreground: #f7f9ff;

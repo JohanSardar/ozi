@@ -73,7 +73,10 @@ import {
   extendReplacementRangeForTrailingSpace,
   replaceTextRange,
 } from "../../composer-logic";
-import { DEFAULT_COMPOSER_PLACEHOLDER } from "../../composerPlaceholder";
+import {
+  DEFAULT_COMPOSER_PLACEHOLDER,
+  DRAFT_COMPOSER_PLACEHOLDER,
+} from "../../composerPlaceholder";
 import {
   deriveComposerSendState,
   getAntigravitySendBlockReason,
@@ -3043,7 +3046,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                   aria-label="Expand composer"
                 >
                   {prompt.trim() ||
-                    (showProviderUnavailable ? "Enable a provider in Settings" : "Ask anything...")}
+                    (showProviderUnavailable
+                      ? "Enable a provider in Settings"
+                      : DEFAULT_COMPOSER_PLACEHOLDER)}
                 </button>
                 {collapsedComposerImagePreviews}
                 <button
@@ -3214,8 +3219,10 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                               : showProviderUnavailable
                                 ? "Enable a provider in Settings to send a message"
                                 : runningSendHint
-                                  ? `${followUpBehavior === "queue" ? "Queue" : "Steer"}, or ${alternateSendShortcutLabel} to ${alternateComposerDispatchAction(followUpBehavior)}…`
-                                  : DEFAULT_COMPOSER_PLACEHOLDER
+                                  ? `${followUpBehavior === "queue" ? "Queue" : "Steer"} Ozi, or ${alternateSendShortcutLabel} to ${alternateComposerDispatchAction(followUpBehavior)}…`
+                                  : draftId !== null
+                                    ? DRAFT_COMPOSER_PLACEHOLDER
+                                    : DEFAULT_COMPOSER_PLACEHOLDER
                     }
                     disabled={
                       environmentSelectionRequired ||

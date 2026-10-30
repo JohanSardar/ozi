@@ -253,7 +253,7 @@ export function SettingsSidebarNav({ pathname }: { pathname: string }) {
                 onBlur={() => {
                   if (!isSearching) setCompactSearchOpen(false);
                 }}
-                placeholder="Search"
+                placeholder="Search settings"
                 aria-label="Search settings"
                 role="combobox"
                 aria-autocomplete="list"

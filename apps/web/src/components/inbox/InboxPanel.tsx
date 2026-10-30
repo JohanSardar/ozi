@@ -2,7 +2,14 @@ import { useAtomValue } from "@effect/atom-react";
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import type { EnvironmentId, Ticket } from "@t3tools/contracts";
 import { useNavigate } from "@tanstack/react-router";
-import { InboxIcon, PanelRightIcon } from "lucide-react";
+import {
+  ArrowUpIcon,
+  CheckIcon,
+  InboxIcon,
+  Maximize2Icon,
+  PanelRightIcon,
+  SearchIcon,
+} from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { useThreadRouteRef } from "../../hooks/useThreadRouteTarget";
@@ -321,14 +328,17 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks }) {
           </>
         ) : (
           <>
-            <Input
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search archive"
-              aria-label="Search archive"
-              className="mt-3 mb-2.5"
-            />
+            <div className="relative mt-3 mb-2.5">
+              <SearchIcon className="pointer-events-none absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                type="search"
+                value={search}
+                onChange={(event) => setSearch(event.target.value)}
+                placeholder="Search archive"
+                aria-label="Search archive"
+                className="ps-7"
+              />
+            </div>
             {archived.map((ticket) => (
               <button
                 key={ticket.id}
@@ -382,6 +392,11 @@ function TicketRow(props: {
 }) {
   const { ticket, hooks } = props;
   const [reply, setReply] = useState("");
+  const send = () => {
+    if (!reply.trim() || !hooks.reply) return;
+    hooks.reply(ticket, reply.trim());
+    setReply("");
+  };
   return (
     <article
       ref={
@@ -420,30 +435,42 @@ function TicketRow(props: {
             </div>
           ) : null}
           <div className="mt-2.5 flex items-center gap-2">
-            <Input
-              value={reply}
-              onChange={(event) => setReply(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key !== "Enter" || event.shiftKey || !reply.trim() || !hooks.reply)
-                  return;
-                event.preventDefault();
-                hooks.reply(ticket, reply.trim());
-                setReply("");
-              }}
-              placeholder="Reply…"
-              aria-label={`Reply to ${ticket.title}`}
-              className="flex-1"
-            />
+            <div className="relative flex-1">
+              <Input
+                value={reply}
+                onChange={(event) => setReply(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter" || event.shiftKey) return;
+                  event.preventDefault();
+                  send();
+                }}
+                placeholder="Reply…"
+                aria-label={`Reply to ${ticket.title}`}
+                className="bg-background pe-8"
+              />
+              {reply.trim() ? (
+                <Button
+                  size="icon-xs"
+                  aria-label="Send reply"
+                  className="absolute end-1 top-1/2 -translate-y-1/2"
+                  onClick={send}
+                >
+                  <ArrowUpIcon />
+                </Button>
+              ) : null}
+            </div>
             <Button variant="outline" onClick={props.onGotIt}>
+              <CheckIcon />
               Got it
             </Button>
           </div>
           <Button
             variant="ghost-muted"
             size="xs"
-            className="mt-2 -ml-2"
+            className="mt-2 -ml-1.5"
             onClick={props.onOpenDetails}
           >
+            <Maximize2Icon />
             Open details
           </Button>
         </div>

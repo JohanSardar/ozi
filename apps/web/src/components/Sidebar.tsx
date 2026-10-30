@@ -490,7 +490,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
         className="min-h-full"
         fixedHeader={
           <SidebarGroup>
-            <div className="flex items-center gap-2">
+            <div className="flex h-8.5 items-center gap-2 rounded-md border border-transparent bg-sidebar-row-hover px-2.5 text-sidebar-muted-foreground transition-colors focus-within:border-input focus-within:bg-background">
               <SearchIcon className="size-4" />
               <SidebarInput
                 aria-label="Search chats"
@@ -582,7 +582,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               {[...groups].map(([label, rows]) =>
                 rows.length === 0 ? null : (
                   <li key={label} className="list-none">
-                    <h2 className="px-2 pb-1 pt-3 text-xs font-medium text-muted-foreground">
+                    <h2 className="px-2.5 pb-1.5 pt-3.5 text-xs font-medium text-muted-foreground/70">
                       {label}
                     </h2>
                     <ul>

@@ -2,6 +2,7 @@ import { resolveAssetUrl } from "@t3tools/client-runtime/state/assets";
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import type { EnvironmentId, ThreadId, Ticket } from "@t3tools/contracts";
 import { useNavigate } from "@tanstack/react-router";
+import { ArrowUpIcon, CheckIcon, ReplyIcon } from "lucide-react";
 import { useState, type ReactNode } from "react";
 
 import { useRelativeTimeState } from "../../hooks/useRelativeTimeState";
@@ -198,31 +199,41 @@ export function TicketWindow(props: {
           </Section>
         </DialogPanel>
         <footer className="shrink-0 border-t px-4 pt-3 pb-4">
-          <p className="mx-1 mb-2 text-xs text-muted-foreground">
-            Your reply goes to{" "}
-            <b className="font-medium text-foreground">
+          <p className="mx-1 mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+            <ReplyIcon className="size-3.5" />
+            <span className="shrink-0">Your reply goes to</span>
+            <b className="min-w-0 truncate font-medium text-foreground">
               {(routeRef && titles.get(routeRef.threadId)) || "New chat"}
-            </b>{" "}
-            with this ticket attached
+            </b>
+            <span className="shrink-0">with this ticket attached</span>
           </p>
           <div className="flex items-end gap-2">
-            <Textarea
-              autoFocus
-              rows={1}
-              value={reply}
-              onChange={(event) => setReply(event.target.value)}
-              onKeyDown={(event) => {
-                if (event.key !== "Enter" || event.shiftKey) return;
-                event.preventDefault();
-                send();
-              }}
-              placeholder="Reply…"
-              aria-label={`Reply to ${ticket.title}`}
-              className="flex-1 [&_textarea]:min-h-9"
-            />
-            <Button disabled={!reply.trim()} onClick={send}>
-              Send
-            </Button>
+            <div className="relative flex-1">
+              <Textarea
+                autoFocus
+                rows={1}
+                value={reply}
+                onChange={(event) => setReply(event.target.value)}
+                onKeyDown={(event) => {
+                  if (event.key !== "Enter" || event.shiftKey) return;
+                  event.preventDefault();
+                  send();
+                }}
+                placeholder="Reply…"
+                aria-label={`Reply to ${ticket.title}`}
+                className="[&_textarea]:min-h-9 [&_textarea]:pe-9"
+              />
+              {reply.trim() ? (
+                <Button
+                  size="icon-xs"
+                  aria-label="Send reply"
+                  className="absolute end-1.5 bottom-1.5"
+                  onClick={send}
+                >
+                  <ArrowUpIcon />
+                </Button>
+              ) : null}
+            </div>
             {open ? (
               <Button
                 variant="outline"
@@ -231,6 +242,7 @@ export function TicketWindow(props: {
                   onClose();
                 }}
               >
+                <CheckIcon />
                 Got it
               </Button>
             ) : null}
