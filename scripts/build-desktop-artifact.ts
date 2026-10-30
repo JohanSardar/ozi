@@ -953,6 +953,7 @@ interface ResolvedBuildOptions {
 
 interface StagePackageJson {
   readonly name: string;
+  readonly productName: string;
   readonly version: string;
   readonly buildVersion: string;
   readonly oziCommitHash: string;
@@ -3747,6 +3748,7 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
       : undefined;
   const stagePackageJson: StagePackageJson = {
     name: "ozi",
+    productName: resolveDesktopProductName(appVersion),
     version: appVersion,
     buildVersion: appVersion,
     oziCommitHash: commitHash,
