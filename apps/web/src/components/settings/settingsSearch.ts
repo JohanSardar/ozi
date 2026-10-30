@@ -420,7 +420,7 @@ export const SETTINGS_SEARCH_ITEMS = [
   },
   {
     id: "new-threads",
-    title: "New threads",
+    title: "New chats",
     to: "/settings/chat",
     scope: "environment-defaults",
     searchTerms: ["default chat model draft"],
