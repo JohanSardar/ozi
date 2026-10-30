@@ -2,10 +2,7 @@ import type { ContextMenuItem } from "@t3tools/contracts";
 import type { SnoozePreset } from "@t3tools/client-runtime/state/thread-settled";
 
 export type ThreadActionMenuId =
-  | "new-thread-on-branch"
-  | "filter-by-project"
-  | "turn-into-project"
-  | "project-settings"
+  | "new-chat"
   | "pin"
   | "unpin"
   | "settle"
@@ -27,41 +24,10 @@ export type ThreadActionMenuId =
   | "archive"
   | "delete";
 
-export type DraftActionMenuId = "copy" | "copy-path" | "project-settings" | "discard";
-
-export function buildDraftActionMenuItems(options: {
-  readonly hasPath: boolean;
-  readonly hasProject: boolean;
-}): ReadonlyArray<ContextMenuItem<DraftActionMenuId>> {
-  return [
-    {
-      id: "copy",
-      label: "Copy",
-      icon: "copy",
-      disabled: !options.hasPath,
-      children: options.hasPath
-        ? [{ id: "copy-path" as const, label: "Path", icon: "folder" }]
-        : [],
-    },
-    ...(options.hasProject
-      ? [{ id: "project-settings" as const, label: "Project settings", icon: "settings" }]
-      : []),
-    {
-      id: "discard",
-      label: "Discard draft",
-      icon: "trash",
-      destructive: true,
-      separatorBefore: true,
-    },
-  ];
-}
+export type DraftActionMenuId = "copy" | "copy-path" | "discard";
 
 export interface ThreadActionMenuState {
   readonly canOperate: boolean;
-  readonly projectFilter: {
-    readonly label: string;
-    readonly isActive: boolean;
-  } | null;
   readonly isPinned: boolean;
   readonly isSettled: boolean;
   readonly autoSettleEnabled: boolean;
@@ -80,15 +46,12 @@ export interface ThreadActionMenuState {
   readonly snoozePresets: ReadonlyArray<SnoozePreset>;
   /** Guest links need their own grant, so the caller checks it instead of `canOperate`. */
   readonly canShareWithGuest?: boolean;
-  /** A No project thread with its own folder, on a server that can promote it. */
-  readonly canTurnIntoProject?: boolean;
 }
 
 /** Local navigation, read markers, and copying remain available to read-only clients. */
 export function threadActionRequiresOperate(action: ThreadActionMenuId): boolean {
   return ![
-    "new-thread-on-branch",
-    "project-settings",
+    "new-chat",
     "mark-unread",
     "share-guest",
     "copy",
@@ -154,27 +117,6 @@ export function buildThreadActionMenuItems(
     ...(state.canShareWithGuest
       ? [{ id: "share-guest" as const, label: "Share with guest", icon: "user-plus" }]
       : []),
-    ...(state.projectFilter
-      ? [
-          {
-            id: "filter-by-project" as const,
-            label: state.projectFilter.isActive
-              ? "Show all projects"
-              : `Filter by ${state.projectFilter.label}`,
-            icon: "folder-tree",
-          },
-        ]
-      : []),
-    ...(state.canTurnIntoProject
-      ? [
-          {
-            id: "turn-into-project" as const,
-            label: "Turn into project",
-            icon: "folder-plus",
-            disabled: state.isRunning,
-          },
-        ]
-      : []),
     ...(state.supports.autoSettleOptOut
       ? [
           {
@@ -207,7 +149,6 @@ export function buildThreadActionMenuItems(
         { id: "copy-thread-id", label: "Thread ID", icon: "hash" },
       ],
     },
-    { id: "project-settings", label: "Project settings", icon: "settings" },
     {
       id: "archive",
       label: "Archive thread",

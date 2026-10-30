@@ -1,10 +1,4 @@
-import { scopeProjectRef } from "@t3tools/client-runtime/environment";
-import type {
-  EnvironmentId,
-  ModelSelection,
-  ProjectId,
-  ScopedProjectRef,
-} from "@t3tools/contracts";
+import type { EnvironmentId, ModelSelection } from "@t3tools/contracts";
 import type { ComposerThreadDraftState } from "../composerDraftStore";
 
 type ComposerModelSelectionState = Pick<
@@ -14,12 +8,11 @@ type ComposerModelSelectionState = Pick<
 
 interface ThreadContextLike {
   environmentId: EnvironmentId;
-  projectId: ProjectId;
 }
 
 interface NewThreadHandler {
   (
-    projectRef: ScopedProjectRef,
+    environmentId: EnvironmentId,
     options?: {
       workingDirectory?: string | null;
     },
@@ -29,7 +22,7 @@ interface NewThreadHandler {
 export interface ChatThreadActionContext {
   readonly activeDraftThread: ThreadContextLike | null;
   readonly activeThread: ThreadContextLike | undefined;
-  readonly defaultProjectRef: ScopedProjectRef | null;
+  readonly defaultEnvironmentId: EnvironmentId | null;
   readonly handleNewThread: NewThreadHandler;
 }
 
@@ -57,29 +50,26 @@ export function hasExplicitComposerModelSelection(
   );
 }
 
-export function resolveThreadActionProjectRef(
+export function resolveThreadActionEnvironmentId(
   context: ChatThreadActionContext,
-): ScopedProjectRef | null {
+): EnvironmentId | null {
   if (context.activeThread) {
-    return scopeProjectRef(context.activeThread.environmentId, context.activeThread.projectId);
+    return context.activeThread.environmentId;
   }
   if (context.activeDraftThread) {
-    return scopeProjectRef(
-      context.activeDraftThread.environmentId,
-      context.activeDraftThread.projectId,
-    );
+    return context.activeDraftThread.environmentId;
   }
-  return context.defaultProjectRef;
+  return context.defaultEnvironmentId;
 }
 
 export async function startNewThreadFromContext(
   context: ChatThreadActionContext,
 ): Promise<boolean> {
-  const projectRef = resolveThreadActionProjectRef(context);
-  if (!projectRef) {
+  const environmentId = resolveThreadActionEnvironmentId(context);
+  if (!environmentId) {
     return false;
   }
 
-  await context.handleNewThread(projectRef);
+  await context.handleNewThread(environmentId);
   return true;
 }

@@ -20,7 +20,6 @@ import {
 import { pipe } from "effect/Function";
 
 import { RegistryContext } from "@effect/atom-react";
-import { ProjectChipIconRasterizer } from "./native/ProjectChipIconImages";
 import { ThreadArrangementHost } from "./features/threads/ThreadArrangementSheet";
 import * as Dialog from "./components/ui/Dialog";
 import { CloudAuthProvider } from "./features/cloud/CloudAuthProvider";
@@ -240,7 +239,6 @@ function AppContent() {
                 />
                 <Dialog.Host />
                 <ThreadArrangementHost />
-                <ProjectChipIconRasterizer />
               </NativeLayoutMetricsProvider>
             </GlobalVoiceInputControl>
             <OverlayPortalHost />

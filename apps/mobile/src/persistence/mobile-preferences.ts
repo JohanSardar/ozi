@@ -5,11 +5,7 @@ import * as Option from "effect/Option";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
 import * as Semaphore from "effect/Semaphore";
-import {
-  EnvironmentId,
-  type ProviderInstanceId,
-  type SidebarProjectGroupingMode,
-} from "@t3tools/contracts";
+import { EnvironmentId, type ProviderInstanceId } from "@t3tools/contracts";
 import type { AndroidNavigationStyle } from "../lib/androidNavigationStyle";
 import type { ComposerEnterBehavior } from "../lib/composerEnterBehavior";
 import type { FollowUpBehavior } from "../lib/followUpBehavior";
@@ -24,7 +20,6 @@ const PREFERENCES_FALLBACK_KEY = "ozi.preferences.fallback";
 
 const ThreadListFilters = Schema.Struct({
   environmentId: Schema.NullOr(EnvironmentId),
-  projectKey: Schema.NullOr(Schema.String),
 });
 export type ThreadListFilters = typeof ThreadListFilters.Type;
 
@@ -49,11 +44,6 @@ export type WorkspaceSelections = typeof WorkspaceSelections.Type;
 
 const isThreadListFilters = Schema.is(ThreadListFilters);
 const isWorkspaceSelections = Schema.is(WorkspaceSelections);
-const ThreadProject = Schema.Struct({
-  environmentId: Schema.NonEmptyString,
-  projectId: Schema.NonEmptyString,
-});
-const isThreadProject = Schema.is(ThreadProject);
 
 export interface Preferences {
   readonly navigationTabOrder?: readonly string[];
@@ -73,18 +63,13 @@ export interface Preferences {
   /** Unset means on: crash reports are sent unless the user turns them off. */
   readonly crashReportsEnabled?: boolean;
   readonly connectOnboardingOptOutAccounts?: ReadonlyArray<string>;
-  readonly collapsedProjectGroups?: readonly string[];
   readonly dismissedDatabaseStorageNotices?: readonly string[];
   /** Hardware Return behavior is iOS-only. */
   readonly composerEnterBehavior?: ComposerEnterBehavior;
   readonly followUpBehavior?: FollowUpBehavior;
   readonly microphones?: ReadonlyArray<MicrophoneEntry>;
-  readonly projectGroupingEnabled?: boolean;
-  readonly projectGroupingMode?: SidebarProjectGroupingMode;
   readonly planModeEnabled?: boolean;
   readonly workingShelfEnabled?: boolean;
-  readonly useLastProjectForNewThreads?: boolean;
-  readonly lastThreadProject?: typeof ThreadProject.Type;
   readonly modelFavorites?: ReadonlyArray<{
     readonly provider: ProviderInstanceId;
     readonly model: string;
@@ -151,17 +136,12 @@ function sanitizePreferences(parsed: Preferences): Preferences {
     mathRenderingEnabled?: boolean;
     crashReportsEnabled?: boolean;
     connectOnboardingOptOutAccounts?: ReadonlyArray<string>;
-    collapsedProjectGroups?: readonly string[];
     dismissedDatabaseStorageNotices?: readonly string[];
     composerEnterBehavior?: ComposerEnterBehavior;
     followUpBehavior?: FollowUpBehavior;
     microphones?: ReadonlyArray<MicrophoneEntry>;
-    projectGroupingEnabled?: boolean;
-    projectGroupingMode?: SidebarProjectGroupingMode;
     planModeEnabled?: boolean;
     workingShelfEnabled?: boolean;
-    useLastProjectForNewThreads?: boolean;
-    lastThreadProject?: typeof ThreadProject.Type;
     modelFavorites?: Preferences["modelFavorites"];
     threadListSettledShelfExpanded?: boolean;
     threadListSnoozedShelfExpanded?: boolean;
@@ -234,11 +214,6 @@ function sanitizePreferences(parsed: Preferences): Preferences {
       (account): account is string => typeof account === "string",
     );
   }
-  if (Array.isArray(parsed.collapsedProjectGroups)) {
-    preferences.collapsedProjectGroups = parsed.collapsedProjectGroups.filter(
-      (key): key is string => typeof key === "string",
-    );
-  }
   if (Array.isArray(parsed.dismissedDatabaseStorageNotices)) {
     preferences.dismissedDatabaseStorageNotices = parsed.dismissedDatabaseStorageNotices.filter(
       (value): value is string => typeof value === "string",
@@ -259,27 +234,11 @@ function sanitizePreferences(parsed: Preferences): Preferences {
         : [];
     });
   }
-  if (typeof parsed.projectGroupingEnabled === "boolean") {
-    preferences.projectGroupingEnabled = parsed.projectGroupingEnabled;
-  }
-  if (
-    parsed.projectGroupingMode === "repository" ||
-    parsed.projectGroupingMode === "repository_path" ||
-    parsed.projectGroupingMode === "separate"
-  ) {
-    preferences.projectGroupingMode = parsed.projectGroupingMode;
-  }
   if (typeof parsed.planModeEnabled === "boolean") {
     preferences.planModeEnabled = parsed.planModeEnabled;
   }
   if (typeof parsed.workingShelfEnabled === "boolean") {
     preferences.workingShelfEnabled = parsed.workingShelfEnabled;
-  }
-  if (typeof parsed.useLastProjectForNewThreads === "boolean") {
-    preferences.useLastProjectForNewThreads = parsed.useLastProjectForNewThreads;
-  }
-  if (isThreadProject(parsed.lastThreadProject)) {
-    preferences.lastThreadProject = parsed.lastThreadProject;
   }
   if (Array.isArray(parsed.modelFavorites)) {
     preferences.modelFavorites = parsed.modelFavorites.filter(

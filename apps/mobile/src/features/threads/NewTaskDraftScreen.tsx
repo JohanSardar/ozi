@@ -8,8 +8,6 @@ import { useWorkspaceBackNavigation } from "../workspace/useAndroidWorkspaceNavi
 import { submittedThreadParams } from "./thread-route-state";
 import { ThreadScreenBinding, ThreadScreenFallback } from "./ThreadScreenHost";
 import { draftThreadShell } from "./draft-thread-shell";
-import { useRememberThreadProject } from "./useRememberThreadProject";
-import { scopedProjectKey } from "../../lib/scopedEntities";
 import { connectionTone } from "../connection/connectionTone";
 import { AppBar } from "../../components/ui/AppBar";
 import { ThreadId } from "@t3tools/contracts";
@@ -18,16 +16,9 @@ import * as Dialog from "../../components/ui/Dialog";
 import { useAtomValue } from "@effect/atom-react";
 import { AsyncResult } from "effect/reactivity";
 import { settlePromise, squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
-import {
-  CommonActions,
-  StackActions,
-  useIsFocused,
-  useNavigation,
-  usePreventRemove,
-  useRoute,
-} from "@react-navigation/native";
-import { useEffect, useRef, useState } from "react";
-import { Platform, Pressable, View } from "react-native";
+import { CommonActions, useNavigation, usePreventRemove, useRoute } from "@react-navigation/native";
+import { useRef, useState } from "react";
+import { Platform, View } from "react-native";
 import { ScreenScrollView as ScrollView } from "../../components/ui/ScreenScrollView";
 import { KeyboardController } from "react-native-keyboard-controller";
 
@@ -41,7 +32,6 @@ import { ComposerEditor, type ComposerEditorHandle } from "../../components/Comp
 import { composerContextImportsAtom } from "../../state/use-composer-drafts";
 import { abortComposerDraftOperations } from "../../state/composerDraftOperations";
 import { composerContextSendBlockReason } from "../../lib/composerContext";
-import { ComposerInlineControl } from "../../components/ComposerToolbar";
 import { AppText as Text } from "../../components/ui/AppText";
 import { threadContextsOutsideEnvironment } from "@t3tools/shared/composerContextReferences";
 
@@ -52,7 +42,7 @@ import {
   getComposerDraftSnapshot,
   scheduleUnusedComposerAttachmentCleanup,
 } from "../../state/use-composer-drafts";
-import { useEnvironmentServerConfig, useProjects } from "../../state/entities";
+import { useEnvironmentServerConfig } from "../../state/entities";
 import {
   describeUnavailableModelSelection,
   isModelSelectionUnavailable,
@@ -68,7 +58,6 @@ import {
   nextEnvironmentId,
   useHardwareKeyboardCommand,
 } from "../keyboard/hardwareKeyboardCommands";
-import { resolveDraftProjectSelection } from "./new-task-project-selection";
 import { incomingShareImports, useIncomingShare } from "../sharing/IncomingShareProvider";
 import { idleShareFlagAtom, idleShareImportPhaseAtom } from "./incomingShareImport";
 import { newTaskFlowKey } from "./new-task-flow-state";
@@ -77,9 +66,8 @@ import { appAtomRegistry } from "../../state/atom-registry";
 import { readEnvironmentScope, useEnvironmentScope } from "../../state/session";
 
 export function NewTaskDraftScreen(props: {
-  readonly initialProjectRef?: {
+  readonly initialEnvironmentRef?: {
     readonly environmentId?: string;
-    readonly projectId?: string;
     readonly workingDirectory?: string | null;
     readonly cloning?: boolean;
   };
@@ -87,62 +75,20 @@ export function NewTaskDraftScreen(props: {
   readonly incomingShareId?: string;
 }) {
   const [creationMetadata] = useState(makeTurnCommandMetadata);
-  const projects = useProjects();
   const flow = useNewTaskFlow();
   const navigation = useNavigation();
-  const isFocused = useIsFocused();
   const goBack = useWorkspaceBackNavigation("threads");
   const currentRoute = useRoute();
   const flowKey = newTaskFlowKey(currentRoute);
   const { getShare, isLoading: isIncomingShareInboxLoading } = useIncomingShare();
-  const { projectScopes, selectedProject, selectedProjectKey, setProject } = flow;
-  // selectedProject falls back to the environment's first project; remember only a chosen one.
-  useRememberThreadProject(
-    selectedProject &&
-      selectedProjectKey === scopedProjectKey(selectedProject.environmentId, selectedProject.id)
-      ? selectedProject
-      : null,
-  );
-  const selectedProjectLabel = (() => {
-    if (!selectedProject) return null;
-    const scope = projectScopes.find((candidate) =>
-      candidate.projectRefs.some(
-        (ref) =>
-          ref.environmentId === selectedProject.environmentId &&
-          ref.projectId === selectedProject.id,
-      ),
-    );
-    return scope?.title ?? selectedProject.title;
-  })();
   const { onReconnectEnvironment } = useRemoteConnections();
-  const environmentRuntime = useRemoteEnvironmentRuntime(selectedProject?.environmentId ?? null);
+  const environmentRuntime = useRemoteEnvironmentRuntime(flow.selectedEnvironmentId);
   const connectionState = environmentRuntime?.connectionState ?? "offline";
-  const selectedEnvironmentServerConfig = useEnvironmentServerConfig(
-    selectedProject?.environmentId ?? null,
-  );
+  const selectedEnvironmentServerConfig = useEnvironmentServerConfig(flow.selectedEnvironmentId);
   const environmentConnected = connectionState === "connected";
-  const canOperate = useEnvironmentScope(
-    selectedProject?.environmentId ?? null,
-    AuthOrchestrationOperateScope,
-  );
+  const canOperate = useEnvironmentScope(flow.selectedEnvironmentId, AuthOrchestrationOperateScope);
   const promptInputRef = useRef<ComposerEditorHandle>(null);
-  const [isReturningToProjectPicker, setIsReturningToProjectPicker] = useState(false);
   const incomingShare = props.incomingShareId ? getShare(props.incomingShareId) : null;
-  const requestedInitialProjectAvailable = Boolean(
-    props.initialProjectRef?.environmentId &&
-    props.initialProjectRef.projectId &&
-    projects.some(
-      (project) =>
-        project.environmentId === props.initialProjectRef?.environmentId &&
-        project.id === props.initialProjectRef?.projectId,
-    ),
-  );
-  // A route naming a draft that is gone, or whose project is gone, also
-  // returns to the picker.
-  const isRouteDraftMissing =
-    props.draftId !== undefined && flow.missingRouteDraftId === props.draftId;
-  const isProjectPickerReturnActive =
-    (isReturningToProjectPicker && !requestedInitialProjectAvailable) || isRouteDraftMissing;
   const isIncomingShareAwaitingServerConfig = Boolean(
     incomingShare?.attachments.some((attachment) => attachment.type === "file") &&
     selectedEnvironmentServerConfig === null,
@@ -166,24 +112,14 @@ export function NewTaskDraftScreen(props: {
   );
   const shareImportTarget = (() => {
     if (!props.incomingShareId || flowKey === undefined || !flow.draftKey) return null;
-    if (!selectedProject || !incomingShare || isIncomingShareAwaitingServerConfig) return null;
-    const initialEnvironmentId = props.initialProjectRef?.environmentId;
-    const initialProjectId = props.initialProjectRef?.projectId;
-    if (
-      initialEnvironmentId &&
-      initialProjectId &&
-      (selectedProject.environmentId !== initialEnvironmentId ||
-        selectedProject.id !== initialProjectId)
-    ) {
+    if (!flow.selectedEnvironmentId || !incomingShare || isIncomingShareAwaitingServerConfig)
       return null;
-    }
     return {
       flowKey,
       routeKey: currentRoute.key,
       draftKey: flow.draftKey,
       destination: {
-        environmentId: String(selectedProject.environmentId),
-        projectId: String(selectedProject.id),
+        environmentId: String(flow.selectedEnvironmentId),
       },
       shareId: incomingShare.id,
     };
@@ -212,131 +148,22 @@ export function NewTaskDraftScreen(props: {
   const isImportingContext = flow.draftKey ? contextImports[flow.draftKey] === true : false;
   const isComposerInteractionLocked =
     isIncomingShareTransferPending || flow.submitting || isImportingContext;
-  const { environments, selectedEnvironmentId, switchEnvironment, switchingToEnvironmentId } = flow;
+  const { environments, selectedEnvironmentId, switchEnvironment } = flow;
   const cycleEnvironment = () => {
     if (isComposerInteractionLocked) return true;
-    const next = nextEnvironmentId(environments, switchingToEnvironmentId ?? selectedEnvironmentId);
+    const next = nextEnvironmentId(environments, selectedEnvironmentId);
     if (next !== null) void switchEnvironment(next);
     return true;
   };
   const cycleEnvironmentCommands = environments.length > 1 ? (["cycleHost"] as const) : [];
   useHardwareKeyboardCommand(cycleEnvironmentCommands, cycleEnvironment);
-  const composerWorkspaceCwd =
-    (flow.selectedProject?.workspaceRoot ?? null ?? selectedProject?.workspaceRoot) || null;
-  const preventRemove =
-    (isIncomingShareHoldingRoute && !isProjectPickerReturnActive) || flow.submitting;
+  const composerWorkspaceCwd = flow.workingDirectory;
+  const preventRemove = isIncomingShareHoldingRoute || flow.submitting;
   usePreventRemove(preventRemove, () => undefined);
   const isIncomingShareReady =
     !props.incomingShareId ||
     (hasImportedIncomingShare && !incomingShare) ||
     isIncomingShareUnavailable;
-  const appliedInitialProjectKeyRef = useRef<string | null>(null);
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- ends the picker return once the project arrives, else replaces the route with the picker next frame
-  useEffect(() => {
-    if (isReturningToProjectPicker && requestedInitialProjectAvailable) {
-      // oxlint-disable-next-line react/set-state-in-effect -- Ends the return-to-picker flow once the requested project arrives from the catalog.
-      setIsReturningToProjectPicker(false);
-    }
-    if (!isProjectPickerReturnActive) {
-      return;
-    }
-    // Wait for usePreventRemove to disable before replacing, or the transfer guard swallows the fallback.
-    const frame = requestAnimationFrame(() => {
-      navigation.dispatch(
-        StackActions.replace("NewTaskProject", { incomingShareId: props.incomingShareId }),
-      );
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [
-    isProjectPickerReturnActive,
-    isReturningToProjectPicker,
-    navigation,
-    props.incomingShareId,
-    requestedInitialProjectAvailable,
-  ]);
-
-  const lastInitialProjectRefRef = useRef(props.initialProjectRef);
-  const initialPickerRef = useRef<"open" | "dismissed" | null>(null);
-
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- applies the route or catalog project to the draft once projects load, or opens the picker in the navigator
-  useEffect(() => {
-    if (props.draftId) {
-      return;
-    }
-    if (lastInitialProjectRefRef.current !== props.initialProjectRef) {
-      lastInitialProjectRefRef.current = props.initialProjectRef;
-      appliedInitialProjectKeyRef.current = null;
-    }
-    const initialEnvironmentId = props.initialProjectRef?.environmentId;
-    const initialProjectId = props.initialProjectRef?.projectId;
-    if (initialEnvironmentId && initialProjectId) {
-      const directProject =
-        projects.find(
-          (project) =>
-            project.environmentId === initialEnvironmentId && project.id === initialProjectId,
-        ) ?? null;
-
-      if (directProject) {
-        // Apply the route project once or picker changes would immediately revert.
-        const directProjectKey = `${directProject.environmentId}:${directProject.id}`;
-        if (appliedInitialProjectKeyRef.current === directProjectKey) {
-          return;
-        }
-        appliedInitialProjectKeyRef.current = directProjectKey;
-        if (
-          selectedProject?.environmentId === directProject.environmentId &&
-          selectedProject.id === directProject.id
-        ) {
-          return;
-        }
-        setProject(directProject);
-        return;
-      }
-
-      if (projects.length > 0) {
-        // oxlint-disable-next-line react/set-state-in-effect -- Route-driven project resolution starts the return-to-picker flow when no project matches.
-        setIsReturningToProjectPicker(true);
-      }
-      return;
-    }
-
-    const selection = resolveDraftProjectSelection(selectedProjectKey, projects, projectScopes, {
-      incomingShareId: props.incomingShareId,
-      pickerClosed: initialPickerRef.current === "open" && isFocused,
-    });
-    if (selection.kind === "preserve") {
-      initialPickerRef.current = null;
-      return;
-    }
-    if (selection.kind === "select") {
-      setProject(selection.project);
-      return;
-    }
-    if (selection.kind === "dismiss") {
-      initialPickerRef.current = "dismissed";
-      goBack();
-      return;
-    }
-    // Open the first picker once; catalog updates must not push it again over a cancelled draft.
-    if (initialPickerRef.current !== null) {
-      return;
-    }
-    initialPickerRef.current = "open";
-    navigation.dispatch(CommonActions.navigate("NewTaskProject"));
-  }, [
-    goBack,
-    isFocused,
-    projectScopes,
-    projects,
-    props.initialProjectRef,
-    props.incomingShareId,
-    props.draftId,
-    navigation,
-    selectedProject,
-    selectedProjectKey,
-    setProject,
-  ]);
-
   const selectedEnvironmentLabel =
     flow.environments.find(
       (environment) => environment.environmentId === flow.selectedEnvironmentId,
@@ -354,10 +181,9 @@ export function NewTaskDraftScreen(props: {
   });
 
   async function handleStart(): Promise<import("@t3tools/contracts").MessageId | null> {
-    const selectedProject = flow.selectedProject;
     const draftKey = flow.draftKey;
     if (
-      !selectedProject ||
+      !flow.selectedEnvironmentId ||
       !draftKey ||
       !isIncomingShareReady ||
       isImportingShare ||
@@ -367,7 +193,7 @@ export function NewTaskDraftScreen(props: {
     }
     if (
       environmentConnected &&
-      !readEnvironmentScope(selectedProject.environmentId, AuthOrchestrationOperateScope)
+      !readEnvironmentScope(flow.selectedEnvironmentId, AuthOrchestrationOperateScope)
     ) {
       return null;
     }
@@ -377,21 +203,15 @@ export function NewTaskDraftScreen(props: {
       resolveSelectableModelSelection(
         selectedEnvironmentServerConfig,
         draft.modelSelection ?? null,
-        selectedProject.id,
       ) ?? flow.selectedModel;
     if (modelSelection === null) return null;
     if (
       environmentConnected &&
-      isModelSelectionUnavailable(
-        selectedEnvironmentServerConfig,
-        modelSelection,
-        selectedProject.id,
-      )
+      isModelSelectionUnavailable(selectedEnvironmentServerConfig, modelSelection)
     ) {
       const { title, detail } = describeUnavailableModelSelection(
         selectedEnvironmentServerConfig,
         modelSelection,
-        selectedProject.id,
       );
       Dialog.alert(title, detail);
       return null;
@@ -413,7 +233,7 @@ export function NewTaskDraftScreen(props: {
     const strandedThread = threadContextsOutsideEnvironment({
       text: draft.text,
       records: draft.context?.records ?? [],
-      environmentId: selectedProject.environmentId,
+      environmentId: flow.selectedEnvironmentId,
       linkedEnvironments: flow.linkedEnvironments,
     })[0];
     if (strandedThread) {
@@ -467,7 +287,7 @@ export function NewTaskDraftScreen(props: {
 
   // Keep the current surface until the local draft selection is ready. Publishing
   // an empty loading surface here flashes between two already-cached threads.
-  if (!selectedProject) return null;
+  if (!flow.selectedEnvironmentId) return null;
 
   const setupBlockReason =
     isIncomingShareReady && !isImportingShare
@@ -475,14 +295,6 @@ export function NewTaskDraftScreen(props: {
         ? "Starting the thread…"
         : null
       : "Wait for shared content to finish importing.";
-  const chooseProject = () => {
-    if (isComposerInteractionLocked) {
-      return;
-    }
-    promptInputRef.current?.blur();
-    void KeyboardController.dismiss({ animated: true });
-    navigation.navigate("NewTaskProject", { incomingShareId: props.incomingShareId });
-  };
   const openContextPicker = (routeName: "NewTaskEnvironment") => {
     if (isComposerInteractionLocked) {
       return;
@@ -506,52 +318,11 @@ export function NewTaskDraftScreen(props: {
       The shared content is no longer in the inbox. You can continue editing this task draft.
     </Text>
   ) : null;
-  const hero = flow.isScratchDraft ? (
-    <View className="items-center gap-2 px-6" testID="new-task-hero">
+  const hero = (
+    <View className="items-center gap-6 px-6" testID="new-task-hero">
       <Text className="text-center text-2xl font-t3-medium tracking-tight text-foreground">
         What should we work on?
       </Text>
-      <View className="flex-row flex-wrap items-center justify-center gap-x-1">
-        <ComposerInlineControl
-          accessibilityHint="Opens the project picker"
-          accessibilityLabel="No project"
-          chevronDirection="right"
-          disabled={isComposerInteractionLocked}
-          icon="folder"
-          label="No project"
-          onPress={chooseProject}
-        />
-        {environmentControl}
-      </View>
-      {shareUnavailableNotice}
-    </View>
-  ) : (
-    <View className="items-center gap-6 px-6" testID="new-task-hero">
-      <View className="w-full items-center gap-1.5">
-        <Text className="text-center text-2xl font-t3-medium tracking-tight text-foreground">
-          What should we build
-        </Text>
-        <View className="max-w-full flex-row items-center justify-center">
-          <Text className="text-2xl font-t3-medium tracking-tight text-foreground">in </Text>
-          <Pressable
-            accessibilityHint="Opens the project picker"
-            accessibilityLabel={selectedProjectLabel ?? selectedProject.title}
-            accessibilityRole="button"
-            disabled={isComposerInteractionLocked}
-            onPress={chooseProject}
-            className="min-w-0 max-w-[250px] border-b border-foreground-muted active:opacity-65"
-          >
-            <Text
-              className="text-2xl font-t3-medium tracking-tight text-foreground"
-              numberOfLines={1}
-            >
-              {selectedProjectLabel ?? selectedProject.title}
-            </Text>
-          </Pressable>
-          <Text className="text-2xl font-t3-medium tracking-tight text-foreground">?</Text>
-        </View>
-      </View>
-
       {environmentControl}
       {shareUnavailableNotice}
     </View>
@@ -628,22 +399,19 @@ export function NewTaskDraftScreen(props: {
     );
   }
   const thread = draftThreadShell({
-    environmentId: selectedProject.environmentId,
-    projectId: selectedProject.id,
+    environmentId: flow.selectedEnvironmentId,
     threadId: ThreadId.make(creationMetadata.threadId),
     modelSelection: flow.selectedModel,
     runtimeMode: flow.runtimeMode,
     interactionMode: flow.interactionMode,
-    workingDirectory: flow.selectedProject?.workspaceRoot ?? null,
+    workingDirectory: flow.workingDirectory,
     createdAt: creationMetadata.createdAt,
   });
   return (
     <>
       <ThreadScreenBinding
-        environmentId={selectedProject.environmentId}
-        header={
-          <DraftThreadHeader thread={thread} project={selectedProject} cwd={composerWorkspaceCwd} />
-        }
+        environmentId={flow.selectedEnvironmentId}
+        header={<DraftThreadHeader thread={thread} cwd={composerWorkspaceCwd} />}
         draftMode={{
           content: heroViewport,
           controls: environmentControl,
@@ -682,7 +450,7 @@ export function NewTaskDraftScreen(props: {
         isSavingQueuedEdit={false}
         onCancelQueuedRunEdit={() => {}}
         onRemoveQueuedEditAttachment={() => {}}
-        projectWorkspaceRoot={selectedProject.workspaceRoot}
+        workspaceRoot={composerWorkspaceCwd ?? ""}
         threadCwd={composerWorkspaceCwd}
         selectedThreadQueueCount={0}
         queuedMessages={[]}
@@ -699,7 +467,7 @@ export function NewTaskDraftScreen(props: {
         onStopThread={() => {}}
         onResumeQueue={null}
         onSendMessage={handleStart}
-        onReconnectEnvironment={() => onReconnectEnvironment(selectedProject.environmentId)}
+        onReconnectEnvironment={() => onReconnectEnvironment(thread.environmentId)}
         canSwitchThreadProvider
         onUpdateThreadInteractionMode={flow.planModeEnabled ? flow.setInteractionMode : undefined}
         onRespondToApproval={async () => {}}

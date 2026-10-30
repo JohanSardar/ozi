@@ -10,8 +10,6 @@ import {
   type OrchestrationV2ProviderCapabilities,
   type OrchestrationV2ProviderSession,
   type OrchestrationV2ProviderThread,
-  type Project,
-  ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
   type ProviderSessionId,
@@ -34,7 +32,6 @@ import { HttpServer } from "effect/http";
 
 import { ProviderWorkspaceMissingError } from "../provider/Errors.ts";
 import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
-import * as ProjectService from "../project/ProjectService.ts";
 import * as McpProviderSession from "@t3tools/provider-core/server/mcpSession";
 import * as McpProviderSessions from "@t3tools/provider-core/server/McpProviderSessions";
 import * as McpSessionRegistry from "../mcp/McpSessionRegistry.ts";
@@ -224,15 +221,9 @@ function makeThreadCreatedEvent(input: {
   readonly idAllocator: IdAllocator.IdAllocatorV2["Service"];
   readonly threadId: ThreadId;
   readonly now: DateTime.Utc;
-  readonly projectId?: ProjectId;
   readonly delegatedBy?: ThreadId;
 }) {
   return Effect.gen(function* () {
-    const projectId =
-      input.projectId ??
-      (yield* input.idAllocator.allocate.project({
-        fixtureName: "provider-session-manager",
-      }));
     const providerThreadId = input.idAllocator.derive.providerThread({
       driver: CODEX_DRIVER,
       nativeThreadId: "native-thread",
@@ -241,7 +232,6 @@ function makeThreadCreatedEvent(input: {
       createdBy: "user",
       creationSource: "web",
       id: input.threadId,
-      projectId,
       title: "Provider session manager",
       providerInstanceId: modelSelection.instanceId,
       modelSelection,
@@ -487,7 +477,6 @@ function layerTest(input: {
   readonly spawnBeforeOpen?: boolean;
   readonly scopeCloseReached?: Deferred.Deferred<void>;
   readonly serverSettingsLayer?: ReturnType<typeof ServerSettings.layerTest>;
-  readonly projectServiceLayer?: Layer.Layer<ProjectService.ProjectService>;
 }) {
   const layerConfiguredEventSink =
     input.flakyReleaseWrites !== undefined
@@ -565,7 +554,6 @@ function layerTest(input: {
           layerConfiguredMcpRegistry,
           layerTestStores,
           ...(input.serverSettingsLayer === undefined ? [] : [input.serverSettingsLayer]),
-          ...(input.projectServiceLayer === undefined ? [] : [input.projectServiceLayer]),
         ),
       ),
     ),
@@ -613,21 +601,6 @@ const layerPausingMcpRegistry = (pause: {
     }),
   ).pipe(Layer.provide(layerTestMcpRegistry));
 
-function makeBrowserAccessProject(projectId: ProjectId): Project {
-  return {
-    id: projectId,
-    title: "Browser access project",
-    workspaceRoot: process.cwd(),
-    faviconPath: null,
-    projectIcon: null,
-    defaultModelSelection: null,
-    scripts: [],
-    createdAt: "2026-01-01T00:00:00.000Z",
-    updatedAt: "2026-01-01T00:00:00.000Z",
-    deletedAt: null,
-  };
-}
-
 function runBrowserAccessScenario(input: {
   readonly enableAgentBrowserAccess: boolean;
   readonly projectOverride: boolean;
@@ -641,16 +614,7 @@ function runBrowserAccessScenario(input: {
     const mcpConfigs = yield* Ref.make<
       ReadonlyArray<McpProviderSession.McpProviderSessionConfig | undefined>
     >([]);
-    const projectId = ProjectId.make("project-provider-session-manager-browser-access");
     const threadId = ThreadId.make("thread-provider-session-manager-browser-access");
-    const layerProjectService = Layer.mock(ProjectService.ProjectService)({
-      getById: (requestedProjectId) =>
-        Effect.succeed(
-          input.projectExists === false
-            ? Option.none()
-            : Option.some(makeBrowserAccessProject(requestedProjectId)),
-        ),
-    });
 
     yield* Effect.gen(function* () {
       const eventSink = yield* EventSink.EventSinkV2;
@@ -668,7 +632,6 @@ function runBrowserAccessScenario(input: {
               idAllocator,
               threadId,
               now,
-              projectId,
               ...(input.delegatedBy === undefined ? {} : { delegatedBy: input.delegatedBy }),
             }),
           ],
@@ -683,15 +646,8 @@ function runBrowserAccessScenario(input: {
           state,
           idleTimeoutMs: 1_000,
           mcpConfigs,
-          projectServiceLayer: layerProjectService,
           serverSettingsLayer: ServerSettings.layerTest({
             enableAgentBrowserAccess: input.enableAgentBrowserAccess,
-            projectSettingsOverrides: {
-              [projectId]: {
-                enableAgentBrowserAccess: input.projectOverride,
-                ...(input.deviceOverride === undefined ? {} : {}),
-              },
-            },
           }),
         }),
       ),
@@ -1149,19 +1105,8 @@ it.effect(
   () =>
     Effect.gen(function* () {
       const state = yield* Ref.make(emptyState);
-      const projectId = ProjectId.make("project-provider-session-manager-shared-stopped-start");
       const holdProjectRead = yield* Ref.make(false);
       const projectReadHeld = yield* Deferred.make<void>();
-      const projectServiceLayer = Layer.mock(ProjectService.ProjectService)({
-        getById: (requestedProjectId) =>
-          Ref.get(holdProjectRead).pipe(
-            Effect.flatMap((hold) =>
-              hold
-                ? Deferred.succeed(projectReadHeld, undefined).pipe(Effect.andThen(Effect.never))
-                : Effect.succeedSome(makeBrowserAccessProject(requestedProjectId)),
-            ),
-          ),
-      });
       yield* Effect.gen(function* () {
         const eventSink = yield* EventSink.EventSinkV2;
         const idAllocator = yield* IdAllocator.IdAllocatorV2;
@@ -1175,8 +1120,8 @@ it.effect(
         });
         yield* eventSink.write({
           events: [
-            yield* makeThreadCreatedEvent({ idAllocator, threadId: threadA, now, projectId }),
-            yield* makeThreadCreatedEvent({ idAllocator, threadId: threadB, now, projectId }),
+            yield* makeThreadCreatedEvent({ idAllocator, threadId: threadA, now }),
+            yield* makeThreadCreatedEvent({ idAllocator, threadId: threadB, now }),
           ],
         });
         const runtime = yield* manager.open({
@@ -1232,10 +1177,7 @@ it.effect(
           layerTest({
             state,
             idleTimeoutMs: 1000,
-            projectServiceLayer,
-            serverSettingsLayer: ServerSettings.layerTest({
-              projectSettingsOverrides: { [projectId]: { enableAgentBrowserAccess: true } },
-            }),
+            serverSettingsLayer: ServerSettings.layerTest({}),
           }),
         ),
       );
@@ -2116,7 +2058,6 @@ const openSessionWithBackgroundCommand = (fixtureName: string) =>
     const now = yield* DateTime.now;
     const threadId = yield* idAllocator.allocate.thread({
       fixtureName,
-      projectId: yield* idAllocator.allocate.project({ fixtureName }),
     });
     const providerSessionId = yield* idAllocator.allocate.providerSession({
       providerInstanceId: modelSelection.instanceId,
@@ -2272,12 +2213,8 @@ it.effect(
         const manager = yield* ProviderSessionManager.ProviderSessionManagerV2;
         const projectionStore = yield* ProjectionStore.ProjectionStoreV2;
         const now = yield* DateTime.now;
-        const projectId = yield* idAllocator.allocate.project({
-          fixtureName: "provider-session-manager-busy-during-check",
-        });
         const threadId = yield* idAllocator.allocate.thread({
           fixtureName: "provider-session-manager-busy-during-check",
-          projectId,
         });
         const providerSessionId = yield* idAllocator.allocate.providerSession({
           providerInstanceId: modelSelection.instanceId,
@@ -2390,12 +2327,8 @@ it.effect("ProviderSessionManagerV2 releases sessions when provider event stream
       const manager = yield* ProviderSessionManager.ProviderSessionManagerV2;
       const projectionStore = yield* ProjectionStore.ProjectionStoreV2;
       const now = yield* DateTime.now;
-      const projectId = yield* idAllocator.allocate.project({
-        fixtureName: "provider-session-manager-stream-error",
-      });
       const threadId = yield* idAllocator.allocate.thread({
         fixtureName: "provider-session-manager-stream-error",
-        projectId,
       });
       const providerSessionId = yield* idAllocator.allocate.providerSession({
         providerInstanceId: modelSelection.instanceId,
@@ -2444,12 +2377,8 @@ it.effect("ProviderSessionManagerV2 marks pending runtime requests non-live on r
       const manager = yield* ProviderSessionManager.ProviderSessionManagerV2;
       const projectionStore = yield* ProjectionStore.ProjectionStoreV2;
       const now = yield* DateTime.now;
-      const projectId = yield* idAllocator.allocate.project({
-        fixtureName: "provider-session-manager-request-expire",
-      });
       const threadId = yield* idAllocator.allocate.thread({
         fixtureName: "provider-session-manager-request-expire",
-        projectId,
       });
       const providerSessionId = yield* idAllocator.allocate.providerSession({
         providerInstanceId: modelSelection.instanceId,
@@ -2799,12 +2728,8 @@ it.effect.each(["manual_shutdown", "server_shutdown"] as const)(
         const manager = yield* ProviderSessionManager.ProviderSessionManagerV2;
         const projectionStore = yield* ProjectionStore.ProjectionStoreV2;
         const now = yield* DateTime.now;
-        const projectId = yield* idAllocator.allocate.project({
-          fixtureName: "provider-session-manager-request-expire",
-        });
         const threadId = yield* idAllocator.allocate.thread({
           fixtureName: "provider-session-manager-request-expire",
-          projectId,
         });
         const providerSessionId = yield* idAllocator.allocate.providerSession({
           providerInstanceId: modelSelection.instanceId,
@@ -2883,12 +2808,8 @@ it.effect("ProviderSessionManagerV2 persists session-scoped runtime requests wit
       const manager = yield* ProviderSessionManager.ProviderSessionManagerV2;
       const projectionStore = yield* ProjectionStore.ProjectionStoreV2;
       const now = yield* DateTime.now;
-      const projectId = yield* idAllocator.allocate.project({
-        fixtureName: "provider-session-manager-session-request",
-      });
       const threadId = yield* idAllocator.allocate.thread({
         fixtureName: "provider-session-manager-session-request",
-        projectId,
       });
       const providerSessionId = yield* idAllocator.allocate.providerSession({
         providerInstanceId: modelSelection.instanceId,
@@ -2969,16 +2890,11 @@ it.effect(
         const idAllocator = yield* IdAllocator.IdAllocatorV2;
         const manager = yield* ProviderSessionManager.ProviderSessionManagerV2;
         const now = yield* DateTime.now;
-        const projectId = yield* idAllocator.allocate.project({
-          fixtureName: "provider-session-manager-shared-runtime",
-        });
         const firstThreadId = yield* idAllocator.allocate.thread({
           fixtureName: "provider-session-manager-shared-runtime-a",
-          projectId,
         });
         const secondThreadId = yield* idAllocator.allocate.thread({
           fixtureName: "provider-session-manager-shared-runtime-b",
-          projectId,
         });
         const providerSessionId = idAllocator.derive.providerSession({
           providerInstanceId: modelSelection.instanceId,
@@ -3260,16 +3176,11 @@ it.effect(
         const idAllocator = yield* IdAllocator.IdAllocatorV2;
         const manager = yield* ProviderSessionManager.ProviderSessionManagerV2;
         const now = yield* DateTime.now;
-        const projectId = yield* idAllocator.allocate.project({
-          fixtureName: "provider-session-manager-unload-race",
-        });
         const threadId = yield* idAllocator.allocate.thread({
           fixtureName: "provider-session-manager-unload-race-a",
-          projectId,
         });
         const otherThreadId = yield* idAllocator.allocate.thread({
           fixtureName: "provider-session-manager-unload-race-b",
-          projectId,
         });
         const providerSessionId = idAllocator.derive.providerSession({
           providerInstanceId: modelSelection.instanceId,
@@ -3348,16 +3259,11 @@ it.effect(
         const idAllocator = yield* IdAllocator.IdAllocatorV2;
         const manager = yield* ProviderSessionManager.ProviderSessionManagerV2;
         const now = yield* DateTime.now;
-        const projectId = yield* idAllocator.allocate.project({
-          fixtureName: "provider-session-manager-exclusive-runtime",
-        });
         const firstThreadId = yield* idAllocator.allocate.thread({
           fixtureName: "provider-session-manager-exclusive-runtime-a",
-          projectId,
         });
         const secondThreadId = yield* idAllocator.allocate.thread({
           fixtureName: "provider-session-manager-exclusive-runtime-b",
-          projectId,
         });
         const providerSessionId = yield* idAllocator.allocate.providerSession({
           providerInstanceId: modelSelection.instanceId,

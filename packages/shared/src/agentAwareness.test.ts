@@ -1,21 +1,12 @@
 import { describe, expect, it } from "@effect/vitest";
 
-import type {
-  EnvironmentId,
-  OrchestrationV2ThreadShell,
-  Project,
-  ThreadId,
-} from "@t3tools/contracts";
+import type { EnvironmentId, OrchestrationV2ThreadShell, ThreadId } from "@t3tools/contracts";
 import { ProviderInstanceId, RuntimeRequestId } from "@t3tools/contracts";
 import * as DateTime from "effect/DateTime";
 
 import { projectThreadAwarenessV2 } from "./agentAwareness.ts";
 
 const NOW = "2026-05-22T12:00:00.000Z";
-
-const project = {
-  title: "ozi",
-} satisfies Pick<Project, "title">;
 
 describe("projectThreadAwarenessV2", () => {
   const updatedAt = DateTime.makeUnsafe(NOW);
@@ -51,7 +42,6 @@ describe("projectThreadAwarenessV2", () => {
   it("does not announce completion after a manual stop", () => {
     const input = {
       environmentId: "env-1" as EnvironmentId,
-      project,
       thread: v2Thread({ status: "completed" }),
     };
     expect(projectThreadAwarenessV2(input)?.phase).toBe("completed");
@@ -69,7 +59,6 @@ describe("projectThreadAwarenessV2", () => {
       expect(
         projectThreadAwarenessV2({
           environmentId: "env-1" as EnvironmentId,
-          project,
           thread: v2Thread({
             status,
             lineage: {
@@ -87,7 +76,6 @@ describe("projectThreadAwarenessV2", () => {
     expect(
       projectThreadAwarenessV2({
         environmentId: "env-1" as EnvironmentId,
-        project,
         thread: v2Thread({ status: "cancelled", activityRunStatus: "running" }),
       }),
     ).toMatchObject({ phase: "running", headline: "Agent is working" });
@@ -97,7 +85,6 @@ describe("projectThreadAwarenessV2", () => {
     expect(
       projectThreadAwarenessV2({
         environmentId: "env-1" as EnvironmentId,
-        project,
         thread: v2Thread({ status, settledOverride: "settled" }),
       }),
     ).toBeNull();
@@ -109,7 +96,6 @@ describe("projectThreadAwarenessV2", () => {
       expect(
         projectThreadAwarenessV2({
           environmentId: "env-1" as EnvironmentId,
-          project,
           thread: v2Thread({ status, settledOverride: "settled" }),
         }),
       ).toMatchObject({ phase: status === "starting" ? "starting" : "running" });
@@ -122,7 +108,6 @@ describe("projectThreadAwarenessV2", () => {
       expect(
         projectThreadAwarenessV2({
           environmentId: "env-1" as EnvironmentId,
-          project,
           thread: v2Thread({
             status: "completed",
             settledOverride: "settled",
@@ -143,7 +128,6 @@ describe("projectThreadAwarenessV2", () => {
     expect(
       projectThreadAwarenessV2({
         environmentId: "env-1" as EnvironmentId,
-        project,
         thread: v2Thread({
           status: "completed",
           settledOverride: "settled",
@@ -173,7 +157,6 @@ describe("projectThreadAwarenessV2", () => {
     expect(
       projectThreadAwarenessV2({
         environmentId: "env-1" as EnvironmentId,
-        project,
         thread: v2Thread({ status: "completed", pendingBackgroundTasks: tasks }),
       }),
     ).toMatchObject({ phase });
@@ -182,7 +165,6 @@ describe("projectThreadAwarenessV2", () => {
   it("reports an async question as input only after the working run completes", () => {
     const input = {
       environmentId: "env-1" as EnvironmentId,
-      project,
       thread: v2Thread({
         pendingRuntimeRequest: {
           id: RuntimeRequestId.make("request-async"),
@@ -205,7 +187,6 @@ describe("projectThreadAwarenessV2", () => {
     expect(
       projectThreadAwarenessV2({
         environmentId: "env-1" as EnvironmentId,
-        project,
         thread: v2Thread({
           pendingRuntimeRequest: {
             id: RuntimeRequestId.make("request-auth-refresh"),

@@ -24,7 +24,7 @@ import {
 import { useEffect, useEffectEvent, useRef, useState } from "react";
 
 import {
-  BROWSER_HISTORY_MAX_ENTRIES_PER_PROJECT,
+  BROWSER_HISTORY_MAX_ENTRIES_PER_ENVIRONMENT,
   recordVisitForThread,
   removeUrlForThread,
   useThreadRecentHistory,
@@ -155,7 +155,7 @@ export function PreviewView({
   const previewState = useThreadPreviewState(threadRef);
   const recentHistoryEntries = useThreadRecentHistory(
     threadRef,
-    BROWSER_HISTORY_MAX_ENTRIES_PER_PROJECT,
+    BROWSER_HISTORY_MAX_ENTRIES_PER_ENVIRONMENT,
   );
   const miniPlayerTabId = usePreviewMiniPlayerStore((state) =>
     selectThreadPreviewMiniPlayerTabId(state.byThreadKey, threadRef),

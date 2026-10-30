@@ -14,7 +14,7 @@ export function restoredNewTaskDraftKey(messageId: string): string {
 
 export function parseLegacyNewTaskDraftKey(
   draftKey: string,
-): { readonly environmentId: string; readonly projectId: string } | null {
+): { readonly environmentId: string } | null {
   if (!isNewTaskDraftKey(draftKey)) {
     return null;
   }
@@ -23,5 +23,5 @@ export function parseLegacyNewTaskDraftKey(
   if (separator <= 0 || separator === scope.length - 1) {
     return null;
   }
-  return { environmentId: scope.slice(0, separator), projectId: scope.slice(separator + 1) };
+  return { environmentId: scope.slice(0, separator) };
 }

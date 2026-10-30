@@ -3,7 +3,7 @@ import {
   IDLE_COMPACTION_TEXT,
   MessageId,
   resolveIdleCompaction,
-  resolveProjectProviderInstanceEnabled,
+  isConfiguredProviderInstanceEnabled,
   type RunId,
   type ThreadId,
 } from "@t3tools/contracts";
@@ -51,11 +51,7 @@ export const make = Effect.gen(function* () {
         if (
           resolveIdleCompaction(current, records.thread.providerInstanceId) !==
             "beforeCacheExpires" ||
-          !resolveProjectProviderInstanceEnabled(
-            current,
-            records.thread.projectId,
-            records.thread.providerInstanceId,
-          )
+          !isConfiguredProviderInstanceEnabled(current, records.thread.providerInstanceId)
         )
           return;
         const nowMs = DateTime.toEpochMillis(yield* DateTime.now);

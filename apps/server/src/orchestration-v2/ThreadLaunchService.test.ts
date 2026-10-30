@@ -1,16 +1,14 @@
-import * as DocumentText from "../provider/DocumentText.ts";
-import * as Scheduler from "../scheduling/Scheduler.ts";
-import * as TerminalManager from "../terminal/Manager.ts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as ServerConfig from "../config.ts";
-import * as ThreadMessageIntake from "./ThreadMessageIntake.ts";
+
+import * as Scheduler from "../scheduling/Scheduler.ts";
+import * as TerminalManager from "../terminal/Manager.ts";
 import { assert, it, vi } from "@effect/vitest";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import {
   CommandId,
   DEFAULT_SERVER_SETTINGS,
   MessageId,
-  ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
   OrchestrationV2ThreadProjectionJson,
@@ -24,14 +22,10 @@ import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Exit from "effect/Exit";
 import * as Layer from "effect/Layer";
-import * as Option from "effect/Option";
 import * as Ref from "effect/Ref";
 import * as Schema from "effect/Schema";
 import * as TestClock from "effect/testing/TestClock";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
-import * as ProjectStore from "./ProjectStore.ts";
-import * as ProjectService from "../project/ProjectService.ts";
-import * as ManagedProjectFolders from "../project/ManagedProjectFolders.ts";
 import * as ProviderRegistryMock from "../provider/testUtils/providerRegistryMock.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as ScheduledTasks from "../scheduledTasks/ScheduledTaskService.ts";
@@ -49,31 +43,10 @@ import * as ThreadTitleRegeneration from "./ThreadTitleRegenerationService.ts";
 import * as ProviderReplayHarness from "./testkit/ProviderReplayHarness.ts";
 import * as RemoteDelegation from "../peer/RemoteDelegation.ts";
 import type * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAdapter";
-
-const projectId = ProjectId.make("project:launch-test");
-const otherProjectId = ProjectId.make("project:launch-other");
 const encodeThreadProjection = Schema.encodeEffect(OrchestrationV2ThreadProjectionJson);
 const modelSelection = {
   instanceId: ProviderInstanceId.make("codex"),
   model: "gpt-5.1-codex",
-} as const;
-const project = {
-  id: projectId,
-  title: "Project",
-  workspaceRoot: "/repo",
-  faviconPath: null,
-  defaultModelSelection: modelSelection,
-  scripts: [],
-  createdAt: "2026-06-20T00:00:00.000Z",
-  updatedAt: "2026-06-20T00:00:00.000Z",
-  deletedAt: null,
-} as const;
-
-const otherProject = {
-  ...project,
-  id: otherProjectId,
-  title: "Other",
-  workspaceRoot: "/other-repo",
 } as const;
 
 const adapter = {
@@ -99,7 +72,6 @@ const claudeAdapter = {
 interface HarnessOptions {
   readonly closeTerminal?: TerminalManager.TerminalManager["Service"]["close"];
   readonly adapters?: ReadonlyArray<ProviderAdapter.ProviderAdapterV2["Service"]>;
-  readonly managedFolders?: Layer.Layer<ManagedProjectFolders.ManagedProjectFolders>;
   readonly generateTitle?: TextGeneration.TextGeneration["Service"]["generateThreadTitle"];
   readonly serverSettings?: Parameters<typeof ServerSettings.layerTest>[0];
   readonly providers?: ReadonlyArray<ServerProvider>;
@@ -126,37 +98,15 @@ function makeHarness(options: HarnessOptions = {}) {
     options.generateTitle ?? (() => Effect.succeed({ title: "Generated title" })),
   );
   const layerExternalServices = Layer.mergeAll(
+    ServerConfig.layerTest(process.cwd(), { prefix: "launch-" }).pipe(
+      Layer.provide(NodeServices.layer),
+    ),
     Layer.mock(TerminalManager.TerminalManager)({ close: closeTerminal }),
-    Layer.succeed(ProjectService.ProjectService, {
-      create: () => Effect.die("unused"),
-      bootstrap: () => Effect.die("unused"),
-      update: () => Effect.die("unused"),
-      delete: () => Effect.die("unused"),
-      listPage: () => Effect.die("unused"),
-      getById: (id) =>
-        Effect.succeed(
-          id === projectId
-            ? Option.some(project)
-            : id === otherProjectId
-              ? Option.some(otherProject)
-              : Option.none(),
-        ),
-      getByWorkspaceRoot: () => Effect.succeedSome(project),
-      snapshot: Effect.die("unused"),
-      getShell: () => Effect.die("unused"),
-      listShells: () => Effect.die("unused"),
-    }),
     Layer.mock(TextGeneration.TextGeneration)({
       generateThreadTitle,
     }),
     layerServerSettings,
     ProviderRegistryMock.layer(options.providers),
-    options.managedFolders ??
-      Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({
-        namedProjectsRoot: "/projects",
-        isScratchProject: () => Effect.succeed(false),
-        folderForThread: () => Effect.succeedNone,
-      }),
   );
   const layerLaunch = ThreadLaunch.layer.pipe(
     Layer.provide(
@@ -168,29 +118,8 @@ function makeHarness(options: HarnessOptions = {}) {
       ),
     ),
   );
-  const layerProjectedProjects = Layer.mock(ProjectStore.ProjectStoreV2)({
-    get: (requestedProjectId) =>
-      Effect.succeed(
-        requestedProjectId === projectId
-          ? Option.some({
-              projectId,
-              title: project.title,
-              workspaceRoot: project.workspaceRoot,
-              defaultModelSelection: project.defaultModelSelection,
-              faviconPath: null,
-              projectIcon: null,
-              scripts: project.scripts,
-              createdAt: project.createdAt,
-              updatedAt: project.updatedAt,
-              deletedAt: project.deletedAt,
-            })
-          : Option.none(),
-      ),
-  });
   const layerTitleRegeneration = ThreadTitleRegeneration.layer.pipe(
-    Layer.provide(
-      Layer.mergeAll(layerThreadManagement, layerProjectedProjects, layerExternalServices),
-    ),
+    Layer.provide(Layer.mergeAll(layerThreadManagement, layerExternalServices)),
   );
   return {
     layer: Layer.mergeAll(
@@ -211,17 +140,14 @@ function launchInput(input: {
   readonly command: string;
   readonly thread: string;
   readonly message?: string;
-  readonly workspace?: ThreadLaunch.ThreadLaunchWorkspaceStrategy;
 }) {
   return {
     commandId: CommandId.make(input.command),
     threadId: ThreadId.make(input.thread),
-    projectId,
     title: "New thread",
     modelSelection,
     runtimeMode: "full-access" as const,
     interactionMode: "default" as const,
-    workspaceStrategy: input.workspace ?? { type: "root" as const },
     ...(input.message === undefined
       ? {}
       : {
@@ -271,9 +197,7 @@ it.effect.each(
         prompt: "Audit performance and crashes.",
         enabled: false,
         schedule: { type: "interval", everyMs: 60_000 },
-        projectId,
         threadId: existing?.threadId ?? null,
-        workspaceStrategy: { type: "root" },
         modelSelection,
         runtimeMode: "full-access",
         interactionMode: "default",
@@ -282,8 +206,7 @@ it.effect.each(
       });
       const result = yield* tasks.runNow({ id: task.id });
       assert.equal(result.task.lastRunStatus, "succeeded");
-      const projectThreads = yield* threads.listProjectThreads({
-        projectId,
+      const projectThreads = yield* threads.listThreads({
         includeSubagents: false,
       });
       const thread =
@@ -328,9 +251,7 @@ it.effect(
         prompt: "Audit performance and crashes.",
         enabled: false,
         schedule: { type: "interval", everyMs: 60_000 },
-        projectId,
         threadId,
-        workspaceStrategy: { type: "root" },
         modelSelection,
         runtimeMode: "full-access",
         interactionMode: "default",
@@ -370,9 +291,7 @@ it.effect("runs a thread-bound automation on the provider the thread uses now", 
       prompt: "Check on the delegated workers.",
       enabled: false,
       schedule: { type: "interval", everyMs: 3_600_000 },
-      projectId,
       threadId: launched.threadId,
-      workspaceStrategy: { type: "root" },
       modelSelection,
       runtimeMode: "full-access",
       interactionMode: "default",
@@ -433,7 +352,7 @@ it.effect.each([" /COMPACT "])(
           creationSource: "web",
           text: "Fix the failing parser",
           attachments: [],
-          dispatchMode: { type: "defer_start" },
+          dispatchMode: { type: "start_immediately" },
         });
         assert.equal(
           (yield* threads.getThreadProjection(launched.threadId)).thread.titleRegeneration
@@ -647,7 +566,6 @@ it.effect("does not update a reused thread title when the initial message is rej
         type: "thread.create",
         commandId: CommandId.make("command:launch:reused-title-failure:create"),
         threadId,
-        projectId,
         title: "Original title",
         modelSelection,
         runtimeMode: "full-access",
@@ -684,43 +602,6 @@ it.effect("does not update a reused thread title when the initial message is rej
     }).pipe(Effect.provide(harness.layer));
   }),
 );
-
-it.effect("replays an accepted launch after the project disables the instance", () => {
-  const harness = makeHarness();
-  return Effect.gen(function* () {
-    const launches = yield* ThreadLaunch.ThreadLaunchService;
-    const settings = yield* ServerSettings.ServerSettingsService;
-    const input = launchInput({
-      command: "command:launch:retry-after-disable",
-      thread: "thread:launch:retry-after-disable",
-      message: "Hello",
-    });
-    const first = yield* launches.launch(input);
-
-    yield* settings.updateSettings({
-      projectSettingsOverrides: {
-        [projectId]: { providerInstances: { [modelSelection.instanceId]: { enabled: false } } },
-      },
-    });
-
-    const retry = yield* launches.launch(input);
-    assert.equal(retry.threadId, first.threadId);
-    assert.isTrue(retry.resumed);
-
-    const fresh = yield* launches
-      .launch(
-        launchInput({
-          command: "command:launch:fresh-after-disable",
-          thread: "thread:launch:fresh-after-disable",
-          message: "Hello",
-        }),
-      )
-      .pipe(Effect.flip);
-    if (fresh._tag !== "ThreadManagementProviderInstanceDisabledError") {
-      assert.fail(`expected ThreadManagementProviderInstanceDisabledError, got ${fresh._tag}`);
-    }
-  }).pipe(Effect.provide(harness.layer));
-});
 
 it.effect("an agent's launch never starts work above the modes it asks for", () => {
   const harness = makeHarness();
@@ -791,7 +672,6 @@ it.effect("does not treat an unrelated accepted command receipt as a launch", ()
       type: "thread.create",
       commandId: CommandId.make("command:launch:unrelated-receipt:create"),
       threadId,
-      projectId,
       title: "Existing",
       modelSelection,
       runtimeMode: "full-access",
@@ -826,22 +706,9 @@ it.effect("does not treat an unrelated accepted command receipt as a launch", ()
 it.effect("reports one concurrent same-command launch as new and the rest as resumed", () =>
   Effect.gen(function* () {
     // Both launches read no receipt before either one claims the thread.
-    const arrived = yield* Ref.make(0);
-    const bothRead = yield* Deferred.make<void>();
-    const harness = makeHarness({
-      managedFolders: Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({
-        namedProjectsRoot: "/projects",
-        isScratchProject: () => Effect.succeed(false),
-        folderForThread: () =>
-          Ref.updateAndGet(arrived, (count) => count + 1).pipe(
-            Effect.tap((count) =>
-              count === 2 ? Deferred.succeed(bothRead, undefined) : Effect.void,
-            ),
-            Effect.andThen(Deferred.await(bothRead)),
-            Effect.as(Option.none()),
-          ),
-      }),
-    });
+    yield* Ref.make(0);
+    yield* Deferred.make<void>();
+    const harness = makeHarness({});
     yield* Effect.gen(function* () {
       const launches = yield* ThreadLaunch.ThreadLaunchService;
       const input = launchInput({
@@ -873,7 +740,6 @@ it.effect(
           type: "thread.create",
           commandId: input.commandId,
           threadId: input.threadId,
-          projectId: input.projectId,
           title: input.title,
           modelSelection: input.modelSelection,
           runtimeMode: input.runtimeMode,
@@ -931,52 +797,4 @@ it.effect("creates a strong provider-thread mapping for an imported native sessi
       launched.projection.providerThreads[0]?.id,
     );
   }).pipe(Effect.provide(harness.layer));
-});
-
-it.effect("replays an accepted send after the project disables the instance", () => {
-  const harness = makeHarness();
-  const layerFiles = ServerConfig.layerTest(process.cwd(), { prefix: "t3-send-retry-" }).pipe(
-    Layer.provideMerge(DocumentText.layer.pipe(Layer.provideMerge(NodeServices.layer))),
-  );
-  return Effect.gen(function* () {
-    const launches = yield* ThreadLaunch.ThreadLaunchService;
-    const settings = yield* ServerSettings.ServerSettingsService;
-    const created = yield* launches.launch(
-      launchInput({
-        command: "command:send:retry-setup",
-        thread: "thread:send:retry-after-disable",
-      }),
-    );
-
-    const sendInput = {
-      commandId: CommandId.make("command:send:retry-after-disable"),
-      projectId,
-      threadId: created.threadId,
-      messageId: MessageId.make("message:send:retry-after-disable"),
-      text: "Hello again",
-      attachments: [],
-      mode: "auto" as const,
-      createdBy: "user" as const,
-      creationSource: "web" as const,
-    };
-    const first = yield* ThreadMessageIntake.sendToThread(sendInput);
-
-    yield* settings.updateSettings({
-      projectSettingsOverrides: {
-        [projectId]: { providerInstances: { [modelSelection.instanceId]: { enabled: false } } },
-      },
-    });
-
-    const retry = yield* ThreadMessageIntake.sendToThread(sendInput);
-    assert.equal(retry.message.id, first.message.id);
-
-    const fresh = yield* ThreadMessageIntake.sendToThread({
-      ...sendInput,
-      commandId: CommandId.make("command:send:fresh-after-disable"),
-      messageId: MessageId.make("message:send:fresh-after-disable"),
-    }).pipe(Effect.flip);
-    if (fresh._tag !== "ThreadManagementProviderInstanceDisabledError") {
-      assert.fail(`expected ThreadManagementProviderInstanceDisabledError, got ${fresh._tag}`);
-    }
-  }).pipe(Effect.provide(Layer.mergeAll(harness.layer, layerFiles)));
 });

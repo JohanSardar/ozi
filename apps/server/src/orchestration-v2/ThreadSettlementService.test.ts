@@ -2,11 +2,9 @@ import { assert, describe, expect, it } from "@effect/vitest";
 import * as DateTime from "effect/DateTime";
 import {
   DEFAULT_SERVER_SETTINGS,
-  ProjectId,
   EventId,
   ProviderInstanceId,
   ThreadId,
-  type OrchestrationProjectShell,
   type OrchestrationV2AppThread,
   type OrchestrationV2Command,
   type OrchestrationV2DomainEvent,
@@ -24,11 +22,9 @@ import * as PubSub from "effect/PubSub";
 import * as Queue from "effect/Queue";
 import * as Ref from "effect/Ref";
 import * as Stream from "effect/Stream";
-import { TestClock } from "effect/testing";
 import * as ServerActivation from "../serverActivation.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as TerminalManager from "../terminal/Manager.ts";
-import * as ProjectStore from "./ProjectStore.ts";
 import * as Orchestrator from "./Orchestrator.ts";
 import * as ProjectionStore from "./ProjectionStore.ts";
 import * as ThreadSettlementService from "./ThreadSettlementService.ts";
@@ -46,7 +42,6 @@ type SettlementShell = OrchestrationV2ThreadShell &
 function shell(overrides: Partial<SettlementShell> = {}): SettlementShell {
   return {
     id: ThreadId.make("thread-1"),
-    projectId: ProjectId.make("project-1"),
     title: "Thread",
     providerInstanceId: ProviderInstanceId.make("codex"),
     modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.4" },
@@ -162,23 +157,8 @@ describe("isAutoSettlementCandidate", () => {
 describe("resolveAutoSettlementAt", () => {});
 
 const NOW = "2026-08-28T12:00:00.000Z";
-const PROJECT_ID = ProjectId.make("settlement-project");
 
-describe("autoSettlementSettingsKey", () => {
-  it("distinguishes a project that inherits the threshold from one that disables it", () => {
-    const inherits = ThreadSettlementService.autoSettlementSettingsKey({
-      ...DEFAULT_SERVER_SETTINGS,
-      projectSettingsOverrides: { [PROJECT_ID]: {} },
-    });
-    const never = ThreadSettlementService.autoSettlementSettingsKey({
-      ...DEFAULT_SERVER_SETTINGS,
-      projectSettingsOverrides: {
-        [PROJECT_ID]: { sidebarAutoSettleAfterDays: null },
-      },
-    });
-    assert.notStrictEqual(inherits, never);
-  });
-});
+describe("autoSettlementSettingsKey", () => {});
 
 type AutoSettleCommand = Extract<OrchestrationV2Command, { readonly type: "thread.auto-settle" }>;
 
@@ -187,45 +167,14 @@ const testCrypto = Crypto.make({
   digest: (_algorithm, data) => Effect.succeed(data),
 });
 
-function makeProject(
-  id: ProjectId = PROJECT_ID,
-  workspaceRoot = "/workspace/project",
-): OrchestrationProjectShell {
-  return {
-    id,
-    title: `Project ${id}`,
-    workspaceRoot,
-    defaultModelSelection: null,
-    scripts: [],
-    createdAt: "2026-08-01T00:00:00.000Z",
-    updatedAt: NOW,
-  };
-}
-
-function makeThread(id: string, overrides: Partial<SettlementShell> = {}): SettlementShell {
-  return shell({
-    id: ThreadId.make(id),
-    projectId: PROJECT_ID,
-    title: id,
-    createdAt: DateTime.makeUnsafe("2026-08-01T00:00:00.000Z"),
-    updatedAt: DateTime.makeUnsafe("2026-08-20T00:00:00.000Z"),
-    latestUserMessageAt: DateTime.makeUnsafe("2026-08-20T00:00:00.000Z"),
-    ...overrides,
-  });
-}
-
 type SettlementSnapshot = Omit<OrchestrationV2ShellSnapshot, "threads"> & {
   readonly threads: ReadonlyArray<SettlementShell>;
 };
 
-function makeSnapshot(
-  threads: ReadonlyArray<SettlementShell>,
-  projects: ReadonlyArray<OrchestrationProjectShell> = [makeProject()],
-): SettlementSnapshot {
+function makeSnapshot(threads: ReadonlyArray<SettlementShell>): SettlementSnapshot {
   return {
     schemaVersion: 1,
     snapshotSequence: 1,
-    projects,
     threads,
     archivedThreads: [],
   };
@@ -283,9 +232,6 @@ const makeHarness = Effect.fn("makeThreadSettlementHarness")(function* (options:
   });
 
   const layerDependencies = Layer.mergeAll(
-    Layer.mock(ProjectStore.ProjectStoreV2)({
-      listShells: () => Ref.get(snapshots).pipe(Effect.map((snapshot) => snapshot.projects)),
-    }),
     Layer.mock(ProjectionStore.ProjectionStoreV2)({
       getSettlementCandidates: (threadId) =>
         Ref.update(candidateReads, (reads) => [...reads, threadId]).pipe(
@@ -346,33 +292,7 @@ const startHarness = Effect.fn("startThreadSettlementHarness")(function* (
   yield* reactor.drain;
 });
 
-describe("ThreadSettlementServiceV2 worker", () => {
-  it.effect("settles only the project opted in while environment settlement is disabled", () =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        yield* TestClock.setTime(Date.parse(NOW));
-        const thread = makeThread("project-opt-in", {
-          latestRunCompletedAt: DateTime.makeUnsafe("2026-08-25T00:00:00.000Z"),
-        });
-        const other = makeThread("environment-off", { projectId: ProjectId.make("other-project") });
-        const fixture = yield* makeHarness({
-          snapshot: makeSnapshot([thread, other]),
-          settings: {
-            ...DEFAULT_SERVER_SETTINGS,
-            sidebarAutoSettleAfterDays: null,
-            projectSettingsOverrides: { [PROJECT_ID]: { sidebarAutoSettleAfterDays: 2 } },
-          },
-        });
-        yield* Effect.gen(function* () {
-          const service = yield* ThreadSettlementService.ThreadSettlementServiceV2;
-          yield* startHarness(service, fixture.activation, fixture.snapshotReads);
-          const commands = yield* Ref.get(fixture.commands);
-          expect(commands.map((command) => command.threadId)).toEqual([thread.id]);
-        }).pipe(Effect.provide(fixture.layer));
-      }),
-    ),
-  );
-});
+describe("ThreadSettlementServiceV2 worker", () => {});
 
 describe("ThreadSettlementServiceV2 terminals", () => {
   const appThread = (
@@ -385,7 +305,6 @@ describe("ThreadSettlementServiceV2 terminals", () => {
       createdBy: "user",
       creationSource: "web",
       id: threadId,
-      projectId: PROJECT_ID,
       title: id,
       providerInstanceId: ProviderInstanceId.make("codex"),
       modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5" },

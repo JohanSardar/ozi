@@ -11,7 +11,7 @@ import * as BootService from "../cloud/bootService.ts";
 import { compareExactServiceVersions } from "../cloud/serviceProtocol.ts";
 import type * as ServerConfig from "../config.ts";
 import * as ProcessRunner from "../processRunner.ts";
-import { projectLocationFlags, resolveCliAuthConfig } from "./config.ts";
+import { serverLocationFlags, resolveCliAuthConfig } from "./config.ts";
 import { resolveEntryPath } from "./invocation.ts";
 import { encodeJson } from "./remote.ts";
 
@@ -143,7 +143,7 @@ const runServiceCommand = Effect.fn("cli.service.run")(function* <A, E, R>(
 });
 
 const serviceLocationFlags = {
-  ...projectLocationFlags,
+  ...serverLocationFlags,
   unitFile: Flag.String("unit").pipe(
     Flag.withSchema(BootService.BootServiceUnitFile),
     Flag.withDescription(

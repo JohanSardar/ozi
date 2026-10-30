@@ -1,9 +1,6 @@
 import {
   DEFAULT_SERVER_SETTINGS,
   ModelSelection,
-  ProjectId,
-  ProjectScript,
-  ProjectSettingsOverrides,
   type ProviderInstanceConfig,
   type ProviderInstanceMutation,
   defaultInstanceIdForDriver,
@@ -46,7 +43,6 @@ import { type DeepPartial, deepMerge } from "@t3tools/shared/Struct";
 import { fromJsonStringPretty, fromLenientJson } from "@t3tools/shared/schemaJson";
 import {
   applyServerSettingsPatch,
-  deriveLegacyProjectOverrides,
   fallbackTextGenerationModelSelection,
   isModelSelectionProviderEnabled,
 } from "@t3tools/shared/serverSettings";
@@ -107,7 +103,6 @@ const normalizeServerSettings = (
     Effect.flatMap(decodeServerSettings),
     Effect.map(foldProviderInstanceEnabledFlags),
     Effect.map((next) => withIdleCompaction(next, globalIdleCompaction(next))),
-    Effect.map((next) => ({ ...next, ...deriveLegacyProjectOverrides(next) })),
     Effect.mapError(
       (cause) =>
         new ServerSettingsError({
@@ -262,13 +257,6 @@ const ServerSettingsJson = fromLenientJson(
     responseStreamingMode: PersistedResponseStreamingMode.pipe(
       Schema.withDecodingDefault(Effect.succeed("paragraph" as const)),
     ),
-    projectSettingsOverrides: Schema.Record(
-      ProjectId,
-      Schema.Struct({
-        ...ProjectSettingsOverrides.fields,
-        responseStreamingMode: Schema.optionalKey(PersistedResponseStreamingMode),
-      }),
-    ).pipe(Schema.withDecodingDefault(Effect.succeed({}))),
   }),
 );
 const decodeServerSettingsJsonExit = Schema.decodeUnknownExit(ServerSettingsJson);
@@ -414,75 +402,6 @@ function stripDefaultServerSettings(current: unknown, defaults: unknown): unknow
   }
 
   return Object.is(current, defaults) ? undefined : current;
-}
-
-const decodeProjectScriptsJson = Schema.decodeUnknownOption(
-  Schema.fromJsonString(Schema.Array(ProjectScript)),
-);
-const decodeModelSelectionJson = Schema.decodeUnknownOption(
-  Schema.fromJsonString(Schema.NullOr(ModelSelection)),
-);
-
-interface LegacyProjectSettingsRow {
-  readonly projectId: string;
-  readonly defaultModelSelection: string | null;
-  readonly scripts: string;
-}
-
-// projectSettingsFolded prevents restarts from undoing later UI resets.
-function foldLegacyProjectSettings(
-  settings: ServerSettings,
-  rows: ReadonlyArray<LegacyProjectSettingsRow>,
-): ServerSettings {
-  if (settings.projectSettingsFolded) return settings;
-  if (
-    rows.length === 0 &&
-    Object.keys(settings.projectAgentBrowserAccessOverrides).length === 0 &&
-    Object.keys(settings.projectScriptOverrides).length === 0
-  ) {
-    return settings;
-  }
-  const entries: Record<string, ProjectSettingsOverrides> = {
-    ...settings.projectSettingsOverrides,
-  };
-  const set = <K extends keyof ProjectSettingsOverrides>(
-    projectId: string,
-    key: K,
-    value: ProjectSettingsOverrides[K] | undefined,
-  ) => {
-    if (value === undefined) return;
-    const entry = entries[projectId] ?? {};
-    if (Object.hasOwn(entry, key)) return;
-    entries[projectId] = { ...entry, [key]: value };
-  };
-  for (const [projectId, value] of Object.entries(settings.projectAgentBrowserAccessOverrides)) {
-    set(projectId, "enableAgentBrowserAccess", value);
-  }
-  // A stored null resets to machine defaults, so the project's aggregate scripts must not resurface.
-  const resetScripts = new Set<string>();
-  for (const [projectId, value] of Object.entries(settings.projectScriptOverrides)) {
-    if (value === null) resetScripts.add(projectId);
-    else set(projectId, "defaultProjectScripts", value);
-  }
-  for (const row of rows) {
-    const model = decodeModelSelectionJson(row.defaultModelSelection ?? "null");
-    if (Option.isSome(model) && model.value !== null) {
-      set(row.projectId, "defaultModelSelection", model.value);
-    }
-    const scripts = decodeProjectScriptsJson(row.scripts);
-    if (Option.isSome(scripts) && scripts.value.length > 0 && !resetScripts.has(row.projectId)) {
-      set(row.projectId, "defaultProjectScripts", scripts.value);
-    }
-  }
-  const projectSettingsOverrides = Object.fromEntries(
-    Object.entries(entries).filter(([, entry]) => Object.keys(entry).length > 0),
-  );
-  return {
-    ...settings,
-    projectSettingsOverrides,
-    projectSettingsFolded: true,
-    ...deriveLegacyProjectOverrides({ projectSettingsOverrides }),
-  };
 }
 
 const make = Effect.gen(function* () {
@@ -640,37 +559,12 @@ const make = Effect.gen(function* () {
       ),
     );
 
-    const legacyProjectRows =
-      settings.projectSettingsFolded || !settingsFileTrusted
-        ? []
-        : yield* sql<LegacyProjectSettingsRow>`
-          SELECT
-            project_id AS "projectId",
-            default_model_selection_json AS "defaultModelSelection",
-            scripts_json AS "scripts"
-          FROM projection_projects
-          WHERE deleted_at IS NULL
-        `.pipe(
-            NodeSqliteClient.readOnly,
-            Effect.mapError(
-              (cause) =>
-                new ServerSettingsError({
-                  settingsPath,
-                  operation: "read-project-settings",
-                  cause,
-                }),
-            ),
-          );
-
     const loaded = foldProviderInstanceEnabledFlags(
       legacyProviders === undefined
         ? settings
         : migrateLegacyProviderSettings(settings, legacyProviders, providerHistory),
     );
-    const folded = settingsFileTrusted
-      ? foldLegacyProjectSettings(loaded, legacyProjectRows)
-      : loaded;
-    const migrated = settingsFileTrusted ? yield* moveInlineSettingsSecrets(folded) : folded;
+    const migrated = settingsFileTrusted ? yield* moveInlineSettingsSecrets(loaded) : loaded;
     if (migrated !== loaded || (settingsFileTrusted && legacyProviders !== undefined)) {
       yield* writeSettingsAtomically(migrated);
     }

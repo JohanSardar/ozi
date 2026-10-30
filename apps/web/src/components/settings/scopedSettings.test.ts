@@ -2,14 +2,11 @@ import {
   DEFAULT_SERVER_SETTINGS,
   EnvironmentAuthorizationError,
   EnvironmentId,
-  ProjectId,
   ProviderInstanceId,
   type ServerSettings,
 } from "@t3tools/contracts";
 import { describe, expect, it, vi } from "vite-plus/test";
 import * as Cause from "effect/Cause";
-
-import type { SidebarProjectSnapshot } from "../../sidebarProjectGrouping";
 import {
   persistScopedSettingsPatch,
   planScopedSettingsPatch,
@@ -46,51 +43,8 @@ const server = environment("Server");
 const offline = environment("Offline", { connected: false });
 const loading = environment("Loading", { loaded: false });
 const environments = [laptop, server, offline, loading];
-const all = resolveSettingsScope({}, [], environments);
-const named = resolveSettingsScope({ machine: server.environmentId }, [], environments);
-
-const projectId = ProjectId.make("project");
-const laptopProjectId = ProjectId.make("laptop-project");
-const member = {
-  id: projectId,
-  environmentId: server.environmentId,
-  title: "Project",
-  workspaceRoot: "/repo",
-  physicalProjectKey: `${server.environmentId}:/repo`,
-  environmentLabel: server.label,
-  defaultModelSelection: null,
-  scripts: [],
-  createdAt: "2026-09-07T00:00:00.000Z",
-  updatedAt: "2026-09-07T00:00:00.000Z",
-};
-const laptopMember = {
-  ...member,
-  id: laptopProjectId,
-  environmentId: laptop.environmentId,
-  physicalProjectKey: `${laptop.environmentId}:/repo`,
-  environmentLabel: laptop.label,
-};
-const group: SidebarProjectSnapshot = {
-  ...member,
-  projectKey: "project-group",
-  displayName: "Project",
-  memberProjects: [member, laptopMember],
-  memberProjectRefs: [
-    { environmentId: server.environmentId, projectId },
-    { environmentId: laptop.environmentId, projectId: laptopProjectId },
-  ],
-  groupedProjectCount: 2,
-  environmentPresence: "remote-only",
-  allRemoteMembersAreDesktopLocal: false,
-  allRemoteMembersAreWsl: false,
-  remoteEnvironmentLabels: [server.label, laptop.label],
-};
-const project = resolveSettingsScope({ project: group.projectKey }, [group], environments);
-const checkout = resolveSettingsScope(
-  { project: group.projectKey, machine: server.environmentId, checkout: member.physicalProjectKey },
-  [group],
-  environments,
-);
+const all = resolveSettingsScope({}, environments);
+const named = resolveSettingsScope({ machine: server.environmentId }, environments);
 
 describe("scoped settings targets", () => {
   it("uses the named environment even when a different primary is available", () => {
@@ -100,7 +54,7 @@ describe("scoped settings targets", () => {
   });
 
   it("keeps an offline named environment selected without falling back to primary", () => {
-    const scope = resolveSettingsScope({ machine: offline.environmentId }, [], environments);
+    const scope = resolveSettingsScope({ machine: offline.environmentId }, environments);
     const selected = selectScopedSettingsEnvironments(scope, environments, laptop.environmentId);
     expect(selected.environments).toEqual([offline]);
     expect(selected.connectedEnvironments).toEqual([]);
@@ -141,7 +95,7 @@ describe("scoped settings writes", () => {
       environment("Modes", { settings: { compactIdleThreads: "onReturn" } }),
       environment("Switch", { settings: { compactIdleThreads: false } }),
     ];
-    const plan = planScopedSettingsPatch(resolveSettingsScope({}, [], targets), targets, {
+    const plan = planScopedSettingsPatch(resolveSettingsScope({}, targets), targets, {
       idleCompaction: "beforeCacheExpires",
     });
     expect(plan.serverWrites.map((write) => write.patch)).toEqual([
@@ -185,17 +139,8 @@ describe("scoped settings writes", () => {
     });
   });
 
-  it("refuses environment-wide keys at project scope", () => {
-    expect(
-      planScopedSettingsPatch(project, environments, { enableProviderUpdateChecks: false }),
-    ).toMatchObject({
-      serverWrites: [],
-      unavailableReason: "This setting is environment-wide and cannot be overridden by a project.",
-    });
-  });
-
   it("never substitutes an environment-default write for an invalid scope", () => {
-    const scope = resolveSettingsScope({ machine: "removed" }, [group], environments);
+    const scope = resolveSettingsScope({ machine: "removed" }, environments);
     const plan = planScopedSettingsPatch(scope, environments, { enableAgentBrowserAccess: false });
     expect(plan.serverWrites).toEqual([]);
     expect(plan.hasClientWrite).toBe(false);
@@ -206,7 +151,7 @@ describe("scoped settings writes", () => {
     const third = environment("Third");
     const fourth = environment("Fourth");
     const selected = [...environments, third, fourth];
-    const scope = resolveSettingsScope({}, [], selected);
+    const scope = resolveSettingsScope({}, selected);
     const persistServer = vi
       .fn()
       .mockResolvedValueOnce({ _tag: "Success" })
@@ -267,42 +212,4 @@ it("routes legacy model preference keys exclusively to the selected environment"
       patch,
     },
   ]);
-});
-
-describe("model selection patches at project scope", () => {
-  const codex = ProviderInstanceId.make("codex");
-  const saved = {
-    instanceId: codex,
-    model: "gpt-5.6",
-    options: [{ id: "reasoningEffort", value: "high" }],
-  };
-  const customized = environment("Server", {
-    settings: {
-      projectSettingsOverrides: {
-        [projectId]: {
-          defaultModelSelection: saved,
-          textGenerationModelSelection: saved,
-        },
-      },
-    },
-  });
-
-  it("completes partial text-generation selections without retaining old options", () => {
-    const modelPlan = planScopedSettingsPatch(checkout, [customized], {
-      textGenerationModelSelection: { model: "gpt-5.6-mini" },
-    });
-    expect(
-      modelPlan.serverWrites[0]?.patch.projectSettingsOverrides?.[projectId]
-        ?.textGenerationModelSelection,
-    ).toEqual({ instanceId: codex, model: "gpt-5.6-mini" });
-
-    const options = [{ id: "reasoningEffort", value: "low" }];
-    const optionsPlan = planScopedSettingsPatch(checkout, [customized], {
-      textGenerationModelSelection: { options },
-    });
-    expect(
-      optionsPlan.serverWrites[0]?.patch.projectSettingsOverrides?.[projectId]
-        ?.textGenerationModelSelection,
-    ).toEqual({ ...saved, options });
-  });
 });

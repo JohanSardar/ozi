@@ -18,7 +18,7 @@ let home: string;
 let project: string;
 let origin: string;
 let server: NodeChildProcess.NodeChildProcess;
-let chat: { threadId: string; projectId: string };
+let chat: { threadId: string };
 let socket: InstanceType<typeof WebSocket>;
 let serial = 0;
 
@@ -187,38 +187,10 @@ beforeAll(async () => {
       defaultModelSelection: { instanceId: "pi", model: "fake/fake-model" },
     }),
   );
-  await exec("git", ["init", project]);
-  await exec("git", [
-    "-C",
-    project,
-    "-c",
-    "user.name=E2E",
-    "-c",
-    "user.email=e2e@example.invalid",
-    "commit",
-    "--allow-empty",
-    "-m",
-    "Initial",
-  ]);
   await start("https://hooks.example.invalid/base/");
-  await exec(
-    process.execPath,
-    [NodePath.join(root, "apps/server/src/bin.ts"), "project", "add", project, "--home", home],
-    {
-      cwd: directory,
-      env: {
-        ...process.env,
-        HOME: directory,
-        OZI_HOME: home,
-        OZI_TELEMETRY_ENABLED: "false",
-        NODE_COMPILE_CACHE: NodePath.join(directory, "compile-cache"),
-      },
-    },
-  );
   chat = await cli(
     "thread",
     "start",
-    project,
     "C1 target",
     "--provider",
     "pi",
@@ -227,8 +199,7 @@ beforeAll(async () => {
     "--wait",
     "--json",
   );
-  const shown = await cli("thread", "show", chat.threadId, "--json");
-  chat.projectId = shown.thread.projectId;
+  await cli("thread", "show", chat.threadId, "--json");
 });
 
 afterAll(async () => {
@@ -258,11 +229,9 @@ it("c1.timed: intervals, local weekdays, pause, manual runs and deletion target 
   await cli("schedule", "resume", interval.scheduledTaskId, "--json");
   await cli("schedule", "rm", interval.scheduledTaskId, "--json");
   await cli("schedule", "rm", daily.scheduledTaskId, "--json");
-  expect(
-    (await cli("thread", "list", "--project", project, "--json")).map(
-      (thread: any) => thread.threadId,
-    ),
-  ).toEqual([chat.threadId]);
+  expect((await cli("thread", "list", "--json")).map((thread: any) => thread.threadId)).toEqual([
+    chat.threadId,
+  ]);
 });
 
 it("c1.webhooks: URL tokens, raw HMAC, filters, rotation, replay expiry and fixed coalescing survive restart", async () => {
@@ -271,9 +240,7 @@ it("c1.webhooks: URL tokens, raw HMAC, filters, rotation, replay expiry and fixe
     title: "C1 signed hook",
     prompt: "C1 hook {{body.value}}",
     enabled: true,
-    projectId: chat.projectId,
     threadId: chat.threadId,
-    workspaceStrategy: { type: "root" },
     modelSelection: { instanceId: "pi", model: "fake/fake-model" },
     runtimeMode: "full-access",
     interactionMode: "default",

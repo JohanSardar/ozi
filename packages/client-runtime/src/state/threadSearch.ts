@@ -1,7 +1,6 @@
 import {
   EnvironmentId,
   OrchestrationSearchThreadsInput,
-  ProjectId,
   type OrchestrationThreadSearchMatch,
   type OrchestrationV2SearchThreadsInput,
   type OrchestrationV2SearchThreadsResult,
@@ -62,7 +61,6 @@ export interface ThreadSearchResultsState {
  * whether to skip message search.
  */
 export const ThreadSearchScope = Schema.Struct({
-  projectIds: Schema.optionalKey(Schema.Array(ProjectId)),
   environmentLabels: Schema.optionalKey(Schema.Record(Schema.String, Schema.String)),
   titlesOnly: Schema.optionalKey(Schema.Boolean),
 });
@@ -142,7 +140,6 @@ export function createThreadSearchResultsAtomFamily<E>(options: {
               ? {}
               : {
                   olderSettledBefore: before,
-                  ...(scope.projectIds === undefined ? {} : { projectIds: scope.projectIds }),
                   ...(label === undefined ? {} : { environmentLabel: label }),
                   ...(searchMessages ? {} : { titlesOnly: true }),
                 }),
@@ -203,7 +200,6 @@ export type ThreadSearchShell = Pick<
  */
 export function threadSearchSubject(
   thread: ThreadSearchShell,
-  projectTitle: string | null | undefined,
   environmentLabel?: string | null,
 ): ThreadSearchSubject {
   // What the user wrote, not agent wakes or task notices in the user role. A
@@ -218,7 +214,6 @@ export function threadSearchSubject(
   return {
     id: thread.id,
     title: thread.title,
-    projectTitle: projectTitle ?? null,
     environmentLabel: environmentLabel ?? null,
     activityAt: Number.isFinite(activityAt) ? activityAt : null,
     // This client's own latest open counts too: the server merged it, or has

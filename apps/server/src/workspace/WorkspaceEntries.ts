@@ -11,13 +11,13 @@ import * as Schema from "effect/Schema";
 import type {
   FilesystemBrowseInput,
   FilesystemBrowseResult,
-  ProjectEntry,
-  ProjectListEntriesInput,
-  ProjectListEntriesResult,
-  ProjectSearchContentsInput,
-  ProjectSearchContentsResult,
-  ProjectSearchEntriesInput,
-  ProjectSearchEntriesResult,
+  WorkspaceEntry,
+  WorkspaceListEntriesInput,
+  WorkspaceListEntriesResult,
+  WorkspaceSearchContentsInput,
+  WorkspaceSearchContentsResult,
+  WorkspaceSearchEntriesInput,
+  WorkspaceSearchEntriesResult,
 } from "@t3tools/contracts";
 import * as HostProcess from "@t3tools/shared/HostProcess";
 import { isExplicitRelativePath, isWindowsAbsolutePath } from "@t3tools/shared/path";
@@ -41,14 +41,14 @@ export class WorkspaceEntriesWindowsPathUnsupportedError extends Schema.TaggedEr
   }
 }
 
-export class WorkspaceEntriesCurrentProjectRequiredError extends Schema.TaggedError<WorkspaceEntriesCurrentProjectRequiredError>()(
-  "WorkspaceEntriesCurrentProjectRequiredError",
+export class WorkspaceEntriesWorkingDirectoryRequiredError extends Schema.TaggedError<WorkspaceEntriesWorkingDirectoryRequiredError>()(
+  "WorkspaceEntriesWorkingDirectoryRequiredError",
   {
     partialPath: Schema.String,
   },
 ) {
   override get message(): string {
-    return `A current project is required to browse relative workspace path '${this.partialPath}'.`;
+    return `A working directory is required to browse relative workspace path '${this.partialPath}'.`;
   }
 }
 
@@ -69,7 +69,7 @@ export class WorkspaceEntriesReadDirectoryError extends Schema.TaggedError<Works
 
 export const WorkspaceEntriesBrowseError = Schema.Union([
   WorkspaceEntriesWindowsPathUnsupportedError,
-  WorkspaceEntriesCurrentProjectRequiredError,
+  WorkspaceEntriesWorkingDirectoryRequiredError,
   WorkspaceEntriesReadDirectoryError,
 ]);
 export type WorkspaceEntriesBrowseError = typeof WorkspaceEntriesBrowseError.Type;
@@ -93,14 +93,14 @@ export class WorkspaceEntries extends Context.Service<
       input: FilesystemBrowseInput,
     ) => Effect.Effect<FilesystemBrowseResult, WorkspaceEntriesBrowseError>;
     readonly list: (
-      input: ProjectListEntriesInput,
-    ) => Effect.Effect<ProjectListEntriesResult, WorkspaceEntriesError>;
+      input: WorkspaceListEntriesInput,
+    ) => Effect.Effect<WorkspaceListEntriesResult, WorkspaceEntriesError>;
     readonly search: (
-      input: ProjectSearchEntriesInput,
-    ) => Effect.Effect<ProjectSearchEntriesResult, WorkspaceEntriesError>;
+      input: WorkspaceSearchEntriesInput,
+    ) => Effect.Effect<WorkspaceSearchEntriesResult, WorkspaceEntriesError>;
     readonly searchContents: (
-      input: ProjectSearchContentsInput,
-    ) => Effect.Effect<ProjectSearchContentsResult, WorkspaceEntriesError>;
+      input: WorkspaceSearchContentsInput,
+    ) => Effect.Effect<WorkspaceSearchContentsResult, WorkspaceEntriesError>;
     readonly refresh: (cwd: string) => Effect.Effect<void>;
   }
 >()("ozi/workspace/WorkspaceEntries") {}
@@ -123,7 +123,7 @@ const resolveBrowseTarget = Effect.fn("WorkspaceEntries.resolveBrowseTarget")(fu
   }
 
   if (!input.cwd) {
-    return yield* new WorkspaceEntriesCurrentProjectRequiredError({
+    return yield* new WorkspaceEntriesWorkingDirectoryRequiredError({
       partialPath: input.partialPath,
     });
   }
@@ -306,7 +306,7 @@ export const make = Effect.gen(function* () {
             }
             const children = await NodeFSP.readdir(directory, { withFileTypes: true });
             return {
-              entries: children.flatMap((child): ProjectEntry[] => {
+              entries: children.flatMap((child): WorkspaceEntry[] => {
                 if (child.name === ".git" || (!child.isDirectory() && !child.isFile())) return [];
                 return [
                   {

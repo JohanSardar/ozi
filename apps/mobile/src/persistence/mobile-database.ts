@@ -7,14 +7,9 @@ import * as Schema from "effect/Schema";
 import type { SQLiteDatabase } from "expo-sqlite";
 
 const DATABASE_NAME = "ozi-client.db";
-const DATABASE_SCHEMA_VERSION = 1;
+const DATABASE_SCHEMA_VERSION = 2;
 
-export const ClientCacheKind = Schema.Literals([
-  "shell",
-  "thread",
-  "server-config",
-  "project-favicon",
-]);
+export const ClientCacheKind = Schema.Literals(["shell", "thread", "server-config"]);
 export type ClientCacheKind = typeof ClientCacheKind.Type;
 
 export interface ClientCacheSummaryRow {
@@ -156,6 +151,7 @@ const makeAvailable = Effect.gen(function* () {
             `);
       });
       if ((schema?.user_version ?? 0) < DATABASE_SCHEMA_VERSION) {
+        await database.execAsync("DELETE FROM client_cache WHERE kind = 'project-favicon';");
         await database.execAsync(`PRAGMA user_version = ${DATABASE_SCHEMA_VERSION};`);
       }
     },

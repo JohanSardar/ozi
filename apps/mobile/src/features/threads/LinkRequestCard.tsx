@@ -48,7 +48,7 @@ const ACCESS_CHOICES: ReadonlyArray<{
   {
     access: "read-only",
     label: "Read only",
-    description: "Read projects and threads. Cannot start, message or change anything.",
+    description: "Read chats. Cannot start, message or change anything.",
   },
   ...RUNTIME_MODE_CHOICES.map((choice) => ({ ...choice, access: choice.mode })),
 ];
@@ -435,7 +435,7 @@ function LinkRequestSheet(props: {
             </SettingsSection>
             <Text className="font-sans text-xs text-foreground-muted">
               An agent here never gets more there than its own mode here either. Threads it starts
-              there cannot change that environment's own threads, projects or settings.
+              there cannot change that environment's own chats or settings.
             </Text>
           </>
         )}

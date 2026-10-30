@@ -5,18 +5,15 @@ import {
   settledShelfFrontier,
   unloadedOlderSettledCount,
   wantedOlderSettledPages,
-  type OlderSettled,
   type OlderSettledScope,
 } from "@t3tools/client-runtime/state/threads";
-import type { EnvironmentId, ProjectId } from "@t3tools/contracts";
-import { Atom } from "effect/reactivity";
+import type { EnvironmentId } from "@t3tools/contracts";
 import { useEffect, useState } from "react";
 
 import { appAtomRegistry } from "./atom-registry";
 import { olderSettledThreads, threadFamilies } from "./threads";
 
 const NO_PAGES: ReadonlyMap<EnvironmentId, number> = new Map();
-const NO_OLDER_SETTLED: Atom.Atom<OlderSettled | null> = Atom.make(null);
 
 /**
  * The Settled shelf for one scope when shells leave older settled threads out: which rows it may
@@ -97,41 +94,4 @@ export function useOlderSettledShelfGrowth(
   useEffect(() => {
     if (wanted !== pages) grow(wanted);
   }, [wanted, pages, grow]);
-}
-
-/**
- * Threads of these projects that this client does not hold (older settled threads), for counts
- * shown outside the shelf, such as a removal confirm.
- */
-export function readUnloadedThreadCount(
-  members: ReadonlyArray<{ readonly environmentId: EnvironmentId; readonly id: ProjectId }>,
-  threads: ReadonlyArray<EnvironmentThreadShell>,
-): number {
-  return unloadedOlderSettledCount({
-    olderSettled: (environmentId) =>
-      appAtomRegistry.get(olderSettledThreads.olderSettledAtom(environmentId)),
-    scopes: [...new Set(members.map((member) => member.environmentId))].map((environmentId) => ({
-      environmentId,
-      projectIds: members.flatMap((member) =>
-        member.environmentId === environmentId ? [member.id] : [],
-      ),
-    })),
-    threads: threads.filter((thread) =>
-      members.some(
-        (member) => member.environmentId === thread.environmentId && member.id === thread.projectId,
-      ),
-    ),
-  });
-}
-
-/** How many older settled threads one project has, loaded or not, kept current for render. */
-export function useOlderSettledCount(
-  project: { readonly environmentId: EnvironmentId; readonly id: ProjectId } | null,
-): number {
-  const older = useAtomValue(
-    project === null
-      ? NO_OLDER_SETTLED
-      : olderSettledThreads.olderSettledAtom(project.environmentId),
-  );
-  return project === null ? 0 : (older?.counts.get(project.id) ?? 0);
 }

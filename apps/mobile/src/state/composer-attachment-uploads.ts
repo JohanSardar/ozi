@@ -64,7 +64,9 @@ type ComposerAttachmentUploadRequest = {
 };
 
 export function composerAttachmentUploadRequests(input: {
-  readonly drafts: Readonly<Record<string, Pick<ComposerDraft, "attachments" | "project">>>;
+  readonly drafts: Readonly<
+    Record<string, Pick<ComposerDraft, "attachments" | "environmentStamp">>
+  >;
   readonly queuedMessagesByThreadKey: Parameters<typeof flattenQueuedThreadMessages>[0];
   readonly connectedEnvironmentIds: ReadonlySet<EnvironmentId>;
   readonly operableEnvironmentIds: ReadonlySet<EnvironmentId>;

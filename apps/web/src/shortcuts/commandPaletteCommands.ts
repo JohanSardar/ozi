@@ -94,7 +94,7 @@ export function installCommandPaletteCommands(
       },
       "commandPalette.toggle": toggleOverlay("commandPalette.toggle"),
       "filePicker.toggle": toggleOverlay("filePicker.toggle"),
-      "projectSearch.toggle": toggleOverlay("projectSearch.toggle"),
+      "workspaceSearch.toggle": toggleOverlay("workspaceSearch.toggle"),
     },
     {
       ...options,

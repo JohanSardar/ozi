@@ -1,4 +1,4 @@
-import type { ProjectEntry } from "@t3tools/contracts";
+import type { WorkspaceEntry } from "@t3tools/contracts";
 import { isWindowsAbsolutePath, isHostPath } from "@t3tools/shared/path";
 
 export interface FileBreadcrumb {
@@ -7,17 +7,17 @@ export interface FileBreadcrumb {
   kind: "project" | "directory" | "file";
 }
 
-export interface FileBreadcrumbChild extends ProjectEntry {
+export interface FileBreadcrumbChild extends WorkspaceEntry {
   label: string;
 }
 
-export function fileBreadcrumbs(projectName: string, relativePath: string): FileBreadcrumb[] {
+export function fileBreadcrumbs(workspaceName: string, relativePath: string): FileBreadcrumb[] {
   const hostPath = isHostPath(relativePath);
   const separator = isWindowsAbsolutePath(relativePath) ? "\\" : "/";
   const parts = relativePath.split(/[\\/]/).filter(Boolean);
   const root = relativePath.startsWith("\\\\") ? "\\\\" : relativePath.startsWith("/") ? "/" : "";
   return [
-    ...(hostPath ? [] : [{ label: projectName, path: "", kind: "project" as const }]),
+    ...(hostPath ? [] : [{ label: workspaceName, path: "", kind: "project" as const }]),
     ...parts.map((part, index) => {
       const path = root + parts.slice(0, index + 1).join(separator);
       return {
@@ -62,7 +62,7 @@ export function joinHostPath(folder: string, relativePath: string): string {
 }
 
 export function fileBreadcrumbChildren(
-  entries: readonly ProjectEntry[],
+  entries: readonly WorkspaceEntry[],
   directoryPath: string,
 ): FileBreadcrumbChild[] {
   let collator: Intl.Collator | undefined;

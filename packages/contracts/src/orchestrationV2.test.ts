@@ -119,7 +119,6 @@ describe("orchestration V2 contracts", () => {
         createdBy: "user",
         creationSource: "web",
         id: "thread-1",
-        projectId: "project-1",
         title: "Thread",
         providerInstanceId: "codex",
         modelSelection: { instanceId: "codex", model: "gpt-5-codex" },
@@ -449,7 +448,6 @@ describe("thread open stats", () => {
   it("reads a thread whose open stats this build cannot read, without them", () => {
     const shell = {
       id: "thread-test",
-      projectId: "project-test",
       title: "Thread",
       providerInstanceId: "codex",
       modelSelection: { instanceId: "codex", model: "gpt-5.4" },

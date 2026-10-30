@@ -1,11 +1,9 @@
 import {
-  CommandId,
   EventId,
   OZI_PROVIDER_INSTANCE,
   OrchestrationV2AppThreadJson,
   OrchestrationV2ConversationMessageJson,
   OrchestrationV2ProviderThreadJson,
-  ProjectId,
   ProviderInstanceId,
   type OrchestrationV2DomainEvent,
 } from "@t3tools/contracts";
@@ -26,8 +24,7 @@ import * as EventSink from "../orchestration-v2/EventSink.ts";
 import * as EventStore from "../orchestration-v2/EventStore.ts";
 import * as ProjectionStore from "../orchestration-v2/ProjectionStore.ts";
 import { runMigrations } from "../persistence/Migrations.ts";
-import { parseSession } from "../sessions/ChatSessions.ts";
-import { messageEvents } from "../project/AgentSessionImporter.ts";
+import { parseSession, messageEvents } from "../sessions/ChatSessions.ts";
 import { isProcessAlive } from "../serverRuntimeState.ts";
 
 export class MigrationError extends Schema.TaggedError<MigrationError>()("MigrationError", {
@@ -352,7 +349,6 @@ export const layer = Layer.effect(
         }
         const nativeFiles = new Set<string>();
         const events: OrchestrationV2DomainEvent[] = [];
-        const projectIds = new Set<string>();
         const instanceId = ProviderInstanceId.make("ozi");
         for (const [threadIndex, original] of old.threads.entries()) {
           const provider = old.providers.find(
@@ -381,7 +377,7 @@ export const layer = Layer.effect(
             creationSource: original.creationSource === "cli" ? "server" : original.creationSource,
             providerInstanceId: instanceId,
             modelSelection: { ...(original.modelSelection as object), instanceId },
-            workingDirectory: null,
+            workingDirectory: path.join(home, "workspace"),
             forkedFrom: null,
             activeProviderThreadId: native === undefined ? null : provider!.id,
             lineage: {
@@ -390,7 +386,6 @@ export const layer = Layer.effect(
               rootThreadId: original.id,
             },
           });
-          projectIds.add(thread.projectId);
           events.push({
             id: EventId.make(`c5:thread:${thread.id}`),
             type: "thread.created",
@@ -407,7 +402,7 @@ export const layer = Layer.effect(
             files.push({
               from: native,
               to: sessionTarget,
-              cwd: path.join(home, "workspace", thread.projectId),
+              cwd: thread.workingDirectory!,
             });
             const next = decodeProvider({
               ...provider,
@@ -561,61 +556,33 @@ export const layer = Layer.effect(
             const database = NodeSqliteClient.layer({
               filename: path.join(stage, "userdata/statev2.sqlite"),
             });
-            for (const id of projectIds)
-              yield* fs.makeDirectory(path.join(stage, "workspace", id), {
-                recursive: true,
-                mode: 0o700,
-              });
+            yield* fs.makeDirectory(path.join(stage, "workspace"), {
+              recursive: true,
+              mode: 0o700,
+            });
             yield* Effect.scoped(
               Effect.gen(function* () {
                 yield* runMigrations();
                 yield* Effect.gen(function* () {
                   const sink = yield* EventSink.EventSinkV2;
-                  const now = yield* DateTime.now;
-                  const at = DateTime.formatIso(now);
-                  for (const id of projectIds) {
-                    const projectId = ProjectId.make(id);
-                    const commandId = CommandId.make(`c5:project:${id}`);
-                    yield* sink.commitProjectCommand({
-                      commandId,
-                      projectId,
-                      commandType: "project.create",
-                      acceptedAt: now,
-                      event: {
-                        eventId: EventId.make(commandId),
-                        aggregateKind: "project",
-                        aggregateId: projectId,
-                        occurredAt: at,
-                        commandId,
-                        causationEventId: null,
-                        correlationId: commandId,
-                        metadata: {},
-                        type: "project.created",
-                        payload: {
-                          projectId,
-                          title: "Migrated Ozi",
-                          workspaceRoot: path.join(home, "workspace", id),
-                          defaultModelSelection: null,
-                          scripts: [],
-                          createdAt: at,
-                          updatedAt: at,
-                        },
-                      },
-                    });
-                  }
                   yield* sink.write({ events });
                   const sql = yield* SqlClient.SqlClient;
                   for (const table of webhookTables)
                     for (const originalRow of old.tables[table]!) {
                       const row = { ...originalRow };
-                      if (table === "scheduled_tasks")
+                      if (table === "scheduled_tasks") {
+                        delete row.project_id;
+                        delete row.workspace_strategy_json;
                         row.model_selection_json = encode({
                           ...json(String(row.model_selection_json)),
                           instanceId,
                         });
+                      }
                       if (row.creation_source === "cli") row.creation_source = "server";
                       if (table === "scheduled_task_webhook_pending") {
-                        const task = json(String(row.task_json));
+                        const task = { ...json(String(row.task_json)) };
+                        delete task.projectId;
+                        delete task.workspaceStrategy;
                         row.task_json = encode({
                           ...task,
                           creationSource:

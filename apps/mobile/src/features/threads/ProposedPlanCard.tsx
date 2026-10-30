@@ -1,3 +1,5 @@
+import { workspaceEnvironment } from "../../state/workspaceFiles";
+
 import { useAtomValue } from "@effect/atom-react";
 import {
   isAtomCommandInterrupted,
@@ -11,7 +13,6 @@ import { View } from "react-native";
 import { AppText as Text } from "../../components/ui/AppText";
 import { Button } from "../../components/ui/Button";
 import * as Dialog from "../../components/ui/Dialog";
-import { projectEnvironment } from "../../state/projects";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { CopyTextButton } from "./CopyTextButton";
 
@@ -21,8 +22,8 @@ export function ProposedPlanCard(props: {
   readonly markdown: string;
   readonly renderMarkdown: (text: string) => ReactNode;
 }) {
-  const canWrite = useAtomValue(projectEnvironment.writeFile.permissionAtom(props.environmentId));
-  const writeFile = useAtomCommand(projectEnvironment.writeFile, { reportFailure: false });
+  const canWrite = useAtomValue(workspaceEnvironment.writeFile.permissionAtom(props.environmentId));
+  const writeFile = useAtomCommand(workspaceEnvironment.writeFile, { reportFailure: false });
   const inFlight = useRef(false);
   const [saving, setSaving] = useState(false);
   const [lastPath, setLastPath] = useState("plan.md");

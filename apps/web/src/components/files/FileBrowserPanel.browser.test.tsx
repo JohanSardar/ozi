@@ -1,11 +1,11 @@
-import { EnvironmentId, type ProjectEntry } from "@t3tools/contracts";
+import { EnvironmentId, type WorkspaceEntry } from "@t3tools/contracts";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import { COMPOSER_MENTION_DRAG_TYPE } from "~/components/chat/composerMentionDrag";
 import { render } from "../../../test/render";
 import FileBrowserPanel from "./FileBrowserPanel";
 
-const entries: readonly ProjectEntry[] = [
+const entries: readonly WorkspaceEntry[] = [
   { path: "src", kind: "directory" },
   { path: "README.md", kind: "file" },
 ];
@@ -49,7 +49,7 @@ describe("FileBrowserPanel", () => {
       <FileBrowserPanel
         environmentId={EnvironmentId.make("env-files")}
         cwd="/repo"
-        projectName="repo"
+        workspaceName="repo"
         selectedPath={null}
         selectedPathRevealId={0}
         onOpenFile={onOpenFile}

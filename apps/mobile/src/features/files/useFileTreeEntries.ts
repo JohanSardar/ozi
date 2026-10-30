@@ -1,24 +1,29 @@
+import { workspaceEnvironment } from "../../state/workspaceFiles";
+
 import { useAtomMount, useAtomSubscribe } from "@effect/atom-react";
 import { executeAtomQuery } from "@t3tools/client-runtime/state/runtime";
-import { ProjectListEntriesError, type EnvironmentId, type ProjectEntry } from "@t3tools/contracts";
+import {
+  WorkspaceListEntriesError,
+  type EnvironmentId,
+  type WorkspaceEntry,
+} from "@t3tools/contracts";
 import * as Cause from "effect/Cause";
 import { useLayoutEffect, useRef, useState } from "react";
 import { Atom } from "effect/reactivity";
 
 import { environmentCatalog } from "../../connection/catalog";
 import { appAtomRegistry } from "../../state/atom-registry";
-import { projectEnvironment } from "../../state/projects";
 import { useDebouncedValue } from "../../state/queries";
 import { useEnvironmentQuery } from "../../state/query";
 
 function createDirectories() {
   return {
     target: {},
-    entries: new Map<string, ReadonlyArray<ProjectEntry>>(),
+    entries: new Map<string, ReadonlyArray<WorkspaceEntry>>(),
     errors: new Map<string, string>(),
     completeDirectories: new Set<string>(),
     listingCompletedAt: new Map<string, number>(),
-    discoveries: new Map<string, ProjectEntry>(),
+    discoveries: new Map<string, WorkspaceEntry>(),
     rootListing: null as { readonly timestamp: number } | null,
     validatedDirectories: new Set<string>(),
     loading: new Set<string>(),
@@ -70,7 +75,7 @@ function boundDirectories(current: ReturnType<typeof createDirectories>, preserv
   };
 }
 
-function contradictsListing(path: string, parent: string, entries: ReadonlyArray<ProjectEntry>) {
+function contradictsListing(path: string, parent: string, entries: ReadonlyArray<WorkspaceEntry>) {
   if (parent !== "" && !path.startsWith(`${parent}/`)) return false;
   const child = path.slice(parent === "" ? 0 : parent.length + 1).split("/")[0];
   const childPath = parent === "" ? child : `${parent}/${child}`;
@@ -110,13 +115,13 @@ export function useFileTreeEntries(input: {
   const debouncedQuery = useDebouncedValue(query, 200);
   const root = useEnvironmentQuery(
     cwd !== null && environmentId !== null
-      ? projectEnvironment.listEntries({ environmentId, input: { cwd, directoryPath: "" } })
+      ? workspaceEnvironment.listEntries({ environmentId, input: { cwd, directoryPath: "" } })
       : null,
   );
   const { refresh: refreshRoot } = root;
   const search = useEnvironmentQuery(
     searching && debouncedQuery.length > 0 && cwd !== null && environmentId !== null
-      ? projectEnvironment.searchEntries({
+      ? workspaceEnvironment.searchEntries({
           environmentId,
           input: { cwd, query: debouncedQuery, limit: 200 },
         })
@@ -214,7 +219,7 @@ export function useFileTreeEntries(input: {
       errors.delete(directoryPath);
       return { ...current, errors, loading: new Set(current.loading).add(directoryPath) };
     });
-    const atom = projectEnvironment.listEntries({ environmentId, input: { cwd, directoryPath } });
+    const atom = workspaceEnvironment.listEntries({ environmentId, input: { cwd, directoryPath } });
     appAtomRegistry.refresh(atom);
     return executeAtomQuery(appAtomRegistry, atom, {
       signal: controller.signal,
@@ -273,7 +278,7 @@ export function useFileTreeEntries(input: {
     });
   };
   const missingRoot =
-    root.failure instanceof ProjectListEntriesError &&
+    root.failure instanceof WorkspaceListEntriesError &&
     root.failure.failure === "workspace_root_not_found";
   const rootData = missingRoot ? null : root.data;
   const rootListing = root.successResult ?? directories.rootListing;
@@ -306,7 +311,7 @@ export function useFileTreeEntries(input: {
       for (const entry of searchData?.entries ?? []) merged.set(entry.path, entry);
     }
     const reachableDirectories = new Set<string>();
-    const visit = (items: ReadonlyArray<ProjectEntry>) => {
+    const visit = (items: ReadonlyArray<WorkspaceEntry>) => {
       for (const entry of items) {
         merged.set(entry.path, entry);
         if (entry.kind === "directory") {
@@ -475,10 +480,10 @@ export function useFileTreeEntries(input: {
     const queries =
       cwd !== null && environmentId !== null
         ? [
-            projectEnvironment.listEntries({ environmentId, input: { cwd, directoryPath: "" } }),
+            workspaceEnvironment.listEntries({ environmentId, input: { cwd, directoryPath: "" } }),
             ...(searching && !missingRoot
               ? [
-                  projectEnvironment.searchEntries({
+                  workspaceEnvironment.searchEntries({
                     environmentId,
                     input: { cwd, query: debouncedQuery, limit: 200 },
                   }),

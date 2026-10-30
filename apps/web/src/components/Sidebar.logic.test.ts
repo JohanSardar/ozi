@@ -11,9 +11,7 @@ import {
   getFallbackThreadIdAfterDelete,
   hasUnseenCompletion,
   resolveSidebarRowThreadId,
-  orderItemsByPreferredIds,
   pinOrderKeyBetween,
-  resolveProjectStatusIndicator,
   resolveSidebarSweepKeys,
   resolveSidebarThreadStatus,
   resolveThreadStatusPill,
@@ -24,34 +22,18 @@ import {
   resolveSidebarDropTarget,
   planSidebarThreadDrop,
   sortPinnedThreadsForSidebar,
-  sortProjectsForSidebar,
-  sortScopedProjectsForSidebar,
-  sortSidebarV2ProjectGroups,
   shouldNavigateAfterThreadPark,
   type SidebarListItem,
   type SidebarListMarker,
   type SidebarSection,
   resolveSidebarDropVerb,
-  groupSidebarThreadsByProject,
-  resolveSidebarFolderDot,
-  sidebarFolderExpansionKeys,
 } from "./Sidebar.logic";
-import { resolveProjectExpanded } from "../uiStateStore";
 import { threadSearchMatchKey } from "@t3tools/client-runtime/state/thread-search";
-import { EnvironmentId, ProjectId, ProviderInstanceId, RunId, ThreadId } from "@t3tools/contracts";
+import { EnvironmentId, ProviderInstanceId, RunId, ThreadId } from "@t3tools/contracts";
 
-import {
-  DEFAULT_INTERACTION_MODE,
-  DEFAULT_RUNTIME_MODE,
-  type Project,
-  type Thread,
-} from "../types";
+import { DEFAULT_INTERACTION_MODE, DEFAULT_RUNTIME_MODE, type Thread } from "../types";
 import { makeThreadFixture, type ThreadFixtureOverrides } from "../test-fixtures";
-import {
-  completeSidebarRouteReveal,
-  pendingSidebarRouteReveal,
-  resolveSidebarRouteReveal,
-} from "./sidebar/routeReveal";
+import { completeSidebarRouteReveal, pendingSidebarRouteReveal } from "./sidebar/routeReveal";
 
 const localEnvironmentId = EnvironmentId.make("environment-local");
 
@@ -197,26 +179,7 @@ function makeLatestRun(overrides?: {
   };
 }
 
-describe("orderItemsByPreferredIds", () => {
-  it("resolves legacy preference aliases without materializing project state", () => {
-    const ordered = orderItemsByPreferredIds({
-      items: [
-        { id: "physical-a", cwd: "/work/a" },
-        { id: "physical-b", cwd: "/work/b" },
-        { id: "physical-c", cwd: "/work/c" },
-      ],
-      preferredIds: ["legacy:/work/c", "legacy:/work/a"],
-      getId: (project) => project.id,
-      getPreferenceIds: (project) => [project.id, `legacy:${project.cwd}`],
-    });
-
-    expect(ordered.map((project) => project.id)).toEqual([
-      "physical-c",
-      "physical-a",
-      "physical-b",
-    ]);
-  });
-});
+describe("orderItemsByPreferredIds", () => {});
 
 describe("resolveSidebarThreadStatus", () => {
   const runtime = {
@@ -548,58 +511,10 @@ describe("resolveThreadStatusPill", () => {
   });
 });
 
-describe("resolveProjectStatusIndicator", () => {
-  it("ranks waiting below active work and above plan-ready", () => {
-    const waiting = {
-      label: "Waiting" as const,
-      spinner: false,
-    };
-
-    expect(
-      resolveProjectStatusIndicator([
-        waiting,
-        {
-          label: "Working",
-          spinner: true,
-        },
-      ]),
-    ).toMatchObject({ label: "Working" });
-    expect(
-      resolveProjectStatusIndicator([
-        {
-          label: "Plan ready",
-          spinner: false,
-        },
-        waiting,
-      ]),
-    ).toMatchObject({ label: "Waiting" });
-  });
-});
-
-function makeProject(overrides: Partial<Project> = {}): Project {
-  const { defaultModelSelection, ...rest } = overrides;
-  return {
-    id: ProjectId.make("project-1"),
-    environmentId: localEnvironmentId,
-    title: "Project",
-    workspaceRoot: "/tmp/project",
-    defaultModelSelection: {
-      instanceId: ProviderInstanceId.make("codex"),
-      model: "gpt-5.4",
-      ...defaultModelSelection,
-    },
-    createdAt: "2026-03-09T10:00:00.000Z",
-    updatedAt: "2026-03-09T10:00:00.000Z",
-    scripts: [],
-    ...rest,
-  };
-}
-
 function makeThread(overrides: ThreadFixtureOverrides = {}): Thread {
   return makeThreadFixture({
     id: ThreadId.make("thread-1"),
     environmentId: localEnvironmentId,
-    projectId: ProjectId.make("project-1"),
     title: "Thread",
     modelSelection: {
       instanceId: ProviderInstanceId.make("codex"),
@@ -629,19 +544,16 @@ describe("getFallbackThreadIdAfterDelete", () => {
       threads: [
         makeThread({
           id: ThreadId.make("thread-active"),
-          projectId: ProjectId.make("project-1"),
           createdAt: "2026-03-09T10:05:00.000Z",
           messages: [],
         }),
         makeThread({
           id: ThreadId.make("thread-newest"),
-          projectId: ProjectId.make("project-1"),
           createdAt: "2026-03-09T10:10:00.000Z",
           messages: [],
         }),
         makeThread({
           id: ThreadId.make("thread-next"),
-          projectId: ProjectId.make("project-1"),
           createdAt: "2026-03-09T10:07:00.000Z",
           messages: [],
         }),
@@ -652,172 +564,6 @@ describe("getFallbackThreadIdAfterDelete", () => {
     });
 
     expect(fallbackThreadId).toBe(ThreadId.make("thread-next"));
-  });
-});
-describe("sortProjectsForSidebar", () => {
-  it("sorts projects by the most recent user message across their threads", () => {
-    const projects = [
-      makeProject({ id: ProjectId.make("project-1"), title: "Older project" }),
-      makeProject({ id: ProjectId.make("project-2"), title: "Newer project" }),
-    ];
-    const threads = [
-      makeThread({
-        projectId: ProjectId.make("project-1"),
-        updatedAt: "2026-03-09T10:20:00.000Z",
-        messages: [
-          {
-            id: "message-1" as never,
-            role: "user",
-            text: "older project user message",
-            runId: null,
-            createdAt: "2026-03-09T10:01:00.000Z",
-            updatedAt: "2026-03-09T10:01:00.000Z",
-            streaming: false,
-          },
-        ],
-      }),
-      makeThread({
-        id: ThreadId.make("thread-2"),
-        projectId: ProjectId.make("project-2"),
-        updatedAt: "2026-03-09T10:05:00.000Z",
-        messages: [
-          {
-            id: "message-2" as never,
-            role: "user",
-            text: "newer project user message",
-            runId: null,
-            createdAt: "2026-03-09T10:05:00.000Z",
-            updatedAt: "2026-03-09T10:05:00.000Z",
-            streaming: false,
-          },
-        ],
-      }),
-    ];
-
-    const sorted = sortProjectsForSidebar(projects, threads, "updated_at");
-
-    expect(sorted.map((project) => project.id)).toEqual([
-      ProjectId.make("project-2"),
-      ProjectId.make("project-1"),
-    ]);
-  });
-});
-
-describe("sortScopedProjectsForSidebar", () => {
-  it("keeps identical project ids in different environments separate", () => {
-    const remoteEnvironmentId = EnvironmentId.make("environment-remote");
-    const sharedProjectId = ProjectId.make("shared-project");
-    const projects = [
-      makeProject({
-        environmentId: localEnvironmentId,
-        id: sharedProjectId,
-        title: "Local project",
-      }),
-      makeProject({
-        environmentId: remoteEnvironmentId,
-        id: sharedProjectId,
-        title: "Remote project",
-      }),
-    ];
-    const threads = [
-      makeThread({
-        environmentId: localEnvironmentId,
-        projectId: sharedProjectId,
-        updatedAt: "2026-03-09T10:02:00.000Z",
-      }),
-      makeThread({
-        environmentId: remoteEnvironmentId,
-        projectId: sharedProjectId,
-        updatedAt: "2026-03-09T10:10:00.000Z",
-      }),
-    ];
-
-    const sorted = sortScopedProjectsForSidebar(projects, threads, "updated_at");
-
-    expect(sorted.map((project) => project.title)).toEqual(["Remote project", "Local project"]);
-  });
-
-  it("does not use archived threads as project activity", () => {
-    const projects = [
-      makeProject({
-        id: ProjectId.make("project-visible"),
-        title: "Visible project",
-        updatedAt: "2026-03-09T10:01:00.000Z",
-      }),
-      makeProject({
-        id: ProjectId.make("project-archived"),
-        title: "Archived-only project",
-        updatedAt: "2026-03-09T10:00:00.000Z",
-      }),
-    ];
-    const threads = [
-      makeThread({
-        id: ThreadId.make("thread-visible"),
-        projectId: ProjectId.make("project-visible"),
-        updatedAt: "2026-03-09T10:02:00.000Z",
-      }),
-      makeThread({
-        id: ThreadId.make("thread-archived"),
-        projectId: ProjectId.make("project-archived"),
-        updatedAt: "2026-03-09T10:10:00.000Z",
-        archivedAt: "2026-03-09T10:11:00.000Z",
-      }),
-    ];
-
-    const sorted = sortScopedProjectsForSidebar(projects, threads, "updated_at");
-
-    expect(sorted.map((project) => project.title)).toEqual([
-      "Visible project",
-      "Archived-only project",
-    ]);
-  });
-});
-
-describe("sortSidebarV2ProjectGroups", () => {
-  it("does not let a hidden subagent thread reorder projects", () => {
-    const olderProjectId = ProjectId.make("project-older");
-    const newerProjectId = ProjectId.make("project-newer");
-    const olderRootThreadId = ThreadId.make("thread-older-root");
-    const projects = [
-      {
-        ...makeProject({ id: olderProjectId, title: "A older project" }),
-        projectKey: "logical-older",
-        memberProjectRefs: [{ environmentId: localEnvironmentId, projectId: olderProjectId }],
-      },
-      {
-        ...makeProject({ id: newerProjectId, title: "Z newer project" }),
-        projectKey: "logical-newer",
-        memberProjectRefs: [{ environmentId: localEnvironmentId, projectId: newerProjectId }],
-      },
-    ];
-    const threads = [
-      makeThread({
-        id: olderRootThreadId,
-        projectId: olderProjectId,
-        updatedAt: "2026-03-09T10:01:00.000Z",
-      }),
-      makeThread({
-        id: ThreadId.make("thread-newer-root"),
-        projectId: newerProjectId,
-        updatedAt: "2026-03-09T10:05:00.000Z",
-      }),
-      makeThread({
-        id: ThreadId.make("thread-hidden-subagent"),
-        projectId: olderProjectId,
-        updatedAt: "2026-03-09T10:10:00.000Z",
-        lineage: {
-          rootThreadId: olderRootThreadId,
-          parentThreadId: olderRootThreadId,
-          relationshipToParent: "subagent",
-        },
-      }),
-    ];
-
-    expect(
-      sortSidebarV2ProjectGroups(projects, threads, "updated_at", new Set()).map(
-        (project) => project.projectKey,
-      ),
-    ).toEqual(["logical-newer", "logical-older"]);
   });
 });
 
@@ -1246,164 +992,5 @@ describe("pendingSidebarRouteReveal", () => {
     pendingSidebarRouteReveal(reveal, "env:a1");
     expect(pendingSidebarRouteReveal(reveal, null)).toBeNull();
     expect(pendingSidebarRouteReveal(reveal, "env:a1")).toBe("env:a1");
-  });
-});
-
-describe("resolveSidebarRouteReveal", () => {
-  const scopedProjectKeys = new Set(["environment-test:project-scoped"]);
-  const hidden = makeThreadFixture({ projectId: ProjectId.make("project-other") });
-  const hiddenKey = "environment-test:thread-test";
-  const findThread = (key: string) => (key === hiddenKey ? hidden : undefined);
-
-  it("widens the scope for a newly opened thread the scope hides", () => {
-    expect(
-      resolveSidebarRouteReveal({
-        reveal: { observedKey: "environment-test:other", pendingKey: null },
-        routeKey: hiddenKey,
-        isSearching: false,
-        scopedProjectKeys,
-        delegatedUnderParent: new Set(),
-        findThread,
-      }),
-    ).toEqual({ pendingKey: hiddenKey, widensScope: true });
-  });
-
-  it("never widens for a thread whose reveal already completed", () => {
-    // A remount's once-per-mount scroll must keep the scope the user chose.
-    expect(
-      resolveSidebarRouteReveal({
-        reveal: { observedKey: hiddenKey, pendingKey: null },
-        routeKey: hiddenKey,
-        isSearching: false,
-        scopedProjectKeys,
-        delegatedUnderParent: new Set(),
-        findThread,
-      }),
-    ).toEqual({ pendingKey: null, widensScope: false });
-  });
-
-  it("widens again for a thread reopened before the thread between them listed its row", () => {
-    // The user scoped away from the open thread, then went to a thread whose row
-    // never mounted, then came back.
-    const reveal = { observedKey: hiddenKey, pendingKey: null };
-    const resolve = (routeKey: string) =>
-      resolveSidebarRouteReveal({
-        reveal,
-        routeKey,
-        isSearching: false,
-        scopedProjectKeys,
-        delegatedUnderParent: new Set(),
-        findThread,
-      });
-    resolve("environment-test:unlisted");
-    expect(resolve(hiddenKey)).toEqual({ pendingKey: hiddenKey, widensScope: true });
-  });
-
-  it("holds a pending reveal without widening while searching", () => {
-    expect(
-      resolveSidebarRouteReveal({
-        reveal: { observedKey: hiddenKey, pendingKey: hiddenKey },
-        routeKey: hiddenKey,
-        isSearching: true,
-        scopedProjectKeys,
-        delegatedUnderParent: new Set(),
-        findThread,
-      }),
-    ).toEqual({ pendingKey: hiddenKey, widensScope: false });
-  });
-});
-
-describe("sidebarFolderExpansionKeys", () => {
-  it("honors a collapse the legacy sidebar saved under a member's cwd", () => {
-    const keys = sidebarFolderExpansionKeys({
-      projectKey: "github.com/JohanSardar/ozi",
-      memberProjects: [{ physicalProjectKey: "local:/code/ozi", workspaceRoot: "/code/ozi" }],
-    });
-    const cwdKey = keys.at(-1)!;
-
-    expect(resolveProjectExpanded({}, keys)).toBe(true);
-    expect(resolveProjectExpanded({ [cwdKey]: false }, keys)).toBe(false);
-    expect(resolveProjectExpanded({ [keys[0]!]: true, [cwdKey]: false }, keys)).toBe(true);
-  });
-});
-
-describe("groupSidebarThreadsByProject", () => {
-  it("puts each thread in its project's folder and drops empty projects unless kept", () => {
-    const remoteEnvironmentId = EnvironmentId.make("environment-remote");
-    const ozi = ProjectId.make("ozi");
-    const oziRemote = ProjectId.make("ozi-remote");
-    const fleet = ProjectId.make("fleet");
-    const thread = (id: string, environmentId: EnvironmentId, projectId: ProjectId) => ({
-      id,
-      environmentId,
-      projectId,
-    });
-    const groups = [
-      {
-        projectKey: "ozi",
-        memberProjectRefs: [
-          { environmentId: localEnvironmentId, projectId: ozi },
-          { environmentId: remoteEnvironmentId, projectId: oziRemote },
-        ],
-      },
-      {
-        projectKey: "fleet",
-        memberProjectRefs: [{ environmentId: localEnvironmentId, projectId: fleet }],
-      },
-    ];
-
-    const threads = [
-      thread("a", localEnvironmentId, ozi),
-      thread("orphan", localEnvironmentId, ProjectId.make("deleted")),
-      thread("b", remoteEnvironmentId, oziRemote),
-    ];
-    const summarize = (keepEmpty: boolean) =>
-      groupSidebarThreadsByProject(groups, threads, keepEmpty).map((folder) => ({
-        projectKey: folder.group.projectKey,
-        threads: folder.threads.map((entry) => entry.id),
-      }));
-
-    expect(summarize(true)).toEqual([
-      { projectKey: "ozi", threads: ["a", "b"] },
-      { projectKey: "fleet", threads: [] },
-    ]);
-    expect(summarize(false)).toEqual([{ projectKey: "ozi", threads: ["a", "b"] }]);
-  });
-});
-
-describe("resolveSidebarFolderDot", () => {
-  it("flags the most urgent hidden thread and stays quiet otherwise", () => {
-    const idle = {
-      hasActionableProposedPlan: false,
-      hasPendingApprovals: false,
-      hasPendingUserInput: false,
-      interactionMode: "default" as const,
-      latestRun: makeLatestRun(),
-      lastVisitedAt: "2026-03-09T10:06:00.000Z",
-      runtime: null,
-    };
-    const runtime = {
-      status: "running" as const,
-      activeRunId: null,
-      providerInstanceId: ProviderInstanceId.make("codex"),
-      providerName: "Codex",
-      lastError: null,
-      updatedAt: "2026-03-09T10:00:00.000Z",
-    };
-    const working = { ...idle, runtime };
-    const unread = { ...idle, lastVisitedAt: "2026-03-09T10:04:00.000Z" };
-    const limited = {
-      ...idle,
-      runtime: { ...runtime, status: "failed" as const, lastErrorClass: "usage_limit" as const },
-    };
-
-    expect(resolveSidebarFolderDot([idle])).toBeNull();
-    // A waiting thread stays quiet even with an unread completion, like its row.
-    expect(
-      resolveSidebarFolderDot([{ ...unread, runtime: { ...runtime, status: "idle" as const } }]),
-    ).toBeNull();
-    expect(resolveSidebarFolderDot([idle, working])).toBe("working");
-    expect(resolveSidebarFolderDot([working, unread])).toBe("unread");
-    expect(resolveSidebarFolderDot([unread, limited])).toBe("attention");
   });
 });

@@ -1,6 +1,5 @@
 import {
   parseScopedThreadKey,
-  scopeProjectRef,
   scopeThreadRef,
   scopedThreadKey,
 } from "@t3tools/client-runtime/environment";
@@ -22,10 +21,6 @@ import { useRouter } from "@tanstack/react-router";
 import { getFallbackThreadIdAfterDelete, pinOrderKeyBetween } from "../components/Sidebar.logic";
 import { useComposerDraftStore } from "../composerDraftStore";
 import { readEnvironmentScope } from "../state/session";
-import { appAtomRegistry } from "../rpc/atomRegistry";
-import { environmentServerConfigsAtom } from "../state/server";
-import { isScratchProject } from "@t3tools/client-runtime/state/projects";
-import { projectEnvironment } from "../state/projects";
 import { threadEnvironment } from "../state/threads";
 import { useNewThreadHandler } from "./useHandleNewThread";
 import { refreshArchivedThreadsForEnvironment } from "../lib/archivedThreadsState";
@@ -35,7 +30,6 @@ import {
   readEnvironmentServerConfigLoaded,
   readEnvironmentSupportsAutoSettleOptOut,
   readEnvironmentThreadRefs,
-  readProject,
   readThreadShell,
   readThreadShells,
 } from "../state/entities";
@@ -222,23 +216,6 @@ export function useAcknowledgeThreadWoke() {
   };
 }
 
-/** A No project thread that already has its own folder, on a server that can promote it. */
-export function canTurnThreadIntoProject(threadRef: ScopedThreadRef): boolean {
-  const thread = readThreadShell(threadRef);
-  const config = appAtomRegistry.get(environmentServerConfigsAtom).get(threadRef.environmentId);
-  if (
-    !thread?.workingDirectory ||
-    config?.environment.capabilities.threadProjectFromScratch !== true
-  ) {
-    return false;
-  }
-  const project = readProject({
-    environmentId: threadRef.environmentId,
-    projectId: thread.projectId,
-  });
-  return project !== null && isScratchProject(project, config.scratchWorkspaceRoot);
-}
-
 function threadOperationFailure(target: ScopedThreadRef) {
   return readEnvironmentScope(target.environmentId, AuthOrchestrationOperateScope)
     ? null
@@ -290,17 +267,11 @@ export function useThreadActions() {
     reportFailure: false,
   });
   const markThreadUnread = useMarkThreadUnread();
-  const createProjectFromThread = useAtomCommand(projectEnvironment.createFromThread, {
-    reportFailure: false,
-  });
   const stopThreadSession = useOrchestrationCommand(threadEnvironment.stopSession);
   const sidebarThreadSortOrder = useClientSettings((settings) => settings.sidebarThreadSortOrder);
   const confirmThreadDelete = useClientSettings((settings) => settings.confirmThreadDelete);
   const confirmThreadUnpin = useClientSettings((settings) => settings.confirmThreadUnpin);
   const clearComposerDraftForThread = useComposerDraftStore((store) => store.clearDraftThread);
-  const clearProjectDraftThreadById = useComposerDraftStore(
-    (store) => store.clearProjectDraftThreadById,
-  );
   const clearTerminalUiState = useTerminalUiStateStore((state) => state.clearTerminalUiState);
   const markThreadVisited = useUiStateStore((state) => state.markThreadVisited);
   const router = useRouter();
@@ -384,9 +355,7 @@ export function useThreadActions() {
     });
 
     if (shouldNavigateToDraft) {
-      const navigationResult = await settlePromise(() =>
-        handleNewThread(scopeProjectRef(thread.environmentId, thread.projectId)),
-      );
+      const navigationResult = await settlePromise(() => handleNewThread(thread.environmentId));
       if (navigationResult._tag === "Failure") {
         return navigationResult;
       }
@@ -457,10 +426,6 @@ export function useThreadActions() {
     refreshArchivedThreadsForEnvironment(threadRef.environmentId);
     releaseComposerDraftUploads(threadRef);
     clearComposerDraftForThread(threadRef);
-    clearProjectDraftThreadById(
-      scopeProjectRef(threadRef.environmentId, thread.projectId),
-      threadRef,
-    );
     clearTerminalUiState(threadRef);
     clearThreadPreviewState(threadRef);
 
@@ -798,10 +763,5 @@ export function useThreadActions() {
     reorderActiveThread,
     markThreadUnread,
     setThreadAutoSettle,
-    turnThreadIntoProject: (target: ScopedThreadRef) =>
-      createProjectFromThread({
-        environmentId: target.environmentId,
-        input: { threadId: target.threadId },
-      }),
   };
 }

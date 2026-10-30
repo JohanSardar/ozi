@@ -18,14 +18,14 @@ import * as LayerMap from "effect/LayerMap";
 import * as Schema from "effect/Schema";
 
 import type {
-  ProjectEntry,
-  ProjectEntryKind,
-  ProjectListEntriesResult,
-  ProjectSearchContentsInput,
-  ProjectSearchContentsResult,
-  ProjectSearchEntriesResult,
+  WorkspaceEntry,
+  WorkspaceEntryKind,
+  WorkspaceListEntriesResult,
+  WorkspaceSearchContentsInput,
+  WorkspaceSearchContentsResult,
+  WorkspaceSearchEntriesResult,
 } from "@t3tools/contracts";
-import { isProjectFaviconPath } from "@t3tools/shared/projectFavicon";
+import { isWorkspaceImagePreviewPath } from "@t3tools/shared/filePreview";
 
 // fff-node's native library stays external; single-executables require disk packages instead of importing them.
 const requireForFff = NodeModule.createRequire(import.meta.url);
@@ -107,16 +107,19 @@ export class WorkspaceSearchIndexDestroyFailed extends Schema.TaggedError<Worksp
 export class WorkspaceSearchIndex extends Context.Service<
   WorkspaceSearchIndex,
   {
-    readonly list: () => Effect.Effect<ProjectListEntriesResult, WorkspaceSearchIndexSearchFailed>;
+    readonly list: () => Effect.Effect<
+      WorkspaceListEntriesResult,
+      WorkspaceSearchIndexSearchFailed
+    >;
     readonly search: (
       query: string,
       limit: number,
-      kind?: ProjectEntryKind,
+      kind?: WorkspaceEntryKind,
       imageOnly?: boolean,
-    ) => Effect.Effect<ProjectSearchEntriesResult, WorkspaceSearchIndexSearchFailed>;
+    ) => Effect.Effect<WorkspaceSearchEntriesResult, WorkspaceSearchIndexSearchFailed>;
     readonly searchContents: (
-      input: Omit<ProjectSearchContentsInput, "cwd">,
-    ) => Effect.Effect<ProjectSearchContentsResult, WorkspaceSearchIndexSearchFailed>;
+      input: Omit<WorkspaceSearchContentsInput, "cwd">,
+    ) => Effect.Effect<WorkspaceSearchContentsResult, WorkspaceSearchIndexSearchFailed>;
     readonly refresh: () => Effect.Effect<
       void,
       WorkspaceSearchIndexRefreshFailed | WorkspaceSearchIndexScanTimedOut
@@ -137,7 +140,7 @@ function parentPathOf(input: string): string | undefined {
   return separatorIndex === -1 ? undefined : input.slice(0, separatorIndex);
 }
 
-function toProjectEntry(item: MixedItem): ProjectEntry | null {
+function toProjectEntry(item: MixedItem): WorkspaceEntry | null {
   const normalizedPath = trimDirectorySeparator(toPosixPath(item.item.relativePath));
   if (!normalizedPath) {
     return null;
@@ -149,12 +152,12 @@ function toProjectEntry(item: MixedItem): ProjectEntry | null {
   };
 }
 
-function toFileEntry(item: FileItem): ProjectEntry | null {
+function toFileEntry(item: FileItem): WorkspaceEntry | null {
   const normalizedPath = trimDirectorySeparator(toPosixPath(item.relativePath));
   return normalizedPath ? { path: normalizedPath, kind: "file" } : null;
 }
 
-function toDirectoryEntry(item: DirItem): ProjectEntry | null {
+function toDirectoryEntry(item: DirItem): WorkspaceEntry | null {
   const normalizedPath = trimDirectorySeparator(toPosixPath(item.relativePath));
   return normalizedPath ? { path: normalizedPath, kind: "directory" } : null;
 }
@@ -163,10 +166,10 @@ function mapFileSearchResult(
   result: SearchResult,
   limit: number,
   imageOnly = false,
-): ProjectSearchEntriesResult {
+): WorkspaceSearchEntriesResult {
   const entries = result.items.flatMap((item) => {
     const entry = toFileEntry(item);
-    return entry && (!imageOnly || isProjectFaviconPath(entry.path)) ? [entry] : [];
+    return entry && (!imageOnly || isWorkspaceImagePreviewPath(entry.path)) ? [entry] : [];
   });
   return {
     entries: entries.slice(0, limit),
@@ -177,7 +180,7 @@ function mapFileSearchResult(
 function mapDirectorySearchResult(
   result: DirSearchResult,
   limit: number,
-): ProjectSearchEntriesResult {
+): WorkspaceSearchEntriesResult {
   const entries = result.items.flatMap((item) => {
     const entry = toDirectoryEntry(item);
     return entry ? [entry] : [];
@@ -192,8 +195,8 @@ function mapDirectorySearchResult(
 function mapMixedSearchResult(
   result: MixedSearchResult,
   limit: number,
-): { readonly entries: ProjectEntry[]; readonly truncated: boolean } {
-  const entries: ProjectEntry[] = [];
+): { readonly entries: WorkspaceEntry[]; readonly truncated: boolean } {
+  const entries: WorkspaceEntry[] = [];
   for (const item of result.items) {
     const entry = toProjectEntry(item);
     if (entry) {
@@ -230,7 +233,7 @@ function codePointBefore(line: string, index: number): string | undefined {
   return codePointAt(line, previousIndex);
 }
 
-function buildContentSearchQuery(input: Omit<ProjectSearchContentsInput, "cwd">): {
+function buildContentSearchQuery(input: Omit<WorkspaceSearchContentsInput, "cwd">): {
   readonly searchQuery: string;
   readonly regexMode: boolean;
 } {
@@ -273,7 +276,7 @@ function isWholeWordRange(
   return leftIsBoundary && rightIsBoundary;
 }
 
-function withDirectoryAncestors(entries: ReadonlyArray<ProjectEntry>): ProjectEntry[] {
+function withDirectoryAncestors(entries: ReadonlyArray<WorkspaceEntry>): WorkspaceEntry[] {
   const entryByPath = new Map(entries.map((entry) => [entry.path, entry]));
   for (const entry of entries) {
     let parentPath = parentPathOf(entry.path);
@@ -485,7 +488,7 @@ export const make = Effect.fn("WorkspaceSearchIndex.make")(function* (
     const rawPageSize = input.wholeWord
       ? Math.max(input.limit, CONTENT_SEARCH_MAX_MATCHES_PER_FILE)
       : input.limit;
-    const matches: Array<ProjectSearchContentsResult["matches"][number]> = [];
+    const matches: Array<WorkspaceSearchContentsResult["matches"][number]> = [];
     let nextCursor: GrepCursor | null = null;
     let regexFallbackError: string | undefined;
 

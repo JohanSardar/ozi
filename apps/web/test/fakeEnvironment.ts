@@ -9,7 +9,6 @@ import {
   MessageId,
   ORCHESTRATION_PROTOCOL_VERSION,
   ORCHESTRATION_V2_WS_METHODS,
-  ProjectId,
   ProviderInstanceId,
   RunId,
   ServerConfig,
@@ -17,7 +16,6 @@ import {
   TurnItemId,
   WS_METHODS,
   WsRpcGroup,
-  type OrchestrationProjectShell,
   type OrchestrationV2ProjectedTurnItem,
   type OrchestrationV2Run,
   type OrchestrationV2ShellStreamItem,
@@ -44,7 +42,6 @@ import * as Stream from "effect/Stream";
 import { RpcSchema } from "effect/rpc";
 
 export const ENVIRONMENT_ID = EnvironmentId.make("environment-render");
-const PROJECT_ID = ProjectId.make("project-render");
 const CODEX = ProviderInstanceId.make("codex");
 const MODEL = { instanceId: CODEX, model: "gpt-5.4" };
 const AT = DateTime.makeUnsafe("2026-03-17T19:12:28.000Z");
@@ -99,16 +96,6 @@ const serverConfig: ServerConfig = {
     shellResumeCompletionMarker: true,
   }),
   keybindings: DEFAULT_RESOLVED_KEYBINDINGS,
-};
-
-const project: OrchestrationProjectShell = {
-  id: PROJECT_ID,
-  title: "render",
-  workspaceRoot: "/workspace/render",
-  defaultModelSelection: null,
-  scripts: [],
-  createdAt: "2026-03-17T19:12:28.000Z",
-  updatedAt: "2026-03-17T19:12:28.000Z",
 };
 
 const base = (threadId: ThreadId, runId: RunId, id: string, ordinal: number) => ({
@@ -213,7 +200,6 @@ function shellOf(thread: FakeThread): OrchestrationV2ThreadShell {
   const latest = thread.runs.at(-1);
   return {
     id: thread.id,
-    projectId: PROJECT_ID,
     title: thread.title,
     providerInstanceId: CODEX,
     modelSelection: MODEL,
@@ -259,7 +245,6 @@ function projectionOf(thread: FakeThread): OrchestrationV2ThreadProjection {
   return {
     thread: {
       id: shell.id,
-      projectId: shell.projectId,
       title: shell.title,
       providerInstanceId: shell.providerInstanceId,
       modelSelection: shell.modelSelection,
@@ -328,7 +313,6 @@ const handlers: Record<string, (input: never) => unknown> = {
         snapshot: {
           schemaVersion: 1,
           snapshotSequence: sequence,
-          projects: [project],
           threads: threads.map(shellOf),
           archivedThreads: [],
         },

@@ -6,7 +6,6 @@ import {
   MessageId,
   RunId,
   ORCHESTRATION_V2_WS_METHODS,
-  ProjectId,
   ProviderInstanceId,
   ThreadId,
   type OrchestrationV2Command,
@@ -49,11 +48,9 @@ const SNAPSHOT: OrchestrationV2ShellSnapshot = {
   snapshotSequence: 1,
   schemaVersion: 2,
   archivedThreads: [],
-  projects: [],
   threads: [
     {
       id: THREAD_ID,
-      projectId: ProjectId.make("project"),
       title: "Remote thread",
       modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.4" },
       runtimeMode: "full-access",

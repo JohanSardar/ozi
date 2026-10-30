@@ -1,3 +1,4 @@
+import { workspaceEnvironment } from "./workspaceFiles";
 import { resolveFilesystemReadAccess } from "@t3tools/client-runtime/state/filesystem";
 import { environmentSession } from "./session";
 import { useEnvironmentPresentation } from "./presentation";
@@ -21,7 +22,6 @@ import { useEffect, useState } from "react";
 import { appAtomRegistry } from "./atom-registry";
 import { orchestrationEnvironment } from "./orchestration";
 import { olderSettledThreads, threadFamilies } from "./threads";
-import { projectEnvironment } from "./projects";
 import { useEnvironmentQuery } from "./query";
 import { normalizeComposerPathSearchQuery } from "./queryTargets";
 
@@ -180,7 +180,7 @@ export function useComposerPathSearch(target: ComposerPathSearchTarget) {
         }
       : null;
   const result = useEnvironmentQuery(
-    canReadFiles && searchTarget !== null ? projectEnvironment.searchEntries(searchTarget) : null,
+    canReadFiles && searchTarget !== null ? workspaceEnvironment.searchEntries(searchTarget) : null,
   );
   const hasTarget = searchTarget !== null;
 

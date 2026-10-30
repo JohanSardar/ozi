@@ -1,8 +1,6 @@
 import type { OlderSettledScope } from "@t3tools/client-runtime/state/threads";
 import type { EnvironmentId } from "@t3tools/contracts";
 import { useMemo, useSyncExternalStore } from "react";
-
-import { scopedProjectKey } from "../../lib/scopedEntities";
 import { useOlderSettledShelf, useOlderSettledShelfGrowth } from "../../state/olderSettledShelf";
 import type { PendingNewTask } from "../../state/use-pending-new-tasks";
 import {
@@ -36,7 +34,6 @@ export function useThreadListV2(input: {
   readonly threads: LayoutInput["threads"];
   readonly pendingTasks: ReadonlyArray<PendingNewTask>;
   readonly environmentId: EnvironmentId | null;
-  readonly projectRefs: LayoutInput["projectRefs"];
   readonly searchQuery: string;
   /** Threads that match the search by content, keyed like `threadSearchMatchKey`. */
   readonly searchMatches: ReadonlyMap<string, unknown>;
@@ -102,7 +99,6 @@ export function useThreadListV2(input: {
     pendingOrder: input.pendingOrder,
     threads: threads.filter((thread) => thread.archivedAt === null),
     environmentId: input.environmentId,
-    projectRefs: input.projectRefs,
     searchQuery: input.searchQuery,
     matchedThreadKeys: new Set(input.searchMatches.keys()),
     settlementEnvironmentIds: input.settlementEnvironmentIds,
@@ -122,28 +118,16 @@ export function useThreadListV2(input: {
       threads.filter(
         (thread) =>
           thread.archivedAt === null &&
-          scopes.some(
-            (scope) =>
-              scope.environmentId === thread.environmentId &&
-              (scope.projectIds === null || scope.projectIds.includes(thread.projectId)),
-          ),
+          scopes.some((scope) => scope.environmentId === thread.environmentId),
       ),
     ),
   });
   useOlderSettledShelfGrowth(olderSettledShelf, layout.listedSettledThreads);
   const contentOnlyThreadKeys = useKeySet([...layout.contentOnlyThreadKeys].sort().join("\n"));
-  const scopedProjectKeys =
-    input.projectRefs == null
-      ? null
-      : new Set(input.projectRefs.map((ref) => scopedProjectKey(ref.environmentId, ref.projectId)));
   const searchQuery = input.searchQuery.trim().toLocaleLowerCase();
   const pendingTasks = input.pendingTasks.filter(
     (pendingTask) =>
       (input.environmentId === null || pendingTask.environmentId === input.environmentId) &&
-      (scopedProjectKeys === null ||
-        scopedProjectKeys.has(
-          scopedProjectKey(pendingTask.environmentId, pendingTask.projectId),
-        )) &&
       (searchQuery.length === 0 || pendingTask.title.toLocaleLowerCase().includes(searchQuery)),
   );
   const items = buildThreadListV2ListItems({
@@ -167,19 +151,13 @@ export function useThreadListV2(input: {
   return { layout, items, contentOnlyThreadKeys, olderSettledShelf };
 }
 
-/** The list's scope per environment: its projects there, or every project. */
 function olderSettledScopes(input: {
   readonly environmentId: EnvironmentId | null;
-  readonly projectRefs: LayoutInput["projectRefs"];
   readonly settlementEnvironmentIds: ReadonlySet<EnvironmentId>;
 }): ReadonlyArray<OlderSettledScope> {
   const environmentIds =
     input.environmentId === null ? [...input.settlementEnvironmentIds] : [input.environmentId];
   return environmentIds.flatMap((environmentId): ReadonlyArray<OlderSettledScope> => {
-    if (input.projectRefs == null) return [{ environmentId, projectIds: null }];
-    const projectIds = input.projectRefs.flatMap((ref) =>
-      ref.environmentId === environmentId ? [ref.projectId] : [],
-    );
-    return projectIds.length === 0 ? [] : [{ environmentId, projectIds }];
+    return [{ environmentId }];
   });
 }

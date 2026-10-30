@@ -1,4 +1,4 @@
-import { ProjectId, ThreadId, type DesktopAppActivationRequest } from "@t3tools/contracts";
+import { ThreadId, type DesktopAppActivationRequest } from "@t3tools/contracts";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import { DesktopAppActivationBroker } from "./DesktopAppActivationBroker.ts";
@@ -27,11 +27,10 @@ describe("DesktopAppActivationBroker", () => {
       version: 1,
       requestId: request.requestId,
       ok: true,
-      projectId: ProjectId.make("project-1"),
       threadId: ThreadId.make("thread-1"),
     });
 
-    await expect(response).resolves.toMatchObject({ ok: true, projectId: "project-1" });
+    await expect(response).resolves.toMatchObject({ ok: true });
     broker.close();
   });
 
@@ -65,7 +64,6 @@ describe("DesktopAppActivationBroker", () => {
       version: 1,
       requestId: request.requestId,
       ok: true,
-      projectId: ProjectId.make("project-1"),
       threadId: ThreadId.make("thread-1"),
     });
 

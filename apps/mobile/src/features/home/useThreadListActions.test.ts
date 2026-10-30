@@ -3,7 +3,6 @@ import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/shell
 import {
   AuthOrchestrationOperateScope,
   EnvironmentId,
-  ProjectId,
   ProviderInstanceId,
   RunId,
   ThreadId,
@@ -161,7 +160,6 @@ function makeThread(input: Partial<EnvironmentThreadShell> = {}): EnvironmentThr
     id: ThreadId.make("thread"),
     title: "Thread",
     environmentId: primaryEnvironmentId,
-    projectId: ProjectId.make("project"),
     modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "model" },
     ...input,
   });

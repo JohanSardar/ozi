@@ -7,7 +7,6 @@ import {
   MessageId,
   NodeId,
   OrchestratorMcpFailure,
-  ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
   ProviderThreadId,
@@ -46,7 +45,6 @@ import * as ProviderContinuationRequests from "@t3tools/provider-core/server/Pro
 import * as ThreadManagement from "../orchestration-v2/ThreadManagementService.ts";
 import * as ProviderReplayHarness from "../orchestration-v2/testkit/ProviderReplayHarness.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
-import * as ProjectService from "../project/ProjectService.ts";
 import * as ProviderRegistry from "../provider/ProviderRegistry.ts";
 import * as ScheduledTaskService from "../scheduledTasks/ScheduledTaskService.ts";
 import * as SecretRequests from "../secrets/SecretRequests.ts";
@@ -161,7 +159,6 @@ const makeLaptop = Effect.gen(function* () {
     Layer.provide(Layer.mock(ProviderRegistry.ProviderRegistry)({})),
     Layer.provide(Layer.mock(ProviderAdapterRegistry.ProviderAdapterRegistryV2)({})),
     Layer.provide(Layer.mock(ScheduledTaskService.ScheduledTaskService)({})),
-    Layer.provide(Layer.mock(ProjectService.ProjectService)({})),
     Layer.provide(Layer.mock(SecretRequests.SecretRequests)({})),
     Layer.provide(Layer.mock(ThreadLaunch.ThreadLaunchService)({})),
     Layer.provide(
@@ -208,7 +205,6 @@ const seedThread = (
       creationSource: "web",
       commandId: CommandId.make("command:create:laptop"),
       threadId,
-      projectId: ProjectId.make("project:laptop"),
       title: "Laptop",
       modelSelection,
       runtimeMode,

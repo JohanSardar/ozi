@@ -154,10 +154,8 @@ describe("orchestration V2 thread fork", () => {
 
         const materialized = yield* Effect.gen(function* () {
           const ids = yield* IdAllocator.IdAllocatorV2;
-          const projectId = yield* ids.allocate.project({ fixtureName: "thread-fork-native" });
           const sourceThreadId = yield* ids.allocate.thread({
             fixtureName: "thread-fork-native-source",
-            projectId,
           });
           const targetThreadId = ThreadId.make("thread-fork-native-target");
 
@@ -171,7 +169,6 @@ describe("orchestration V2 thread fork", () => {
                 commandName: "thread-create-source",
               }),
               threadId: sourceThreadId,
-              projectId,
               title: "Source thread",
               modelSelection: CLAUDE_MODEL_SELECTION,
               runtimeMode: "full-access",
@@ -294,12 +291,8 @@ describe("orchestration V2 thread fork", () => {
 
       const materialized = yield* Effect.gen(function* () {
         const ids = yield* IdAllocator.IdAllocatorV2;
-        const projectId = yield* ids.allocate.project({
-          fixtureName: "thread-fork-native-prior-turn",
-        });
         const sourceThreadId = yield* ids.allocate.thread({
           fixtureName: "thread-fork-native-prior-turn-source",
-          projectId,
         });
         const targetThreadId = ThreadId.make("thread-fork-native-prior-turn-target");
         const firstRunId = ids.derive.run({ threadId: sourceThreadId, ordinal: 1 });
@@ -314,7 +307,6 @@ describe("orchestration V2 thread fork", () => {
               commandName: "thread-create-source",
             }),
             threadId: sourceThreadId,
-            projectId,
             title: "Source thread",
             modelSelection: CODEX_MODEL_SELECTION,
             runtimeMode: "full-access",
@@ -476,12 +468,8 @@ describe("orchestration V2 thread fork", () => {
 
       const materialized = yield* Effect.gen(function* () {
         const ids = yield* IdAllocator.IdAllocatorV2;
-        const projectId = yield* ids.allocate.project({
-          fixtureName: "thread-fork-native-prior-turn-source-rollback",
-        });
         const sourceThreadId = yield* ids.allocate.thread({
           fixtureName: "thread-fork-native-prior-turn-source-rollback-source",
-          projectId,
         });
         const targetThreadId = ThreadId.make(
           "thread-fork-native-prior-turn-source-rollback-target",
@@ -507,7 +495,6 @@ describe("orchestration V2 thread fork", () => {
               commandName: "thread-create-source",
             }),
             threadId: sourceThreadId,
-            projectId,
             title: "Source thread",
             modelSelection: CLAUDE_MODEL_SELECTION,
             runtimeMode: "full-access",
@@ -683,12 +670,8 @@ describe("orchestration V2 thread fork", () => {
 
       const materialized = yield* Effect.gen(function* () {
         const ids = yield* IdAllocator.IdAllocatorV2;
-        const projectId = yield* ids.allocate.project({
-          fixtureName: "thread-fork-native-fork-local-rollback",
-        });
         const sourceThreadId = yield* ids.allocate.thread({
           fixtureName: "thread-fork-native-fork-local-rollback-source",
-          projectId,
         });
         const targetThreadId = ThreadId.make("thread-fork-native-fork-local-rollback-target");
         const targetSecondRunId = ids.derive.run({ threadId: targetThreadId, ordinal: 2 });
@@ -711,7 +694,6 @@ describe("orchestration V2 thread fork", () => {
               commandName: "thread-create-source",
             }),
             threadId: sourceThreadId,
-            projectId,
             title: "Source thread",
             modelSelection: CLAUDE_MODEL_SELECTION,
             runtimeMode: "full-access",

@@ -1,4 +1,3 @@
-import type { EnvironmentProject } from "@t3tools/client-runtime/state/shell";
 import {
   foldSearchQuery,
   PALETTE_SECONDARY_LIMIT,
@@ -14,8 +13,7 @@ import {
 
 export interface CommandPaletteItem {
   readonly key: string;
-  readonly kind: "action" | "project" | "thread";
-  readonly project?: EnvironmentProject;
+  readonly kind: "action" | "thread";
   readonly title: string;
   readonly detail?: string;
   readonly searchTerms: ReadonlyArray<string>;
@@ -50,10 +48,10 @@ export function filterCommandPaletteItems(
   const actionsOnly = query.startsWith(">");
   const normalizedQuery = foldSearchQuery(actionsOnly ? query.slice(1) : query);
   const candidates = actionsOnly ? items.filter((item) => item.kind === "action") : items;
-  if (!normalizedQuery) return candidates.filter((item) => item.kind !== "project");
+  if (!normalizedQuery) return [...candidates];
 
   // On equal match classes, groups keep this order, as on web.
-  const kinds = ["action", "thread", "project"] as const;
+  const kinds = ["action", "thread"] as const;
   const groups = rankSearchGroups(
     kinds.map((kind) => ({ group: kind, items: candidates.filter((item) => item.kind === kind) })),
     (

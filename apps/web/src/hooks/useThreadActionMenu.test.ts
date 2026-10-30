@@ -52,13 +52,11 @@ vi.mock("../state/entities", () => ({
   readThreadShell: () => ({
     id: "thread",
     environmentId: "secondary",
-    projectId: "project",
     title: "Thread",
     workingDirectory: null,
     runtime: null,
     latestRun: null,
   }),
-  useProjects: () => [{ id: "project", environmentId: "secondary" }],
 }));
 vi.mock("../state/environments", () => ({ usePrimaryEnvironmentId: () => "primary" }));
 vi.mock("../state/threads", () => ({ threadEnvironment: { updateMetadata: "metadata" } }));
@@ -151,7 +149,7 @@ const position = { x: 10, y: 20 };
 const createMenu = () =>
   useThreadActionMenu({
     threadRef: target,
-    projectCwd: "/project",
+    defaultCwd: "/project",
     onStartRename: () => recordEffect("rename"),
     canShareWithGuest: false,
   });

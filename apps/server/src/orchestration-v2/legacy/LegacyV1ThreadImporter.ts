@@ -10,7 +10,6 @@ import {
   type OrchestrationV2ConversationMessage,
   type OrchestrationV2DomainEvent,
   type OrchestrationV2TurnItem,
-  ProjectId,
   ProviderInstanceId,
   ThreadId,
   TurnItemId,
@@ -34,7 +33,6 @@ const TRANSCRIPT_EVENT_BATCH_SIZE = 100;
 
 interface LegacyThreadRow {
   readonly thread_id: string;
-  readonly project_id: string;
   readonly title: string;
   readonly model_selection_json: string | null;
   readonly runtime_mode: string;
@@ -180,7 +178,6 @@ function importedThread(row: LegacyThreadRow): OrchestrationV2AppThread {
     createdBy: "system",
     creationSource: "server",
     id: threadId,
-    projectId: ProjectId.make(row.project_id),
     title: row.title.trim() === "" ? "Untitled thread" : row.title,
     providerInstanceId: modelSelection.instanceId,
     modelSelection,
@@ -399,7 +396,6 @@ const make = Effect.gen(function* () {
     const repairRows = yield* sql<LegacyRepairRow>`
       SELECT
         thread.thread_id,
-        thread.project_id,
         thread.title,
         thread.model_selection_json,
         thread.runtime_mode,
@@ -474,7 +470,6 @@ const make = Effect.gen(function* () {
     const rows = yield* sql<LegacyThreadRow>`
       SELECT
         thread.thread_id,
-        thread.project_id,
         thread.title,
         thread.model_selection_json,
         thread.runtime_mode,

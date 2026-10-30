@@ -1,20 +1,15 @@
-import { ProjectId } from "@t3tools/contracts";
 import {
-  getLatestThreadForProject,
   sortActiveThreadsByOrderKey,
   sortPinnedThreadsByOrderKey,
   sortThreads,
 } from "@t3tools/client-runtime/state/thread-sort";
 import { formatHourShort, formatRelativeHourShort } from "@t3tools/shared/usageFormat";
 import { describe, test } from "vite-plus/test";
-
-const projectId = ProjectId.make("benchmark-project");
 const start = Date.parse("2026-08-11T00:00:00.000Z");
 const threads = Array.from({ length: 1_000 }, (_, index) => {
   const timestamp = new Date(start + ((index * 997) % 1_000) * 60_000).toISOString();
   return {
     id: `thread-${index}`,
-    projectId,
     archivedAt: null,
     createdAt: timestamp,
     updatedAt: timestamp,
@@ -41,11 +36,6 @@ describe("client performance", () => {
   test("sort 1000 keyless pinned threads", async ({ bench }) => {
     await bench("sort", () => {
       sortPinnedThreadsByOrderKey(threads);
-    }).run();
-  });
-  test("select latest project thread from 1000 threads", async ({ bench }) => {
-    await bench("select", () => {
-      getLatestThreadForProject(threads, projectId, "updated_at");
     }).run();
   });
   test("format 24 hourly usage labels and tooltips", async ({ bench }) => {

@@ -3,7 +3,6 @@ import { describe, it } from "@effect/vitest";
 import {
   MessageId,
   NodeId,
-  ProjectId,
   ProviderInstanceId,
   ProviderSessionId,
   RunAttemptId,
@@ -216,7 +215,6 @@ const openFxSession = Effect.fn("openFxSession")(function* (input: {
         createdBy: "user",
         creationSource: "web",
         id: threadId,
-        projectId: ProjectId.make(`project:${threadId}`),
         title: "fx adapter test",
         providerInstanceId: instanceId,
         modelSelection: turnSelection,

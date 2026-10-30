@@ -13,7 +13,7 @@ import {
 export function ThreadTitleInstructionsSettings() {
   const settings = useScopedSettings();
   const { targets } = useSettingsScope();
-  const scopeKey = targets.map((target) => `${target.environmentId}:${target.projectId}`).join(",");
+  const scopeKey = targets.map((target) => target.environmentId).join(",");
   const edited = useRef(false);
   const updateSettings = useUpdateScopedSettings();
   const mixed = useScopedSettingsMixed(["threadTitleInstructions"]);

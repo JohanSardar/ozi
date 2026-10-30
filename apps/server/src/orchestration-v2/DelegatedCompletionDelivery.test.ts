@@ -9,7 +9,6 @@ import {
   type ModelSelection,
   NodeId,
   type OrchestrationV2Run,
-  ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
   ProviderThreadId,
@@ -27,8 +26,6 @@ import * as Stream from "effect/Stream";
 import * as ServerConfig from "../config.ts";
 import * as McpSessionRegistryTestkit from "../mcp/McpSessionRegistry.testkit.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
-import * as ProjectEnrichmentService from "../project/ProjectEnrichmentService.ts";
-import * as ProjectService from "../project/ProjectService.ts";
 import type { ProviderInstance } from "@t3tools/provider-core/server/driver";
 import * as ProviderInstanceRegistry from "../provider/ProviderInstanceRegistry.ts";
 import * as ServerSettings from "../serverSettings.ts";
@@ -39,7 +36,6 @@ import * as Orchestrator from "./Orchestrator.ts";
 import { continueRestartedRun } from "./RestartContinuation.ts";
 import * as RuntimeLayer from "./runtimeLayer.ts";
 import * as ThreadCommandExecutor from "./ThreadCommandExecutor.ts";
-import * as ProviderTurnStartServiceTestkit from "./ProviderTurnStartService.testkit.ts";
 import type * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAdapter";
 import * as ProviderContinuationRequests from "@t3tools/provider-core/server/ProviderContinuationRequests";
 
@@ -93,26 +89,9 @@ const layerTest = Layer.mergeAll(
   RuntimeLayer.layerEventSink,
   ThreadCommandExecutor.layer,
 ).pipe(
-  Layer.provideMerge(RuntimeLayer.layerProjectService),
   Layer.provide(
     Layer.mock(WorkspacePaths.WorkspacePaths)({
       normalizeWorkspaceRoot: (workspaceRoot) => Effect.succeed(workspaceRoot),
-    }),
-  ),
-  Layer.provide(ProviderTurnStartServiceTestkit.layer),
-  Layer.provide(
-    Layer.succeed(ProjectEnrichmentService.ProjectEnrichmentService, {
-      peek: () =>
-        Effect.succeed({
-          faviconPath: null,
-        }),
-      request: () => Effect.void,
-      getAvailable: () =>
-        Effect.succeed({
-          faviconPath: null,
-        }),
-      invalidate: () => Effect.void,
-      subscribeChanges: Effect.never,
     }),
   ),
   Layer.provide(McpSessionRegistryTestkit.layer),
@@ -126,7 +105,6 @@ const layerTest = Layer.mergeAll(
 
 const seedParentWithTerminalTask = (input: {
   readonly threadId: ThreadId;
-  readonly projectId: ProjectId;
   readonly runId: RunId;
   readonly rootNodeId: NodeId;
   readonly taskId: NodeId;
@@ -136,19 +114,11 @@ const seedParentWithTerminalTask = (input: {
   readonly now: DateTime.Utc;
 }) =>
   Effect.gen(function* () {
-    const projects = yield* ProjectService.ProjectService;
     const orchestrator = yield* Orchestrator.OrchestratorV2;
     const eventSink = yield* EventSink.EventSinkV2;
     const providerThreadId = ProviderThreadId.make(
       `provider-thread:${String(input.threadId).replace("thread:", "")}`,
     );
-
-    yield* projects.create({
-      commandId: CommandId.make(`command:seed-project:${input.threadId}`),
-      projectId: input.projectId,
-      title: "Delegated completion delivery",
-      workspaceRoot: `/workspace/${input.projectId}`,
-    });
 
     yield* orchestrator.dispatch({
       type: "thread.create",
@@ -156,7 +126,6 @@ const seedParentWithTerminalTask = (input: {
       creationSource: "web",
       commandId: CommandId.make(`command:seed-create:${input.threadId}`),
       threadId: input.threadId,
-      projectId: input.projectId,
       title: "Delegated completion delivery",
       modelSelection,
       runtimeMode: "full-access",
@@ -287,7 +256,6 @@ it.layer(layerTest)("delegated completion delivery repairs", (it) => {
         const incomingTaskId = NodeId.make("stop-wake-incoming");
         yield* seedParentWithTerminalTask({
           threadId,
-          projectId: ProjectId.make("stop-wake-project"),
           runId: originRunId,
           rootNodeId: NodeId.make("stop-wake-origin-root"),
           taskId: incomingTaskId,
@@ -433,7 +401,6 @@ it.layer(layerTest)("delegated completion delivery repairs", (it) => {
       yield* seedParentWithTerminalTask({
         threadId,
         runId,
-        projectId: ProjectId.make("mailbox-project"),
         rootNodeId: NodeId.make("mailbox-root"),
         taskId,
         deliveryState: "claimed",
@@ -527,7 +494,6 @@ it.layer(layerTest)("delegated completion delivery repairs", (it) => {
       yield* seedParentWithTerminalTask({
         threadId,
         runId,
-        projectId: ProjectId.make("mailbox-mixed-project"),
         rootNodeId: NodeId.make("mailbox-mixed-root"),
         taskId,
         deliveryState: "claimed",
@@ -610,7 +576,6 @@ it.layer(layerTest)("delegated completion delivery repairs", (it) => {
       const orchestrator = yield* Orchestrator.OrchestratorV2;
       const now = yield* DateTime.now;
       const threadId = ThreadId.make("thread:delegated-delivery-live-cohort");
-      const projectId = ProjectId.make("project:delegated-delivery-live-cohort");
       const runId = RunId.make("run:delegated-delivery-live-cohort");
       const rootNodeId = NodeId.make("node:delegated-delivery-live-cohort-root");
       const firstTaskId = NodeId.make("node:delegated-delivery-live-cohort-first");
@@ -619,7 +584,6 @@ it.layer(layerTest)("delegated completion delivery repairs", (it) => {
 
       yield* seedParentWithTerminalTask({
         threadId,
-        projectId,
         runId,
         rootNodeId,
         taskId: firstTaskId,
@@ -683,7 +647,6 @@ it.layer(layerTest)("delegated completion delivery repairs", (it) => {
       const messageId = MessageId.make(`message:delegated-delivery:${threadId}`);
       yield* seedParentWithTerminalTask({
         threadId,
-        projectId: ProjectId.make(`project:inline-budget:${testCase.name}`),
         runId,
         rootNodeId: NodeId.make(`node:inline-budget:${testCase.name}`),
         taskId: firstTaskId,
@@ -747,14 +710,12 @@ it.layer(layerTest)("delegated completion delivery repairs", (it) => {
       const orchestrator = yield* Orchestrator.OrchestratorV2;
       const now = yield* DateTime.now;
       const threadId = ThreadId.make("thread:delegated-delivery-a1");
-      const projectId = ProjectId.make("project:delegated-delivery-a1");
       const runId = RunId.make("run:delegated-delivery-a1");
       const rootNodeId = NodeId.make("node:delegated-delivery-a1-root");
       const taskId = NodeId.make("node:delegated-delivery-a1-task");
 
       yield* seedParentWithTerminalTask({
         threadId,
-        projectId,
         runId,
         rootNodeId,
         taskId,
@@ -812,14 +773,12 @@ it.layer(layerTest)("delegated completion delivery repairs", (it) => {
         const orchestrator = yield* Orchestrator.OrchestratorV2;
         const now = yield* DateTime.now;
         const threadId = ThreadId.make("thread:delegated-delivery-a2");
-        const projectId = ProjectId.make("project:delegated-delivery-a2");
         const runId = RunId.make("run:delegated-delivery-a2");
         const rootNodeId = NodeId.make("node:delegated-delivery-a2-root");
         const taskId = NodeId.make("node:delegated-delivery-a2-task");
 
         yield* seedParentWithTerminalTask({
           threadId,
-          projectId,
           runId,
           rootNodeId,
           taskId,
@@ -976,7 +935,6 @@ it.layer(layerTest)("delegated completion delivery repairs", (it) => {
         const messageId = MessageId.make(`message:delegated-delivery:${threadId}`);
         yield* seedParentWithTerminalTask({
           threadId,
-          projectId: ProjectId.make(`project:${race}`),
           runId,
           rootNodeId: NodeId.make(`node:${race}-root`),
           taskId,
@@ -1141,7 +1099,6 @@ const runEvent = (input: {
 
 const seedRestartCancelledChild = (input: {
   readonly parentThreadId: ThreadId;
-  readonly projectId: ProjectId;
   readonly parentRunId: RunId;
   readonly rootNodeId: NodeId;
   readonly name: string;
@@ -1168,7 +1125,6 @@ const seedRestartCancelledChild = (input: {
             createdBy: "agent",
             creationSource: "server",
             id: childThreadId,
-            projectId: input.projectId,
             title: input.name,
             providerInstanceId: modelSelection.instanceId,
             modelSelection,
@@ -1266,13 +1222,11 @@ it.layer(Layer.merge(layerTest, ProviderContinuationRequests.layer))(
         const requests = yield* ProviderContinuationRequests.ProviderContinuationRequests;
         const now = yield* DateTime.now;
         const threadId = ThreadId.make("thread:completion-capture-race");
-        const projectId = ProjectId.make("project:completion-capture-race");
         const runId = RunId.make("run:completion-capture-race");
         const rootNodeId = NodeId.make("node:completion-capture-race");
         const checkpointId = CheckpointId.make("checkpoint:completion-capture-race");
         yield* seedParentWithTerminalTask({
           threadId,
-          projectId,
           runId,
           rootNodeId,
           taskId: NodeId.make("node:completion-capture-seed"),
@@ -1295,7 +1249,6 @@ it.layer(Layer.merge(layerTest, ProviderContinuationRequests.layer))(
         });
         const child = yield* seedRestartCancelledChild({
           parentThreadId: threadId,
-          projectId,
           parentRunId: runId,
           rootNodeId,
           name: "completion-capture-child",
@@ -1405,12 +1358,10 @@ it.layer(Layer.merge(layerTest, ProviderContinuationRequests.layer))(
         const eventSink = yield* EventSink.EventSinkV2;
         const now = yield* DateTime.now;
         const parentThreadId = ThreadId.make("thread:held-followup-parent");
-        const projectId = ProjectId.make("project:held-followup");
         const parentRunId = RunId.make("run:held-followup-parent");
         const rootNodeId = NodeId.make("node:held-followup-parent");
         yield* seedParentWithTerminalTask({
           threadId: parentThreadId,
-          projectId,
           runId: parentRunId,
           rootNodeId,
           taskId: NodeId.make("node:held-followup-seed"),
@@ -1419,7 +1370,6 @@ it.layer(Layer.merge(layerTest, ProviderContinuationRequests.layer))(
         });
         const child = yield* seedRestartCancelledChild({
           parentThreadId,
-          projectId,
           parentRunId,
           rootNodeId,
           name: "held-followup-child",
@@ -1530,12 +1480,10 @@ it.layer(Layer.merge(layerTest, ProviderContinuationRequests.layer))(
         const requests = yield* ProviderContinuationRequests.ProviderContinuationRequests;
         const now = yield* DateTime.now;
         const parentThreadId = ThreadId.make("thread:background-wake-parent");
-        const projectId = ProjectId.make("project:background-wake");
         const parentRunId = RunId.make("run:background-wake-parent");
         const rootNodeId = NodeId.make("node:background-wake-parent");
         yield* seedParentWithTerminalTask({
           threadId: parentThreadId,
-          projectId,
           runId: parentRunId,
           rootNodeId,
           taskId: NodeId.make("node:background-wake-seed"),
@@ -1544,7 +1492,6 @@ it.layer(Layer.merge(layerTest, ProviderContinuationRequests.layer))(
         });
         const child = yield* seedRestartCancelledChild({
           parentThreadId,
-          projectId,
           parentRunId,
           rootNodeId,
           name: "background-wake-child",
@@ -1672,12 +1619,10 @@ it.layer(Layer.merge(layerTest, ProviderContinuationRequests.layer))(
           const requests = yield* ProviderContinuationRequests.ProviderContinuationRequests;
           const now = yield* DateTime.now;
           const parentThreadId = ThreadId.make(`thread:followup-${outcome}`);
-          const projectId = ProjectId.make(`project:followup-${outcome}`);
           const parentRunId = RunId.make(`run:followup-${outcome}`);
           const rootNodeId = NodeId.make(`node:followup-${outcome}`);
           yield* seedParentWithTerminalTask({
             threadId: parentThreadId,
-            projectId,
             runId: parentRunId,
             rootNodeId,
             taskId: NodeId.make(`node:seed-${outcome}`),
@@ -1686,7 +1631,6 @@ it.layer(Layer.merge(layerTest, ProviderContinuationRequests.layer))(
           });
           const child = yield* seedRestartCancelledChild({
             parentThreadId,
-            projectId,
             parentRunId,
             rootNodeId,
             name: `followup-child-${outcome}`,
@@ -1933,7 +1877,6 @@ it.layer(Layer.merge(layerTest, ProviderContinuationRequests.layer))(
             assert.equal(afterAutomatic.contextTransfers.length, recovered.contextTransfers.length);
             const control = yield* seedRestartCancelledChild({
               parentThreadId,
-              projectId,
               parentRunId,
               rootNodeId,
               name: "followup-control-child",
@@ -1967,12 +1910,10 @@ it.layer(Layer.merge(layerTest, ProviderContinuationRequests.layer))(
         const eventSink = yield* EventSink.EventSinkV2;
         const now = yield* DateTime.now;
         const parentThreadId = ThreadId.make("thread:question-answer-parent");
-        const projectId = ProjectId.make("project:question-answer");
         const parentRunId = RunId.make("run:question-answer-parent");
         const rootNodeId = NodeId.make("node:question-answer-parent");
         yield* seedParentWithTerminalTask({
           threadId: parentThreadId,
-          projectId,
           runId: parentRunId,
           rootNodeId,
           taskId: NodeId.make("node:question-answer-seed"),
@@ -1981,7 +1922,6 @@ it.layer(Layer.merge(layerTest, ProviderContinuationRequests.layer))(
         });
         const child = yield* seedRestartCancelledChild({
           parentThreadId,
-          projectId,
           parentRunId,
           rootNodeId,
           name: "question-answer-child",
@@ -2133,12 +2073,10 @@ it.layer(layerTest)("delegated tasks across a server restart", (it) => {
       const eventSink = yield* EventSink.EventSinkV2;
       const now = yield* DateTime.now;
       const threadId = ThreadId.make("thread:result-message-parent");
-      const projectId = ProjectId.make("project:result-message");
       const runId = RunId.make("run:result-message-parent");
       const rootNodeId = NodeId.make("node:result-message-parent");
       yield* seedParentWithTerminalTask({
         threadId,
-        projectId,
         runId,
         rootNodeId,
         taskId: NodeId.make("node:result-message-seed"),
@@ -2147,7 +2085,6 @@ it.layer(layerTest)("delegated tasks across a server restart", (it) => {
       });
       const child = yield* seedRestartCancelledChild({
         parentThreadId: threadId,
-        projectId,
         parentRunId: runId,
         rootNodeId,
         name: "result-message-child",
@@ -2225,12 +2162,10 @@ it.layer(layerTest)("delegated tasks across a server restart", (it) => {
       const eventSink = yield* EventSink.EventSinkV2;
       const now = yield* DateTime.now;
       const threadId = ThreadId.make("thread:restart-parent");
-      const projectId = ProjectId.make("project:restart-parent");
       const runId = RunId.make("run:restart-parent");
       const rootNodeId = NodeId.make("node:restart-parent-root");
       yield* seedParentWithTerminalTask({
         threadId,
-        projectId,
         runId,
         rootNodeId,
         taskId: NodeId.make("node:restart-parent-settled"),
@@ -2244,7 +2179,6 @@ it.layer(layerTest)("delegated tasks across a server restart", (it) => {
       ) =>
         seedRestartCancelledChild({
           parentThreadId: threadId,
-          projectId,
           parentRunId: runId,
           rootNodeId,
           name,
@@ -2383,12 +2317,10 @@ it.layer(layerTest)("delegated tasks across a server restart", (it) => {
       const orchestrator = yield* Orchestrator.OrchestratorV2;
       const now = yield* DateTime.now;
       const threadId = ThreadId.make("thread:restart-declined-parent");
-      const projectId = ProjectId.make("project:restart-declined-parent");
       const runId = RunId.make("run:restart-declined-parent");
       const rootNodeId = NodeId.make("node:restart-declined-parent-root");
       yield* seedParentWithTerminalTask({
         threadId,
-        projectId,
         runId,
         rootNodeId,
         taskId: NodeId.make("node:restart-declined-parent-settled"),
@@ -2397,7 +2329,6 @@ it.layer(layerTest)("delegated tasks across a server restart", (it) => {
       });
       const child = yield* seedRestartCancelledChild({
         parentThreadId: threadId,
-        projectId,
         parentRunId: runId,
         rootNodeId,
         name: "restart-declined-child",
@@ -2428,12 +2359,10 @@ it.layer(layerTest)("delegated tasks across a server restart", (it) => {
       const orchestrator = yield* Orchestrator.OrchestratorV2;
       const now = yield* DateTime.now;
       const threadId = ThreadId.make("thread:restart-monitor-parent");
-      const projectId = ProjectId.make("project:restart-monitor-parent");
       const runId = RunId.make("run:restart-monitor-parent");
       const rootNodeId = NodeId.make("node:restart-monitor-parent-root");
       yield* seedParentWithTerminalTask({
         threadId,
-        projectId,
         runId,
         rootNodeId,
         taskId: NodeId.make("node:restart-monitor-parent-settled"),
@@ -2442,7 +2371,6 @@ it.layer(layerTest)("delegated tasks across a server restart", (it) => {
       });
       const child = yield* seedRestartCancelledChild({
         parentThreadId: threadId,
-        projectId,
         parentRunId: runId,
         rootNodeId,
         name: "restart-monitor-child",
@@ -2486,7 +2414,6 @@ it.layer(layerTest)("delegated tasks across a server restart", (it) => {
           const deliveryRunId = RunId.make(`run:${name}:delivery`);
           yield* seedParentWithTerminalTask({
             threadId,
-            projectId: ProjectId.make(`project:${name}`),
             runId,
             rootNodeId: NodeId.make(`node:${name}-root`),
             taskId,
@@ -2568,12 +2495,10 @@ it.layer(layerTest)("delegated tasks across a server restart", (it) => {
       const eventSink = yield* EventSink.EventSinkV2;
       const now = yield* DateTime.now;
       const threadId = ThreadId.make("thread:held-wake-parent");
-      const projectId = ProjectId.make("project:held-wake-parent");
       const runId = RunId.make("run:held-wake-parent");
       const rootNodeId = NodeId.make("node:held-wake-parent-root");
       yield* seedParentWithTerminalTask({
         threadId,
-        projectId,
         runId,
         rootNodeId,
         taskId: NodeId.make("node:held-wake-parent-settled"),
@@ -2582,7 +2507,6 @@ it.layer(layerTest)("delegated tasks across a server restart", (it) => {
       });
       const child = yield* seedRestartCancelledChild({
         parentThreadId: threadId,
-        projectId,
         parentRunId: runId,
         rootNodeId,
         name: "held-wake-child",
@@ -2637,12 +2561,10 @@ it.layer(layerTest)("delegated tasks across a server restart", (it) => {
       const eventSink = yield* EventSink.EventSinkV2;
       const now = yield* DateTime.now;
       const threadId = ThreadId.make("thread:failed-hold-parent");
-      const projectId = ProjectId.make("project:failed-hold-parent");
       const runId = RunId.make("run:failed-hold-parent");
       const rootNodeId = NodeId.make("node:failed-hold-parent-root");
       yield* seedParentWithTerminalTask({
         threadId,
-        projectId,
         runId,
         rootNodeId,
         taskId: NodeId.make("node:failed-hold-parent-settled"),
@@ -2651,7 +2573,6 @@ it.layer(layerTest)("delegated tasks across a server restart", (it) => {
       });
       const child = yield* seedRestartCancelledChild({
         parentThreadId: threadId,
-        projectId,
         parentRunId: runId,
         rootNodeId,
         name: "failed-hold-child",
@@ -2757,12 +2678,10 @@ it.layer(layerTest)("delegated tasks across a server restart", (it) => {
         const eventSink = yield* EventSink.EventSinkV2;
         const now = yield* DateTime.now;
         const threadId = ThreadId.make("thread:unpublished-failure-parent");
-        const projectId = ProjectId.make("project:unpublished-failure-parent");
         const runId = RunId.make("run:unpublished-failure-parent");
         const rootNodeId = NodeId.make("node:unpublished-failure-parent-root");
         yield* seedParentWithTerminalTask({
           threadId,
-          projectId,
           runId,
           rootNodeId,
           taskId: NodeId.make("node:unpublished-failure-parent-settled"),
@@ -2771,7 +2690,6 @@ it.layer(layerTest)("delegated tasks across a server restart", (it) => {
         });
         const child = yield* seedRestartCancelledChild({
           parentThreadId: threadId,
-          projectId,
           parentRunId: runId,
           rootNodeId,
           name: "unpublished-failure-child",
@@ -2821,12 +2739,10 @@ it.layer(layerTest)("delegated tasks across a server restart", (it) => {
       const eventSink = yield* EventSink.EventSinkV2;
       const now = yield* DateTime.now;
       const threadId = ThreadId.make("thread:settled-only-restart");
-      const projectId = ProjectId.make("project:settled-only-restart");
       const runId = RunId.make("run:settled-only-restart");
       const rootNodeId = NodeId.make("node:settled-only-restart-root");
       yield* seedParentWithTerminalTask({
         threadId,
-        projectId,
         runId,
         rootNodeId,
         taskId: NodeId.make("node:settled-only-restart-settled"),
@@ -2858,7 +2774,6 @@ it.layer(layerTest)("delegated tasks across a server restart", (it) => {
       });
       const child = yield* seedRestartCancelledChild({
         parentThreadId: threadId,
-        projectId,
         parentRunId: runId,
         rootNodeId,
         name: "settled-only-restart-child",
@@ -2894,7 +2809,6 @@ it.layer(layerTest)("delegated tasks across a server restart", (it) => {
         const rootNodeId = NodeId.make(`late-settle-parent-root-${key}`);
         yield* seedParentWithTerminalTask({
           threadId,
-          projectId: ProjectId.make(`late-settle-project-${key}`),
           runId,
           rootNodeId,
           taskId: NodeId.make(`late-settle-seed-task-${key}`),
@@ -2924,7 +2838,6 @@ it.layer(layerTest)("delegated tasks across a server restart", (it) => {
                     createdBy: "agent",
                     creationSource: "server",
                     id: childThreadId,
-                    projectId: ProjectId.make(`late-settle-project-${key}`),
                     title: name,
                     providerInstanceId: modelSelection.instanceId,
                     modelSelection,

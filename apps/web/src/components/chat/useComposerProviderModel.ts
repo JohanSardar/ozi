@@ -5,7 +5,6 @@ import {
 } from "../../composerDraftStore";
 import {
   type ModelSelection,
-  type ProjectId,
   ProviderDriverKind,
   type ScopedThreadRef,
   type ServerProvider,
@@ -30,20 +29,18 @@ export function useComposerProviderModel(
   input: Omit<Parameters<typeof resolveComposerProviderSelection>[0], "entries"> & {
     readonly providerStatuses: ReadonlyArray<ServerProvider>;
     readonly settings: UnifiedSettings;
-    readonly activeProjectId: ProjectId | null;
     readonly threadRef: ScopedThreadRef | DraftId;
     readonly threadModelSelection: ModelSelection | null | undefined;
-    readonly projectModelSelection: ModelSelection | null | undefined;
+    readonly defaultModelSelection: ModelSelection | null | undefined;
     readonly promptInjectionState: ReturnType<typeof getComposerPromptInjectionState>;
   },
 ) {
   const {
     providerStatuses,
     settings,
-    activeProjectId,
     threadRef,
     threadModelSelection,
-    projectModelSelection,
+    defaultModelSelection,
     promptInjectionState,
     candidateInstanceIds,
     lockedProvider,
@@ -53,7 +50,6 @@ export function useComposerProviderModel(
   const providerInstanceEntries: ReadonlyArray<ProviderInstanceEntry> = providerInstanceEntriesFor(
     providerStatuses,
     settings,
-    activeProjectId,
   );
   const selection = resolveComposerProviderSelection({
     entries: providerInstanceEntries,
@@ -71,7 +67,7 @@ export function useComposerProviderModel(
     selectedProvider,
     selectedInstanceId,
     threadModelSelection,
-    projectModelSelection,
+    defaultModelSelection,
     settings,
   });
   const selectedProviderModels = selection.selectedProviderEntry?.models ?? NO_PROVIDER_MODELS;

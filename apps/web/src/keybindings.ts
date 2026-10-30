@@ -19,7 +19,6 @@ import {
   type ShortcutModifierStateLike,
 } from "@t3tools/shared/keybindings";
 import { isElectron } from "./env";
-import { projectScriptIdFromCommand } from "./projectScripts";
 
 export type { ShortcutEventLike, ShortcutModifierStateLike } from "@t3tools/shared/keybindings";
 export { shortcutKeyFromEvent } from "@t3tools/shared/keybindings";
@@ -190,19 +189,10 @@ export function resolveShortcutCommand(
 
 export function resolveChatShortcutCommand(
   event: ShortcutEventLike,
-  primaryKeybindings: ResolvedKeybindingsConfig,
-  activeKeybindings: ResolvedKeybindingsConfig,
+  keybindings: ResolvedKeybindingsConfig,
   options?: ShortcutMatchOptions,
 ): KeybindingCommand | null {
-  const primaryCommand = resolveShortcutCommand(event, primaryKeybindings, options);
-  if (primaryCommand !== null && projectScriptIdFromCommand(primaryCommand) === null) {
-    return primaryCommand;
-  }
-
-  const activeCommand = resolveShortcutCommand(event, activeKeybindings, options);
-  return activeCommand !== null && projectScriptIdFromCommand(activeCommand) !== null
-    ? activeCommand
-    : null;
+  return resolveShortcutCommand(event, keybindings, options);
 }
 
 export function formatShortcutKeyLabel(key: string): string {

@@ -49,7 +49,7 @@ export function matchComposerThreadItems(input: {
       shell.lineage.relationshipToParent !== "subagent",
   );
   return rankSearchItems(candidates, (shell, options) =>
-    scoreThreadSearch(query, threadSearchSubject(shell, null), input.now, {
+    scoreThreadSearch(query, threadSearchSubject(shell), input.now, {
       ...options,
       picks: false,
     }),

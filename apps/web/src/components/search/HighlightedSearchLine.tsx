@@ -1,6 +1,6 @@
 import { resolveCodeThemeName } from "~/lib/syntaxHighlighting";
 import { getFiletypeFromFileName } from "@pierre/diffs";
-import type { ProjectContentMatch } from "@t3tools/contracts";
+import type { WorkspaceContentMatch } from "@t3tools/contracts";
 import { memo, Suspense, use, type CSSProperties } from "react";
 import { getSyntaxHighlighterPromise } from "~/lib/syntaxHighlighting";
 
@@ -26,7 +26,7 @@ interface Segment {
   readonly token: CodeToken;
 }
 
-function normalizeRanges(match: ProjectContentMatch): Range[] {
+function normalizeRanges(match: WorkspaceContentMatch): Range[] {
   const ranges = match.matchRanges
     .map((range) => ({
       start: Math.max(0, Math.min(match.lineContent.length, range.start)),
@@ -159,7 +159,7 @@ function SyntaxHighlightedTokens(props: {
 }
 
 export const HighlightedSearchLine = memo(function HighlightedSearchLine(props: {
-  readonly match: ProjectContentMatch;
+  readonly match: WorkspaceContentMatch;
   readonly path: string;
   readonly theme: "light" | "dark";
 }) {

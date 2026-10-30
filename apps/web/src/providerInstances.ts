@@ -2,9 +2,8 @@ import { pipe } from "effect/Function";
 import {
   DEFAULT_MODEL_BY_PROVIDER,
   defaultInstanceIdForDriver,
-  resolveProjectProviderInstanceEnabled,
+  isConfiguredProviderInstanceEnabled,
   type ModelSelection,
-  type ProjectId,
   type ProviderDriverKind,
   ProviderInstanceId,
   type ServerProvider,
@@ -83,11 +82,7 @@ export function deriveProviderInstanceEntries(
 /** Instance ids repeat across environments; lookups must stay scoped. */
 export function deriveProviderEntriesByEnvironment(
   providersByEnvironment: Iterable<
-    readonly [
-      string,
-      ReadonlyArray<ServerProvider>,
-      Pick<ServerSettings, "providerInstances" | "projectSettingsOverrides">?,
-    ]
+    readonly [string, ReadonlyArray<ServerProvider>, Pick<ServerSettings, "providerInstances">?]
   >,
 ): ReadonlyMap<string, ReadonlyMap<string, ProviderInstanceEntry>> {
   const byEnvironment = new Map<string, ReadonlyMap<string, ProviderInstanceEntry>>();
@@ -105,14 +100,12 @@ export function deriveProviderEntriesByEnvironment(
   return byEnvironment;
 }
 
-/** projectId applies project overrides; explicit null uses machine settings. */
 export function applyProviderInstanceSettings(
   entries: ReadonlyArray<ProviderInstanceEntry>,
-  settings: Pick<ServerSettings, "providerInstances" | "projectSettingsOverrides">,
-  projectId: ProjectId | null,
+  settings: Pick<ServerSettings, "providerInstances">,
 ): ReadonlyArray<ProviderInstanceEntry> {
   return entries.map((entry) => {
-    const enabled = resolveProjectProviderInstanceEnabled(settings, projectId, entry.instanceId);
+    const enabled = isConfiguredProviderInstanceEnabled(settings, entry.instanceId);
     return applyProviderInstanceBranding(
       enabled === entry.enabled ? entry : { ...entry, enabled },
       settings,
@@ -151,12 +144,11 @@ function applyProviderInstanceBranding(
 /** Picker order: each driver's default instance first, then its custom instances. */
 export function providerInstanceEntriesFor(
   providers: ReadonlyArray<ServerProvider>,
-  settings: Pick<ServerSettings, "providerInstances" | "projectSettingsOverrides">,
-  projectId: ProjectId | null,
+  settings: Pick<ServerSettings, "providerInstances">,
 ): ReadonlyArray<ProviderInstanceEntry> {
   return pipe(
     deriveProviderInstanceEntries(providers),
-    (entries) => applyProviderInstanceSettings(entries, settings, projectId),
+    (entries) => applyProviderInstanceSettings(entries, settings),
     sortProviderInstanceEntries,
   );
 }
@@ -241,12 +233,11 @@ export function resolveDefaultProviderModelSelection(
   return model ? { instanceId, model } : null;
 }
 
-export function resolveProjectDefaultProviderModelSelection(
+export function resolveEnvironmentDefaultModelSelection(
   providers: ReadonlyArray<ServerProvider>,
   settings: ServerSettings,
-  projectId: ProjectId | null,
 ): ModelSelection | null {
-  const entries = providerInstanceEntriesFor(providers, settings, projectId);
+  const entries = providerInstanceEntriesFor(providers, settings);
   const entry =
     entries.find(
       (candidate) => candidate.instanceId === "ozi" && isSelectableProviderInstanceEntry(candidate),

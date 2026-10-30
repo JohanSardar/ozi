@@ -11,15 +11,6 @@ function setup() {
 }
 
 describe("CommandPalette open intents", () => {
-  it("opens New thread in... with focus in the search input, not the Back button", async () => {
-    setup();
-    await using _screen = await render(<CommandPalette>{null}</CommandPalette>);
-
-    openCommandPalette({ open: "new-thread-in" });
-
-    await expect.element(page.getByPlaceholder("Search...")).toHaveFocus();
-  });
-
   it("opens a search intent with its query in the focused input", async () => {
     setup();
     await using _screen = await render(<CommandPalette>{null}</CommandPalette>);

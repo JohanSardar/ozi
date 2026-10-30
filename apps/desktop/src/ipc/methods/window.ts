@@ -13,7 +13,6 @@ import {
   type DesktopEnvironmentBootstrap,
   type PickedThemeFile,
 } from "@t3tools/contracts";
-import { PROJECT_FAVICON_EXTENSIONS } from "@t3tools/shared/projectFavicon";
 import { resolveEditorCommand } from "@t3tools/shared/editor";
 import * as HostProcess from "@t3tools/shared/HostProcess";
 import { isRelayTracingEnabled } from "@t3tools/shared/otelEnvironment";
@@ -225,32 +224,6 @@ export const pickFolder = DesktopIpc.makeIpcMethod({
       selectedPath.value,
     );
     return Option.getOrElse(converted, () => selectedPath.value);
-  }),
-});
-
-export const pickProjectFavicon = DesktopIpc.makeIpcMethod({
-  channel: IpcChannels.PICK_PROJECT_FAVICON_CHANNEL,
-  payload: Schema.UndefinedOr(Schema.String),
-  result: Schema.NullOr(Schema.String),
-  handler: Effect.fn("desktop.ipc.window.pickProjectFavicon")(function* (initialPath) {
-    const dialog = yield* ElectronDialog.ElectronDialog;
-    const electronWindow = yield* ElectronWindow.ElectronWindow;
-    const appSettings = yield* DesktopAppSettings.DesktopAppSettings;
-    if (!(yield* appSettings.get).localEnvironmentEnabled) {
-      return null;
-    }
-    const paths = yield* dialog.pickFiles({
-      owner: yield* electronWindow.focusedMainOrFirst,
-      defaultPath: Option.fromNullishOr(initialPath),
-      multiple: false,
-      filters: [
-        {
-          name: "Images",
-          extensions: PROJECT_FAVICON_EXTENSIONS.map((extension) => extension.slice(1)),
-        },
-      ],
-    });
-    return paths[0] ?? null;
   }),
 });
 

@@ -3,26 +3,20 @@ import type { AnyRouter } from "@tanstack/react-router";
 
 import { stackedThreadToast, toastManager } from "~/components/ui/toast";
 import { isPreviewAvailableFor } from "../browser/previewRuntime";
-import { isCommandPaletteOpen, openCommandPalette } from "../commandPaletteBus";
+import { isCommandPaletteOpen } from "../commandPaletteBus";
 import { useComposerDraftStore } from "../composerDraftStore";
 import { dispatchPreviewAction, type PreviewAction } from "../components/preview/previewActionBus";
 import { isAppModalPage } from "../components/sidebar/mainAppLocation";
-import { createNewThreadHandler, resolveDefaultProjectRef } from "../hooks/useHandleNewThread";
-import { createScratchProjectActions } from "../hooks/useScratchProject";
-import { getClientSettings } from "../hooks/useSettings";
+import { createNewThreadHandler } from "../hooks/useHandleNewThread";
 import { startNewThreadFromContext } from "../lib/chatThreadActions";
-import { selectProjectGroupingSettings } from "@t3tools/client-runtime/state/project-grouping";
 import { selectActiveRightPanel, useRightPanelStore } from "../rightPanelStore";
 import { appAtomRegistry } from "../rpc/atomRegistry";
-import { buildSidebarProjectSnapshots } from "../sidebarProjectGrouping";
-import { readProjects, readThreadShell } from "../state/entities";
-import { environmentPresentations } from "../state/presentation";
+import { readThreadShell } from "../state/entities";
 import { primaryEnvironmentIdAtom } from "../state/primaryEnvironment";
 import { readEnvironmentScope } from "../state/session";
 import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../terminalUiStateStore";
 import { useThreadSelectionStore } from "../threadSelectionStore";
 import { resolveThreadRouteTarget } from "../threadRoutes";
-import { useUiStateStore } from "../uiStateStore";
 import { type CommandHandler, registerCommands } from "./dispatcher";
 
 const CHAT_ROUTE_ID = "/_chat";
@@ -34,15 +28,6 @@ const CHAT_ROUTE_ID = "/_chat";
  */
 export function installChatRouteCommands(router: AnyRouter): () => void {
   const handleNewThread = createNewThreadHandler(router);
-  const scratch = createScratchProjectActions({
-    environments: () =>
-      [...appAtomRegistry.get(environmentPresentations.presentationsAtom)].map(
-        ([environmentId, presentation]) => ({ ...presentation, environmentId }),
-      ),
-    primaryEnvironmentId: () => appAtomRegistry.get(primaryEnvironmentIdAtom),
-    registry: appAtomRegistry,
-    handleNewThread,
-  });
 
   const readRouteTarget = () => resolveThreadRouteTarget(router.state.matches.at(-1)?.params ?? {});
   const readRouteThreadRef = () => {
@@ -69,20 +54,10 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
     return {
       activeDraftThread,
       activeThread: activeThread ?? undefined,
-      defaultProjectRef: resolveDefaultProjectRef(
-        readProjects(),
-        useUiStateStore.getState().projectOrder,
-      ),
+      defaultEnvironmentId: appAtomRegistry.get(primaryEnvironmentIdAtom),
       handleNewThread,
     };
   };
-  const readProjectGroupCount = () =>
-    buildSidebarProjectSnapshots({
-      projects: readProjects(),
-      settings: selectProjectGroupingSettings(getClientSettings()),
-      primaryEnvironmentId: appAtomRegistry.get(primaryEnvironmentIdAtom),
-      resolveEnvironmentLabel: () => null,
-    }).length;
   const canOperatePreview = (environmentId: EnvironmentId) =>
     readEnvironmentScope(environmentId, AuthPreviewOperateScope);
 
@@ -107,26 +82,7 @@ export function installChatRouteCommands(router: AnyRouter): () => void {
   return registerCommands(
     {
       "chat.newLocal": startNewLocal,
-      "chat.newWithoutProject": (event) => {
-        const { activeThread, activeDraftThread } = readThreadContext();
-        const environmentId = scratch.scratchEnvironmentId(
-          activeThread?.environmentId ?? activeDraftThread?.environmentId ?? null,
-        );
-        if (environmentId === null) return;
-        claim(event);
-        void scratch.startScratchThread(environmentId);
-      },
-      "chat.new": (event) => {
-        // The boring sidebar's folders already show the context, so it starts in
-        // the current project like the legacy sidebar did.
-        const { boringSidebarEnabled, legacySidebarEnabled } = getClientSettings();
-        if (!boringSidebarEnabled && !legacySidebarEnabled && readProjectGroupCount() > 1) {
-          claim(event);
-          openCommandPalette({ open: "new-thread-in" });
-          return;
-        }
-        startNewLocal(event);
-      },
+      "chat.new": startNewLocal,
       "preview.toggle": (event) => {
         claim(event);
         const threadRef = readRouteThreadRef();

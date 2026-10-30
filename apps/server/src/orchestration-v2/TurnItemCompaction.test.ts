@@ -8,7 +8,6 @@ import {
   type OrchestrationV2AppThread,
   type OrchestrationV2DomainEvent,
   type OrchestrationV2TurnItem,
-  ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
   ThreadId,
@@ -47,7 +46,6 @@ const modelSelection = { instanceId: providerInstanceId, model: "gpt-5.4" };
 function makeThread(threadId: ThreadId, now: DateTime.Utc): OrchestrationV2AppThread {
   return {
     id: threadId,
-    projectId: ProjectId.make(`project:${threadId}`),
     title: "Turn item compaction",
     providerInstanceId,
     modelSelection,

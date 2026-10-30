@@ -8,7 +8,6 @@ import {
   NodeId,
   type OrchestrationV2DomainEvent,
   type OrchestrationV2Run,
-  ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
   ProviderThreadId,
@@ -31,7 +30,6 @@ const layerProjectionStoreTest = Layer.mergeAll(
   ProjectionStore.layer.pipe(Layer.provideMerge(SqlitePersistence.layerMemory)),
   SqlitePersistence.layerMemory,
 );
-const projectId = ProjectId.make("project:checkpoint-capture-delegated");
 const scopeId = CheckpointScopeId.make("scope:checkpoint-capture-delegated");
 const rootNodeId = NodeId.make("node:checkpoint-capture-delegated-root");
 const providerThreadId = ProviderThreadId.make("provider-thread:checkpoint-capture-delegated");
@@ -58,7 +56,6 @@ it.layer(layerProjectionStoreTest)("CheckpointCaptureServiceV2", (it) => {
           createdBy: "user",
           creationSource: "web",
           id: stoppedThreadId,
-          projectId,
           title: "Checkpoint capture after rollback",
           providerInstanceId,
           modelSelection,
@@ -163,7 +160,6 @@ it.layer(layerProjectionStoreTest)("CheckpointCaptureServiceV2", (it) => {
           createdBy: "user",
           creationSource: "web",
           id: cancelledThreadId,
-          projectId,
           title: "Checkpoint capture after cancel",
           providerInstanceId,
           modelSelection,

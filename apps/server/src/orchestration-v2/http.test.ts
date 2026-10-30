@@ -32,10 +32,8 @@ import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import * as ServerSettings from "../serverSettings.ts";
 
 import * as OrchestrationEventStore from "../persistence/OrchestrationEventStore.ts";
-import { ProjectEnrichmentService } from "../project/ProjectEnrichmentService.ts";
 import * as OrchestrationHttp from "./http.ts";
 import { EventSinkV2 } from "./EventSink.ts";
-import * as ProjectStore from "./ProjectStore.ts";
 import * as CommandReceiptStore from "./CommandReceiptStore.ts";
 import * as ThreadManagementService from "./ThreadManagementService.ts";
 import * as ProviderAdapterRegistry from "./ProviderAdapterRegistry.ts";
@@ -53,7 +51,6 @@ const environmentId = EnvironmentId.make("source-بيئة");
 const output = "Full tool output. ".repeat(4_000);
 const thread = Schema.decodeSync(OrchestrationV2AppThread)({
   id: "source-thread",
-  projectId: "source-project",
   title: "Source 界\nconversation",
   providerInstanceId: "codex",
   modelSelection: { instanceId: "codex", model: "gpt-5.4" },
@@ -112,7 +109,6 @@ const serveOrchestrationHttp = (allowed: () => boolean) =>
           ),
         ),
         OrchestrationEventStore.layer,
-        ProjectStore.layer,
       ).pipe(Layer.provideMerge(SqlitePersistence.layerMemory)),
     );
     const eventSink = Context.get(services, EventSinkV2);
@@ -149,7 +145,6 @@ const serveOrchestrationHttp = (allowed: () => boolean) =>
         ),
       ),
       Layer.provide(Layer.succeedContext(services)),
-      Layer.provide(Layer.mock(ProjectEnrichmentService)({})),
       Layer.provide(HttpPlatform.layer),
       Layer.provide(Etag.layerWeak),
       Layer.provide(NodeServices.layer),
@@ -290,6 +285,6 @@ it.effect("leaves older settled threads out of the HTTP shell only when asked", 
     expect(cut.threads.map((row) => row.id).toSorted()).toEqual(
       [thread.id, ...Array.from({ length: 25 }, (_, index) => `settled-${index + 1}`)].toSorted(),
     );
-    expect(cut.olderSettled?.counts).toEqual([{ projectId: thread.projectId, count: 1 }]);
+    expect(cut.olderSettled?.counts).toEqual([{ count: 1 }]);
   }),
 );

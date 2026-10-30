@@ -1,11 +1,5 @@
 import { assert, it } from "@effect/vitest";
-import {
-  CommandId,
-  ProjectId,
-  ProviderDriverKind,
-  ProviderInstanceId,
-  ThreadId,
-} from "@t3tools/contracts";
+import { CommandId, ProviderDriverKind, ProviderInstanceId, ThreadId } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
@@ -45,7 +39,6 @@ const createThread = (threadId: ThreadId) =>
       type: "thread.create",
       commandId: CommandId.make(`create:${threadId}`),
       threadId,
-      projectId: ProjectId.make("project:dispatch-mode-limit"),
       title: "Before",
       modelSelection: { instanceId, model: "gpt-5" },
       ...supervised,

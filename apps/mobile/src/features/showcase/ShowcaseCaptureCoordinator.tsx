@@ -19,7 +19,6 @@ import {
 import { rootNavigationRef } from "../../lib/rootNavigation";
 import { appAtomRegistry } from "../../state/atom-registry";
 import { mobilePreferencesAtom, updateMobilePreferencesAtom } from "../../state/preferences";
-import { environmentProjects } from "../../state/projects";
 import { enqueueThreadOutboxMessage } from "../../state/thread-outbox";
 import { environmentThreadShells } from "../../state/threads";
 import { holdEditingQueuedMessage } from "../../state/use-thread-outbox";
@@ -193,7 +192,7 @@ export function installShowcaseCapture(
 
   const seedPendingTasks = () => {
     const pendingTaskList = buildShowcasePendingTasks(
-      appAtomRegistry.get(environmentProjects.projectsAtom),
+      appAtomRegistry.get(workspaceConnections.environmentsAtom),
       Date.now(),
     );
     if (pendingTaskList.length !== SHOWCASE_PENDING_TASK_DEFINITIONS.length) return;
@@ -226,7 +225,6 @@ export function installShowcaseCapture(
         const now = Date.now();
         const activity = buildShowcaseAgentActivity(
           appAtomRegistry.get(environmentThreadShells.threadShellsAtom),
-          appAtomRegistry.get(environmentProjects.projectsAtom),
           now,
         );
         const outcome =
@@ -291,14 +289,11 @@ export function installShowcaseCapture(
       appAtomRegistry.set(updateMobilePreferencesAtom, createMobileThemePairPatch(requestedTheme));
     }
     const themeId = themeIds[resolveThemeAppearance(storedPreferences)];
-
-    const projects = appAtomRegistry.get(environmentProjects.projectsAtom);
     const threads = appAtomRegistry.get(environmentThreadShells.threadShellsAtom);
     const showcaseThread = threads.find((thread) => String(thread.id) === SHOWCASE_THREAD_ID);
     const hasServerFixture =
       appAtomRegistry.get(workspaceConnections.stateAtom).hasReadyEnvironment &&
       appAtomRegistry.get(workspaceConnections.environmentsAtom).length >= 3 &&
-      projects.length >= 3 &&
       showcaseThread !== undefined;
     if (hasServerFixture && pendingTasks === null) seedPendingTasks();
     const hasFixture = hasServerFixture && pendingTasks?.done === true;
@@ -373,7 +368,6 @@ export function installShowcaseCapture(
 
   const unsubscribers = [
     appAtomRegistry.subscribe(mobilePreferencesAtom, evaluate),
-    appAtomRegistry.subscribe(environmentProjects.projectsAtom, evaluate),
     appAtomRegistry.subscribe(environmentThreadShells.threadShellsAtom, evaluate),
     appAtomRegistry.subscribe(workspaceConnections.stateAtom, evaluate),
     appAtomRegistry.subscribe(workspaceConnections.environmentsAtom, evaluate),

@@ -1,16 +1,17 @@
+import { workspaceEnvironment } from "~/state/workspaceFiles";
+
 import { AuthFilesystemWriteScope, type EnvironmentId } from "@t3tools/contracts";
 import { type AtomCommandResult, runAtomCommand } from "@t3tools/client-runtime/state/runtime";
 import { useEffect } from "react";
 
 import { appAtomRegistry } from "~/rpc/atomRegistry";
-import { projectEnvironment } from "~/state/projects";
 import { environmentSession, readEnvironmentScope, sessionHasScope } from "~/state/session";
 
 import { FileSaveCoordinator } from "./fileSaveCoordinator";
 import {
   confirmProjectFileQueryData,
   getUnsavedProjectFileQueryData,
-} from "./projectFilesQueryState";
+} from "./workspaceFilesQueryState";
 
 export interface FileSaveTarget {
   readonly environmentId: EnvironmentId;
@@ -151,7 +152,7 @@ const fileSaveSessions = createFileSaveSessions({
     );
   },
   persist: ({ environmentId, cwd, relativePath }, contents) =>
-    runAtomCommand(appAtomRegistry, projectEnvironment.writeFile, {
+    runAtomCommand(appAtomRegistry, workspaceEnvironment.writeFile, {
       environmentId,
       input: { cwd, relativePath, contents },
     }),

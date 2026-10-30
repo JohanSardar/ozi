@@ -1,6 +1,5 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import {
-  ProjectId,
   MessageId,
   NodeId,
   RunAttemptId,
@@ -468,7 +467,6 @@ describe("Grok native questions", () => {
           createdBy: "user",
           creationSource: "web",
           id: threadId,
-          projectId: ProjectId.make("grok-multi-select-project"),
           title: "Grok multi-select",
           providerInstanceId: instanceId,
           modelSelection,

@@ -7,7 +7,6 @@ import { getTerminalLabel } from "@t3tools/shared/terminalLabels";
 import {
   nextOpenTerminalId,
   previousLiveTerminalId,
-  resolveProjectScriptTerminalId,
   type TerminalMenuSession,
 } from "./terminalMenu";
 
@@ -75,16 +74,5 @@ describe("previousLiveTerminalId", () => {
         exitedTerminalId: DEFAULT_TERMINAL_ID,
       }),
     ).toBe("term-2");
-  });
-});
-
-describe("resolveProjectScriptTerminalId", () => {
-  it("never targets an unseen default terminal when metadata is unavailable", () => {
-    const terminalId = resolveProjectScriptTerminalId({
-      existingTerminalIds: [],
-      hasRunningTerminal: false,
-      uniqueSuffix: "783c91cc-a413-47c7-8312-c2a5a1f05e40",
-    });
-    expect(terminalId).not.toBe(DEFAULT_TERMINAL_ID);
   });
 });

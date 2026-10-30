@@ -1,8 +1,9 @@
+import * as NodeServices from "@effect/platform-node/NodeServices";
+import * as ServerConfig from "../config.ts";
 import { assert, it } from "@effect/vitest";
 import {
   type ModelSelection,
   type OrchestrationV2AppThread,
-  ProjectId,
   ProviderInstanceId,
   type RuntimeMode,
   type ServerProvider,
@@ -15,10 +16,7 @@ import * as Stream from "effect/Stream";
 
 import type { ProviderInstance } from "@t3tools/provider-core/server/driver";
 import * as ProviderInstanceRegistry from "../provider/ProviderInstanceRegistry.ts";
-import * as ProjectStore from "./ProjectStore.ts";
 import * as RuntimePolicy from "./RuntimePolicy.ts";
-
-const projectId = ProjectId.make("project:runtime-policy");
 const providerInstanceId = ProviderInstanceId.make("codex");
 const modelSelection = {
   instanceId: providerInstanceId,
@@ -35,7 +33,6 @@ function makeThread(input: {
     createdBy: "user",
     creationSource: "web",
     id: threadId,
-    projectId,
     title: "Runtime policy",
     providerInstanceId,
     modelSelection,
@@ -72,7 +69,12 @@ const providerInstanceFor = (instanceId: ProviderInstanceId) =>
     },
   }) as ProviderInstance;
 
-const layerTest = RuntimePolicy.layerFromProjectStore.pipe(
+const layerTest = RuntimePolicy.layerWithProviders.pipe(
+  Layer.provide(
+    ServerConfig.layerTest(process.cwd(), { prefix: "runtime-policy-" }).pipe(
+      Layer.provide(NodeServices.layer),
+    ),
+  ),
   Layer.provide(
     Layer.succeed(ProviderInstanceRegistry.ProviderInstanceRegistry, {
       getInstance: (instanceId) => Effect.succeed(providerInstanceFor(instanceId)),
@@ -80,23 +82,6 @@ const layerTest = RuntimePolicy.layerFromProjectStore.pipe(
       listUnavailable: Effect.succeed([]),
       streamChanges: Stream.empty,
       subscribeChanges: Effect.never,
-    }),
-  ),
-  Layer.provide(
-    Layer.mock(ProjectStore.ProjectStoreV2)({
-      get: () =>
-        Effect.succeedSome({
-          projectId,
-          title: "Project",
-          workspaceRoot: "/project-root",
-          defaultModelSelection: null,
-          faviconPath: null,
-          projectIcon: null,
-          scripts: [],
-          createdAt: "2026-06-21T00:00:00.000Z",
-          updatedAt: "2026-06-21T00:00:00.000Z",
-          deletedAt: null,
-        }),
     }),
   ),
 );

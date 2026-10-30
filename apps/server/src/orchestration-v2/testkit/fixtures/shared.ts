@@ -4,7 +4,6 @@ import {
   CommandId,
   isOrchestrationV2WorkActive,
   MessageId,
-  ProjectId,
   ThreadId,
   type ModelSelection,
   type OrchestrationV2Command,
@@ -296,7 +295,6 @@ export interface MaterializedOrchestratorFixtureInput {
 
 export interface FixtureIds {
   readonly threadId: ThreadId;
-  readonly projectId: ProjectId;
 }
 
 export const CODEX_MODEL_SELECTION = {
@@ -415,7 +413,6 @@ function createThreadCommand(input: {
     creationSource: "web",
     commandId: input.commandId,
     threadId: input.ids.threadId,
-    projectId: input.ids.projectId,
     title: `Replay fixture: ${input.scenario}`,
     modelSelection: input.modelSelection,
     runtimeMode: input.runtimeMode ?? "full-access",
@@ -470,12 +467,10 @@ export function materializeFixtureInput(input: {
 > {
   return Effect.gen(function* () {
     const idAllocator = yield* IdAllocator.IdAllocatorV2;
-    const projectId = yield* idAllocator.allocate.project({ fixtureName: input.scenario });
     const threadId = yield* idAllocator.allocate.thread({
       fixtureName: input.scenario,
-      projectId,
     });
-    const ids = { threadId, projectId } satisfies FixtureIds;
+    const ids = { threadId } satisfies FixtureIds;
     const commands: Array<OrchestrationV2Command> = [];
     const steps: Array<OrchestratorV2ScenarioStep> = [];
     let messageIndex = 0;

@@ -63,7 +63,7 @@ export function useComposerAttachmentIntake(input: {
   readonly pendingUserInputs: ReadonlyArray<PendingUserInput>;
   readonly supportsQuestionAttachments: boolean;
   readonly isLiteralPendingAnswer: boolean;
-  readonly projectSelectionRequired: boolean;
+  readonly environmentSelectionRequired: boolean;
   readonly questionAttachmentTarget: DraftId | null;
   readonly attachmentTargetKey: string;
   readonly fileStagingLimit: number | null;
@@ -90,7 +90,7 @@ export function useComposerAttachmentIntake(input: {
     pendingUserInputs,
     supportsQuestionAttachments,
     isLiteralPendingAnswer,
-    projectSelectionRequired,
+    environmentSelectionRequired,
     questionAttachmentTarget,
     attachmentTargetKey,
     fileStagingLimit,
@@ -141,7 +141,7 @@ export function useComposerAttachmentIntake(input: {
       !options?.skipImageInlineChip &&
       (options?.selection !== undefined ||
         pendingUserInputs.length > 0 ||
-        projectSelectionRequired ||
+        environmentSelectionRequired ||
         stripInlineContextReferences(promptRef.current).trim().length > 0);
 
     // Validation happens synchronously so concurrent pastes see each other:

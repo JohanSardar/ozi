@@ -4,11 +4,9 @@ import { expect, it } from "@effect/vitest";
 import {
   DEFAULT_SERVER_SETTINGS,
   EnvironmentId,
-  ProjectId,
   ProviderInstanceId,
   ThreadId,
 } from "@t3tools/contracts";
-import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
 import * as Stream from "effect/Stream";
@@ -29,16 +27,12 @@ it.effect.each([
 ])("list and close respect the credential for a $name", ({ globalAccess, projectAccess }) =>
   Effect.scoped(
     Effect.gen(function* () {
-      const projectId = ProjectId.make("preview-controls-project");
       const threadId = ThreadId.make("preview-controls-thread");
       const settings = {
         ...DEFAULT_SERVER_SETTINGS,
         enableAgentBrowserAccess: globalAccess,
-        projectSettingsOverrides: {
-          [projectId]: { enableAgentBrowserAccess: projectAccess },
-        },
       };
-      const effective = resolveProjectSettings(settings, projectId).settings;
+      const effective = settings;
       const scope: McpInvocationContext.McpInvocationScope = {
         environmentId: EnvironmentId.make("preview-controls-environment"),
         requestNamespace: "preview-controls-provider-session",

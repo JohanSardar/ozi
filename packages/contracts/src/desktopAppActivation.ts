@@ -1,6 +1,6 @@
 import * as Schema from "effect/Schema";
 
-import { ProjectId, ThreadId, TrimmedNonEmptyString } from "./baseSchemas.ts";
+import { ThreadId, TrimmedNonEmptyString } from "./baseSchemas.ts";
 
 export const DESKTOP_APP_ACTIVATION_PROTOCOL_VERSION = 1 as const;
 
@@ -21,7 +21,6 @@ export const DesktopAppActivationErrorCode = Schema.Literals([
   "renderer-unavailable",
   "environment-unavailable",
   "platform-mismatch",
-  "project-create-failed",
   "thread-open-failed",
   "request-timeout",
   "internal-error",
@@ -32,7 +31,6 @@ export const DesktopAppActivationSuccess = Schema.Struct({
   version: Schema.Literal(DESKTOP_APP_ACTIVATION_PROTOCOL_VERSION),
   requestId: TrimmedNonEmptyString,
   ok: Schema.Literal(true),
-  projectId: ProjectId,
   threadId: ThreadId,
 });
 export type DesktopAppActivationSuccess = typeof DesktopAppActivationSuccess.Type;

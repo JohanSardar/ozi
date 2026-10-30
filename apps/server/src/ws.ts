@@ -1,7 +1,6 @@
 import * as Tickets from "./tickets/Tickets.ts";
 import * as TicketClearing from "./tickets/TicketClearing.ts";
 import * as ChatSessions from "./sessions/ChatSessions.ts";
-import { OrchestrationDispatchCommandError } from "@t3tools/contracts";
 import * as Context from "effect/Context";
 import * as Crypto from "effect/Crypto";
 import * as PeerLinkRequests from "./peer/PeerLinkRequests.ts";
@@ -56,20 +55,17 @@ import {
   OrchestrationV2GetShellSnapshotError,
   OrchestrationV2GetThreadProjectionError,
   OrchestrationV2ThreadLaunchError,
-  type OrchestrationProjectShell,
   type OrchestrationV2ShellSnapshot,
   type OrchestrationV2ThreadStreamItem,
   type ApplicationStoredEvent,
-  type ProjectEntriesFailure,
-  type ProjectFileFailure,
-  type ProjectFileOperation,
-  type ProjectMutation,
-  ProjectListEntriesError,
-  ProjectReadFileError,
-  ProjectSearchContentsError,
-  ProjectSearchEntriesError,
-  ProjectWriteFileError,
-  ProjectMutationError,
+  type WorkspaceEntriesFailure,
+  type WorkspaceFileFailure,
+  type WorkspaceFileOperation,
+  WorkspaceListEntriesError,
+  WorkspaceReadFileError,
+  WorkspaceSearchContentsError,
+  WorkspaceSearchEntriesError,
+  WorkspaceWriteFileError,
   ProviderUploadFeedbackError,
   ProviderSetupError,
   RelayClientInstallFailedError,
@@ -80,12 +76,10 @@ import {
   type ServerProvider,
   type FilesystemBrowseFailure,
   FilesystemBrowseError,
-  AssetWorkspaceContextNotFoundError,
   AssetWorkspaceContextResolutionError,
   ChatAttachmentId,
   PersistChatAttachmentsError,
   RpcClientId,
-  type ProjectId,
   type ProviderDriverKind,
   type ProviderInstanceId,
   ThreadId,
@@ -119,10 +113,8 @@ import {
   buildActiveShellSnapshot,
   bufferShellLiveStream,
   coalesceShellApplicationEvents,
-  composeShellStreamWithEnrichment,
   loadOlderSettledThreadsPage,
   loadShellSnapshotParts,
-  shellStreamItemFromEnrichmentRefresh,
   shellStreamItemFromThreadShell,
   shellStreamItemsFromInitialSnapshot,
   shellSnapshotForSubscriber,
@@ -131,7 +123,6 @@ import {
   toShellApplicationEvent,
   type ShellApplicationEvent,
 } from "./orchestration-v2/ShellStream.ts";
-import { ORCHESTRATION_V2_PROJECTION_SCHEMA_VERSION } from "./orchestration-v2/ProjectionStore.ts";
 import {
   coalesceLiveUpdatedEvents,
   coalesceThreadLiveStream,
@@ -154,7 +145,6 @@ import {
   projectThreadProjectionForWire,
 } from "./orchestration-v2/WireProjection.ts";
 import { dedupeSnapshotBodies } from "@t3tools/shared/orchestrationV2DedupedBodies";
-import * as ProjectStore from "./orchestration-v2/ProjectStore.ts";
 import * as ThreadSearch from "./orchestration-v2/ThreadSearch.ts";
 import * as OrchestrationEventStore from "./persistence/OrchestrationEventStore.ts";
 import { userFacingDispatchErrorMessage } from "./orchestration-v2/UserFacingErrors.ts";
@@ -192,12 +182,6 @@ import * as KnownWorkspaces from "./workspace/KnownWorkspaces.ts";
 import * as WorkspaceFileSystem from "./workspace/WorkspaceFileSystem.ts";
 import { readWorkflowScript } from "./orchestration-v2/workflowScriptQuery.ts";
 import * as WorkspacePaths from "./workspace/WorkspacePaths.ts";
-import * as ProjectEnrichmentService from "./project/ProjectEnrichmentService.ts";
-import * as ProjectService from "./project/ProjectService.ts";
-
-import * as ManagedProjectFolders from "./project/ManagedProjectFolders.ts";
-import * as ScratchThreadPromotion from "./project/ScratchThreadPromotion.ts";
-import { projectMutationOperation } from "./project/ProjectMutation.ts";
 import * as ServerEnvironment from "./environment/ServerEnvironment.ts";
 import * as DirectEndpoints from "./environment/DirectEndpoints.ts";
 import * as RemoteOpenTargets from "./environment/RemoteOpenTargets.ts";
@@ -229,8 +213,6 @@ import {
   sameUsageLimitCommandCoverage,
   withUsageLimitsCommands,
 } from "@t3tools/shared/usageLimits";
-import * as AgentSessionScanner from "./project/AgentSessionScanner.ts";
-import * as AgentSessionImporter from "./project/AgentSessionImporter.ts";
 import * as UsageLimitSources from "./usage/UsageLimitSources.ts";
 
 const CONFIG_DISCOVERY_TIMEOUT = Duration.seconds(5);
@@ -408,7 +390,7 @@ const persistChatAttachments = Effect.fn("ws.assets.persistChatAttachments")(fun
 });
 
 function projectEntriesFailureContext(error: WorkspaceEntries.WorkspaceEntriesError): {
-  readonly failure: ProjectEntriesFailure;
+  readonly failure: WorkspaceEntriesFailure;
   readonly normalizedCwd?: string;
   readonly timeout?: string;
   readonly detail?: string;
@@ -472,8 +454,8 @@ function filesystemBrowseFailureContext(error: WorkspaceEntries.WorkspaceEntries
   switch (error._tag) {
     case "WorkspaceEntriesWindowsPathUnsupportedError":
       return { failure: "windows_path_unsupported", platform: error.platform };
-    case "WorkspaceEntriesCurrentProjectRequiredError":
-      return { failure: "current_project_required" };
+    case "WorkspaceEntriesWorkingDirectoryRequiredError":
+      return { failure: "working_directory_required" };
     case "WorkspaceEntriesReadDirectoryError":
       return { failure: "read_directory_failed", parentPath: error.parentPath };
     default:
@@ -487,10 +469,10 @@ function projectFileFailureContext(
     | WorkspacePaths.WorkspacePathOutsideRootError
     | KnownWorkspaces.UnknownWorkspaceError,
 ): {
-  readonly failure: ProjectFileFailure;
+  readonly failure: WorkspaceFileFailure;
   readonly resolvedPath?: string;
   readonly resolvedWorkspaceRoot?: string;
-  readonly operation?: ProjectFileOperation;
+  readonly operation?: WorkspaceFileOperation;
   readonly operationPath?: string;
 } {
   switch (error._tag) {
@@ -706,28 +688,6 @@ const canReplayPersistedRange = Effect.fnUntraced(function* (
   }
   return true;
 });
-
-const enrichProjectShells = Effect.fn("ws.orchestrationV2.enrichProjectShells")(
-  (projects: ReadonlyArray<OrchestrationProjectShell>) =>
-    Effect.flatMap(ProjectEnrichmentService.ProjectEnrichmentService, (projectEnrichment) =>
-      Effect.forEach(
-        projects,
-        (project) =>
-          projectEnrichment.getAvailable(project.workspaceRoot).pipe(
-            Effect.map(() => ({
-              project: {
-                ...project,
-              },
-            })),
-          ),
-        { concurrency: 16 },
-      ).pipe(
-        Effect.map((enriched) => ({
-          projects: enriched.map((entry) => entry.project),
-        })),
-      ),
-    ),
-);
 
 export const subscribeOrchestrationV2Thread = Effect.fn("ws.orchestrationV2.subscribeThread")(
   function* (input: {
@@ -946,20 +906,14 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
     const sql = yield* SqlClient.SqlClient;
     const threadManagement = yield* ThreadManagementService.ThreadManagementService;
     const applicationEvents = yield* OrchestrationEventStore.OrchestrationEventStore;
-    const projects = yield* ProjectStore.ProjectStoreV2;
-    const projectService = yield* ProjectService.ProjectService;
-    const projectEnrichment = yield* ProjectEnrichmentService.ProjectEnrichmentService;
     let subagentThreadIds = new Set<string>();
     const filterSubagentTranscript = (stored: ApplicationStoredEvent) =>
       shouldPublishShellApplicationEvent(stored, subagentThreadIds);
-
-    const enrichmentChanges = yield* projectEnrichment.subscribeChanges;
     const loadSnapshot = Effect.fn("ws.orchestrationV2.loadShellSnapshot")(function* () {
       const base = buildActiveShellSnapshot(
         yield* loadShellSnapshotParts({
           sql,
           readThreads: threadManagement.readShellSnapshot({ location: "active" }),
-          listProjects: projects.listShells(),
           latestSequence: applicationEvents.latestApplicationSequence,
         }),
       );
@@ -969,37 +923,11 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
         now: yield* DateTime.now,
       });
       subagentThreadIds = forSubscriber.subagentThreadIds;
-      const enriched = yield* enrichProjectShells(base.projects);
       return {
         snapshot: {
           ...forSubscriber.snapshot,
-          projects: enriched.projects,
         } as OrchestrationV2ShellSnapshot,
       };
-    });
-    const projectItem = Effect.fn("ws.orchestrationV2.projectShellItem")(function* (
-      stored: Extract<ShellApplicationEvent, { readonly aggregateKind: "project" }>,
-    ) {
-      if (stored.type === "project.deleted") {
-        return {
-          kind: "project.removed" as const,
-          sequence: stored.sequence,
-          projectId: stored.aggregateId,
-        };
-      }
-      const project = yield* projectService.getShell(stored.aggregateId);
-      return Option.match(project, {
-        onNone: () => ({
-          kind: "project.removed" as const,
-          sequence: stored.sequence,
-          projectId: stored.aggregateId,
-        }),
-        onSome: (value) => ({
-          kind: "project.updated" as const,
-          sequence: stored.sequence,
-          project: value,
-        }),
-      });
     });
 
     const projectShellItems = Effect.fn("ws.orchestrationV2.projectShellItems")(function* (
@@ -1009,9 +937,6 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
         coalesceShellApplicationEvents(events),
         (stored) =>
           Effect.gen(function* () {
-            if ("aggregateKind" in stored) {
-              return yield* projectItem(stored);
-            }
             const shell = yield* threadManagement.getThreadShell(stored.event.threadId);
             return shellStreamItemFromThreadShell({ stored, shell });
           }),
@@ -1038,29 +963,6 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
         ),
       );
 
-    const enrichmentRefreshes = Stream.fromSubscription(enrichmentChanges).pipe(
-      Stream.groupedWithin(64, Duration.millis(25)),
-      Stream.mapEffect((changes) =>
-        Effect.gen(function* () {
-          const identities = new Set(Array.from(changes, (change) => change.workspaceRoot));
-          const snapshotSequence = yield* applicationEvents.latestApplicationSequence;
-          const changedProjects = (yield* projects.listShells()).flatMap((project) =>
-            identities.has(project.workspaceRoot) ? [{ ...project }] : [],
-          );
-          return shellStreamItemFromEnrichmentRefresh({
-            snapshot: {
-              schemaVersion: ORCHESTRATION_V2_PROJECTION_SCHEMA_VERSION,
-              snapshotSequence,
-              projects: changedProjects,
-              threads: [],
-              archivedThreads: [],
-            } as OrchestrationV2ShellSnapshot,
-            changes: Array.from(changes),
-          });
-        }),
-      ),
-    );
-
     // Subscribe before loading for racing enrichments; initial refresh covers pre-subscription completions and cold HTTP snapshots.
     const completionMarker =
       input.requestCompletionMarker === true
@@ -1079,21 +981,19 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
     const stream = yield* Effect.gen(function* () {
       if (input.afterSequence === undefined) {
         const loaded = yield* loadSnapshot();
-        return composeShellStreamWithEnrichment({
-          initial: initialSnapshotItems(loaded),
-          tail: completionThenLive(loaded.snapshot.snapshotSequence),
-          enrichment: enrichmentRefreshes,
-        });
+        return Stream.concat(
+          initialSnapshotItems(loaded),
+          completionThenLive(loaded.snapshot.snapshotSequence),
+        );
       }
 
       const highWater = yield* applicationEvents.latestApplicationSequence;
       if (!(yield* canReplayPersistedRange(input.afterSequence, highWater, SHELL_RESUME_MAX_GAP))) {
         const loaded = yield* loadSnapshot();
-        return composeShellStreamWithEnrichment({
-          initial: initialSnapshotItems(loaded),
-          tail: completionThenLive(loaded.snapshot.snapshotSequence),
-          enrichment: enrichmentRefreshes,
-        });
+        return Stream.concat(
+          initialSnapshotItems(loaded),
+          completionThenLive(loaded.snapshot.snapshotSequence),
+        );
       }
 
       subagentThreadIds = new Set(yield* threadManagement.listActiveSubagentThreadIds());
@@ -1109,11 +1009,7 @@ export const subscribeOrchestrationV2Shell = Effect.fn("ws.orchestrationV2.subsc
           })
           .pipe(Stream.filter(filterSubagentTranscript)),
       );
-      return composeShellStreamWithEnrichment({
-        initial: Stream.empty,
-        tail: Stream.concat(Stream.concat(replay, completionMarker), liveFrom(highWater)),
-        enrichment: enrichmentRefreshes,
-      });
+      return Stream.concat(Stream.concat(replay, completionMarker), liveFrom(highWater));
     }).pipe(
       Effect.mapError(
         (cause) =>
@@ -1154,10 +1050,6 @@ export const layerWsRpc = (
         | DocumentText.DocumentText
       >();
       const applicationEvents = yield* OrchestrationEventStore.OrchestrationEventStore;
-      const projectStore = yield* ProjectStore.ProjectStoreV2;
-      const projectService = yield* ProjectService.ProjectService;
-      const managedFolders = yield* ManagedProjectFolders.ManagedProjectFolders;
-      const scratchThreadPromotion = yield* ScratchThreadPromotion.ScratchThreadPromotion;
       const eventLoopMonitor = yield* EventLoopMonitor.EventLoopMonitor;
       const threadSearch = yield* ThreadSearch.ThreadSearch;
 
@@ -1195,9 +1087,7 @@ export const layerWsRpc = (
         `${terminalViewerPrefix}:${metadata.client.id}`;
       const usage = yield* UsageService.UsageService;
       const usageLimitSources = yield* UsageLimitSources.UsageLimitSources;
-      const agentSessionScanner = yield* AgentSessionScanner.AgentSessionScanner;
       const chatSessions = yield* ChatSessions.ChatSessions;
-      const agentSessionImporter = yield* AgentSessionImporter.AgentSessionImporter;
       const keybindings = yield* Keybindings.Keybindings;
       const environmentTheme = yield* EnvironmentTheme.EnvironmentThemeService;
       const externalLauncher = yield* ExternalLauncher.ExternalLauncher;
@@ -1263,29 +1153,6 @@ export const layerWsRpc = (
               tasks: result.tasks.map(({ webhook: _webhook, ...task }) => task),
             };
 
-      const acpRegistryProject = Effect.fn("ws.acpRegistry.project")(function* (
-        projectId: ProjectId,
-      ) {
-        const project = yield* projectService.getById(projectId).pipe(
-          Effect.mapError(
-            (cause) =>
-              new AcpRegistryOperationError({
-                reason: "project_not_found",
-                message: `Project ${projectId} is unavailable.`,
-                cause,
-              }),
-          ),
-        );
-        return yield* Effect.fromOption(
-          project,
-          () =>
-            new AcpRegistryOperationError({
-              reason: "project_not_found",
-              message: `Project ${projectId} was not found.`,
-            }),
-        );
-      });
-
       const acpSessionManager = Effect.fn("ws.acpRegistry.sessionManager")(function* (
         instanceId: ProviderInstanceId,
       ) {
@@ -1319,10 +1186,9 @@ export const layerWsRpc = (
       const listAcpRegistrySessions = Effect.fn("ws.acpRegistry.listSessions")(function* (
         input: AcpRegistryListSessionsInput,
       ) {
-        const project = yield* acpRegistryProject(input.projectId);
         const { instance, manager } = yield* acpSessionManager(input.instanceId);
         const listed = yield* manager.listSessions({
-          cwd: project.workspaceRoot,
+          cwd: config.cwd,
           ...(input.cursor === undefined ? {} : { cursor: input.cursor }),
         });
         const sessions = yield* Effect.forEach(
@@ -1358,7 +1224,6 @@ export const layerWsRpc = (
       ) {
         return yield* acpRegistryRuntimeCoordinator.withSessionMutation(
           Effect.gen(function* () {
-            yield* acpRegistryProject(input.projectId);
             const { instance } = yield* acpSessionManager(input.instanceId);
             const providerSnapshot = yield* instance.snapshot.getSnapshot;
             if (
@@ -1400,12 +1265,11 @@ export const layerWsRpc = (
                 threadLaunch.launch({
                   commandId,
                   threadId,
-                  projectId: input.projectId,
                   title: input.title ?? "Imported ACP session",
+                  workingDirectory: input.cwd,
                   modelSelection: { instanceId: input.instanceId, model },
                   runtimeMode: "approval-required",
                   interactionMode: "default",
-                  workspaceStrategy: { type: "root" },
                   importedNativeThread: {
                     ref: {
                       driver: instance.driverKind,
@@ -1451,7 +1315,6 @@ export const layerWsRpc = (
       ) {
         return yield* acpRegistryRuntimeCoordinator.withSessionMutation(
           Effect.gen(function* () {
-            const project = yield* acpRegistryProject(input.projectId);
             const { instance, manager } = yield* acpSessionManager(input.instanceId);
             const snapshot = yield* instance.snapshot.getSnapshot;
             if (snapshot.nativeSessions?.canDelete !== true) {
@@ -1482,7 +1345,7 @@ export const layerWsRpc = (
               });
             }
             yield* manager.deleteSession({
-              cwd: project.workspaceRoot,
+              cwd: config.cwd,
               sessionId: input.sessionId,
             });
             return { deleted: true } as const;
@@ -1493,7 +1356,6 @@ export const layerWsRpc = (
       const listAcpRegistryProviders = Effect.fn("ws.acpRegistry.listProviders")(function* (
         input: AcpRegistryListProvidersInput,
       ) {
-        const project = yield* acpRegistryProject(input.projectId);
         const { instance, manager } = yield* acpSessionManager(input.instanceId);
         const snapshot = yield* instance.snapshot.getSnapshot;
         if (snapshot.configurableProviders !== true) {
@@ -1502,13 +1364,12 @@ export const layerWsRpc = (
             message: "The ACP agent does not advertise provider configuration.",
           });
         }
-        return yield* manager.listProviders(project.workspaceRoot);
+        return yield* manager.listProviders(config.cwd);
       });
 
       const setAcpRegistryProvider = Effect.fn("ws.acpRegistry.setProvider")(function* (
         input: AcpRegistrySetProviderInput,
       ) {
-        const project = yield* acpRegistryProject(input.projectId);
         const { manager } = yield* acpSessionManager(input.instanceId);
         if (input.headers !== undefined && Object.keys(input.headers).length > 32) {
           return yield* new AcpRegistryOperationError({
@@ -1516,7 +1377,7 @@ export const layerWsRpc = (
             message: "ACP provider configuration accepts at most 32 headers.",
           });
         }
-        const listed = yield* manager.listProviders(project.workspaceRoot);
+        const listed = yield* manager.listProviders(config.cwd);
         const provider = listed.providers.find(
           (candidate) => candidate.providerId === input.providerId,
         );
@@ -1537,7 +1398,7 @@ export const layerWsRpc = (
           ),
         );
         yield* manager.setProvider({
-          cwd: project.workspaceRoot,
+          cwd: config.cwd,
           providerId: input.providerId,
           apiType: input.apiType,
           baseUrl: input.baseUrl,
@@ -1550,9 +1411,8 @@ export const layerWsRpc = (
       const disableAcpRegistryProvider = Effect.fn("ws.acpRegistry.disableProvider")(function* (
         input: AcpRegistryDisableProviderInput,
       ) {
-        const project = yield* acpRegistryProject(input.projectId);
         const { manager } = yield* acpSessionManager(input.instanceId);
-        const listed = yield* manager.listProviders(project.workspaceRoot);
+        const listed = yield* manager.listProviders(config.cwd);
         const provider = listed.providers.find(
           (candidate) => candidate.providerId === input.providerId,
         );
@@ -1576,7 +1436,7 @@ export const layerWsRpc = (
           ),
         );
         yield* manager.disableProvider({
-          cwd: project.workspaceRoot,
+          cwd: config.cwd,
           providerId: input.providerId,
         });
         yield* providerRegistry.refreshInstance(input.instanceId);
@@ -1612,7 +1472,6 @@ export const layerWsRpc = (
         );
         const environment = yield* serverEnvironment.getDescriptor;
         const auth = yield* serverAuth.getDescriptor();
-        const scratchWorkspaceRoot = yield* managedFolders.scratchRoot;
         const lastEventLoopStall = yield* eventLoopMonitor.latestNoticeableStall;
         const editorConfig = yield* resolveEditorConfig(
           yield* resolveAvailableEditorsForConfig(externalLauncher.resolveAvailableEditors()),
@@ -1668,34 +1527,22 @@ export const layerWsRpc = (
           threadSnapshotPagination: true,
           threadFind: true,
           threadFindProgressive: true,
-          ...Option.match(scratchWorkspaceRoot, {
-            onNone: () => ({}),
-            onSome: (root) => ({ scratchWorkspaceRoot: root }),
-          }),
-          newProjectsRoot: managedFolders.namedProjectsRoot,
           ...(lastEventLoopStall === undefined ? {} : { lastEventLoopStall }),
         };
       });
 
       const getOrchestrationV2ArchivedShellSnapshot = Effect.gen(function* () {
-        const { threads, projects, snapshotSequence } = yield* loadShellSnapshotParts({
+        const { threads, snapshotSequence } = yield* loadShellSnapshotParts({
           sql,
           readThreads: threadManagement.readShellSnapshot({ location: "archive" }),
-          listProjects: projectStore.listShells(),
           latestSequence: applicationEvents.latestApplicationSequence,
         });
         return {
           schemaVersion: threads.schemaVersion,
           snapshotSequence,
-          projects,
           threads: threads.archivedThreads,
         } as const;
       }).pipe(
-        Effect.flatMap((snapshot) =>
-          enrichProjectShells(snapshot.projects).pipe(
-            Effect.map(({ projects }) => ({ ...snapshot, projects })),
-          ),
-        ),
         Effect.mapError(
           (cause) =>
             new OrchestrationV2GetShellSnapshotError({
@@ -1714,7 +1561,6 @@ export const layerWsRpc = (
           const { threads, snapshotSequence } = yield* loadShellSnapshotParts({
             sql,
             readThreads: threadManagement.readShellSnapshot({ location: "active", ...options }),
-            listProjects: Effect.succeed([]),
             latestSequence: applicationEvents.latestApplicationSequence,
           }).pipe(
             Effect.mapError(
@@ -1724,11 +1570,6 @@ export const layerWsRpc = (
           return { snapshotSequence, threads: threads.threads };
         },
       );
-
-      const mutateProject = Effect.fn("ws.projects.mutate")(function* (mutation: ProjectMutation) {
-        const result = yield* projectMutationOperation(projectService, mutation);
-        return result;
-      });
 
       const handlers = ServerWsRpcGroup.of({
         [WS_METHODS.ticketsCreate]: (input) => tickets.create(input),
@@ -1874,18 +1715,19 @@ export const layerWsRpc = (
         [ORCHESTRATION_V2_WS_METHODS.launchThread]: (input) =>
           Effect.annotateCurrentSpan({
             "orchestration_v2.command_id": input.commandId,
-            "orchestration_v2.project_id": input.projectId,
           }).pipe(
             Effect.andThen(
               startup
                 .enqueueCommand(
                   ThreadMessageIntake.launchThread({
+                    ...(input.workingDirectory == null
+                      ? {}
+                      : { workingDirectory: input.workingDirectory }),
                     commandId: input.commandId,
                     ...(input.threadId === undefined ? {} : { threadId: input.threadId }),
                     ...(input.reuseExistingThread === undefined
                       ? {}
                       : { reuseExistingThread: input.reuseExistingThread }),
-                    projectId: input.projectId,
                     title: input.title,
                     ...(input.generateTitle === undefined
                       ? {}
@@ -1893,7 +1735,6 @@ export const layerWsRpc = (
                     modelSelection: input.modelSelection,
                     runtimeMode: input.runtimeMode,
                     interactionMode: input.interactionMode,
-                    workspaceStrategy: input.workspaceStrategy,
                     ...(input.initialMessage === undefined
                       ? {}
                       : {
@@ -1920,7 +1761,6 @@ export const layerWsRpc = (
                       : analytics
                           .record("client.thread.started", {
                             ...originProps,
-                            workspaceStrategy: input.workspaceStrategy.type,
                           })
                           .pipe(
                             Effect.andThen(
@@ -1939,28 +1779,24 @@ export const layerWsRpc = (
                     AttachmentClaimError: (cause) =>
                       new OrchestrationV2ThreadLaunchError({
                         commandId: input.commandId,
-                        projectId: input.projectId,
                         message: cause.message,
                         cause,
                       }),
                     ThreadLaunchError: (cause) =>
                       new OrchestrationV2ThreadLaunchError({
                         commandId: input.commandId,
-                        projectId: input.projectId,
                         message: "Failed to launch thread",
                         cause,
                       }),
                     ServerRuntimeStartupError: (cause) =>
                       new OrchestrationV2ThreadLaunchError({
                         commandId: input.commandId,
-                        projectId: input.projectId,
                         message: "Failed to launch thread",
                         cause,
                       }),
                     ThreadManagementProviderInstanceDisabledError: (cause) =>
                       new OrchestrationV2ThreadLaunchError({
                         commandId: input.commandId,
-                        projectId: input.projectId,
                         message: cause.message,
                         cause,
                       }),
@@ -2051,32 +1887,26 @@ export const layerWsRpc = (
         [WS_METHODS.serverListAcpRegistrySessions]: (input) =>
           Effect.annotateCurrentSpan({
             "provider.instance_id": input.instanceId,
-            "project.id": input.projectId,
           }).pipe(Effect.andThen(listAcpRegistrySessions(input))),
         [WS_METHODS.serverImportAcpRegistrySession]: (input) =>
           Effect.annotateCurrentSpan({
             "provider.instance_id": input.instanceId,
-            "project.id": input.projectId,
           }).pipe(Effect.andThen(importAcpRegistrySession(input))),
         [WS_METHODS.serverDeleteAcpRegistrySession]: (input) =>
           Effect.annotateCurrentSpan({
             "provider.instance_id": input.instanceId,
-            "project.id": input.projectId,
           }).pipe(Effect.andThen(deleteAcpRegistrySession(input))),
         [WS_METHODS.serverListAcpRegistryProviders]: (input) =>
           Effect.annotateCurrentSpan({
             "provider.instance_id": input.instanceId,
-            "project.id": input.projectId,
           }).pipe(Effect.andThen(listAcpRegistryProviders(input))),
         [WS_METHODS.serverSetAcpRegistryProvider]: (input) =>
           Effect.annotateCurrentSpan({
             "provider.instance_id": input.instanceId,
-            "project.id": input.projectId,
           }).pipe(Effect.andThen(setAcpRegistryProvider(input))),
         [WS_METHODS.serverDisableAcpRegistryProvider]: (input) =>
           Effect.annotateCurrentSpan({
             "provider.instance_id": input.instanceId,
-            "project.id": input.projectId,
           }).pipe(Effect.andThen(disableAcpRegistryProvider(input))),
         [WS_METHODS.serverLogoutAcpRegistry]: (input) =>
           Effect.annotateCurrentSpan({ "provider.instance_id": input.instanceId }).pipe(
@@ -2411,33 +2241,11 @@ export const layerWsRpc = (
                 Effect.forkScoped,
               ),
           ),
-        [WS_METHODS.projectsEnsureScratch]: () =>
-          managedFolders.ensureScratchProject.pipe(
-            Effect.mapError(
-              (cause) => new OrchestrationDispatchCommandError({ message: cause.message, cause }),
-            ),
-          ),
-        [WS_METHODS.projectsCreateNew]: (input) =>
-          managedFolders
-            .createNamedProject(input)
-            .pipe(
-              Effect.mapError(
-                (cause) => new OrchestrationDispatchCommandError({ message: cause.message, cause }),
-              ),
-            ),
-        [WS_METHODS.projectsCreateFromThread]: (input) =>
-          scratchThreadPromotion
-            .promote(input)
-            .pipe(
-              Effect.mapError(
-                (cause) => new OrchestrationDispatchCommandError({ message: cause.message, cause }),
-              ),
-            ),
-        [WS_METHODS.projectsSearchEntries]: (input) =>
+        [WS_METHODS.workspaceSearchEntries]: (input) =>
           workspaceEntries.search(input).pipe(
             Effect.mapError(
               (cause) =>
-                new ProjectSearchEntriesError({
+                new WorkspaceSearchEntriesError({
                   cwd: input.cwd,
                   queryLength: input.query.length,
                   limit: input.limit,
@@ -2446,11 +2254,11 @@ export const layerWsRpc = (
                 }),
             ),
           ),
-        [WS_METHODS.projectsSearchContents]: (input) =>
+        [WS_METHODS.workspaceSearchContents]: (input) =>
           workspaceEntries.searchContents(input).pipe(
             Effect.mapError(
               (cause) =>
-                new ProjectSearchContentsError({
+                new WorkspaceSearchContentsError({
                   cwd: input.cwd,
                   queryLength: input.query.length,
                   limit: input.limit,
@@ -2459,50 +2267,36 @@ export const layerWsRpc = (
                 }),
             ),
           ),
-        [WS_METHODS.projectsListEntries]: (input) =>
+        [WS_METHODS.workspaceListEntries]: (input) =>
           workspaceEntries.list(input).pipe(
             Effect.mapError(
               (cause) =>
-                new ProjectListEntriesError({
+                new WorkspaceListEntriesError({
                   ...input,
                   ...projectEntriesFailureContext(cause),
                   cause,
                 }),
             ),
           ),
-        [WS_METHODS.projectsReadFile]: (input) =>
+        [WS_METHODS.workspaceReadFile]: (input) =>
           workspaceFileSystem.readFile(input).pipe(
             Effect.mapError(
               (cause) =>
-                new ProjectReadFileError({
+                new WorkspaceReadFileError({
                   ...input,
                   ...projectFileFailureContext(cause),
                   cause,
                 }),
             ),
           ),
-        [WS_METHODS.projectsWriteFile]: (input) =>
+        [WS_METHODS.workspaceWriteFile]: (input) =>
           workspaceFileSystem.writeFile(input).pipe(
             Effect.mapError(
               (cause) =>
-                new ProjectWriteFileError({
+                new WorkspaceWriteFileError({
                   cwd: input.cwd,
                   relativePath: input.relativePath,
                   ...projectFileFailureContext(cause),
-                  cause,
-                }),
-            ),
-          ),
-        [WS_METHODS.projectsMutate]: (mutation) =>
-          startup.enqueueCommand(mutateProject(mutation)).pipe(
-            Effect.mapError(
-              (cause) =>
-                new ProjectMutationError({
-                  commandId: mutation.commandId,
-                  message:
-                    cause._tag === "ProjectNotEmptyError"
-                      ? cause.message
-                      : "Failed to mutate project.",
                   cause,
                 }),
             ),
@@ -2525,9 +2319,6 @@ export const layerWsRpc = (
         [WS_METHODS.chatSessionsExecute]: (input) => chatSessions.execute(input),
         [WS_METHODS.chatSessionsPrint]: (input) => chatSessions.print(input),
         [WS_METHODS.chatSessionsAnswer]: (input) => chatSessions.answer(input),
-        [WS_METHODS.agentSessionsScan]: () => agentSessionScanner.scan,
-        [WS_METHODS.agentSessionsImport]: (input) =>
-          agentSessionImporter.importRecentAgentThreads(input),
         [WS_METHODS.assetsCreateUrl]:
           /* Request instrumentation already owns the span; keep this helper in that context. */
           Effect.fnUntraced(function* (input) {
@@ -2549,30 +2340,6 @@ export const layerWsRpc = (
                 workspaceRoot: input.resource.cwd,
               });
             }
-            if (input.resource._tag === "project-favicon") {
-              const project = yield* projectStore
-                .findActiveByWorkspaceRoot(input.resource.cwd)
-                .pipe(
-                  Effect.mapError(
-                    (cause) =>
-                      new AssetWorkspaceContextResolutionError({
-                        resource: input.resource,
-                        cause,
-                      }),
-                  ),
-                );
-              if (Option.isNone(project)) {
-                return yield* new AssetWorkspaceContextNotFoundError({
-                  resource: input.resource,
-                });
-              }
-              return yield* issueAssetUrl({
-                resource: input.resource,
-                ...(project.value.faviconPath
-                  ? { projectFaviconPath: project.value.faviconPath }
-                  : {}),
-              });
-            }
             const thread = yield* threadManagement
               .getThreadRecords(input.resource.threadId, [])
               .pipe(
@@ -2584,23 +2351,9 @@ export const layerWsRpc = (
                     }),
                 ),
               );
-            const project = yield* projectService.getById(thread.thread.projectId).pipe(
-              Effect.mapError(
-                (cause) =>
-                  new AssetWorkspaceContextResolutionError({
-                    resource: input.resource,
-                    cause,
-                  }),
-              ),
-            );
-            if (Option.isNone(project)) {
-              return yield* new AssetWorkspaceContextNotFoundError({
-                resource: input.resource,
-              });
-            }
             return yield* issueAssetUrl({
               resource: input.resource,
-              workspaceRoot: thread.thread.workingDirectory ?? project.value.workspaceRoot,
+              workspaceRoot: thread.thread.workingDirectory ?? config.cwd,
             });
           }),
         [WS_METHODS.assetsPersistChatAttachments]: (input) =>
@@ -2916,7 +2669,6 @@ export const layer = Layer.unwrap(
               // Handler-context reporters see only request defects, not server-wide defects.
               Layer.provide(DefectReporter.layer),
               Layer.provide(Layer.succeed(SqlClient.SqlClient, sql)),
-              Layer.provide(AgentSessionScanner.layer),
               Layer.provide(ProviderMaintenanceRunner.layer),
               Layer.provide(Layer.succeed(ServerSelfUpdate.ServerSelfUpdate, serverSelfUpdate)),
               Layer.provide(OtlpEndpointCheck.layer),

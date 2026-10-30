@@ -1,6 +1,5 @@
 import { type ToolActivityIcon } from "@t3tools/contracts";
 import { toolActivityFaviconUrl } from "@t3tools/shared/favicon";
-import { getProjectFaviconCacheKey } from "@t3tools/shared/projectFavicon";
 import { use, useState } from "react";
 import { T3Wordmark } from "../T3Wordmark";
 import {
@@ -143,11 +142,7 @@ function NativeAppToolActivityIcon(props: {
       />
     );
   }
-  const cacheKey = getProjectFaviconCacheKey(
-    activeThreadEnvironmentId,
-    JSON.stringify(props.app),
-    asset.url,
-  );
+  const cacheKey = JSON.stringify([activeThreadEnvironmentId, props.app, asset.url]);
   return (
     <ToolActivityImageIcon
       key={cacheKey}

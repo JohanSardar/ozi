@@ -8,7 +8,6 @@ import type {
   AcpRegistryConfigurableProvider,
   AcpRegistrySession,
   EnvironmentId,
-  ProjectId,
   ProviderInstanceId,
   ServerProvider,
 } from "@t3tools/contracts";
@@ -27,12 +26,6 @@ import { Input } from "../ui/input";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "../ui/select";
 import { toastManager } from "../ui/toast";
 import { SettingsRow } from "./settingsLayout";
-
-interface AcpSessionProject {
-  readonly id: ProjectId;
-  readonly title: string;
-  readonly workspaceRoot: string;
-}
 
 function reportFailure(title: string, result: AtomCommandResult<unknown, unknown>) {
   if (result._tag !== "Failure" || isAtomCommandInterrupted(result)) return;
@@ -74,12 +67,10 @@ export function AcpSessionManagementSection(props: {
   readonly environmentId: EnvironmentId;
   readonly instanceId: ProviderInstanceId;
   readonly provider: ServerProvider;
-  readonly projects: ReadonlyArray<AcpSessionProject>;
   readonly readOnly: boolean;
 }) {
   const canOperate = useEnvironmentScope(props.environmentId, AuthOrchestrationOperateScope);
   const canRead = useEnvironmentScope(props.environmentId, AuthOrchestrationReadScope);
-  const [projectId, setProjectId] = useState<ProjectId | null>(props.projects[0]?.id ?? null);
   const [sessions, setSessions] = useState<ReadonlyArray<AcpRegistrySession>>([]);
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -119,23 +110,16 @@ export function AcpSessionManagementSection(props: {
     props.provider.auth.canLogout === true && !props.provider.setup?.canAuthenticate;
   const canDelete = props.provider.nativeSessions?.canDelete === true;
   const canConfigureProviders = props.provider.configurableProviders === true;
-  const projectOperationPending =
-    loading ||
-    importingSessionId !== null ||
-    deletingSessionId !== null ||
-    loadingProviders ||
-    savingProviderId !== null;
 
   if (!canList && !canLogout && !canConfigureProviders) return null;
 
   const loadSessions = async (cursor?: string) => {
-    if (projectId === null || loading) return;
+    if (loading) return;
     setLoading(true);
     const result = await listSessions({
       environmentId: props.environmentId,
       input: {
         instanceId: props.instanceId,
-        projectId,
         ...(cursor === undefined ? {} : { cursor }),
       },
     });
@@ -153,7 +137,6 @@ export function AcpSessionManagementSection(props: {
   const importNativeSession = async (session: AcpRegistrySession) => {
     if (
       !readEnvironmentScope(props.environmentId, AuthOrchestrationOperateScope) ||
-      projectId === null ||
       importingSessionId !== null
     )
       return;
@@ -162,8 +145,8 @@ export function AcpSessionManagementSection(props: {
       environmentId: props.environmentId,
       input: {
         instanceId: props.instanceId,
-        projectId,
         sessionId: session.sessionId,
+        cwd: session.cwd,
         title: session.title,
         updatedAt: session.updatedAt,
       },
@@ -187,8 +170,7 @@ export function AcpSessionManagementSection(props: {
   };
 
   const deleteNativeSession = async (session: AcpRegistrySession) => {
-    if (projectId === null || deletingSessionId !== null || session.importedThreadId !== null)
-      return;
+    if (deletingSessionId !== null || session.importedThreadId !== null) return;
     const confirmed = await ensureLocalApi().dialogs.confirm(
       `Permanently delete native ACP session "${session.title ?? session.sessionId}"?`,
       { variant: "destructive" },
@@ -198,7 +180,7 @@ export function AcpSessionManagementSection(props: {
     setDeletingSessionId(session.sessionId);
     const result = await deleteSession({
       environmentId: props.environmentId,
-      input: { instanceId: props.instanceId, projectId, sessionId: session.sessionId },
+      input: { instanceId: props.instanceId, sessionId: session.sessionId },
     });
     setDeletingSessionId(null);
     if (result._tag === "Success") {
@@ -212,11 +194,11 @@ export function AcpSessionManagementSection(props: {
   };
 
   const loadProviders = async () => {
-    if (projectId === null || loadingProviders) return;
+    if (loadingProviders) return;
     setLoadingProviders(true);
     const result = await listProviders({
       environmentId: props.environmentId,
-      input: { instanceId: props.instanceId, projectId },
+      input: { instanceId: props.instanceId },
     });
     setLoadingProviders(false);
     if (result._tag === "Success") {
@@ -241,7 +223,6 @@ export function AcpSessionManagementSection(props: {
   const saveProvider = async (provider: AcpRegistryConfigurableProvider) => {
     if (
       !readEnvironmentScope(props.environmentId, AuthProvidersManageScope) ||
-      projectId === null ||
       savingProviderId !== null
     )
       return;
@@ -262,7 +243,6 @@ export function AcpSessionManagementSection(props: {
       environmentId: props.environmentId,
       input: {
         instanceId: props.instanceId,
-        projectId,
         providerId: provider.providerId,
         apiType: draft.apiType,
         baseUrl: draft.baseUrl,
@@ -279,7 +259,7 @@ export function AcpSessionManagementSection(props: {
   };
 
   const disableConfiguredProvider = async (provider: AcpRegistryConfigurableProvider) => {
-    if (projectId === null || savingProviderId !== null || provider.required) return;
+    if (savingProviderId !== null || provider.required) return;
     const confirmed = await ensureLocalApi().dialogs.confirm(
       `Disable ACP provider "${provider.providerId}"?`,
       { variant: "destructive" },
@@ -288,7 +268,7 @@ export function AcpSessionManagementSection(props: {
     setSavingProviderId(provider.providerId);
     const result = await disableProvider({
       environmentId: props.environmentId,
-      input: { instanceId: props.instanceId, projectId, providerId: provider.providerId },
+      input: { instanceId: props.instanceId, providerId: provider.providerId },
     });
     setSavingProviderId(null);
     if (result._tag === "Success") {
@@ -321,11 +301,6 @@ export function AcpSessionManagementSection(props: {
       <SettingsRow
         title="Native sessions"
         description="Resume agent-owned conversations as T3 threads."
-        status={
-          canList && props.projects.length === 0
-            ? "Add a project before importing sessions."
-            : undefined
-        }
         control={
           <div className="flex flex-wrap items-center gap-2">
             {canLogout ? (
@@ -339,38 +314,13 @@ export function AcpSessionManagementSection(props: {
                 {loggingOut ? "Logging out" : "Log out"}
               </Button>
             ) : null}
-            {canList && props.projects.length > 0 ? (
+            {canList ? (
               <>
-                <Select
-                  value={projectId ?? ""}
-                  disabled={!canRead || projectOperationPending}
-                  onValueChange={(value) => {
-                    if (value === null) return;
-                    setProjectId(value as ProjectId);
-                    setSessions([]);
-                    setNextCursor(null);
-                    setProviders([]);
-                    setProviderDrafts({});
-                  }}
-                >
-                  <SelectTrigger aria-label="Project for ACP sessions" className="w-40" size="sm">
-                    <SelectValue>
-                      {props.projects.find((project) => project.id === projectId)?.title}
-                    </SelectValue>
-                  </SelectTrigger>
-                  <SelectPopup>
-                    {props.projects.map((project) => (
-                      <SelectItem key={project.id} value={project.id}>
-                        {project.title}
-                      </SelectItem>
-                    ))}
-                  </SelectPopup>
-                </Select>
                 <Button
                   type="button"
                   size="sm"
                   variant="outline"
-                  disabled={!canRead || loading || projectId === null}
+                  disabled={!canRead || loading}
                   onClick={() => void loadSessions()}
                 >
                   {loading ? "Loading" : sessions.length === 0 ? "List sessions" : "Refresh"}
@@ -466,38 +416,14 @@ export function AcpSessionManagementSection(props: {
               type="button"
               size="xs"
               variant="outline"
-              disabled={!canRead || loadingProviders || projectId === null}
+              disabled={!canRead || loadingProviders}
               onClick={() => void loadProviders()}
             >
               {loadingProviders ? "Loading" : providers.length === 0 ? "List providers" : "Refresh"}
             </Button>
           </div>
 
-          {!canList && props.projects.length > 1 ? (
-            <Select
-              value={projectId ?? ""}
-              disabled={!canRead || projectOperationPending}
-              onValueChange={(value) => {
-                if (value === null) return;
-                setProjectId(value as ProjectId);
-                setProviders([]);
-                setProviderDrafts({});
-              }}
-            >
-              <SelectTrigger aria-label="Project for ACP providers" className="min-w-48" size="xs">
-                <SelectValue>
-                  {props.projects.find((project) => project.id === projectId)?.title}
-                </SelectValue>
-              </SelectTrigger>
-              <SelectPopup>
-                {props.projects.map((project) => (
-                  <SelectItem key={project.id} value={project.id}>
-                    {project.title}
-                  </SelectItem>
-                ))}
-              </SelectPopup>
-            </Select>
-          ) : null}
+          {null}
 
           {providers.length > 0 ? (
             <div className="divide-y divide-border/60 border-y border-border/60">

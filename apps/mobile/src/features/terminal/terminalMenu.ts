@@ -1,5 +1,4 @@
 import { type KnownTerminalSession } from "@t3tools/client-runtime/state/terminal";
-import { DEFAULT_TERMINAL_ID, type ProjectScript } from "@t3tools/contracts";
 import { nextTerminalId, resolveTerminalSessionLabel } from "@t3tools/shared/terminalLabels";
 import * as Arr from "effect/Array";
 import * as Order from "effect/Order";
@@ -128,25 +127,4 @@ export function previousLiveTerminalId(input: {
       session.terminalId.localeCompare(input.exitedTerminalId, undefined, { numeric: true }) < 0,
   );
   return (below[below.length - 1] ?? live[0])?.terminalId ?? null;
-}
-
-export function resolveProjectScriptTerminalId(input: {
-  readonly existingTerminalIds: ReadonlyArray<string>;
-  readonly hasRunningTerminal: boolean;
-  readonly uniqueSuffix?: string;
-}): string {
-  if (!input.hasRunningTerminal && input.uniqueSuffix === undefined) {
-    return DEFAULT_TERMINAL_ID;
-  }
-
-  return nextTerminalId(input.existingTerminalIds, input.uniqueSuffix);
-}
-
-export function projectScriptMenuIcon(icon: ProjectScript["icon"]) {
-  if (icon === "test") return "flask";
-  if (icon === "lint") return "checklist";
-  if (icon === "configure") return "wrench.and.screwdriver";
-  if (icon === "build") return "hammer";
-  if (icon === "debug") return "ladybug";
-  return "play";
 }

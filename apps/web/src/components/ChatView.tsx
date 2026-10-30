@@ -1,3 +1,4 @@
+import { useDraftEnvironments } from "../hooks/useDraftEnvironments";
 import { shouldShowEnvironmentIndicator, shouldShowComposerContextStrip } from "./ChatView.logic";
 import { useComposerSelection } from "./chat/useComposerSelection";
 import { useThreadLifecycle } from "./chat/useThreadLifecycle";
@@ -32,12 +33,9 @@ import { THREAD_FIND_BAR_RESERVED_HEIGHT } from "./chat/ThreadFindBar";
 import { usageLimitRecoveryBannerItem } from "./chat/UsageLimitRecoveryBanner";
 import { resolveDraftHeroState } from "./ChatView.logic";
 import { useQueuedRunEdit } from "./chat/useQueuedRunEdit";
-import { useLogicalProjectEnvironments } from "../hooks/useLogicalProjectEnvironments";
 import { useStableCallback } from "../hooks/useStableCallback";
-import { useProjectScriptEditing } from "./chat/useProjectScriptEditing";
 import { RightPanelSurfaceContent } from "./chat/RightPanelSurfaceContent";
 import { usePendingThreadRequests } from "./chat/usePendingThreadRequests";
-import { isScratchProject } from "@t3tools/client-runtime/state/projects";
 import {
   latestExecutedRun,
   latestRootProviderFailure,
@@ -96,12 +94,9 @@ import {
 import {
   parseScopedThreadKey,
   scopedThreadKey,
-  scopeProjectRef,
   scopeThreadRef,
 } from "@t3tools/client-runtime/environment";
 import { formatModelSlugName, resolveSelectableModel } from "@t3tools/shared/model";
-import { projectScriptCwd, resolveProjectScripts } from "@t3tools/shared/projectScripts";
-import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
 import { resolveThreadReferenceCopyTarget } from "@t3tools/client-runtime/thread-reference";
 import { resolveTerminalSessionLabel } from "@t3tools/shared/terminalLabels";
 import { useAtomValue } from "@effect/atom-react";
@@ -156,7 +151,6 @@ import {
 } from "./preview/ThreadPreviewMiniPlayer";
 import { createChatCanvasStore, resolveChatCanvasModel } from "./chat/canvasStore";
 import { usePreviewSession } from "./preview/usePreviewSession";
-import { getConfiguredPreviewUrls } from "./preview/previewEmptyStateLogic";
 
 import {
   previewMiniPlayerSourceKey,
@@ -166,18 +160,16 @@ import {
 import { GuestPendingMessages } from "./chat/GuestShareControls";
 import { makeWorkspaceFileDropHandlers } from "./chat/workspaceFileDrop";
 import { isEditableFocused } from "../lib/editableFocus";
-import { DEFAULT_RESOLVED_KEYBINDINGS } from "@t3tools/shared/keybindings";
 import { shortcutLabelForCommand } from "../keybindings";
 import { cn } from "~/lib/utils";
 import { COLLAPSED_SIDEBAR_TITLEBAR_INSET_CLASS } from "~/workspaceTitlebar";
 import { toastManager } from "./ui/toast";
 import { ticketClose, ticketReplyMessage, useTicketReplyStore } from "../state/tickets";
-import { projectScriptIdFromCommand } from "~/projectScripts";
 import { newMessageId } from "~/lib/utils";
 import {
   NO_PROVIDER_MODEL_SELECTION,
   providerInstanceEntriesFor,
-  resolveProjectDefaultProviderModelSelection,
+  resolveEnvironmentDefaultModelSelection,
   shouldShowInstanceBadge,
 } from "../providerInstances";
 import {
@@ -190,10 +182,6 @@ import { usePanelAnimationSettings, usePanelPresence } from "../panelAnimations"
 import { useNewThreadHandler } from "../hooks/useHandleNewThread";
 import { isPreviewFocused } from "../lib/previewFocus";
 import { focusTerminalOnThreadEnter, getTerminalFocusOwner } from "../lib/terminalFocus";
-import {
-  deriveLogicalProjectKeyFromSettings,
-  selectProjectGroupingSettings,
-} from "@t3tools/client-runtime/state/project-grouping";
 import {
   isSameSidebarThreadRef,
   useSidebarPendingFileDropStore,
@@ -210,11 +198,7 @@ import { collectInlineContextIds } from "../lib/composerContextReferences";
 import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../terminalUiStateStore";
 import { useKnownTerminalSessions, useThreadRunningTerminalIds } from "../state/terminalSessions";
 import { useEnvironmentScope } from "~/state/session";
-import {
-  primaryServerAvailableEditorsAtom,
-  primaryServerKeybindingsAtom,
-  serverEnvironment,
-} from "../state/server";
+import { primaryServerAvailableEditorsAtom, primaryServerKeybindingsAtom } from "../state/server";
 import { threadEnvironment, useThreadFamily } from "../state/threads";
 import { resolveProviderSkillsForCwd } from "@t3tools/client-runtime/providerSkills";
 import {
@@ -227,7 +211,6 @@ import {
 import {
   resolveThreadDetailRef,
   useEnvironmentSupportsServerBrowser,
-  useProject,
   useQuietThreadProjection,
   useThreadUpdatedAt,
   useThreadLastVisitedAt,
@@ -302,7 +285,6 @@ import {
   resolveComposerInteractionMode,
   resolveComposerProviderSelection,
   resolveThreadMetadataUpdateForNextTurn,
-  startNewThreadForProject,
   codexArtifactTemplatePromptToAppend,
   shouldRefocusComposerOnWindowFocus,
 } from "./ChatView.logic";
@@ -675,11 +657,6 @@ export default function ChatView(props: ChatViewProps) {
   const terminalUiState = useTerminalUiStateStore((state) =>
     selectThreadTerminalUiState(state.terminalUiStateByThreadKey, routeThreadRef),
   );
-
-  const fallbackDraftProjectRef = draftThread
-    ? scopeProjectRef(draftThread.environmentId, draftThread.projectId)
-    : null;
-  const fallbackDraftProject = useProject(fallbackDraftProjectRef);
   const localDraftError = serverThread
     ? null
     : ((draftId ? localDraftErrorsByDraftId[draftId]?.message : null) ?? null);
@@ -703,26 +680,18 @@ export default function ChatView(props: ChatViewProps) {
     }
   }
   const nowMinute = useNowMinute();
-  const draftDefaultModelSelection = draftThread
-    ? resolveProjectSettings(
-        settings,
-        fallbackDraftProject?.id ?? null,
-        fallbackDraftProject ?? undefined,
-      ).settings.defaultModelSelection
-    : null;
+  const draftDefaultModelSelection = draftThread ? settings.defaultModelSelection : null;
   const draftModelResolution = draftThread
     ? resolveNewThreadModelSelection({
         defaultSelection:
           draftDefaultModelSelection ??
-          resolveProjectDefaultProviderModelSelection(
+          resolveEnvironmentDefaultModelSelection(
             providersByEnvironment.get(draftThread.environmentId) ?? [],
             settings,
-            draftThread.projectId,
           ),
         fallbackSelection: settings.fallbackModelSelection,
         providers: providersByEnvironment.get(draftThread.environmentId) ?? [],
         settings,
-        projectId: draftThread.projectId,
         now: Date.parse(`${nowMinute}:00Z`),
       })
     : null;
@@ -861,8 +830,7 @@ export default function ChatView(props: ChatViewProps) {
   const [, setThreadErrorBannerDismissTick] = useState(0);
   const threadErrorIsServerRuntimeError =
     localServerError === null && visibleThreadError === serverRuntime?.lastError;
-  const defaultRuntimeMode = resolveProjectSettings(settings, activeThread?.projectId ?? null)
-    .settings.defaultRuntimeMode;
+  const defaultRuntimeMode = settings.defaultRuntimeMode;
   const runtimeMode =
     composerRuntimeMode ??
     (isServerThread ? activeThread?.runtimeMode : undefined) ??
@@ -1000,77 +968,47 @@ export default function ChatView(props: ChatViewProps) {
   const [chatCanvasStore] = useState(createChatCanvasStore);
 
   const latestRunSettled = isLatestRunSettled(activeLatestRun, activeRuntime);
-  const activeThreadEnvironmentId = activeThread?.environmentId;
-  const activeThreadProjectId = activeThread?.projectId;
-  const activeProjectRef =
-    activeThreadEnvironmentId !== undefined && activeThreadProjectId !== undefined
-      ? scopeProjectRef(activeThreadEnvironmentId, activeThreadProjectId)
-      : null;
-  const activeProject = useProject(activeProjectRef);
   const activeThreadWorkingDirectory = activeThread?.workingDirectory ?? null;
-  const workingDirectory = activeThreadWorkingDirectory ?? activeProject?.workspaceRoot ?? null;
-  const activeProjectSettings = resolveProjectSettings(
-    settings,
-    activeProject?.id ?? null,
-    activeProject ?? undefined,
-  );
-  const activeProjectScripts = activeProject ? resolveProjectScripts(settings, activeProject) : [];
-  const activeProjectDefaultModelSelection =
-    !isServerThread && draftFallback
-      ? draftFallback.selection
-      : activeProjectSettings.settings.defaultModelSelection;
-  const handleNewThreadInActiveProject = () => {
-    startNewThreadForProject(activeProjectRef, handleNewThread);
+  const workingDirectory =
+    activeThreadWorkingDirectory ?? environmentById.get(environmentId)?.serverConfig?.cwd ?? null;
+  const defaultModelSelection =
+    !isServerThread && draftFallback ? draftFallback.selection : settings.defaultModelSelection;
+  const handleNewChat = () => {
+    void handleNewThread(environmentId);
   };
-  const handleNewThreadInActiveProjectStable = useStableCallback(handleNewThreadInActiveProject);
-  const projectGroupingSettings = selectProjectGroupingSettings(settings);
-  const activeDraftLogicalProjectKey =
-    !isServerThread && activeProject
-      ? deriveLogicalProjectKeyFromSettings(activeProject, projectGroupingSettings)
-      : undefined;
-  const handleOpenDraftProjectSettings = () => {
-    if (!activeDraftLogicalProjectKey) return;
-    void navigate({
-      to: "/projects/$projectKey",
-      params: { projectKey: activeDraftLogicalProjectKey },
-    });
-  };
-  const handleOpenDraftProjectSettingsStable = useStableCallback(handleOpenDraftProjectSettings);
   const activeEnvironmentBootstrapComplete = useEnvironmentShellHasSnapshot(
     activeThread?.environmentId ?? null,
   );
-  const activeProjectKey = activeProject
-    ? `${activeProject.environmentId}:${activeProject.workspaceRoot}`
-    : null;
-  const [pendingFileSurfaceIdsByProject, setPendingFileSurfaceIdsByProject] = useState<
+  const workspaceKey = workingDirectory === null ? null : `${environmentId}:${workingDirectory}`;
+  const [pendingFileSurfaceIdsByWorkspace, setPendingFileSurfaceIdsByWorkspace] = useState<
     ReadonlyMap<string, ReadonlySet<string>>
   >(() => new Map());
-  const pendingFileSurfaceIds = activeProjectKey
-    ? (pendingFileSurfaceIdsByProject.get(activeProjectKey) ?? EMPTY_PENDING_FILE_SURFACE_IDS)
+  const pendingFileSurfaceIds = workspaceKey
+    ? (pendingFileSurfaceIdsByWorkspace.get(workspaceKey) ?? EMPTY_PENDING_FILE_SURFACE_IDS)
     : EMPTY_PENDING_FILE_SURFACE_IDS;
   const handleFilePendingChange = (relativePath: string, pending: boolean) => {
-    if (!activeProjectKey) return;
-    setPendingFileSurfaceIdsByProject((currentByProject) => {
-      const current = currentByProject.get(activeProjectKey) ?? EMPTY_PENDING_FILE_SURFACE_IDS;
+    if (!workspaceKey) return;
+    setPendingFileSurfaceIdsByWorkspace((currentByWorkspace) => {
+      const current = currentByWorkspace.get(workspaceKey) ?? EMPTY_PENDING_FILE_SURFACE_IDS;
       const surfaceId = `file:${relativePath}`;
-      if (current.has(surfaceId) === pending) return currentByProject;
+      if (current.has(surfaceId) === pending) return currentByWorkspace;
       const next = new Set(current);
       if (pending) next.add(surfaceId);
       else next.delete(surfaceId);
-      const nextByProject = new Map(currentByProject);
-      if (next.size === 0) nextByProject.delete(activeProjectKey);
-      else nextByProject.set(activeProjectKey, next);
-      return nextByProject;
+      const nextByWorkspace = new Map(currentByWorkspace);
+      if (next.size === 0) nextByWorkspace.delete(workspaceKey);
+      else nextByWorkspace.set(workspaceKey, next);
+      return nextByWorkspace;
     });
   };
   const handleFilePendingChangeStable = useStableCallback(handleFilePendingChange);
-  const configuredPreviewUrls = getConfiguredPreviewUrls(activeProjectScripts);
+  const configuredPreviewUrls: readonly string[] = [];
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- drops file surfaces from the right panel store once bootstrap shows the thread has no workspace
   useEffect(() => {
     if (!activeThreadRef || !activeEnvironmentBootstrapComplete) return;
-    useRightPanelStore.getState().reconcileFileSurfaces(activeThreadRef, activeProject !== null);
-  }, [activeEnvironmentBootstrapComplete, activeProject, activeThreadRef]);
+    useRightPanelStore.getState().reconcileFileSurfaces(activeThreadRef, workingDirectory !== null);
+  }, [activeEnvironmentBootstrapComplete, workingDirectory, activeThreadRef]);
 
   const primaryEnvironmentId = primaryEnvironment?.environmentId ?? null;
   const activeEnvironment =
@@ -1089,20 +1027,11 @@ export default function ChatView(props: ChatViewProps) {
       connection: activeEnvironment.connection,
     };
   })() as EnvironmentUnavailableState | null;
-  const activeProjectIsScratch =
-    activeProject !== null &&
-    isScratchProject(
-      activeProject,
-      environmentById.get(activeProject.environmentId)?.serverConfig?.scratchWorkspaceRoot ?? null,
-    );
-  const logicalProjectEnvironments = useLogicalProjectEnvironments(
-    activeProject,
-    activeProjectIsScratch && draftId !== null,
-  );
-  const hasMultipleEnvironments = logicalProjectEnvironments.length > 1;
-  const canAutoBalanceEnvironments = hasMultipleEnvironments && !activeProjectIsScratch;
+  const draftEnvironments = useDraftEnvironments();
+  const hasMultipleEnvironments = draftEnvironments.length > 1;
+  const canAutoBalanceEnvironments = hasMultipleEnvironments;
   const activeEnvironmentOption =
-    logicalProjectEnvironments.find(
+    draftEnvironments.find(
       (environment) => environment.environmentId === activeThread?.environmentId,
     ) ?? null;
   const showComposerEnvironmentIndicator = shouldShowEnvironmentIndicator({
@@ -1120,9 +1049,7 @@ export default function ChatView(props: ChatViewProps) {
       : providersByEnvironment.get(providerEnvironmentId)) ?? EMPTY_PROVIDERS;
   const selectedProviderByThreadId = composerActiveProvider ?? null;
   const threadProvider =
-    activeThread?.modelSelection.instanceId ??
-    activeProjectDefaultModelSelection?.instanceId ??
-    null;
+    activeThread?.modelSelection.instanceId ?? defaultModelSelection?.instanceId ?? null;
   const lockedProvider = deriveLockedProvider({
     thread: activeThread,
     selectedProvider: selectedProviderByThreadId,
@@ -1162,7 +1089,7 @@ export default function ChatView(props: ChatViewProps) {
     !draftThread?.workingDirectory,
   );
   const autoUpdateEnvironments = automaticEnvironment
-    ? logicalProjectEnvironments.flatMap(({ environmentId }) => {
+    ? draftEnvironments.flatMap(({ environmentId }) => {
         const environment = environmentById.get(environmentId);
         return environment ? [environment] : [];
       })
@@ -1177,11 +1104,7 @@ export default function ChatView(props: ChatViewProps) {
     automaticEnvironment,
     autoUpdateEnvironments,
   });
-  const providerInstanceEntries = providerInstanceEntriesFor(
-    providerStatuses,
-    settings,
-    activeProject?.id ?? null,
-  );
+  const providerInstanceEntries = providerInstanceEntriesFor(providerStatuses, settings);
   const activeThreadModelInstanceId = activeThread?.modelSelection.instanceId;
   const { selectedProviderEntry, requestedDriverKind } = resolveComposerProviderSelection({
     entries: providerInstanceEntries,
@@ -1189,7 +1112,7 @@ export default function ChatView(props: ChatViewProps) {
       selectedProviderByThreadId,
       activeRuntime?.providerInstanceId,
       activeThreadModelInstanceId,
-      activeProjectDefaultModelSelection?.instanceId,
+      defaultModelSelection?.instanceId,
     ],
     lockedProvider,
     lockedInstanceId: activeRuntime?.providerInstanceId ?? activeThreadModelInstanceId,
@@ -1478,13 +1401,10 @@ export default function ChatView(props: ChatViewProps) {
   );
   const keybindings = useAtomValue(primaryServerKeybindingsAtom);
   const backgroundThread = use(BackgroundThreadContext);
-  const scriptKeybindings =
-    useAtomValue(serverEnvironment.configValueAtom(environmentId))?.keybindings ??
-    DEFAULT_RESOLVED_KEYBINDINGS;
   const availableEditors = useAtomValue(primaryServerAvailableEditorsAtom);
   const remoteOpenState = useRemoteOpenState(activeThread?.environmentId ?? environmentId);
   const showOpenInPicker = shouldShowOpenInPicker({
-    activeProjectName: activeProject?.title,
+    workingDirectory,
     activeThreadEnvironmentId: activeThread?.environmentId ?? environmentId,
     primaryEnvironmentId,
     remoteOpenMode: remoteOpenState.mode,
@@ -1547,8 +1467,8 @@ export default function ChatView(props: ChatViewProps) {
     ? activeProviderStatus
     : null;
   const hasTimelineTopBanner = Boolean(timelineThreadError) || visibleProviderStatus !== null;
-  const activeProjectCwd = activeProject?.workspaceRoot ?? null;
-  const activeWorkspaceRoot = activeThreadWorkingDirectory ?? activeProjectCwd ?? undefined;
+  const defaultCwd = environmentById.get(environmentId)?.serverConfig?.cwd ?? null;
+  const activeWorkspaceRoot = activeThreadWorkingDirectory ?? defaultCwd ?? undefined;
   const activeTerminalLaunchContext =
     terminalUiLaunchContext?.threadId === activeThreadId ? terminalUiLaunchContext : null;
   // Provider-native subagents cannot take messages; approvals and questions go to the top-level parent.
@@ -1579,7 +1499,7 @@ export default function ChatView(props: ChatViewProps) {
         );
   const showComposerContextStrip = shouldShowComposerContextStrip({
     isDraftHeroState,
-    hasActiveProject: activeProject !== null && !showProviderSubagentBar,
+    hasWorkspace: workingDirectory !== null && !showProviderSubagentBar,
     showEnvironmentIndicator: showComposerEnvironmentIndicator,
   });
   const terminalShortcutLabelOptions = {
@@ -1609,29 +1529,22 @@ export default function ChatView(props: ChatViewProps) {
     terminalShortcutLabelOptions,
   );
 
-  const {
-    needsLoadBalancing,
-    loadBalancing,
-    readPendingEnvironmentChange,
-    onEnvironmentChangeStable,
-  } = useDraftEnvironmentRouting({
-    draftId,
-    draftThread,
-    envLocked,
-    automaticEnvironment,
-    logicalProjectEnvironments,
-    environmentById,
-    providersByEnvironment,
-    loadBalancingSettings,
-    referencedThreadContexts,
-    activeProviderInstanceId,
-    selectedProvider,
-    composerHasAttachments,
-    activeProjectKey,
-    activeProjectIsScratch,
-    projectGroupingSettings,
-    sendInFlightRef,
-  });
+  const { needsLoadBalancing, loadBalancing, onEnvironmentChangeStable } =
+    useDraftEnvironmentRouting({
+      draftId,
+      draftThread,
+      envLocked,
+      automaticEnvironment,
+      draftEnvironments,
+      environmentById,
+      providersByEnvironment,
+      loadBalancingSettings,
+      referencedThreadContexts,
+      activeProviderInstanceId,
+      selectedProvider,
+      composerHasAttachments,
+      sendInFlightRef,
+    });
 
   const focusComposer = () => {
     composerRef.current?.focusAtEnd();
@@ -1728,7 +1641,6 @@ export default function ChatView(props: ChatViewProps) {
               modelSelection,
               bootstrap: {
                 createThread: {
-                  projectId: activeThread.projectId,
                   title: ticket.title,
                   modelSelection,
                   runtimeMode,
@@ -1772,21 +1684,19 @@ export default function ChatView(props: ChatViewProps) {
     addTerminalContextToDraftStable,
     addTerminalSurfaceStable,
     closePanelTerminalStable,
-    lastInvokedScriptByProjectId,
-    runProjectScriptStable,
     runShellCommandStable,
     splitPanelTerminalStable,
     splitPanelTerminalVerticalStable,
     toggleTerminalVisibilityStable,
     shortcuts: terminalShortcuts,
   } = useChatTerminalActions({
+    defaultCwd,
     environmentId,
     composerRef,
     terminalUiState,
     activeThread,
     activeThreadId,
     activeThreadRef,
-    activeProject,
     activeRightPanelSurface,
     runningTerminalIds,
     activeServerOrderedTerminalIds,
@@ -1795,16 +1705,6 @@ export default function ChatView(props: ChatViewProps) {
     canReuseTerminal,
     setTerminalUiLaunchContext,
     setThreadError,
-  });
-  const {
-    saveProjectScript: saveProjectScriptStable,
-    updateProjectScript: updateProjectScriptStable,
-    deleteProjectScript: deleteProjectScriptStable,
-  } = useProjectScriptEditing({
-    environmentId,
-    project: activeProject,
-    scripts: activeProjectScripts,
-    settings,
   });
   const canOperatePreview = useEnvironmentScope(
     activeThreadRef?.environmentId ?? null,
@@ -2098,7 +1998,6 @@ export default function ChatView(props: ChatViewProps) {
     shortcuts: rightPanelShortcuts,
   } = useRightPanelActions({
     activeThreadRef,
-    activeProject,
     activeRightPanelSurface,
     activePreviewState,
     threadPanelPresentation,
@@ -2109,7 +2008,7 @@ export default function ChatView(props: ChatViewProps) {
     rightPanelOpen,
     canMaximizeRightPanel,
     rightPanelMaximized,
-    activeProjectCwd,
+    defaultCwd,
     closeRightPanelSurface,
   });
   const {
@@ -2133,7 +2032,7 @@ export default function ChatView(props: ChatViewProps) {
     activeThreadKey,
     activeThreadShell,
     activeLatestRun,
-    activeProjectCwd,
+    defaultCwd,
     serverConfig,
     runtimeMode,
     isWorking,
@@ -2175,7 +2074,6 @@ export default function ChatView(props: ChatViewProps) {
     !canOperateThread ||
     !activeThread ||
     !activeThreadHasCompactableConversation ||
-    !activeProject ||
     !isServerThread ||
     !manualCompactionProviderAvailable ||
     isWorking ||
@@ -2190,11 +2088,9 @@ export default function ChatView(props: ChatViewProps) {
   const compactDisabledReason = compactDisabled
     ? !canOperateThread
       ? "This connection cannot change threads."
-      : !activeProject
-        ? "Choose a project before compacting"
-        : !manualCompactionProviderAvailable
-          ? "Compaction is unavailable for this provider"
-          : "Compacting is unavailable right now"
+      : !manualCompactionProviderAvailable
+        ? "Compaction is unavailable for this provider"
+        : "Compacting is unavailable right now"
     : null;
   const resumeCompactionTokens =
     activeContextWindow &&
@@ -2266,11 +2162,7 @@ export default function ChatView(props: ChatViewProps) {
     const fallbackSelection = draftFallback?.selection;
     const defaultSelection =
       draftDefaultModelSelection ??
-      resolveProjectDefaultProviderModelSelection(
-        providerStatuses,
-        settings,
-        draftThread?.projectId ?? null,
-      );
+      resolveEnvironmentDefaultModelSelection(providerStatuses, settings);
     const fallback =
       !isServerThread &&
       multipleModelSelections === null &&
@@ -2323,11 +2215,8 @@ export default function ChatView(props: ChatViewProps) {
     terminalUiLaunchContext !== null &&
     (terminalUiLaunchContext.threadId !== activeThreadId ||
       !terminalUiState.terminalOpen ||
-      (activeProjectCwd !== null &&
-        projectScriptCwd({
-          project: { cwd: activeProjectCwd },
-          workingDirectory: activeThreadWorkingDirectory,
-        }) === terminalUiLaunchContext.cwd &&
+      (workingDirectory !== null &&
+        workingDirectory === terminalUiLaunchContext.cwd &&
         (activeThreadWorkingDirectory ?? null) === terminalUiLaunchContext.workingDirectory))
   ) {
     setTerminalUiLaunchContext(null);
@@ -2365,7 +2254,6 @@ export default function ChatView(props: ChatViewProps) {
   useChatShortcuts({
     enabled: activeThreadId !== null && !backgroundThread,
     keybindings,
-    scriptKeybindings,
     getShortcutContext,
     threadFindActive: isThreadFindActive,
     composerRef,
@@ -2388,11 +2276,9 @@ export default function ChatView(props: ChatViewProps) {
       "composer.cycleHost": ({ event }) => {
         if (!canChangeEnvironment) return false;
         if (event.repeat) return;
-        const currentId = readPendingEnvironmentChange()?.environmentId ?? environmentId;
-        const index = logicalProjectEnvironments.findIndex(
-          (env) => env.environmentId === currentId,
-        );
-        const next = logicalProjectEnvironments[(index + 1) % logicalProjectEnvironments.length];
+        const currentId = environmentId;
+        const index = draftEnvironments.findIndex((env) => env.environmentId === currentId);
+        const next = draftEnvironments[(index + 1) % draftEnvironments.length];
         if (next) onEnvironmentChangeStable(next.environmentId);
       },
       "thread.steerQueuedMessage": ({ event }) =>
@@ -2405,12 +2291,6 @@ export default function ChatView(props: ChatViewProps) {
         if (!canInterruptRunningThread) return false;
         if (!event.repeat) void onInterruptStable();
       },
-    },
-    fallback: (command) => {
-      const scriptId = projectScriptIdFromCommand(command);
-      if (!scriptId || !activeProject || !canOperateTerminal) return undefined;
-      const script = activeProjectScripts.find((entry) => entry.id === scriptId);
-      return script ? () => void runProjectScriptStable(script) : undefined;
     },
   });
 
@@ -2462,7 +2342,6 @@ export default function ChatView(props: ChatViewProps) {
     draftThread,
     activeThread,
     activeRuntime,
-    activeProjectSettings,
     settings,
     providerStatuses,
     lockedProvider,
@@ -2503,7 +2382,6 @@ export default function ChatView(props: ChatViewProps) {
     composerRef,
     beginLocalDispatch,
     resetLocalDispatch,
-    activeProject,
     activeEnvironmentUnavailable,
     defaultRuntimeMode,
   });
@@ -2515,15 +2393,14 @@ export default function ChatView(props: ChatViewProps) {
     draftThread,
     activeThread,
     activeThreadKey,
-    activeProject,
-    activeProjectDefaultModelSelection,
+    defaultModelSelection,
     activeProposedPlan,
     activeMessageCount,
     isServerThread,
     isLocalDraftThread,
     phase,
     runtimeMode,
-    logicalProjectEnvironments,
+    draftEnvironments,
     providerInstanceEntries,
     composerRef,
     composerDraftTarget,
@@ -2550,7 +2427,6 @@ export default function ChatView(props: ChatViewProps) {
     clearUsageLimitsFor,
     needsLoadBalancing,
     loadBalancing,
-    readPendingEnvironmentChange,
     pendingApprovals,
     respondingRequestIds,
     activePendingProgress,
@@ -2572,7 +2448,7 @@ export default function ChatView(props: ChatViewProps) {
     anchorNewTurn,
     acknowledgeActiveThreadWoke,
     handleInteractionModeChange,
-    handleNewThreadInActiveProject,
+    handleNewChat,
     persistThreadSettingsForNextTurn,
   });
   const onImplementPlanInNewThreadStable = useStableCallback(onImplementPlanInNewThread);
@@ -2781,7 +2657,7 @@ export default function ChatView(props: ChatViewProps) {
         closeShortcutLabel: closeTerminalShortcutLabel ?? undefined,
       }}
       files={{
-        projectName: activeProject?.title ?? null,
+        workspaceName: workingDirectory?.split(/[\\/]/).filter(Boolean).at(-1) ?? null,
         workspaceRoot: activeWorkspaceRoot,
         availableEditors,
         pendingSurfaceIds: pendingFileSurfaceIds,
@@ -2791,14 +2667,14 @@ export default function ChatView(props: ChatViewProps) {
     />
   ) : null;
   const panelToggleControlProps = {
-    terminalAvailable: activeProject !== null,
+    terminalAvailable: workingDirectory !== null,
     terminalOpen: terminalUiState.terminalOpen,
     terminalShortcutLabel: shortcutLabelForCommand(keybindings, "terminal.toggle"),
     threadPanelOpen,
     threadPanelPresentation,
     threadPanelPopoverHandle,
     threadPanelShortcutLabel: shortcutLabelForCommand(keybindings, "threadPanel.toggle"),
-    rightPanelAvailable: activeProject !== null,
+    rightPanelAvailable: workingDirectory !== null,
     rightPanelOpen,
     rightPanelShortcutLabel: shortcutLabelForCommand(keybindings, "rightPanel.toggle"),
     onToggleTerminal: toggleTerminalVisibilityStable,
@@ -2875,14 +2751,10 @@ export default function ChatView(props: ChatViewProps) {
             activeThreadTitle={activeThread.title}
             activeThreadLinkOrigin={activeThreadShell?.linkOrigin?.label ?? null}
             workStartedAt={isWorking ? (activeWorkStartedAt ?? null) : null}
-            activeProject={activeProject ?? null}
+            defaultCwd={defaultCwd}
             parentThreadLink={headerParentThreadLink}
             onOpenThread={onOpenRelatedThreadStable}
             rightPanelOpen={inlineRightPanelOwnsTitleBar}
-            onNewThreadInProject={handleNewThreadInActiveProjectStable}
-            {...(activeDraftLogicalProjectKey
-              ? { onOpenProjectSettings: handleOpenDraftProjectSettingsStable }
-              : {})}
           />
         </header>
 
@@ -2944,7 +2816,7 @@ export default function ChatView(props: ChatViewProps) {
                 citationRequest={citationRequest}
                 citationHistory={citationHistory}
                 onCiteAssistantText={citeAssistantTextStable}
-                {...(activeProject ? { onRunShellCommand: runShellCommandStable } : {})}
+                {...(workingDirectory ? { onRunShellCommand: runShellCommandStable } : {})}
                 isWorking={isWorking}
                 runlessWorkActive={runlessWorkStartedAt !== null}
                 isCompacting={isCompacting}
@@ -3052,11 +2924,7 @@ export default function ChatView(props: ChatViewProps) {
                             : undefined
                         }
                       >
-                        <DraftHeroHeadline
-                          draftId={draftId}
-                          activeProjectRef={activeProjectRef}
-                          activeProjectTitle={activeProject?.title ?? null}
-                        />
+                        <DraftHeroHeadline />
                       </div>
                     </div>
                   ) : null}
@@ -3114,9 +2982,7 @@ export default function ChatView(props: ChatViewProps) {
                               forceExpandedOnMobile={
                                 forceExpandedMobileComposer && isDraftHeroState
                               }
-                              projectSelectionRequired={
-                                isLocalDraftThread && activeProject === null
-                              }
+                              environmentSelectionRequired={activeEnvironment === null}
                               phase={phase}
                               isCompacting={isCompacting}
                               canInterrupt={canInterruptRunningThread}
@@ -3162,11 +3028,8 @@ export default function ChatView(props: ChatViewProps) {
                               lockedProvider={modelPickerLockedProvider}
                               providerStatuses={providerStatuses as ServerProvider[]}
                               providerCatalogKnown={serverConfig !== null}
-                              activeProjectDefaultModelSelection={
-                                activeProjectDefaultModelSelection
-                              }
+                              defaultModelSelection={defaultModelSelection}
                               activeThreadModelSelection={activeThread?.modelSelection}
-                              activeProjectId={activeProject?.id ?? null}
                               activeContextWindow={activeContextWindow}
                               compactThreadUnavailable={compactThreadUnavailable}
                               compactDisabled={compactDisabled}
@@ -3256,14 +3119,8 @@ export default function ChatView(props: ChatViewProps) {
               handle={threadPanelPopoverHandle}
               environmentId={activeThread.environmentId}
               threadId={activeThread.id}
-              projectId={activeThread.projectId}
               isServerThread={isServerThread}
               {...(draftId ? { draftId } : {})}
-              activeProjectName={activeProject?.title}
-              activeProjectScripts={activeProject ? activeProjectScripts : undefined}
-              preferredScriptId={
-                activeProject ? (lastInvokedScriptByProjectId[activeProject.id] ?? null) : null
-              }
               keybindings={keybindings}
               availableEditors={availableEditors}
               showOpenInPicker={showOpenInPicker}
@@ -3278,10 +3135,6 @@ export default function ChatView(props: ChatViewProps) {
               {...{}}
               onComposerFocusRequest={scheduleComposerFocusStable}
               {...{}}
-              onRunProjectScript={runProjectScriptStable}
-              onAddProjectScript={saveProjectScriptStable}
-              onUpdateProjectScript={updateProjectScriptStable}
-              onDeleteProjectScript={deleteProjectScriptStable}
               usage={{
                 providerInstanceId: activeProviderInstanceId,
                 providers: providerStatuses,
@@ -3348,8 +3201,8 @@ export default function ChatView(props: ChatViewProps) {
           onAddTerminal={addTerminalSurfaceStable}
           onAddFiles={addFilesSurfaceStable}
           browserAvailable={canOperatePreview && browserAvailable}
-          terminalAvailable={activeProject !== null && canOperateTerminal}
-          filesAvailable={activeProject !== null}
+          terminalAvailable={workingDirectory !== null && canOperateTerminal}
+          filesAvailable={workingDirectory !== null}
         >
           {rightPanelContent}
         </ChatRightPanel>

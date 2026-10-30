@@ -1,7 +1,6 @@
 import type {
   OrchestrationV2TurnItemStatus,
   OrchestrationV2ThreadShell,
-  OrchestrationProjectShell,
   ServerProvider,
 } from "@t3tools/contracts";
 import { formatModelSlugName, resolveSelectableModel } from "@t3tools/shared/model";
@@ -51,16 +50,8 @@ export function formatSubagentDisplayTitle(title: string): string {
 export function resolveSubagentMetadata(input: {
   readonly model: string | null;
   readonly provider?: Pick<ServerProvider, "driver" | "models"> | null | undefined;
-  readonly parentThread?:
-    | Pick<OrchestrationV2ThreadShell, "projectId" | "workingDirectory">
-    | null
-    | undefined;
+  readonly parentThread?: Pick<OrchestrationV2ThreadShell, "workingDirectory"> | null | undefined;
   readonly childThread?: Pick<OrchestrationV2ThreadShell, "workingDirectory"> | null | undefined;
-  readonly parentProject?: Pick<OrchestrationProjectShell, "workspaceRoot"> | null | undefined;
-  readonly childProject?:
-    | Pick<OrchestrationProjectShell, "id" | "title" | "workspaceRoot">
-    | null
-    | undefined;
 }) {
   const model = input.model?.trim();
   const slug = input.provider
@@ -84,24 +75,17 @@ export function resolveSubagentMetadata(input: {
         )
         .trim() || reportedLabel
     : reportedLabel;
-  const parentWorkspace =
-    input.parentThread?.workingDirectory ?? input.parentProject?.workspaceRoot;
-  const childWorkspace = input.childThread?.workingDirectory ?? input.childProject?.workspaceRoot;
-  const workspace = [
-    ...(input.parentThread &&
-    input.childProject &&
-    input.childProject.id !== input.parentThread.projectId
-      ? [{ label: "Project", value: input.childProject.title }]
-      : []),
-    ...(parentWorkspace && childWorkspace && parentWorkspace !== childWorkspace
+  const parentWorkspace = input.parentThread?.workingDirectory;
+  const childWorkspace = input.childThread?.workingDirectory;
+  const workspace =
+    parentWorkspace && childWorkspace && parentWorkspace !== childWorkspace
       ? [
           {
             label: "Folder",
             value: fileBasename(childWorkspace),
           },
         ]
-      : []),
-  ];
+      : [];
   return { modelLabel, workspace };
 }
 

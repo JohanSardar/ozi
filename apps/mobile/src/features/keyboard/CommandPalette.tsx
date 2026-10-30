@@ -1,4 +1,3 @@
-import { uuidv4 } from "../../lib/uuid";
 import { useNavigation } from "@react-navigation/native";
 import {
   claimThreadOpen,
@@ -30,18 +29,16 @@ import {
 } from "react-native";
 
 import { GestureHandlerRootView } from "react-native-gesture-handler";
-
-import { ProjectFavicon } from "../../components/ProjectFavicon";
 import { GlassSurface } from "../../components/ui/GlassSurface";
 import { RowPressable } from "../../components/ui/RowPressable";
 import { AppText as Text } from "../../components/ui/AppText";
 import { SymbolView, type AppSymbolName } from "../../components/ui/AppSymbol";
 import { cn } from "../../lib/cn";
 import { deriveBottomControlInsets } from "../../lib/reserved-regions";
-import { scopedProjectKey, scopedThreadKey } from "../../lib/scopedEntities";
+import { scopedThreadKey } from "../../lib/scopedEntities";
 import { useNativeLayoutMetrics } from "../../native/native-layout-metrics";
 import { T3KeyboardCommands } from "../../native/T3KeyboardCommands";
-import { useProjects, useThreadShell, useThreadShells } from "../../state/entities";
+import { useThreadShell, useThreadShells } from "../../state/entities";
 import { useThreadSearch } from "../../state/queries";
 import { requestThreadMessageJump } from "../threads/threadMessageJump";
 import { threadEnvironment } from "../../state/threads";
@@ -120,16 +117,7 @@ function PaletteRow(props: {
       style={{ height: ROW_HEIGHT }}
     >
       <View className="w-7 items-center">
-        {props.item.project ? (
-          <ProjectFavicon
-            environmentId={props.item.project.environmentId}
-            faviconPath={props.item.project.faviconPath}
-            projectIcon={props.item.project.projectIcon}
-            projectTitle={props.item.project.title}
-            size={20}
-            workspaceRoot={props.item.project.workspaceRoot}
-          />
-        ) : (
+        {
           <SymbolView
             name={itemIcon(props.item)}
             size={20}
@@ -137,7 +125,7 @@ function PaletteRow(props: {
               props.selected ? "accent-thread-selected-foreground" : "accent-icon"
             }
           />
-        )}
+        }
       </View>
       <View className="flex-1">
         <View className="flex-row items-baseline gap-2">
@@ -212,7 +200,6 @@ export function CommandPalette(props: {
   const { themeVariables } = useAppearancePreferences();
   const selectDetail = useSelectWorkspaceDetail();
   const runCommand = props.onCommand;
-  const projects = useProjects();
   const threads = useThreadShells();
   const activeThreadRef = parseActiveThreadPath(props.pathname);
   const activeThread = useThreadShell(activeThreadRef);
@@ -269,13 +256,6 @@ export function CommandPalette(props: {
         run: () => runCommand("newTask"),
       },
       {
-        key: "addProject",
-        kind: "action",
-        title: "Add project",
-        searchTerms: ["folder", "clone", "repository", "git"],
-        run: () => navigation.navigate("AddProject"),
-      },
-      {
         key: "settings",
         kind: "action",
         title: "Open settings",
@@ -318,89 +298,21 @@ export function CommandPalette(props: {
         run: () => openSettings(navigation, "SettingsArchive"),
       },
     ];
-    const projectByKey = new Map(
-      projects.map((project) => [scopedProjectKey(project.environmentId, project.id), project]),
-    );
-    const activeProject = activeThread
-      ? projectByKey.get(scopedProjectKey(activeThread.environmentId, activeThread.projectId))
-      : null;
-    if (activeProject) {
-      actions.unshift({
-        key: "newThread",
-        kind: "action",
-        title: `New thread in ${activeProject.title}`,
-        searchTerms: ["new task", "chat", "create"],
-        run: () =>
-          selectDetail({
-            name: "Thread",
-            params: {
-              draft: {
-                requestId: uuidv4(),
-                environmentId: activeProject.environmentId,
-                projectId: activeProject.id,
-                title: activeProject.title,
-              },
-            },
-          }),
-      });
-    }
-    if (activeThreadRef) {
-      const threadActions = [
-        ["files", "Go to file", ["open", "files", "browse", "search"]],
-        ["terminal", "Open terminal", ["shell", "console"]],
-        ["review", "Review changes", ["diff", "git", "pull request"]],
-        ["copyThreadReference", "Copy PR link or thread", ["reference", "clipboard"]],
-      ] as const;
-      actions.push(
-        ...threadActions.map(([command, title, searchTerms]) => ({
-          key: command,
-          kind: "action" as const,
-          title,
-          searchTerms,
-          run: () => runCommand(command),
-        })),
-      );
-    }
-    const projectItems: CommandPaletteItem[] = projects.map((project) => ({
-      key: `project:${scopedProjectKey(project.environmentId, project.id)}`,
-      kind: "project",
-      project,
-      title: project.title,
-      detail: `New thread · ${savedConnectionsById[project.environmentId]?.environmentLabel ?? project.environmentId}`,
-      searchTerms: [project.workspaceRoot, "new thread", "project"],
-      run: () =>
-        selectDetail({
-          name: "Thread",
-          params: {
-            draft: {
-              requestId: uuidv4(),
-              environmentId: project.environmentId,
-              projectId: project.id,
-              title: project.title,
-            },
-          },
-        }),
-    }));
     const threadItems: CommandPaletteItem[] = threads
       .filter(
         (thread) =>
           thread.archivedAt === null && thread.lineage.relationshipToParent !== "subagent",
       )
       .map((thread) => {
-        const project = projectByKey.get(scopedProjectKey(thread.environmentId, thread.projectId));
         const environment =
           savedConnectionsById[thread.environmentId]?.environmentLabel ?? thread.environmentId;
         return {
           key: scopedThreadKey(thread.environmentId, thread.id),
           kind: "thread",
           title: thread.title || "Untitled thread",
-          detail: [project?.title, environment].filter(Boolean).join(" · "),
+          detail: [environment].filter(Boolean).join(" · "),
           searchTerms: [],
-          threadSearch: threadSearchSubject(
-            thread,
-            project?.title,
-            environments.length > 1 ? environment : null,
-          ),
+          threadSearch: threadSearchSubject(thread, environments.length > 1 ? environment : null),
           // Last among threads: picking the thread already open does nothing.
           ...(thread.environmentId === activeThread?.environmentId && thread.id === activeThread.id
             ? { secondary: true }
@@ -418,14 +330,12 @@ export function CommandPalette(props: {
         (right.threadSearch ? threadRecentUse(right.threadSearch) : 0) -
         (left.threadSearch ? threadRecentUse(left.threadSearch) : 0),
     );
-    return [...actions, ...projectItems, ...threadItems];
+    return [...actions, ...threadItems];
   }, [
     selectTab,
     activeThread,
-    activeThreadRef,
     environments.length,
     navigation,
-    projects,
     runCommand,
     savedConnectionsById,
     selectDetail,
@@ -595,8 +505,8 @@ export function CommandPalette(props: {
                   />
                   <TextInput
                     ref={inputRef}
-                    accessibilityLabel="Search commands, projects, and threads"
-                    placeholder="Search commands, projects, and threads…"
+                    accessibilityLabel="Search commands and threads"
+                    placeholder="Search commands and threads…"
                     placeholderTextColorClassName="accent-placeholder"
                     autoCorrect={false}
                     autoCapitalize="none"

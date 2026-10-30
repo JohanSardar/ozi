@@ -7,7 +7,6 @@ import {
   type OrchestrationV2SearchThreadsInput,
   type OrchestrationV2ThreadFamily,
   type OrchestrationV2ThreadShell,
-  type ProjectId,
   type ThreadId,
 } from "@t3tools/contracts";
 import * as DateTime from "effect/DateTime";
@@ -30,13 +29,11 @@ const COUNT_REREAD_DELAY = "500 millis";
 export interface OlderSettled {
   readonly before: string;
   readonly beforeMs: number;
-  readonly counts: ReadonlyMap<ProjectId, number>;
+  readonly count: number;
 }
 
-/** The scope's projects in one environment, or null for all of them. */
 export interface OlderSettledScope {
   readonly environmentId: EnvironmentId;
-  readonly projectIds: ReadonlyArray<ProjectId> | null;
 }
 
 /**
@@ -54,7 +51,7 @@ const NO_PAGES: OlderSettledPages = { reads: [], frontier: null, status: "ready"
 
 type OlderSettledRow = Pick<
   OrchestrationV2ThreadShell,
-  "id" | "projectId" | "lineage" | "settledOverride" | "settledAt"
+  "id" | "lineage" | "settledOverride" | "settledAt"
 >;
 
 export interface OlderSettledShelfEnvironment {
@@ -155,15 +152,10 @@ export function unloadedOlderSettledCount(input: {
   for (const scope of input.scopes) {
     const older = input.olderSettled(scope.environmentId);
     if (older === null) continue;
-    if (scope.projectIds === null) {
-      for (const count of older.counts.values()) unloaded += count;
-    } else {
-      for (const projectId of scope.projectIds) unloaded += older.counts.get(projectId) ?? 0;
-    }
+    unloaded += older.count;
     for (const thread of input.threads) {
       if (
         thread.environmentId === scope.environmentId &&
-        (scope.projectIds === null || scope.projectIds.includes(thread.source.projectId)) &&
         isOlderSettledThreadShell(thread.source, older.beforeMs)
       ) {
         unloaded -= 1;
@@ -241,20 +233,14 @@ export function createOlderSettledThreadAtoms<R, ER, E>(
     idleTtlMs: 0,
     execute: Effect.fn("OlderSettledThreads.readPage")(function* (input: {
       readonly generation: number;
-      readonly projectIds: ReadonlyArray<ProjectId> | null;
       readonly before: OrchestrationV2OlderSettledCursor;
     }) {
       return yield* request(ORCHESTRATION_V2_WS_METHODS.getOlderSettledThreads, {
         before: input.before,
-        ...(input.projectIds === null ? {} : { projectIds: input.projectIds }),
         limit: OLDER_SETTLED_PAGE_SIZE,
       });
     }),
   });
-
-  const countsOf = (source: {
-    readonly counts: OrchestrationV2OlderSettledThreadsPage["counts"];
-  }) => new Map(source.counts.map(({ projectId, count }) => [projectId, count] as const));
 
   const olderSettledAtom = Atom.family((environmentId: EnvironmentId) => {
     let generation = -1;
@@ -274,7 +260,7 @@ export function createOlderSettledThreadAtoms<R, ER, E>(
         fromSnapshot = {
           before: cut.before,
           beforeMs: DateTime.toEpochMillis(DateTime.makeUnsafe(cut.before)),
-          counts: countsOf(cut),
+          count: cut.count,
         };
       }
       // Most shell updates move only the cursor; the key needs new rows or removals.
@@ -299,25 +285,17 @@ export function createOlderSettledThreadAtoms<R, ER, E>(
       );
       if (read !== null && read !== lastReadPage) {
         lastReadPage = read;
-        lastRead = { ...fromSnapshot, counts: countsOf(read) };
+        lastRead = { ...fromSnapshot, count: read.count };
       }
       return lastRead ?? fromSnapshot;
     }).pipe(Atom.withLabel(`environment-older-settled:${environmentId}`));
   });
 
   const pagesKey = (scope: OlderSettledScope, pages: number) =>
-    JSON.stringify([
-      scope.environmentId,
-      scope.projectIds === null ? null : [...scope.projectIds].sort(),
-      pages,
-    ]);
+    JSON.stringify([scope.environmentId, pages]);
 
   const pagesAtom = Atom.family((key: string) => {
-    const [environmentId, projectIds, pages] = JSON.parse(key) as [
-      EnvironmentId,
-      ReadonlyArray<ProjectId> | null,
-      number,
-    ];
+    const [environmentId, pages] = JSON.parse(key) as [EnvironmentId, number];
     let previous = NO_PAGES;
     const keep = (next: OlderSettledPages): OlderSettledPages => {
       const same =
@@ -343,7 +321,7 @@ export function createOlderSettledThreadAtoms<R, ER, E>(
         const result = get(
           pageReadAtom({
             environmentId,
-            input: { generation: state.generation, projectIds, before: frontier },
+            input: { generation: state.generation, before: frontier },
           }),
         );
         const page = selectEnvironmentQueryData(result);
@@ -438,7 +416,6 @@ export function createOlderSettledThreadAtoms<R, ER, E>(
         environmentId: scope.environmentId,
         input: {
           generation: state.generation,
-          projectIds: scope.projectIds === null ? null : [...scope.projectIds].sort(),
           before: result.frontier,
         },
       }),

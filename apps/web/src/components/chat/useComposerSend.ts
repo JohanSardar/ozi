@@ -1,3 +1,4 @@
+import type { EnvironmentOption } from "../environmentOptions";
 import { parseStandaloneComposerSlashCommand } from "../../composer-logic";
 import { parseCodexFeedbackCommand } from "@t3tools/client-runtime/state/threads";
 import {
@@ -35,11 +36,7 @@ import {
   submitCodexFeedback,
   type CodexFeedbackSubmission,
 } from "@t3tools/client-runtime/state/threads";
-import {
-  scopedThreadKey,
-  scopeProjectRef,
-  scopeThreadRef,
-} from "@t3tools/client-runtime/environment";
+import { scopedThreadKey, scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { type SetStateAction, useLayoutEffect, useRef } from "react";
 import { flushSync } from "react-dom";
 import { useNavigate } from "@tanstack/react-router";
@@ -115,10 +112,7 @@ import {
   prepareTurnAttachments,
   restoreComposerDraft,
 } from "./chatViewSend";
-import type {
-  EnvironmentProject,
-  EnvironmentThreadShell,
-} from "@t3tools/client-runtime/state/shell";
+import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/shell";
 import type { UnifiedSettings } from "@t3tools/contracts";
 import type { Dispatch } from "react";
 import type { ComposerThreadTarget } from "../../composerDraftStore";
@@ -126,7 +120,6 @@ import type { ProviderInstanceEntry } from "../../providerInstances";
 import type { SessionPhase } from "../../types";
 import type { DraftSessionState } from "../../composerDraftStore";
 import type { ComposerHandleRef } from "../../composerHandleContext";
-import type { useLogicalProjectEnvironments } from "../../hooks/useLogicalProjectEnvironments";
 import type { LatestProposedPlanState } from "../../session-logic";
 import type { useDraftEnvironmentRouting } from "./useDraftEnvironmentRouting";
 import type { useLocalDispatchState } from "./useLocalDispatchState";
@@ -162,15 +155,14 @@ interface ComposerSendInput {
   readonly draftThread: DraftSessionState | null;
   readonly activeThread: EnvironmentThreadShell | undefined;
   readonly activeThreadKey: string | null;
-  readonly activeProject: EnvironmentProject | null;
-  readonly activeProjectDefaultModelSelection: ModelSelection | null;
+  readonly defaultModelSelection: ModelSelection | null;
   readonly activeProposedPlan: LatestProposedPlanState | null;
   readonly activeMessageCount: number;
   readonly isServerThread: boolean;
   readonly isLocalDraftThread: boolean;
   readonly phase: SessionPhase;
   readonly runtimeMode: RuntimeMode;
-  readonly logicalProjectEnvironments: ReturnType<typeof useLogicalProjectEnvironments>;
+  readonly draftEnvironments: readonly EnvironmentOption[];
   readonly providerInstanceEntries: ReadonlyArray<ProviderInstanceEntry>;
   readonly composerRef: ComposerHandleRef;
   readonly composerDraftTarget: ComposerThreadTarget;
@@ -197,7 +189,6 @@ interface ComposerSendInput {
   readonly clearUsageLimitsFor: UsageLimitsPanel["clearFor"];
   readonly needsLoadBalancing: boolean;
   readonly loadBalancing: DraftEnvironmentRouting["loadBalancing"];
-  readonly readPendingEnvironmentChange: DraftEnvironmentRouting["readPendingEnvironmentChange"];
   readonly pendingApprovals: PendingThreadRequests["pendingApprovals"];
   readonly respondingRequestIds: PendingThreadRequests["respondingRequestIds"];
   readonly activePendingProgress: PendingThreadRequests["activePendingProgress"];
@@ -222,7 +213,7 @@ interface ComposerSendInput {
   readonly anchorNewTurn: TimelineFollow["anchorNewTurn"];
   readonly acknowledgeActiveThreadWoke: () => void;
   readonly handleInteractionModeChange: (mode: ProviderInteractionMode) => void;
-  readonly handleNewThreadInActiveProject: () => void;
+  readonly handleNewChat: () => void;
   readonly persistThreadSettingsForNextTurn: (input: {
     threadId: ThreadId;
     createdAt: string;
@@ -246,14 +237,13 @@ export function useComposerSend(input: ComposerSendInput) {
     draftThread,
     activeThread,
     activeThreadKey,
-    activeProject,
     activeProposedPlan,
     activeMessageCount,
     isServerThread,
     isLocalDraftThread,
     phase,
     runtimeMode,
-    logicalProjectEnvironments,
+    draftEnvironments,
     providerInstanceEntries,
     composerRef,
     composerDraftTarget,
@@ -280,7 +270,6 @@ export function useComposerSend(input: ComposerSendInput) {
     clearUsageLimitsFor,
     needsLoadBalancing,
     loadBalancing,
-    readPendingEnvironmentChange,
     pendingApprovals,
     respondingRequestIds,
     activePendingProgress,
@@ -299,7 +288,7 @@ export function useComposerSend(input: ComposerSendInput) {
     anchorNewTurn,
     acknowledgeActiveThreadWoke,
     handleInteractionModeChange,
-    handleNewThreadInActiveProject,
+    handleNewChat,
     persistThreadSettingsForNextTurn,
   } = input;
   const linkedEnvironments = useLinkedEnvironments(environmentId);
@@ -410,7 +399,6 @@ export function useComposerSend(input: ComposerSendInput) {
       isRevertingCheckpoint ||
       !clientSettingsHydrated ||
       threadDetailLoading ||
-      readPendingEnvironmentChange() !== null ||
       sendInFlightRef.current ||
       feedbackUploadsInFlightRef.current.has(routeThreadKey)
     ) {
@@ -424,9 +412,7 @@ export function useComposerSend(input: ComposerSendInput) {
         ...loadBalancingSendWarning({
           pending: loadBalancing.pending,
           threadContexts: draft ? referencedThreadContexts(draft) : [],
-          candidateEnvironmentIds: logicalProjectEnvironments.map(
-            (candidate) => candidate.environmentId,
-          ),
+          candidateEnvironmentIds: draftEnvironments.map((candidate) => candidate.environmentId),
         }),
       });
       return;
@@ -681,7 +667,7 @@ export function useComposerSend(input: ComposerSendInput) {
         submissionIntent === "background" &&
         currentRouteThreadKeyRef.current === routeThreadKey
       ) {
-        handleNewThreadInActiveProject();
+        handleNewChat();
       }
       return;
     }
@@ -716,16 +702,6 @@ export function useComposerSend(input: ComposerSendInput) {
           }),
         );
       }
-      return;
-    }
-    if (!activeProject) {
-      toastManager.add(
-        stackedThreadToast({
-          type: "warning",
-          title: "Choose a project first",
-          description: "This draft no longer points to an available project.",
-        }),
-      );
       return;
     }
     const threadIdForSend = activeThread.id;
@@ -1043,7 +1019,6 @@ export function useComposerSend(input: ComposerSendInput) {
     if (multipleModelSelections !== null) {
       await sendToMultipleModels({
         threadId: threadIdForSend,
-        project: activeProject,
         selections: multipleModelSelections,
         targets: multipleTargets,
         sendSnapshot,
@@ -1170,7 +1145,6 @@ export function useComposerSend(input: ComposerSendInput) {
       const bootstrap = isLocalDraftThread
         ? {
             createThread: {
-              projectId: activeProject.id,
               title,
               modelSelection: ctxSelectedModelSelection,
               runtimeMode,
@@ -1211,9 +1185,7 @@ export function useComposerSend(input: ComposerSendInput) {
       });
       if (backgroundThreadRef) {
         try {
-          backgroundDraftOpened = Boolean(
-            await handleNewThread(scopeProjectRef(activeProject.environmentId, activeProject.id)),
-          );
+          backgroundDraftOpened = Boolean(await handleNewThread(environmentId));
         } catch (error) {
           clearBackgroundDraftSubmissionByRef(backgroundThreadRef);
           toastManager.add(
@@ -1267,7 +1239,7 @@ export function useComposerSend(input: ComposerSendInput) {
           submissionIntent === "background" &&
           currentRouteThreadKeyRef.current === routeThreadKey
         ) {
-          handleNewThreadInActiveProject();
+          handleNewChat();
         }
       }
     }

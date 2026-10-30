@@ -55,8 +55,8 @@ export function LinkAccessPicker({
       </Select>
       <p className="text-xs text-muted-foreground">
         {selected.description} An agent never gets more access there than its own mode here. Below
-        full access, it can change only threads this link started, not that machine's own threads,
-        projects or settings.
+        full access, it can change only threads this link started, not that machine's own threads or
+        settings.
       </p>
     </div>
   );

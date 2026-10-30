@@ -1,3 +1,5 @@
+import { workspaceEnvironment } from "../../state/workspaceFiles";
+
 import { AuthFilesystemReadScope } from "@t3tools/contracts";
 import { readEnvironmentScope } from "../../state/session";
 import { executeAtomQuery } from "@t3tools/client-runtime/state/runtime";
@@ -8,7 +10,6 @@ import {
 } from "@t3tools/shared/filePreview";
 
 import { appAtomRegistry } from "../../state/atom-registry";
-import { projectEnvironment } from "../../state/projects";
 import { isVideoPreviewFile } from "./filePath";
 import { prepareSourceFileDocument } from "./source-file-document";
 import { sourceHighlightAtom } from "./sourceHighlightingState";
@@ -47,7 +48,7 @@ export function preloadWorkspaceFileContents(input: {
 
   const preload = executeAtomQuery(
     appAtomRegistry,
-    projectEnvironment.readFile({
+    workspaceEnvironment.readFile({
       environmentId: input.environmentId,
       input: { cwd: input.cwd, relativePath: input.relativePath },
     }),

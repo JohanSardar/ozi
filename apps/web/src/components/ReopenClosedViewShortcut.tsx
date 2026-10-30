@@ -1,5 +1,5 @@
 import { useAtomValue } from "@effect/atom-react";
-import { scopeProjectRef, scopeThreadRef } from "@t3tools/client-runtime/environment";
+import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { useNavigate, useParams } from "@tanstack/react-router";
 import { useEffect, useEffectEvent, useRef } from "react";
 
@@ -19,7 +19,7 @@ import {
   useRightPanelStore,
 } from "../rightPanelStore";
 import { appAtomRegistry } from "../rpc/atomRegistry";
-import { readProject, readThreadShell } from "../state/entities";
+import { readThreadShell } from "../state/entities";
 import { previewEnvironment } from "../state/preview";
 import { primaryServerKeybindingsAtom } from "../state/server";
 import { environmentShell } from "../state/shell";
@@ -87,8 +87,12 @@ export function ReopenClosedViewShortcut() {
     const ref = restore.threadRef;
     const thread = readThreadShell(ref);
     const owner = thread ?? drafts.getDraftThreadByRef(ref);
-    const project = owner ? readProject(scopeProjectRef(ref.environmentId, owner.projectId)) : null;
-    if (!(await reopenClosedView(restore, { openPreview, workspaceAvailable: project !== null }))) {
+    if (
+      !(await reopenClosedView(restore, {
+        openPreview,
+        workspaceAvailable: owner !== null && owner !== undefined,
+      }))
+    ) {
       useClosedViewStore.getState().defer(restore.id);
       return;
     }

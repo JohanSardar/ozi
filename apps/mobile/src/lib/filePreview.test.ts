@@ -159,7 +159,7 @@ vi.mock("@t3tools/client-runtime/state/runtime", async (importOriginal) => ({
   executeAtomQuery: (...args: unknown[]) => audio.query(...args),
 }));
 vi.mock("../state/projects", () => ({
-  projectEnvironment: {
+  workspaceEnvironment: {
     searchEntries: (input: unknown) => input,
     fileMetadata: (input: unknown) => input,
   },

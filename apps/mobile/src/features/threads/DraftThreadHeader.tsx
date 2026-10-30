@@ -1,9 +1,6 @@
 import { useNavigation } from "@react-navigation/native";
 import { AuthFilesystemReadScope } from "@t3tools/contracts";
-import type {
-  EnvironmentProject,
-  EnvironmentThreadShell,
-} from "@t3tools/client-runtime/state/shell";
+import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/shell";
 import { NATIVE_LIQUID_GLASS_SUPPORTED } from "../../native/native-glass";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
 import { useEnvironmentScope } from "../../state/session";
@@ -11,7 +8,6 @@ import { ThreadHeader } from "./ThreadHeader";
 
 export function DraftThreadHeader(props: {
   readonly thread: EnvironmentThreadShell;
-  readonly project: EnvironmentProject;
   readonly cwd: string | null;
 }) {
   const navigation = useNavigation();
@@ -23,7 +19,7 @@ export function DraftThreadHeader(props: {
     navigation.navigate("NewTaskFiles", {
       environmentId,
       cwd: props.cwd,
-      projectName: props.project.title,
+      workspaceName: props.cwd?.split("/").at(-1) ?? "Files",
     });
   };
   return (
@@ -34,7 +30,7 @@ export function DraftThreadHeader(props: {
       headerColor={themeVariables["--color-header"]}
       usesNativeHeaderGlass={NATIVE_LIQUID_GLASS_SUPPORTED}
       hasThreadCwd={props.cwd !== null}
-      hasWorkspaceRoot={Boolean(props.project.workspaceRoot)}
+      hasWorkspaceRoot={props.cwd !== null}
       fileInspectorSupported={false}
       inspectorMode={null}
       onToggleInspector={openFiles}

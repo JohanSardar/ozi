@@ -1,6 +1,5 @@
 import {
   EnvironmentId,
-  ProjectId,
   ThreadId,
   type OrchestrationSearchThreadsResult,
   type OrchestrationV2SearchThreadsInput,
@@ -77,7 +76,6 @@ it("merges successful environments and silently ignores failures", () => {
     matches: [
       {
         threadId: ThreadId.make("thread-a"),
-        projectId: ProjectId.make("project-a"),
         source: "user",
         snippet: "needle",
         messageCreatedAt: "2026-07-30T00:00:00.000Z",
@@ -122,7 +120,6 @@ it("asks environments that omit older settled threads for their rows, with the c
   });
   const registry = AtomRegistry.make();
   const scope = {
-    projectIds: [ProjectId.make("project-a")],
     environmentLabels: { [envA]: "Laptop" },
   };
 
@@ -138,7 +135,6 @@ it("asks environments that omit older settled threads for their rows, with the c
       {
         query: "ui",
         olderSettledBefore: "2026-10-01T00:00:00.000Z",
-        projectIds: scope.projectIds,
         environmentLabel: "Laptop",
         titlesOnly: true,
       },
@@ -158,7 +154,6 @@ it("keeps the previous results visible only while a refined or widened query is 
       {
         environmentId: envA,
         threadId: ThreadId.make("thread-a"),
-        projectId: ProjectId.make("project-a"),
         source: "user" as const,
         snippet: "websocket reconnect",
         messageCreatedAt: null,
@@ -183,12 +178,11 @@ it("ranks recent threads by this client's own latest open", () => {
     opens: { openedAt: 1_000, score: 1, picks: [] },
   };
   claimThreadOpen(envA, "thread-local", 5_000);
-  expect(threadSearchSubject(thread, null).opens?.openedAt).toBe(5_000);
+  expect(threadSearchSubject(thread).opens?.openedAt).toBe(5_000);
   // Also when the server has no record of opens, as an older server would not.
   claimThreadOpen(envA, "thread-unrecorded", 6_000);
   expect(
-    threadSearchSubject({ ...thread, id: ThreadId.make("thread-unrecorded"), opens: null }, null)
-      .opens,
+    threadSearchSubject({ ...thread, id: ThreadId.make("thread-unrecorded"), opens: null }).opens,
   ).toEqual({ openedAt: 6_000, score: 1, picks: [] });
 });
 
@@ -202,17 +196,15 @@ it("counts recency from what the user wrote, else from when the thread began", (
     latestUserMessageAt: "2026-10-20T00:00:00.000Z",
     opens: null,
   };
+  expect(threadSearchSubject({ ...thread, latestUserAuthoredMessageAt: null }).activityAt).toBe(
+    Date.parse("2026-10-01T00:00:00.000Z"),
+  );
   expect(
-    threadSearchSubject({ ...thread, latestUserAuthoredMessageAt: null }, null).activityAt,
-  ).toBe(Date.parse("2026-10-01T00:00:00.000Z"));
-  expect(
-    threadSearchSubject(
-      { ...thread, latestUserAuthoredMessageAt: "2026-10-05T00:00:00.000Z" },
-      null,
-    ).activityAt,
+    threadSearchSubject({ ...thread, latestUserAuthoredMessageAt: "2026-10-05T00:00:00.000Z" })
+      .activityAt,
   ).toBe(Date.parse("2026-10-05T00:00:00.000Z"));
   // An older server omits the field.
-  expect(threadSearchSubject(thread, null).activityAt).toBe(Date.parse("2026-10-20T00:00:00.000Z"));
+  expect(threadSearchSubject(thread).activityAt).toBe(Date.parse("2026-10-20T00:00:00.000Z"));
 });
 
 it("keeps shown message rows in place and leaves room for a slower environment", () => {

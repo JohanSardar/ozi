@@ -66,7 +66,6 @@ const make = Effect.gen(function* () {
       });
       const messageId = MessageId.make(`ticket:${key}`);
       const result = yield* threads.sendToThread({
-        projectId: target.projectId,
         threadId,
         commandId: CommandId.make(`ticket:${key}`),
         messageId,

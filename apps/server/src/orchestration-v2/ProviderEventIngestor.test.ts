@@ -138,12 +138,8 @@ function threadCreatedEvent(
 > {
   return Effect.gen(function* () {
     const idAllocator = yield* IdAllocator.IdAllocatorV2;
-    const projectId = yield* idAllocator.allocate.project({
-      fixtureName: "provider-event-ingestor",
-    });
     const threadId = yield* idAllocator.allocate.thread({
       fixtureName: "provider-event-ingestor",
-      projectId,
     });
     const providerThreadId = idAllocator.derive.providerThread({
       driver: CODEX_DRIVER,
@@ -153,7 +149,6 @@ function threadCreatedEvent(
       createdBy: "user",
       creationSource: "web",
       id: threadId,
-      projectId,
       title: "Provider event ingestor",
       providerInstanceId: modelSelection.instanceId,
       modelSelection: modelSelection,
@@ -691,12 +686,8 @@ layer("ProviderEventIngestorV2", (it) => {
       Effect.gen(function* () {
         const ingestor = yield* ProviderEventIngestor.ProviderEventIngestorV2;
         const idAllocator = yield* IdAllocator.IdAllocatorV2;
-        const projectId = yield* idAllocator.allocate.project({
-          fixtureName: "provider-event-terminal",
-        });
         const threadId = yield* idAllocator.allocate.thread({
           fixtureName: "provider-event-terminal",
-          projectId,
         });
         const providerSessionId = yield* idAllocator.allocate.providerSession({
           providerInstanceId: modelSelection.instanceId,

@@ -57,15 +57,14 @@ describe("scoreThreadSearch", () => {
         thread("Diagnose Connect provisioning failures", {
           ...busy,
           branch: "t3/diagnose-connect",
-          projectTitle: "ozi",
         }),
-        thread("Ozi Connect Tunnel Lifecycle Review", { projectTitle: "ozi" }),
+        thread("Ozi Connect Tunnel Lifecycle Review", {}),
       ])[0],
     ).toBe("Ozi Connect Tunnel Lifecycle Review");
     expect(
       rankTitles("ozi", [
-        thread("Fix sidebar lag", { ...busy, projectTitle: "ozi", branch: "t3code/sidebar" }),
-        thread("Ozi vs Gemini Token Volume", { projectTitle: "slophouse" }),
+        thread("Fix sidebar lag", { ...busy, branch: "t3code/sidebar" }),
+        thread("Ozi vs Gemini Token Volume", {}),
       ])[0],
     ).toBe("Ozi vs Gemini Token Volume");
   });

@@ -1,7 +1,6 @@
 import { dispatchCommandPalette, isCommandPaletteMounted } from "./commandPaletteStore";
 
 export interface CommandPaletteOpenDetail {
-  readonly open?: "add-project" | "new-thread-in";
   readonly query?: string;
 }
 
@@ -9,11 +8,7 @@ export function openCommandPalette(detail: CommandPaletteOpenDetail = {}): void 
   // With no palette on screen (e.g. /pair) the request is dropped; kept in the
   // store, it would pop a stale palette once the app shell mounts.
   if (!isCommandPaletteMounted()) return;
-  if (detail.open === "new-thread-in") {
-    dispatchCommandPalette({ _tag: "OpenNewThreadIn" });
-  } else if (detail.open === "add-project") {
-    dispatchCommandPalette({ _tag: "OpenAddProject" });
-  } else if (detail.query !== undefined) {
+  if (detail.query !== undefined) {
     dispatchCommandPalette({
       _tag: "OpenSearch",
       query: detail.query,

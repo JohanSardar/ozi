@@ -8,7 +8,6 @@ import {
   type GuestStreamEvent,
   MessageId,
   type OrchestrationV2TurnItem,
-  ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
   RunId,
@@ -153,7 +152,6 @@ const shareThreadFor = Effect.fn(function* (threadId: ThreadId) {
     type: "thread.create",
     commandId: CommandId.make(`create:${threadId}`),
     threadId,
-    projectId: ProjectId.make("project:guest-share-service"),
     title: "Review me",
     modelSelection: { instanceId, model: "gpt-5.1-codex" },
     runtimeMode: "full-access",
@@ -221,7 +219,7 @@ it.effect("streams the owner's thread events after the share and a snapshot", ()
       messageId: MessageId.make("message:owner"),
       text: "Fix the login bug",
       attachments: [],
-      dispatchMode: { type: "defer_start" },
+      dispatchMode: { type: "start_immediately" },
       createdBy: "user",
       creationSource: "web",
     });
@@ -257,7 +255,7 @@ it.effect("starts a stream with the runs and items already in the thread", () =>
       messageId: MessageId.make("message:before"),
       text: "Fix the login bug",
       attachments: [],
-      dispatchMode: { type: "defer_start" },
+      dispatchMode: { type: "start_immediately" },
       createdBy: "user",
       creationSource: "web",
     });
@@ -419,7 +417,7 @@ const ownerRun = Effect.gen(function* () {
     messageId: MessageId.make("message:command"),
     text: "Build it",
     attachments: [],
-    dispatchMode: { type: "defer_start" },
+    dispatchMode: { type: "start_immediately" },
     createdBy: "user",
     creationSource: "web",
   });
@@ -771,7 +769,7 @@ it.effect("sends a guest's files as the guest's message and keeps them the guest
       guestMessageId: message!.id,
       text: "",
       attachments: [copied],
-      dispatchMode: { type: "defer_start" },
+      dispatchMode: { type: "start_immediately" },
       createdBy: "user",
       creationSource: "web",
     });
@@ -850,7 +848,7 @@ it.effect("serves the shared thread's files to its guest, never another thread's
       messageId: MessageId.make("message:owner-image"),
       text: "My screen",
       attachments: [ownerImage],
-      dispatchMode: { type: "defer_start" },
+      dispatchMode: { type: "start_immediately" },
       createdBy: "user",
       creationSource: "web",
     });
@@ -999,7 +997,7 @@ it.effect("serves an image on the host only when an agent reply the guest sees s
       messageId: MessageId.make("message:fork"),
       text: "One more",
       attachments: [],
-      dispatchMode: { type: "defer_start" },
+      dispatchMode: { type: "start_immediately" },
       createdBy: "user",
       creationSource: "web",
     });
@@ -1068,7 +1066,7 @@ it.effect("keeps a connected guest's images while other shares come and go", () 
         messageId: MessageId.make(`message:${id}`),
         text: "Show me",
         attachments: [],
-        dispatchMode: { type: "defer_start" },
+        dispatchMode: { type: "start_immediately" },
         createdBy: "user",
         creationSource: "web",
       });

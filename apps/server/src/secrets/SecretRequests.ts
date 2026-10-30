@@ -6,7 +6,6 @@ import {
   CommandId,
   SecretRef,
   SecretRequestError,
-  type ProjectId,
   type SecretRequestAnswerInput,
   type ThreadId,
 } from "@t3tools/contracts";
@@ -44,7 +43,7 @@ const refFor = (salt: string, threadId: ThreadId, turnItemId: string) =>
   );
 
 const StoredSecret = Schema.fromJsonString(
-  Schema.Struct({ projectId: Schema.String, value: Schema.String, savedAt: Schema.Number }),
+  Schema.Struct({ value: Schema.String, savedAt: Schema.Number }),
 );
 const encodeStored = Schema.encodeEffect(StoredSecret);
 const decodeStored = Schema.decodeUnknownOption(StoredSecret);
@@ -59,7 +58,6 @@ export class SecretRequests extends Context.Service<
     }) => Effect.Effect<Option.Option<SecretRef>>;
     readonly consume: (input: {
       readonly ref: SecretRef;
-      readonly projectId: ProjectId;
     }) => Effect.Effect<string, SecretRequestError>;
     /** Moves a saved `file` request's value to an owner-only file and returns its path. */
     readonly saveToFile: (input: {
@@ -108,7 +106,6 @@ const make = Effect.gen(function* () {
       // Existing values on pending cards finish earlier saves whose recording failed.
       if (input.answer.type === "save") {
         const encoded = yield* encodeStored({
-          projectId: records.thread.projectId,
           value: input.answer.secret,
           savedAt: yield* Clock.currentTimeMillis,
         }).pipe(Effect.orDie);
@@ -199,7 +196,6 @@ const make = Effect.gen(function* () {
   /** A live ref's value, left in the store. */
   const readRef = Effect.fn("SecretRequests.readRef")(function* (input: {
     readonly ref: SecretRef;
-    readonly projectId: ProjectId;
   }) {
     if (!REF_PATTERN.test(input.ref))
       return yield* new SecretRequestError({ reason: "invalid_ref" });
@@ -209,7 +205,7 @@ const make = Effect.gen(function* () {
     const decoded = Option.flatMap(stored, (bytes) =>
       decodeStored(new TextDecoder().decode(bytes)),
     );
-    if (Option.isNone(decoded) || decoded.value.projectId !== input.projectId) {
+    if (Option.isNone(decoded)) {
       return yield* new SecretRequestError({ reason: "ref_unavailable" });
     }
     if ((yield* Clock.currentTimeMillis) - decoded.value.savedAt > SECRET_REF_TTL_MS) {
@@ -221,7 +217,6 @@ const make = Effect.gen(function* () {
 
   const consumeRef = Effect.fn("SecretRequests.consumeRef")(function* (input: {
     readonly ref: SecretRef;
-    readonly projectId: ProjectId;
   }) {
     const value = yield* readRef(input);
     // One use: the value moves into whatever consumed it. If it cannot be
@@ -265,7 +260,7 @@ const make = Effect.gen(function* () {
         return yield* removeStored;
       }
       // The stored value goes only after the file is complete, so a failed write can retry.
-      const value = yield* readRef({ ref, projectId: records.thread.projectId });
+      const value = yield* readRef({ ref });
       const partial = `${file}.partial`;
       yield* fileSystem.makeDirectory(filesDir, { recursive: true, mode: 0o700 }).pipe(
         Effect.andThen(fileSystem.chmod(filesDir, 0o700)),

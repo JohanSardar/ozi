@@ -23,10 +23,6 @@
       "types": "./src/themePreview.ts",
       "import": "./src/themePreview.ts"
     },
-    "./projectFavicon": {
-      "types": "./src/projectFavicon.ts",
-      "import": "./src/projectFavicon.ts"
-    },
     "./mobileSourceMaps": {
       "types": "./src/mobileSourceMaps.ts",
       "import": "./src/mobileSourceMaps.ts"
@@ -134,18 +130,6 @@
     "./String": {
       "types": "./src/String.ts",
       "import": "./src/String.ts"
-    },
-    "./projectScripts": {
-      "types": "./src/projectScripts.ts",
-      "import": "./src/projectScripts.ts"
-    },
-    "./projectSettings": {
-      "types": "./src/projectSettings.ts",
-      "import": "./src/projectSettings.ts"
-    },
-    "./t3ProjectFile": {
-      "types": "./src/t3ProjectFile.ts",
-      "import": "./src/t3ProjectFile.ts"
     },
     "./orchestrationTiming": {
       "types": "./src/orchestrationTiming.ts",

@@ -1,6 +1,6 @@
-import type { EnvironmentId, ProjectId } from "@t3tools/contracts";
+import type { EnvironmentId } from "@t3tools/contracts";
 
-import { deriveThreadTitleFromPrompt } from "../lib/projectThreadStartTurn";
+import { deriveThreadTitleFromPrompt } from "../lib/threadStartTurn";
 import type { QueuedThreadCreation, QueuedThreadMessage } from "./thread-outbox-model";
 import { isNewTaskDraftKey } from "./new-task-draft-key";
 import type { ComposerDraft } from "./use-composer-drafts";
@@ -11,9 +11,7 @@ export interface PendingQueuedTask {
   readonly kind: "pending";
   readonly key: string;
   readonly environmentId: EnvironmentId;
-  readonly projectId: ProjectId;
-  readonly projectTitle: string | undefined;
-  readonly projectCwd: string | undefined;
+  readonly defaultCwd: string | undefined;
   readonly title: string;
   readonly createdAt: string;
   readonly message: QueuedThreadMessage;
@@ -24,9 +22,7 @@ export interface PendingDraftTask {
   readonly kind: "draft";
   readonly key: string;
   readonly environmentId: EnvironmentId;
-  readonly projectId: ProjectId;
-  readonly projectTitle: undefined;
-  readonly projectCwd: undefined;
+  readonly defaultCwd: undefined;
   readonly title: string;
   readonly createdAt: string;
   readonly draftKey: string;
@@ -46,7 +42,7 @@ function draftTitle(draft: ComposerDraft): string {
 }
 
 /** A project's new-task defaults, as useNewTaskProjectDefaults resolves them. */
-export interface PendingDraftProjectDefaults {
+export interface PendingDraftDefaults {
   readonly canChooseWorkspace: boolean;
   readonly defaultMode: "local";
   readonly defaultModeSettled: boolean;
@@ -65,9 +61,7 @@ export function buildPendingNewTasks(input: {
       kind: "pending",
       key: `pending-task:${message.messageId}`,
       environmentId: message.environmentId,
-      projectId: message.creation.projectId,
-      projectTitle: message.creation.projectTitle,
-      projectCwd: message.creation.projectCwd,
+      defaultCwd: message.creation.defaultCwd,
       title: deriveThreadTitleFromPrompt(message.text),
       createdAt: message.createdAt,
       message,
@@ -75,18 +69,20 @@ export function buildPendingNewTasks(input: {
     });
   }
   for (const [draftKey, draft] of Object.entries(input.drafts)) {
-    if (!isNewTaskDraftKey(draftKey) || !draft.project || !composerDraftHasUserContent(draft)) {
+    if (
+      !isNewTaskDraftKey(draftKey) ||
+      !draft.environmentStamp ||
+      !composerDraftHasUserContent(draft)
+    ) {
       continue;
     }
     tasks.push({
       kind: "draft",
       key: `draft-task:${draftKey}`,
-      environmentId: draft.project.environmentId,
-      projectId: draft.project.projectId,
-      projectTitle: undefined,
-      projectCwd: undefined,
+      environmentId: draft.environmentStamp.environmentId,
+      defaultCwd: undefined,
       title: draftTitle(draft),
-      createdAt: draft.project.createdAt,
+      createdAt: draft.environmentStamp.createdAt,
       draftKey,
       draft,
     });

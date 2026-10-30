@@ -1,4 +1,4 @@
-import { scopeProjectRef, scopeThreadRef } from "@t3tools/client-runtime/environment";
+import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
@@ -16,7 +16,6 @@ import { connectPairing } from "../../connection/onboarding";
 import { isLocalEnvironmentDisabled } from "../../localEnvironment";
 import { useComposerDraftStore } from "../../composerDraftStore";
 import { useNewThreadHandler } from "../../hooks/useHandleNewThread";
-import { useScratchProject } from "../../hooks/useScratchProject";
 import { selectActiveRightPanelSurface, useRightPanelStore } from "../../rightPanelStore";
 import { resolveThreadRouteTarget } from "../../threadRoutes";
 import { assetEnvironment } from "../../state/assets";
@@ -54,7 +53,6 @@ function threadShowingBrowser(
 export function DesktopWebLinkCoordinator() {
   const router = useRouter();
   const primaryEnvironment = usePrimaryEnvironment();
-  const { scratchEnvironmentId, openScratchProject } = useScratchProject();
   const openThread = useNewThreadHandler();
   const openPreview = useAtomCommand(previewEnvironment.open, { reportFailure: false });
   const createAssetUrl = useAtomQueryRunner(assetEnvironment.createUrl, {
@@ -118,19 +116,17 @@ export function DesktopWebLinkCoordinator() {
   };
 
   const startThread = async (url: string): Promise<ScopedThreadRef | null> => {
-    const environmentId = scratchEnvironmentId(primaryEnvironment?.environmentId ?? null);
+    const environmentId = primaryEnvironment?.environmentId ?? null;
     if (environmentId === null) {
       reportFailure(url);
       return null;
     }
-    const project = await openScratchProject(environmentId, "Could not open the link");
-    if (!project) return null;
-    const opened = await openThread(scopeProjectRef(project.environmentId, project.id));
+    const opened = await openThread(environmentId);
     if (!opened) {
       reportFailure(url);
       return null;
     }
-    const threadRef = scopeThreadRef(project.environmentId, opened.threadId);
+    const threadRef = scopeThreadRef(environmentId, opened.threadId);
     useRightPanelStore.getState().requestMaximize(threadRef);
     return threadRef;
   };

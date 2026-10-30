@@ -2,7 +2,6 @@ import {
   CommandId,
   EnvironmentId,
   MessageId,
-  ProjectId,
   ProviderInstanceId,
   ThreadId,
 } from "@t3tools/contracts";
@@ -53,7 +52,6 @@ const creation: QueuedThreadMessage = {
   attachments: [],
   modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.6-sol" },
   creation: {
-    projectId: ProjectId.make("project-1"),
     workspaceMode: "local",
     workingDirectory: null,
   },

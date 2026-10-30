@@ -51,22 +51,15 @@ export function AutoSettleSettingsRows(props: {
   readonly write: (patch: ServerSettingsPatch) => void;
   readonly pending: boolean;
 }) {
-  const { selectedTargets, projectGroups, selectedProjectKey } = useSettingsEnvironmentFilter();
-  const selectedProject = projectGroups.find((group) => group.key === selectedProjectKey);
+  const { selectedTargets } = useSettingsEnvironmentFilter();
   const writableEnvironments = useEnvironmentsWithScope(selectedTargets, AuthSettingsWriteScope);
-  const projectSelected = selectedProjectKey !== null;
-
-  const projectMembers = projectSelected
-    ? (selectedProject?.members.map((member) => member.project) ?? [])
-    : null;
   const displayTargets = resolveMobileSettingsTargets(
     selectedTargets.filter(supportsSharedSettingsSync),
-    projectMembers,
   );
   // The page saves to all its targets, so any read-only one blocks the save.
   const canWriteSettings =
     displayTargets.length > 0 &&
-    resolveMobileSettingsTargets(selectedTargets, projectMembers).every((target) =>
+    resolveMobileSettingsTargets(selectedTargets).every((target) =>
       writableEnvironments.has(target.environment.environmentId),
     );
   const reference = displayTargets[0] ?? null;
@@ -86,12 +79,10 @@ export function AutoSettleSettingsRows(props: {
   const { patch: autoSettlePatch, mismatches } = planAutoSettleSettingsSync(
     {
       environmentId: reference.environment.environmentId,
-      projectId: reference.projectId,
       settings: referenceSettings,
     },
     displayTargets.map((target) => ({
       environmentId: target.environment.environmentId,
-      projectId: target.projectId,
       label: target.environment.label,
       settings: target.settings,
     })),
@@ -102,7 +93,7 @@ export function AutoSettleSettingsRows(props: {
 
   return (
     <View className="gap-6">
-      {!projectSelected ? (
+      {
         <SettingsSection title="Usage limits">
           <SettingsSwitchRow
             icon="clock"
@@ -119,7 +110,7 @@ export function AutoSettleSettingsRows(props: {
             onValueChange={(value) => writeToAll({ snoozeLimitedThreads: value })}
           />
         </SettingsSection>
-      ) : null}
+      }
       <SettingsSection title="Auto-settle">
         <SettingsSwitchRow
           icon="clock"
@@ -184,25 +175,6 @@ export function WorkingSectionSettings() {
         moved.
       </Text>
     </View>
-  );
-}
-
-export function NewThreadSettingsSection() {
-  const savePreferences = useAtomSet(updateMobilePreferencesAtom);
-  const preferences = useAtomValue(mobilePreferencesAtom);
-  const useLastProject =
-    AsyncResult.isSuccess(preferences) && preferences.value.useLastProjectForNewThreads !== false;
-
-  return (
-    <SettingsSection title="New threads">
-      <SettingsSwitchRow
-        icon="square.and.pencil"
-        label="Use last project"
-        subtitle="Start new threads in the last project you used on this device."
-        value={useLastProject}
-        onValueChange={(value) => savePreferences({ useLastProjectForNewThreads: value })}
-      />
-    </SettingsSection>
   );
 }
 

@@ -8,7 +8,6 @@ import {
   type OrchestratorMcpThreadTimelineItem,
   type OrchestrationV2RemoteTaskChild,
   type OrchestrationV2Subagent,
-  type ProjectId,
   type ProviderInstanceId,
   ProviderDriverKind,
   type RunId,
@@ -25,7 +24,7 @@ import * as Scope from "effect/Scope";
 import * as Stream from "effect/Stream";
 
 import type * as McpInvocationContext from "../mcp/McpInvocationContext.ts";
-import { ProjectToolkit } from "../mcp/toolkits/project/tools.ts";
+import { ThreadLaunchToolkit } from "../mcp/toolkits/threadLaunch/tools.ts";
 import {
   resolveInteractionMode,
   resolveRuntimeMode,
@@ -132,17 +131,6 @@ const make = Effect.gen(function* () {
       .getThreadRecords(parentThreadId, ["subagents"], { subagentIds: [taskId] })
       .pipe(Effect.map(({ thread, subagents }) => ({ thread, task: subagents[0] })));
 
-  /** The peer's project with this thread's repository, or the one the caller named. */
-  const resolveRemoteProject = Effect.fn("RemoteDelegation.resolveRemoteProject")(function* (
-    requested: ProjectId | undefined,
-  ) {
-    if (requested !== undefined) return requested;
-    return yield* new OrchestratorMcpFailure({
-      code: "target_required",
-      message: "Pass target.projectId for the linked environment.",
-    });
-  });
-
   const delegate: RemoteDelegation["Service"]["delegate"] = Effect.fn("RemoteDelegation.delegate")(
     function* (scope, input) {
       const parent = yield* threads.getThreadRecords(scope.thread.threadId, ["runs"]).pipe(
@@ -197,7 +185,6 @@ const make = Effect.gen(function* () {
         input.interactionMode === undefined || input.interactionMode === "inherit"
           ? undefined
           : yield* resolveInteractionMode(parent.thread.interactionMode, input.interactionMode);
-      const projectId = yield* resolveRemoteProject(target.projectId);
       // One key for the launch there and the record here, so a retry finds both.
       // Both are scoped to the provider session, as every key a caller passes is:
       // the forwarder scopes the launch's, and the record's names it.
@@ -205,10 +192,9 @@ const make = Effect.gen(function* () {
       const task = taskPrompt(input);
       const launched = yield* forwarding.call(
         scope,
-        ProjectToolkit.tools.t3_thread_launch,
+        ThreadLaunchToolkit.tools.t3_thread_launch,
         target.environmentId,
         {
-          projectId,
           title: input.title ?? parent.thread.title,
           modelSelection: { instanceId, model, ...(options === undefined ? {} : { options }) },
           ...(runtimeMode === undefined ? {} : { runtimeMode }),

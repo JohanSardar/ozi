@@ -19,7 +19,6 @@ import { connectCommand, disconnectCommand } from "./cli/remote.ts";
 import { pairCommand } from "./cli/pair.ts";
 import { extendConnectionAttemptTimeout, keepOutboundFetchOnHttp1 } from "./outboundHttp.ts";
 import { sharedServerCommandFlags } from "./cli/config.ts";
-import { projectCommand } from "./cli/project.ts";
 import { ticketCommand } from "./cli/ticket.ts";
 import { inboxCommand } from "./cli/inbox.ts";
 import { terminalCommand } from "./cli/terminal.ts";
@@ -58,7 +57,6 @@ export const makeCli = () =>
       authCommand,
       environmentCommand,
       browserCommand,
-      projectCommand,
       threadCommand,
       ticketCommand,
       inboxCommand,

@@ -3,17 +3,11 @@ import * as Schema from "effect/Schema";
 import {
   ApprovalRequestId,
   ClientSurface,
-  CommandId,
-  EventId,
   IsoDateTime,
-  NonNegativeInt,
-  ProjectId,
   ProviderItemId,
   TrimmedNonEmptyString,
 } from "./baseSchemas.ts";
-import { ModelSelection } from "./modelSelection.ts";
 import type { OrchestrationV2StoredEvent } from "./orchestrationV2.ts";
-import { ProjectScript, StoredProjectIcon } from "./project.ts";
 
 export const OrchestrationClientOrigin = Schema.Struct({
   surface: Schema.optional(ClientSurface),
@@ -32,75 +26,4 @@ export const ApplicationEventMetadata = Schema.Struct({
 });
 export type ApplicationEventMetadata = typeof ApplicationEventMetadata.Type;
 
-export const ApplicationProjectCreatedPayload = Schema.Struct({
-  projectId: ProjectId,
-  title: TrimmedNonEmptyString,
-  workspaceRoot: TrimmedNonEmptyString,
-  defaultModelSelection: Schema.NullOr(ModelSelection),
-  faviconPath: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
-  projectIcon: Schema.optional(Schema.NullOr(StoredProjectIcon)),
-  scripts: Schema.Array(ProjectScript),
-  createdAt: IsoDateTime,
-  updatedAt: IsoDateTime,
-});
-export type ApplicationProjectCreatedPayload = typeof ApplicationProjectCreatedPayload.Type;
-
-export const ApplicationProjectMetaUpdatedPayload = Schema.Struct({
-  projectId: ProjectId,
-  title: Schema.optional(TrimmedNonEmptyString),
-  workspaceRoot: Schema.optional(TrimmedNonEmptyString),
-  defaultModelSelection: Schema.optional(Schema.NullOr(ModelSelection)),
-  faviconPath: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
-  projectIcon: Schema.optional(Schema.NullOr(StoredProjectIcon)),
-  scripts: Schema.optional(Schema.Array(ProjectScript)),
-  updatedAt: IsoDateTime,
-});
-export type ApplicationProjectMetaUpdatedPayload = typeof ApplicationProjectMetaUpdatedPayload.Type;
-
-export const ApplicationProjectDeletedPayload = Schema.Struct({
-  projectId: ProjectId,
-  deletedAt: IsoDateTime,
-});
-export type ApplicationProjectDeletedPayload = typeof ApplicationProjectDeletedPayload.Type;
-
-const ApplicationProjectEventBaseFields = {
-  sequence: NonNegativeInt,
-  eventId: EventId,
-  aggregateKind: Schema.Literal("project"),
-  aggregateId: ProjectId,
-  occurredAt: IsoDateTime,
-  commandId: Schema.NullOr(CommandId),
-  causationEventId: Schema.NullOr(EventId),
-  correlationId: Schema.NullOr(CommandId),
-  metadata: ApplicationEventMetadata,
-} as const;
-
-export const ApplicationProjectCreatedEvent = Schema.Struct({
-  ...ApplicationProjectEventBaseFields,
-  type: Schema.Literal("project.created"),
-  payload: ApplicationProjectCreatedPayload,
-});
-export type ApplicationProjectCreatedEvent = typeof ApplicationProjectCreatedEvent.Type;
-
-export const ApplicationProjectMetaUpdatedEvent = Schema.Struct({
-  ...ApplicationProjectEventBaseFields,
-  type: Schema.Literal("project.meta-updated"),
-  payload: ApplicationProjectMetaUpdatedPayload,
-});
-export type ApplicationProjectMetaUpdatedEvent = typeof ApplicationProjectMetaUpdatedEvent.Type;
-
-export const ApplicationProjectDeletedEvent = Schema.Struct({
-  ...ApplicationProjectEventBaseFields,
-  type: Schema.Literal("project.deleted"),
-  payload: ApplicationProjectDeletedPayload,
-});
-export type ApplicationProjectDeletedEvent = typeof ApplicationProjectDeletedEvent.Type;
-
-export const ApplicationProjectEvent = Schema.Union([
-  ApplicationProjectCreatedEvent,
-  ApplicationProjectMetaUpdatedEvent,
-  ApplicationProjectDeletedEvent,
-]);
-export type ApplicationProjectEvent = typeof ApplicationProjectEvent.Type;
-
-export type ApplicationStoredEvent = ApplicationProjectEvent | OrchestrationV2StoredEvent;
+export type ApplicationStoredEvent = OrchestrationV2StoredEvent;

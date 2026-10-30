@@ -1,7 +1,6 @@
 import type * as DateTime from "effect/DateTime";
 import { useAtomValue } from "@effect/atom-react";
 import type {
-  EnvironmentProject,
   EnvironmentThread,
   EnvironmentThreadShell,
   EnvironmentThreadStructure,
@@ -17,7 +16,7 @@ import {
   parseThreadKey,
   threadKey,
 } from "@t3tools/client-runtime/state/entities";
-import type { ScopedProjectRef, ScopedThreadRef } from "@t3tools/contracts";
+import type { ScopedThreadRef } from "@t3tools/contracts";
 import type {
   EnvironmentId,
   OrchestrationV2ProjectedTurnItem,
@@ -28,22 +27,14 @@ import type {
 import type { ThreadCheckpointSummary } from "@t3tools/client-runtime/state/thread-checkpoints";
 import { Atom } from "effect/reactivity";
 import { appAtomRegistry } from "../rpc/atomRegistry";
-import { environmentProjects } from "./projects";
 import { environmentPresentations } from "./presentation";
 import { environmentServerConfigsAtom } from "./server";
-import {
-  allEnvironmentProjectSnapshotsReadyAtom,
-  allEnvironmentShellsBootstrappedAtom,
-} from "./shell";
+import { allEnvironmentSnapshotsReadyAtom, allEnvironmentShellsBootstrappedAtom } from "./shell";
 import { environmentThreadDetails, environmentThreadShells } from "./threads";
 import { waitForAtomValue } from "./waitForAtomValue";
 
 const EMPTY_THREAD_REFS: ReadonlyArray<ScopedThreadRef> = Object.freeze([]);
 const EMPTY_VISIBLE_TURN_ITEMS: ReadonlyArray<OrchestrationV2ProjectedTurnItem> = Object.freeze([]);
-
-const EMPTY_PROJECT_ATOM = Atom.make<EnvironmentProject | null>(null).pipe(
-  Atom.withLabel("web-project:empty"),
-);
 const EMPTY_THREAD_REFS_ATOM = Atom.make(EMPTY_THREAD_REFS).pipe(
   Atom.withLabel("web-thread-refs:empty"),
 );
@@ -89,10 +80,6 @@ export function useEnvironmentThreadRefs(
   );
 }
 
-export function useProjects(): ReadonlyArray<EnvironmentProject> {
-  return useAtomValue(environmentProjects.projectsAtom);
-}
-
 /** Providers are left out; read them with `useEnvironmentProviders()`. */
 export function useServerConfigs() {
   return useAtomValue(environmentPresentations.serverConfigsAtom);
@@ -108,23 +95,13 @@ export function useAllEnvironmentShellsBootstrapped(): boolean {
   return useAtomValue(allEnvironmentShellsBootstrappedAtom);
 }
 
-export function useAllEnvironmentProjectSnapshotsReady(): boolean {
-  return useAtomValue(allEnvironmentProjectSnapshotsReadyAtom);
+export function useAllEnvironmentSnapshotsReady(): boolean {
+  return useAtomValue(allEnvironmentSnapshotsReadyAtom);
 }
 
 /** Tasks linked environments run for a listed thread, by thread key; lists show them under it. */
 export function useDelegatedUnderParent(): ReadonlySet<string> {
   return useAtomValue(environmentThreadShells.delegatedUnderParentAtom);
-}
-
-export function useThreadShellsForProjectRefs(
-  refs: ReadonlyArray<ScopedProjectRef>,
-): ReadonlyArray<EnvironmentThreadShell> {
-  return useAtomValue(environmentThreadShells.threadShellsForProjectRefsAtom(refs));
-}
-
-export function useProject(ref: ScopedProjectRef | null): EnvironmentProject | null {
-  return useAtomValue(ref === null ? EMPTY_PROJECT_ATOM : environmentProjects.projectAtom(ref));
 }
 
 export function useThreadShell(ref: ScopedThreadRef | null): EnvironmentThreadShell | null {
@@ -231,55 +208,6 @@ export function useThreadCheckpointSummaries(
       ? EMPTY_CHECKPOINT_SUMMARIES_ATOM
       : environmentThreadDetails.checkpointSummariesAtom(ref),
   );
-}
-
-export function readProject(ref: ScopedProjectRef): EnvironmentProject | null {
-  return appAtomRegistry.get(environmentProjects.projectAtom(ref));
-}
-
-export function subscribeProject(
-  ref: ScopedProjectRef,
-  listener: (project: EnvironmentProject | null) => void,
-): () => void {
-  return appAtomRegistry.subscribe(environmentProjects.projectAtom(ref), listener);
-}
-
-export function readProjects(): ReadonlyArray<EnvironmentProject> {
-  return appAtomRegistry.get(environmentProjects.projectsAtom);
-}
-
-export function waitForProject(
-  ref: ScopedProjectRef,
-  timeoutMs = 10_000,
-): Promise<EnvironmentProject> {
-  const current = readProject(ref);
-  if (current !== null) return Promise.resolve(current);
-
-  return new Promise((resolve, reject) => {
-    let unsubscribe: (() => void) | null = null;
-    const timeout = setTimeout(() => {
-      unsubscribe?.();
-      reject(new Error("The project did not appear in the desktop app."));
-    }, timeoutMs);
-    const finish = (project: EnvironmentProject | null) => {
-      if (project === null) return;
-      clearTimeout(timeout);
-      unsubscribe?.();
-      resolve(project);
-    };
-    unsubscribe = appAtomRegistry.subscribe(environmentProjects.projectAtom(ref), finish);
-    finish(readProject(ref));
-  });
-}
-
-/** Waits for removal from the live store; delete replies arrive before the shell stream. */
-export function waitForProjectRemoval(ref: ScopedProjectRef, timeoutMs = 5_000): Promise<boolean> {
-  return waitForAtomValue({
-    registry: appAtomRegistry,
-    atom: environmentProjects.projectAtom(ref),
-    predicate: (project) => project === null,
-    timeoutMs,
-  });
 }
 
 export function readThreadShell(ref: ScopedThreadRef): EnvironmentThreadShell | null {

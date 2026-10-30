@@ -13,7 +13,6 @@ import {
   type OrchestrationV2ProviderThread,
   type OrchestrationV2ProviderTurnTokenUsage,
   type OrchestrationV2ThreadProjection,
-  ProjectId,
   ProviderInstanceId,
   ProviderSessionId,
   ProviderThreadId,
@@ -68,7 +67,6 @@ import * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAdapter"
 const encodeJson = Schema.encodeEffect(Schema.fromJsonString(Schema.Unknown));
 
 const threadId = ThreadId.make("thread:provider-switch");
-const projectId = ProjectId.make("project:provider-switch");
 const CODEX_DRIVER = ProviderDriverKind.make("codex");
 const CLAUDE_DRIVER = ProviderDriverKind.make("claudeAgent");
 const GROK_DRIVER = ProviderDriverKind.make("acp");
@@ -605,7 +603,6 @@ describe("orchestration v2 provider switching", () => {
             type: "thread.create",
             commandId: CommandId.make("regression:create"),
             threadId,
-            projectId,
             createdBy: "user",
             creationSource: "web",
             title: "Handoff regression",
@@ -1112,7 +1109,6 @@ describe("orchestration v2 provider switching", () => {
               type: "thread.create",
               commandId: CommandId.make("retry:create"),
               threadId,
-              projectId,
               createdBy: "user",
               creationSource: "web",
               title: "Handoff retry",
@@ -1273,7 +1269,6 @@ describe("orchestration v2 provider switching", () => {
               type: "thread.create",
               commandId: CommandId.make("resume-fallback:create"),
               threadId,
-              projectId,
               createdBy: "user",
               creationSource: "web",
               title: "Resume fallback",
@@ -1414,7 +1409,6 @@ describe("orchestration v2 provider switching", () => {
               type: "thread.create",
               commandId: CommandId.make("handoff-order:create"),
               threadId,
-              projectId,
               createdBy: "user",
               creationSource: "web",
               title: "Resume fallback handoff order",
@@ -1528,7 +1522,6 @@ describe("orchestration v2 provider switching", () => {
             type: "thread.create",
             commandId: CommandId.make("refused-start:create"),
             threadId,
-            projectId,
             createdBy: "user",
             creationSource: "web",
             title: "Refused start",
@@ -1667,7 +1660,6 @@ describe("orchestration v2 provider switching", () => {
             type: "thread.create",
             commandId: CommandId.make("command:handoff:create"),
             threadId,
-            projectId,
             createdBy: "user",
             creationSource: "web",
             title: "Interrupted provider handoff",
@@ -1806,7 +1798,6 @@ describe("orchestration v2 provider switching", () => {
               creationSource: "web",
               commandId: CommandId.make(`command:queued-capability:create:${key}`),
               threadId: scenarioThreadId,
-              projectId: ProjectId.make(`project:queued-capability:${key}`),
               title: "Queued capability",
               modelSelection: CODEX_MODEL_SELECTION,
               runtimeMode: "full-access",
@@ -1941,7 +1932,6 @@ describe("orchestration v2 provider switching", () => {
             creationSource: "web",
             commandId: CommandId.make("command:queued-steer-provider-switch:create"),
             threadId: queuedThreadId,
-            projectId: ProjectId.make("project:queued-steer-provider-switch"),
             title: "Queued steer provider switch",
             modelSelection: CODEX_MODEL_SELECTION,
             runtimeMode: "full-access",
@@ -2162,7 +2152,6 @@ describe("orchestration v2 provider switching", () => {
             creationSource: "web",
             commandId: CommandId.make("command:queued-account-switch:create"),
             threadId: queuedThreadId,
-            projectId: ProjectId.make("project:queued-account-switch"),
             title: "Queued account switch",
             modelSelection: CODEX_MODEL_SELECTION,
             runtimeMode: "full-access",
@@ -2328,7 +2317,6 @@ describe("orchestration v2 provider switching", () => {
             creationSource: "web",
             commandId: CommandId.make("command:queued-provider-switch:create"),
             threadId: queuedThreadId,
-            projectId: ProjectId.make("project:queued-provider-switch"),
             title: "Queued provider switch",
             modelSelection: CODEX_MODEL_SELECTION,
             runtimeMode: "full-access",
@@ -2615,7 +2603,6 @@ describe("orchestration v2 provider switching", () => {
               type: "thread.create",
               commandId: CommandId.make("create"),
               threadId,
-              projectId,
               createdBy: "user",
               creationSource: "web",
               title: "PR wake",
@@ -2782,7 +2769,6 @@ describe("orchestration v2 provider switching", () => {
             creationSource: "web",
             commandId: CommandId.make("command:queued-handoff-rejection:create"),
             threadId: rejectedThreadId,
-            projectId: ProjectId.make("project:queued-handoff-rejection"),
             title: "Queued handoff rejection",
             modelSelection: CODEX_MODEL_SELECTION,
             runtimeMode: "full-access",
@@ -2953,7 +2939,7 @@ describe("orchestration v2 provider switching", () => {
     Effect.scoped(
       Effect.gen(function* () {
         const importedThreadId = ThreadId.make("thread:provider-switch:legacy-import");
-        const importedProjectId = ProjectId.make("project:provider-switch:legacy-import");
+        const importedProjectId = "project:provider-switch:legacy-import";
         const failedPrompt = "This first provider attempt should fail.";
         const recoveryPrompt = "What was the imported release marker?";
         const cwd = yield* checkpointWorkspace("provider-switch-legacy-import");

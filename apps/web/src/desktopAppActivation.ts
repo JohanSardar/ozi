@@ -4,16 +4,8 @@ import type {
   DesktopAppActivationResponse,
   EnvironmentId,
   ExecutionEnvironmentPlatformOs,
-  ProjectId,
-  ScopedProjectRef,
   ThreadId,
 } from "@t3tools/contracts";
-
-export interface DesktopAppActivationProject {
-  readonly id: ProjectId;
-  readonly environmentId: EnvironmentId;
-  readonly workspaceRoot: string;
-}
 
 export interface DesktopAppActivationTarget {
   readonly environmentId: EnvironmentId;
@@ -22,17 +14,9 @@ export interface DesktopAppActivationTarget {
 
 export interface DesktopAppActivationDependencies {
   readonly getTarget: () => DesktopAppActivationTarget | null;
-  readonly findProject: (
-    environmentId: EnvironmentId,
-    workspaceRoot: string,
-  ) => DesktopAppActivationProject | null;
-  readonly createProject: (
-    environmentId: EnvironmentId,
-    workspaceRoot: string,
-  ) => Promise<ProjectId>;
-  readonly waitForProject: (projectRef: ScopedProjectRef) => Promise<void>;
   readonly openThread: (
-    projectRef: ScopedProjectRef,
+    environmentId: EnvironmentId,
+    workingDirectory: string,
   ) => Promise<{ readonly threadId: ThreadId } | null>;
 }
 
@@ -76,44 +60,22 @@ export async function handleDesktopAppActivationRequest(
     );
   }
 
-  let projectId = dependencies.findProject(target.environmentId, request.workspaceRoot)?.id ?? null;
-  if (projectId === null) {
-    try {
-      projectId = await dependencies.createProject(target.environmentId, request.workspaceRoot);
-      await dependencies.waitForProject({ environmentId: target.environmentId, projectId });
-    } catch (error) {
-      return failure(
-        request.requestId,
-        "project-create-failed",
-        errorMessage(error, "Ozi could not add the project."),
-      );
-    }
-  }
-
   try {
-    const opened = await dependencies.openThread({
-      environmentId: target.environmentId,
-      projectId,
-    });
+    const opened = await dependencies.openThread(target.environmentId, request.workspaceRoot);
     if (opened === null) {
-      return failure(
-        request.requestId,
-        "thread-open-failed",
-        "Ozi could not open a new thread for the project.",
-      );
+      return failure(request.requestId, "thread-open-failed", "Ozi could not open a new chat.");
     }
     return {
       version: 1,
       requestId: request.requestId,
       ok: true,
-      projectId,
       threadId: opened.threadId,
     };
   } catch (error) {
     return failure(
       request.requestId,
       "thread-open-failed",
-      errorMessage(error, "Ozi could not open a new thread for the project."),
+      errorMessage(error, "Ozi could not open a new chat."),
     );
   }
 }

@@ -1,7 +1,6 @@
 import {
   AuthOrchestrationOperateScope,
   EnvironmentId,
-  ProjectId,
   ThreadId,
   type ScopedThreadRef,
 } from "@t3tools/contracts";
@@ -22,7 +21,6 @@ const state = vi.hoisted(() => ({
   threads: [] as {
     environmentId: EnvironmentId;
     id: ThreadId;
-    projectId: ProjectId;
     title: string;
     workingDirectory: string | null;
     session: { status: "ready" | "stopped" } | null;
@@ -103,7 +101,6 @@ vi.mock("../state/entities", () => ({
     state.threads
       .filter((thread) => thread.environmentId === environmentId)
       .map((thread) => ({ environmentId, threadId: thread.id })),
-  readProject: () => ({ workspaceRoot: "/project" }),
 }));
 vi.mock("../components/Sidebar.logic", () => ({
   getFallbackThreadIdAfterDelete: () => null,
@@ -211,7 +208,6 @@ beforeEach(() => {
     {
       environmentId: secondary,
       id: target.threadId,
-      projectId: ProjectId.make("project"),
       title: "Thread",
       workingDirectory: null,
       session: null,

@@ -30,7 +30,7 @@ export const accessConfig: Record<
 > = {
   "read-only": {
     label: "Read only",
-    description: "Read projects and threads. Cannot start, message or change anything.",
+    description: "Read chats. Cannot start, message or change anything.",
     icon: EyeIcon,
   },
   ...runtimeModeConfig,

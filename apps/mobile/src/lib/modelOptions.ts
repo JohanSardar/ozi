@@ -7,11 +7,10 @@ import {
 import type {
   ModelCapabilities,
   ModelSelection,
-  ProjectId,
   RuntimeMode,
   ServerConfig as T3ServerConfig,
 } from "@t3tools/contracts";
-import { isProviderDriverKind, resolveProjectProviderInstanceEnabled } from "@t3tools/contracts";
+import { isProviderDriverKind, isConfiguredProviderInstanceEnabled } from "@t3tools/contracts";
 import {
   buildExplicitProviderOptionSelectionsFromDescriptors,
   getProviderOptionDescriptors,
@@ -67,49 +66,32 @@ function providerDisplayLabel(provider: {
   return provider.instanceId;
 }
 
-function isProviderEnabledForProject(
+function isProviderEnabled(
   config: T3ServerConfig | null | undefined,
   provider:
     | { readonly instanceId: ModelSelection["instanceId"]; readonly enabled: boolean }
     | undefined,
-  projectId: ProjectId | null,
 ): boolean {
   if (!provider) {
     return false;
   }
   return config?.settings
-    ? resolveProjectProviderInstanceEnabled(config.settings, projectId, provider.instanceId)
+    ? isConfiguredProviderInstanceEnabled(config.settings, provider.instanceId)
     : provider.enabled;
 }
 
-function isProjectDisabledOverride(
-  config: T3ServerConfig | null | undefined,
-  instanceId: ModelSelection["instanceId"],
-  projectId: ProjectId | null,
-): boolean {
-  if (!projectId || !config?.settings) {
-    return false;
-  }
-  return (
-    config.settings.projectSettingsOverrides[projectId]?.providerInstances?.[instanceId]
-      ?.enabled === false
-  );
-}
-
-function isDisabledForProject(
+function isProviderDisabled(
   config: T3ServerConfig | null | undefined,
   provider:
     | { readonly instanceId: ModelSelection["instanceId"]; readonly enabled: boolean }
     | undefined,
   instanceId: ModelSelection["instanceId"],
-  projectId: ProjectId | null,
 ): boolean {
-  if (isProjectDisabledOverride(config, instanceId, projectId)) {
-    return true;
-  }
-  return provider !== undefined && !isProviderEnabledForProject(config, provider, projectId);
+  return (
+    config?.settings?.providerInstances[instanceId]?.enabled === false ||
+    (provider !== undefined && !isProviderEnabled(config, provider))
+  );
 }
-
 function normalizeSelectionOptions(
   selection: ModelSelection,
   capabilities: ModelCapabilities | null,
@@ -135,11 +117,9 @@ function normalizeSelectionOptions(
       };
 }
 
-/** Require explicit projectId or null so omissions cannot bypass project provider disablement. */
 export function isModelSelectionUnavailable(
   config: T3ServerConfig | null | undefined,
   selection: ModelSelection | null | undefined,
-  projectId: ProjectId | null,
 ): boolean {
   if (!config || !selection) {
     return false;
@@ -147,7 +127,7 @@ export function isModelSelectionUnavailable(
   const provider = config.providers.find(
     (candidate) => candidate.instanceId === selection.instanceId,
   );
-  if (isDisabledForProject(config, provider, selection.instanceId, projectId)) {
+  if (isProviderDisabled(config, provider, selection.instanceId)) {
     return true;
   }
   const driver =
@@ -165,14 +145,13 @@ export function isModelSelectionUnavailable(
 export function describeUnavailableModelSelection(
   config: T3ServerConfig | null | undefined,
   selection: ModelSelection,
-  projectId: ProjectId | null,
 ): { readonly title: string; readonly detail: string } {
   const provider = config?.providers.find(
     (candidate) => candidate.instanceId === selection.instanceId,
   );
-  return isDisabledForProject(config, provider, selection.instanceId, projectId)
+  return isProviderDisabled(config, provider, selection.instanceId)
     ? {
-        title: "Model turned off for this project",
+        title: "Model turned off",
         detail: "Turn it back on from web or desktop, or choose another model.",
       }
     : {
@@ -184,7 +163,6 @@ export function describeUnavailableModelSelection(
 export function resolveSelectableModelSelection(
   config: T3ServerConfig | null | undefined,
   selection: ModelSelection | null,
-  projectId: ProjectId | null,
 ): ModelSelection | null {
   if (!selection || !config) {
     return selection;
@@ -195,10 +173,12 @@ export function resolveSelectableModelSelection(
   const driver =
     provider?.driver ?? config.settings?.providerInstances[selection.instanceId]?.driver;
   if (driver === "antigravity") {
-    return isProjectDisabledOverride(config, selection.instanceId, projectId) ? null : selection;
+    return config.settings?.providerInstances[selection.instanceId]?.enabled === false
+      ? null
+      : selection;
   }
   return provider &&
-    isProviderEnabledForProject(config, provider, projectId) &&
+    isProviderEnabled(config, provider) &&
     provider.installed &&
     provider.auth.status !== "unauthenticated"
     ? selection
@@ -208,9 +188,8 @@ export function resolveSelectableModelSelection(
 export function resolveDefaultableModelSelection(
   config: T3ServerConfig | null | undefined,
   selection: ModelSelection | null,
-  projectId: ProjectId | null,
 ): ModelSelection | null {
-  const usable = resolveSelectableModelSelection(config, selection, projectId);
+  const usable = resolveSelectableModelSelection(config, selection);
   if (!usable || !config) {
     return usable;
   }
@@ -221,13 +200,13 @@ export function resolveDefaultableModelSelection(
 
 export function resolveNewTaskModelSelection(input: {
   readonly draftSelection: ModelSelection | null;
-  readonly projectDefaultSelection: ModelSelection | null;
+  readonly defaultSelection: ModelSelection | null;
   readonly stickySelection: ModelSelection | null;
   readonly modelOptions: ReadonlyArray<ModelOption>;
 }): ModelSelection | null {
   return (
     input.draftSelection ??
-    input.projectDefaultSelection ??
+    input.defaultSelection ??
     input.stickySelection ??
     input.modelOptions.find((option) => option.isDefault && !option.isUnavailable)?.selection ??
     input.modelOptions.find((option) => !option.isUnavailable)?.selection ??
@@ -239,7 +218,7 @@ export function buildModelOptions(
   config: T3ServerConfig | null | undefined,
   fallbackModelSelection: ModelSelection | null,
   providerInstanceId: ModelSelection["instanceId"] | undefined,
-  projectId: ProjectId | null,
+
   includeHidden = false,
 ): ReadonlyArray<ModelOption> {
   const options = new Map<string, ModelOption>();
@@ -298,7 +277,7 @@ export function buildModelOptions(
   for (const provider of config?.providers ?? []) {
     if (
       !matchesLockedProvider(provider) ||
-      !isProviderEnabledForProject(config, provider, projectId) ||
+      !isProviderEnabled(config, provider) ||
       !provider.installed ||
       provider.auth.status === "unauthenticated" ||
       (provider.driver === "antigravity" && provider.availability === "unavailable")
@@ -402,8 +381,8 @@ export function buildModelOptions(
         providerBadge: providerBadgeFor(fallbackModelSelection.instanceId),
         isDefault: false,
         isLegacy: model?.isLegacy === true,
-        ...(isModelSelectionUnavailable(config, fallbackModelSelection, projectId) ||
-        (provider !== undefined && !isProviderEnabledForProject(config, provider, projectId)) ||
+        ...(isModelSelectionUnavailable(config, fallbackModelSelection) ||
+        (provider !== undefined && !isProviderEnabled(config, provider)) ||
         provider?.updateRequiredModels?.some((gated) => gated.slug === fallbackModelSelection.model)
           ? { isUnavailable: true }
           : {}),

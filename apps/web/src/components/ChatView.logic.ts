@@ -27,7 +27,6 @@ import {
   type CommandId,
   type EnvironmentId,
   isProviderDriverKind,
-  ProjectId,
   type MessageId,
   type ModelSelection,
   type OrchestrationMessageContext,
@@ -36,7 +35,6 @@ import {
   ProviderDriverKind,
   type ProviderInstanceId,
   type ServerProvider,
-  type ScopedProjectRef,
   type ScopedThreadRef,
   type ThreadContextRecord,
   type EnvironmentContextRecord,
@@ -63,7 +61,6 @@ import {
   type DraftId,
   type DraftThreadState,
 } from "../composerDraftStore";
-import * as Schema from "effect/Schema";
 import { appAtomRegistry } from "../rpc/atomRegistry";
 import { environmentThreadShells, environmentThreadDetails } from "../state/threads";
 import { waitForAtomValue } from "../state/waitForAtomValue";
@@ -94,8 +91,6 @@ import {
 
 type ThreadProjection = EnvironmentThread["projection"];
 type ThreadStructureRow = ThreadStructure["visibleTurnItems"][number];
-
-export const LAST_INVOKED_SCRIPT_BY_PROJECT_KEY = "ozi:last-invoked-script-by-project";
 export const MAX_HIDDEN_MOUNTED_TERMINAL_THREADS = 10;
 
 export const ENVIRONMENT_RECONNECT_WARNING_GRACE_MS = 2_000;
@@ -142,8 +137,6 @@ export function codexArtifactTemplatePromptToAppend(
     ? null
     : codexArtifactTemplateUsePrompt(template);
 }
-
-export const LastInvokedScriptByProjectSchema = Schema.Record(ProjectId, Schema.String);
 
 export function shouldDockDraftHeroForSubmission(input: {
   isDraftHeroState: boolean;
@@ -270,16 +263,6 @@ export function resolveThreadSwitchTimeline<T extends readonly unknown[]>(input:
   return input.nextEntries;
 }
 
-export function startNewThreadForProject(
-  projectRef: ScopedProjectRef | null,
-  handleNewThread: (projectRef: ScopedProjectRef) => Promise<unknown>,
-): boolean {
-  if (projectRef === null) return false;
-  void handleNewThread(projectRef);
-
-  return true;
-}
-
 export function resolveThreadMetadataUpdateForNextTurn(input: {
   currentModelSelection: ModelSelection;
   nextModelSelection?: ModelSelection;
@@ -298,7 +281,6 @@ export function buildLocalDraftThread(
   const timestamp = DateTime.makeUnsafe(draftThread.createdAt);
   return presentThreadShell(draftThread.environmentId, {
     id: threadId,
-    projectId: draftThread.projectId,
     title: "New thread",
     providerInstanceId: fallbackModelSelection.instanceId,
     modelSelection: fallbackModelSelection,
@@ -625,30 +607,6 @@ export function shouldShowPlanFollowUpPrompt(input: {
 // A typed `/compact`, with or without instructions, is already the compaction. Queueing a
 // bare one ahead of it would run an uninstructed compaction first and charge for two.
 const COMPACT_COMMAND_PATTERN = /^\/compact(?:\s|$)/i;
-
-// Remember non-Git checkouts to avoid flashing the branch strip before delayed Git status arrives.
-const sessionCheckoutIsRepo = new Map<string, boolean>();
-
-function checkoutIsRepoKey(environmentId: EnvironmentId, cwd: string): string {
-  return JSON.stringify([environmentId, cwd]);
-}
-
-export function rememberCheckoutIsRepo(
-  environmentId: EnvironmentId,
-  cwd: string,
-  isRepo: boolean,
-): void {
-  sessionCheckoutIsRepo.set(checkoutIsRepoKey(environmentId, cwd), isRepo);
-}
-
-export function recallCheckoutIsRepo(
-  environmentId: EnvironmentId,
-  cwd: string | null,
-): boolean | undefined {
-  return cwd === null
-    ? undefined
-    : sessionCheckoutIsRepo.get(checkoutIsRepoKey(environmentId, cwd));
-}
 
 function threadHasStarted(thread: Thread | null | undefined): boolean {
   return Boolean(thread && (thread.latestRun !== null || thread.itemCount > 0 || thread.runtime));
@@ -1398,10 +1356,10 @@ export function shouldShowEnvironmentIndicator(input: {
 }
 export function shouldShowComposerContextStrip(input: {
   isDraftHeroState: boolean;
-  hasActiveProject: boolean;
+  hasWorkspace: boolean;
   showEnvironmentIndicator: boolean;
 }): boolean {
-  return input.hasActiveProject && (input.isDraftHeroState || input.showEnvironmentIndicator);
+  return input.hasWorkspace && (input.isDraftHeroState || input.showEnvironmentIndicator);
 }
 export function resolveTerminalWorkingDirectory(input: {
   launchContext: { readonly workingDirectory: string | null } | null;

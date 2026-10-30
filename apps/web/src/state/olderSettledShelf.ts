@@ -7,7 +7,7 @@ import {
   wantedOlderSettledPages,
   type OlderSettledScope,
 } from "@t3tools/client-runtime/state/threads";
-import type { EnvironmentId, ProjectId } from "@t3tools/contracts";
+import type { EnvironmentId } from "@t3tools/contracts";
 import { useEffect, useState } from "react";
 
 import { appAtomRegistry } from "../rpc/atomRegistry";
@@ -94,29 +94,4 @@ export function useOlderSettledShelfGrowth(
   useEffect(() => {
     if (wanted !== pages) grow(wanted);
   }, [wanted, pages, grow]);
-}
-
-/**
- * Threads of these projects that this client does not hold (older settled threads), for counts
- * shown outside the shelf, such as a removal confirm.
- */
-export function readUnloadedThreadCount(
-  members: ReadonlyArray<{ readonly environmentId: EnvironmentId; readonly id: ProjectId }>,
-  threads: ReadonlyArray<EnvironmentThreadShell>,
-): number {
-  return unloadedOlderSettledCount({
-    olderSettled: (environmentId) =>
-      appAtomRegistry.get(olderSettledThreads.olderSettledAtom(environmentId)),
-    scopes: [...new Set(members.map((member) => member.environmentId))].map((environmentId) => ({
-      environmentId,
-      projectIds: members.flatMap((member) =>
-        member.environmentId === environmentId ? [member.id] : [],
-      ),
-    })),
-    threads: threads.filter((thread) =>
-      members.some(
-        (member) => member.environmentId === thread.environmentId && member.id === thread.projectId,
-      ),
-    ),
-  });
 }

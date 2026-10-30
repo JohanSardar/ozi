@@ -10,7 +10,6 @@ import {
   type OrchestrationV2ThreadShellSnapshot,
   NodeId,
   PlanId,
-  ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
   ProviderSessionId,
@@ -104,7 +103,6 @@ const addRolledBackRecoveryCandidate = Effect.fn("addRolledBackRecoveryCandidate
       createdBy: "user",
       creationSource: "web",
       id: threadId,
-      projectId: ProjectId.make(`project:${suffix}`),
       title: "Rolled-back recovery candidate",
       providerInstanceId,
       modelSelection,
@@ -592,7 +590,6 @@ const addOrphanedRecoveryCandidate = Effect.fn("addOrphanedRecoveryCandidate")(f
       createdBy: "user",
       creationSource: "web",
       id: threadId,
-      projectId: ProjectId.make(`project:${suffix}`),
       title: "Orphaned recovery candidate",
       providerInstanceId,
       modelSelection,
@@ -762,7 +759,6 @@ const backgroundThreadUpdatesKeepTimestamp = Effect.gen(function* () {
     createdBy: "user" as const,
     creationSource: "web" as const,
     id: threadId,
-    projectId: ProjectId.make("project:background-updates"),
     title: "Background updates",
     providerInstanceId,
     modelSelection,
@@ -914,146 +910,6 @@ const subagentRecordsSelectById = Effect.gen(function* () {
   assert.deepEqual(yield* read([]), []);
 });
 
-const assertProjectScopedShells = Effect.fn("assertProjectScopedShells")(function* (
-  suffix: string,
-) {
-  const projectionStore = yield* ProjectionStore.ProjectionStoreV2;
-  const now = yield* DateTime.now;
-  const projectId = ProjectId.make(`project:${suffix}:a`);
-  const otherProjectId = ProjectId.make(`project:${suffix}:b`);
-  const activeThreadId = ThreadId.make(`thread:${suffix}:a-active`);
-  const archivedThreadId = ThreadId.make(`thread:${suffix}:a-archived`);
-  const forkThreadId = ThreadId.make(`thread:${suffix}:a-fork`);
-  const sourceThreadId = ThreadId.make(`thread:${suffix}:b-source`);
-  const otherThreadId = ThreadId.make(`thread:${suffix}:b-other`);
-  const sourceRunId = RunId.make(`run:${suffix}:b-source`);
-  const sourceNodeId = NodeId.make(`node:${suffix}:b-source`);
-  const createThread = (input: {
-    readonly threadId: ThreadId;
-    readonly projectId: ProjectId;
-    readonly archived?: boolean;
-    readonly forkedFromRunOf?: ThreadId;
-  }) =>
-    projectionStore.apply({
-      id: EventId.make(`event:${input.threadId}:created`),
-      type: "thread.created",
-      threadId: input.threadId,
-      occurredAt: now,
-      payload: {
-        createdBy: "user",
-        creationSource: "web",
-        id: input.threadId,
-        projectId: input.projectId,
-        title: input.threadId,
-        providerInstanceId,
-        modelSelection,
-        runtimeMode: "full-access",
-        interactionMode: "default",
-        workingDirectory: null,
-        activeProviderThreadId: null,
-        lineage:
-          input.forkedFromRunOf === undefined
-            ? { parentThreadId: null, relationshipToParent: null, rootThreadId: input.threadId }
-            : {
-                parentThreadId: input.forkedFromRunOf,
-                relationshipToParent: "fork",
-                rootThreadId: input.forkedFromRunOf,
-              },
-        forkedFrom:
-          input.forkedFromRunOf === undefined
-            ? null
-            : { type: "run", threadId: input.forkedFromRunOf, runId: sourceRunId },
-        createdAt: now,
-        updatedAt: now,
-        archivedAt: input.archived === true ? now : null,
-        settledOverride: null,
-        settledAt: null,
-        lastVisitedAt: null,
-        deletedAt: null,
-      },
-    });
-
-  yield* createThread({ threadId: sourceThreadId, projectId: otherProjectId, archived: true });
-  yield* createThread({ threadId: otherThreadId, projectId: otherProjectId });
-  yield* createThread({ threadId: activeThreadId, projectId });
-  yield* createThread({ threadId: archivedThreadId, projectId, archived: true });
-  yield* createThread({ threadId: forkThreadId, projectId, forkedFromRunOf: sourceThreadId });
-  yield* projectionStore.apply({
-    id: EventId.make(`event:${suffix}:source-run`),
-    type: "run.created",
-    threadId: sourceThreadId,
-    runId: sourceRunId,
-    nodeId: sourceNodeId,
-    driver,
-    occurredAt: now,
-    payload: {
-      id: sourceRunId,
-      threadId: sourceThreadId,
-      ordinal: 1,
-      providerInstanceId,
-      modelSelection,
-      providerThreadId: null,
-      userMessageId: MessageId.make(`message:${suffix}:source-user`),
-      rootNodeId: sourceNodeId,
-      activeAttemptId: null,
-      status: "completed",
-      requestedAt: now,
-      startedAt: now,
-      completedAt: now,
-      checkpointId: null,
-      contextHandoffId: null,
-    },
-  });
-  yield* projectionStore.apply({
-    id: EventId.make(`event:${suffix}:source-item`),
-    type: "turn-item.updated",
-    threadId: sourceThreadId,
-    runId: sourceRunId,
-    occurredAt: now,
-    payload: {
-      id: TurnItemId.make(`turn-item:${suffix}:source`),
-      threadId: sourceThreadId,
-      runId: sourceRunId,
-      nodeId: null,
-      providerThreadId: null,
-      providerTurnId: null,
-      nativeItemRef: null,
-      parentItemId: null,
-      ordinal: 1,
-      status: "completed",
-      title: null,
-      startedAt: now,
-      completedAt: now,
-      updatedAt: now,
-      type: "assistant_message",
-      messageId: MessageId.make(`message:${suffix}:source-assistant`),
-      text: "Source answer",
-      streaming: false,
-    },
-  });
-
-  const unscoped = yield* projectionStore.getShellSnapshot();
-  const inProject = (thread: { readonly projectId: ProjectId }) => thread.projectId === projectId;
-  const active = yield* projectionStore.getShellSnapshot({ projectId, location: "active" });
-  assert.deepEqual(active.threads, unscoped.threads.filter(inProject));
-  assert.deepEqual(active.archivedThreads, []);
-  assert.sameMembers(
-    active.threads.map((thread) => thread.id),
-    [activeThreadId, forkThreadId],
-  );
-  const fork = active.threads.find((thread) => thread.id === forkThreadId);
-  assert.isAbove(fork?.visibleItemCount ?? 0, 0);
-
-  const all = yield* projectionStore.getShellSnapshot({ projectId });
-  assert.deepEqual(all.threads, active.threads);
-  assert.deepEqual(all.archivedThreads, unscoped.archivedThreads.filter(inProject));
-  assert.sameMembers(
-    all.archivedThreads.map((thread) => thread.id),
-    [archivedThreadId],
-  );
-  return { projectId, activeThreadId, forkThreadId, otherThreadId };
-});
-
 it.effect("SQL list older settled threads below a cursor", () =>
   Effect.gen(function* () {
     const store = yield* ProjectionStore.ProjectionStoreV2;
@@ -1063,7 +919,6 @@ it.effect("SQL list older settled threads below a cursor", () =>
     const createThread = (input: {
       readonly name: string;
       readonly settledDay: number | null;
-      readonly project?: string;
       readonly subagent?: boolean;
       readonly archived?: boolean;
       readonly snoozedUntilDay?: number;
@@ -1077,7 +932,6 @@ it.effect("SQL list older settled threads below a cursor", () =>
           createdBy: "user",
           creationSource: "web",
           id: id(input.name),
-          projectId: ProjectId.make(input.project ?? "project:a"),
           title: input.name,
           providerInstanceId,
           modelSelection,
@@ -1104,7 +958,7 @@ it.effect("SQL list older settled threads below a cursor", () =>
     yield* createThread({ name: "a", settledDay: 5 });
     yield* createThread({ name: "b", settledDay: 4 });
     yield* createThread({ name: "c", settledDay: 4 });
-    yield* createThread({ name: "d", settledDay: 3, project: "project:b" });
+    yield* createThread({ name: "d", settledDay: 3 });
     yield* createThread({ name: "snoozed", settledDay: 2, snoozedUntilDay: 30 });
     yield* createThread({ name: "recent", settledDay: 20 });
     yield* createThread({ name: "unsettled", settledDay: null });
@@ -1114,35 +968,14 @@ it.effect("SQL list older settled threads below a cursor", () =>
     const list = (
       before: { readonly settledAt: string; readonly threadId?: ThreadId },
       limit: number,
-      projectIds?: ReadonlyArray<ProjectId>,
-    ) => store.listOlderSettledThreads({ before, projectIds, limit });
+    ) => store.listOlderSettledThreads({ before, limit });
     const before = { settledAt: DateTime.formatIso(at(10)) };
     const first = yield* list(before, 2);
-    assert.deepEqual(first, { threadIds: [id("a"), id("b")], counts: [] });
-    assert.sameDeepMembers(
-      [...(yield* list(before, 0)).counts],
-      [
-        { projectId: ProjectId.make("project:a"), count: 4 },
-        { projectId: ProjectId.make("project:b"), count: 1 },
-      ],
-    );
-    // A cursor without an id is strict, as the snapshot's cut is: the day-4 tie is not counted.
-    assert.sameDeepMembers(
-      [...(yield* list({ settledAt: DateTime.formatIso(at(4)) }, 0)).counts],
-      [
-        { projectId: ProjectId.make("project:a"), count: 1 },
-        { projectId: ProjectId.make("project:b"), count: 1 },
-      ],
-    );
-    // The cursor is the last row: the tie on day 4 continues by id.
+    assert.deepEqual(first, { threadIds: [id("a"), id("b")], count: 0 });
+    assert.equal((yield* list(before, 0)).count, 5);
+    assert.equal((yield* list({ settledAt: DateTime.formatIso(at(4)) }, 0)).count, 2);
     const next = yield* list({ settledAt: DateTime.formatIso(at(4)), threadId: id("b") }, 10);
     assert.deepEqual(next.threadIds, [id("c"), id("d"), id("snoozed")]);
-    assert.deepEqual(yield* list(before, 25, []), { threadIds: [], counts: [] });
-    const scoped = yield* list(before, 0, [ProjectId.make("project:b")]);
-    assert.deepEqual(scoped, {
-      threadIds: [],
-      counts: [{ projectId: ProjectId.make("project:b"), count: 1 }],
-    });
   }).pipe(Effect.provide(layerTest)),
 );
 
@@ -1295,7 +1128,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
           createdBy: "user",
           creationSource: "web",
           id: threadId,
-          projectId: ProjectId.make("project:provider-usage-reload"),
           title: "Provider usage reload",
           providerInstanceId,
           modelSelection,
@@ -1373,14 +1205,12 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
     Effect.gen(function* () {
       const projectionStore = yield* ProjectionStore.ProjectionStoreV2;
       const now = yield* DateTime.now;
-      const projectId = ProjectId.make("project:bounded-provider-scope");
       const targetThreadId = ThreadId.make("thread:bounded-provider-scope:target");
       const unrelatedThreadId = ThreadId.make("thread:bounded-provider-scope:unrelated");
       const makeThread = (threadId: ThreadId) => ({
         createdBy: "user" as const,
         creationSource: "web" as const,
         id: threadId,
-        projectId,
         title: String(threadId),
         providerInstanceId,
         modelSelection,
@@ -1468,88 +1298,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
     }),
   );
 
-  it.effect("projects root provider owners into the shell in first-use order", () =>
-    Effect.gen(function* () {
-      const projectionStore = yield* ProjectionStore.ProjectionStoreV2;
-      const now = yield* DateTime.now;
-      const projectId = ProjectId.make("project:provider-history");
-      const threadId = ThreadId.make("thread:provider-history");
-      const claudeInstanceId = ProviderInstanceId.make("claude");
-      const claudeDriver = ProviderDriverKind.make("claudeAgent");
-      yield* projectionStore.apply({
-        id: EventId.make("event:provider-history:thread"),
-        type: "thread.created",
-        threadId,
-        occurredAt: now,
-        payload: {
-          createdBy: "user",
-          creationSource: "web",
-          id: threadId,
-          projectId,
-          title: "Provider history",
-          providerInstanceId,
-          modelSelection,
-          runtimeMode: "full-access",
-          interactionMode: "default",
-          workingDirectory: null,
-          activeProviderThreadId: null,
-          lineage: { parentThreadId: null, relationshipToParent: null, rootThreadId: threadId },
-          forkedFrom: null,
-          createdAt: now,
-          updatedAt: now,
-          archivedAt: null,
-          settledOverride: null,
-          settledAt: null,
-          lastVisitedAt: null,
-          deletedAt: null,
-        },
-      });
-      const providerThreads = [
-        { suffix: "codex", instanceId: providerInstanceId, ownerNodeId: null, seconds: 0 },
-        {
-          suffix: "claude-subagent",
-          instanceId: claudeInstanceId,
-          ownerNodeId: NodeId.make("node:provider-history"),
-          seconds: 1,
-        },
-        { suffix: "claude", instanceId: claudeInstanceId, ownerNodeId: null, seconds: 2 },
-        { suffix: "codex-again", instanceId: providerInstanceId, ownerNodeId: null, seconds: 3 },
-      ] as const;
-      for (const providerThread of providerThreads) {
-        const createdAt = DateTime.add(now, { seconds: providerThread.seconds });
-        yield* projectionStore.apply({
-          id: EventId.make(`event:provider-history:${providerThread.suffix}`),
-          type: "provider-thread.updated",
-          threadId,
-          driver: providerThread.instanceId === claudeInstanceId ? claudeDriver : driver,
-          occurredAt: createdAt,
-          payload: {
-            id: ProviderThreadId.make(`provider-thread:provider-history:${providerThread.suffix}`),
-            driver: providerThread.instanceId === claudeInstanceId ? claudeDriver : driver,
-            providerInstanceId: providerThread.instanceId,
-            providerSessionId: null,
-            appThreadId: threadId,
-            ownerNodeId: providerThread.ownerNodeId,
-            nativeThreadRef: null,
-            nativeConversationHeadRef: null,
-            status: "idle",
-            firstRunOrdinal: null,
-            lastRunOrdinal: null,
-            handoffIds: [],
-            forkedFrom: null,
-            createdAt,
-            updatedAt: createdAt,
-          },
-        });
-      }
-
-      const shell = (yield* projectionStore.getShellSnapshot()).threads.find(
-        (thread) => thread.id === threadId,
-      );
-      assert.deepEqual(shell?.providerInstanceHistory, [providerInstanceId, claudeInstanceId]);
-    }),
-  );
-
   it.effect("shows the native goal of the active provider thread on the shell", () =>
     Effect.gen(function* () {
       const projectionStore = yield* ProjectionStore.ProjectionStoreV2;
@@ -1564,7 +1312,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
           createdBy: "user",
           creationSource: "web",
           id: threadId,
-          projectId: ProjectId.make("project:provider-goal"),
           title: "Provider goal",
           providerInstanceId,
           modelSelection,
@@ -1642,7 +1389,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
             createdBy: "user",
             creationSource: "web",
             id: threadId,
-            projectId: ProjectId.make("project:shell-read"),
             title: "Shell read",
             providerInstanceId,
             modelSelection,
@@ -1696,41 +1442,13 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
     }),
   );
 
-  it.effect("reads only the requested project's threads into a scoped shell snapshot", () =>
-    Effect.gen(function* () {
-      const projectionStore = yield* ProjectionStore.ProjectionStoreV2;
-      const sql = yield* SqlClient.SqlClient;
-      const { projectId, activeThreadId, forkThreadId, otherThreadId } =
-        yield* assertProjectScopedShells("sql-project-shell");
-
-      const [stored] = yield* sql<{ readonly payload_json: string }>`
-        SELECT payload_json FROM orchestration_v2_projection_threads
-        WHERE thread_id = ${otherThreadId}
-      `;
-      const setPayload = (payload: string) =>
-        sql`UPDATE orchestration_v2_projection_threads SET payload_json = ${payload}
-          WHERE thread_id = ${otherThreadId}`;
-      yield* setPayload("{}");
-      const [unscoped, scoped] = yield* Effect.all([
-        projectionStore.getShellSnapshot().pipe(Effect.flip),
-        projectionStore.getShellSnapshot({ projectId, location: "active" }),
-      ]).pipe(Effect.ensuring(Effect.orDie(setPayload(stored!.payload_json))));
-      assert.strictEqual(unscoped._tag, "ProjectionStoreReadError");
-      assert.sameMembers(
-        scoped.threads.map((thread) => thread.id),
-        [activeThreadId, forkThreadId],
-      );
-    }),
-  );
-
   it.effect("looks up shell stop requests through the interrupt request index", () =>
     Effect.gen(function* () {
       const projectionStore = yield* ProjectionStore.ProjectionStoreV2;
       const sql = yield* SqlClient.SqlClient;
-      const { projectId } = yield* assertProjectScopedShells("sql-shell-stop-index");
       const { statements, tracer } = traceSqlStatements();
       yield* projectionStore
-        .getShellSnapshot({ projectId, location: "active" })
+        .getShellSnapshot({ location: "active" })
         .pipe(Effect.withTracer(tracer));
 
       const threadQuery = statements.find((statement) =>
@@ -1755,7 +1473,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
       Effect.gen(function* () {
         const projectionStore = yield* ProjectionStore.ProjectionStoreV2;
         const now = yield* DateTime.now;
-        const projectId = ProjectId.make("project:shell-item-counts");
         const busyThreadId = ThreadId.make("thread:shell-item-counts:busy");
         const emptyThreadId = ThreadId.make("thread:shell-item-counts:empty");
         const otherThreadId = ThreadId.make("thread:shell-item-counts:other");
@@ -1769,7 +1486,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
               createdBy: "user",
               creationSource: "web",
               id: threadId,
-              projectId,
               title: threadId,
               providerInstanceId,
               modelSelection,
@@ -1869,7 +1585,7 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         yield* applyItem(busyThreadId, RunId.make("run:shell-item-counts:missing"));
         yield* applyItem(otherThreadId, otherRunId);
 
-        const snapshot = yield* projectionStore.getShellSnapshot({ projectId });
+        const snapshot = yield* projectionStore.getShellSnapshot({});
         const expected = [
           [busyThreadId, 4],
           [emptyThreadId, 0],
@@ -1893,12 +1609,10 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
       const visitedOccurredAt = DateTime.add(createdAt, { seconds: 1 });
       const markedUnreadOccurredAt = DateTime.add(createdAt, { seconds: 2 });
       const threadId = ThreadId.make("thread:projection-read-state");
-      const projectId = ProjectId.make("project:projection-read-state");
       const thread = {
         createdBy: "user" as const,
         creationSource: "web" as const,
         id: threadId,
-        projectId,
         title: "Projection read state",
         providerInstanceId,
         modelSelection,
@@ -1966,7 +1680,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         createdBy: "user" as const,
         creationSource: "web" as const,
         id: threadId,
-        projectId: ProjectId.make("project:projection-activity"),
         title: "Projection activity",
         providerInstanceId,
         modelSelection,
@@ -2051,7 +1764,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
       const now = yield* DateTime.now;
       const later = DateTime.add(now, { seconds: 1 });
       const threadId = ThreadId.make("thread:projection-delegated-completion");
-      const projectId = ProjectId.make("project:projection-delegated-completion");
       const runId = RunId.make("run:projection-delegated-completion");
       const rootNodeId = NodeId.make("node:projection-delegated-completion-root");
       const taskId = NodeId.make("node:projection-delegated-completion-task");
@@ -2059,7 +1771,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         createdBy: "user" as const,
         creationSource: "web" as const,
         id: threadId,
-        projectId,
         title: "Delegated completion projection",
         providerInstanceId,
         modelSelection,
@@ -2219,7 +1930,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
             createdBy: "user",
             creationSource: "web",
             id: threadId,
-            projectId: ProjectId.make("project:projection-shell-silent"),
             title: "Idle compaction",
             providerInstanceId,
             modelSelection,
@@ -2376,7 +2086,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
       const projectionStore = yield* ProjectionStore.ProjectionStoreV2;
       const now = yield* DateTime.now;
       const threadId = ThreadId.make("thread:projection-shell-interruptible");
-      const projectId = ProjectId.make("project:projection-shell-interruptible");
       const runId = RunId.make("run:projection-shell-interruptible");
       const rootNodeId = NodeId.make("node:projection-shell-interruptible");
       const run = {
@@ -2406,7 +2115,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
           createdBy: "user",
           creationSource: "web",
           id: threadId,
-          projectId,
           title: "Interruptible shell run",
           providerInstanceId,
           modelSelection,
@@ -2649,12 +2357,10 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
       const childThreadId = ThreadId.make("thread:recovery-candidates:child");
       const rolledBackThreadId = yield* addRolledBackRecoveryCandidate("recovery-candidates");
       const orphanedThreadId = yield* addOrphanedRecoveryCandidate("recovery-candidates");
-      const projectId = ProjectId.make("project:recovery-candidates");
       const makeThread = (threadId: ThreadId) => ({
         createdBy: "user" as const,
         creationSource: "web" as const,
         id: threadId,
-        projectId,
         title: "Recovery candidate",
         providerInstanceId,
         modelSelection,
@@ -3195,137 +2901,12 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
     }),
   );
 
-  it.effect("projects one shared provider session into multiple thread bindings", () =>
-    Effect.gen(function* () {
-      const projectionStore = yield* ProjectionStore.ProjectionStoreV2;
-      const now = yield* DateTime.now;
-      const projectId = ProjectId.make("project:projection-shared-provider-session");
-      const firstThreadId = ThreadId.make("thread:projection-shared-provider-session:first");
-      const secondThreadId = ThreadId.make("thread:projection-shared-provider-session:second");
-      const providerSessionId = ProviderSessionId.make(
-        "provider-session:projection-shared-provider-session",
-      );
-      const makeThread = (threadId: ThreadId) => ({
-        createdBy: "user" as const,
-        creationSource: "web" as const,
-        id: threadId,
-        projectId,
-        title: "Shared provider session",
-        providerInstanceId,
-        modelSelection,
-        runtimeMode: "full-access" as const,
-        interactionMode: "default" as const,
-        workingDirectory: null,
-        activeProviderThreadId: null,
-        lineage: {
-          parentThreadId: null,
-          relationshipToParent: null,
-          rootThreadId: threadId,
-        },
-        forkedFrom: null,
-        createdAt: now,
-        updatedAt: now,
-        archivedAt: null,
-        settledOverride: null,
-        settledAt: null,
-        lastVisitedAt: null,
-        deletedAt: null,
-      });
-      const session = {
-        id: providerSessionId,
-        driver,
-        providerInstanceId,
-        status: "error" as const,
-        cwd: "/workspace",
-        model: modelSelection.model,
-        capabilities: CodexProviderCapabilitiesV2,
-        createdAt: now,
-        updatedAt: now,
-        lastError: "provider process exited",
-      };
-
-      yield* projectionStore.apply({
-        id: EventId.make("event:projection-shared-provider-session:first-thread"),
-        type: "thread.created",
-        threadId: firstThreadId,
-        occurredAt: now,
-        payload: makeThread(firstThreadId),
-      });
-      yield* projectionStore.apply({
-        id: EventId.make("event:projection-shared-provider-session:second-thread"),
-        type: "thread.created",
-        threadId: secondThreadId,
-        occurredAt: now,
-        payload: makeThread(secondThreadId),
-      });
-      for (const [threadId, suffix] of [
-        [firstThreadId, "first"],
-        [secondThreadId, "second"],
-      ] as const) {
-        yield* projectionStore.apply({
-          id: EventId.make(`event:projection-shared-provider-session:${suffix}-binding`),
-          type: "provider-session.attached",
-          threadId,
-          driver,
-          providerInstanceId,
-          occurredAt: now,
-          payload: session,
-        });
-      }
-
-      assert.deepEqual(
-        (yield* projectionStore.getThreadProjection(firstThreadId)).providerSessions.map(
-          (value) => value.id,
-        ),
-        [providerSessionId],
-      );
-      assert.deepEqual(
-        (yield* projectionStore.getThreadProjection(secondThreadId)).providerSessions.map(
-          (value) => value.id,
-        ),
-        [providerSessionId],
-      );
-      assert.deepEqual(
-        (yield* projectionStore.getShellSnapshot()).threads
-          .filter((thread) => thread.id === firstThreadId || thread.id === secondThreadId)
-          .map((thread) => ({
-            id: thread.id,
-            lastError: thread.lastError,
-          })),
-        [
-          { id: firstThreadId, lastError: "provider process exited" },
-          { id: secondThreadId, lastError: "provider process exited" },
-        ],
-      );
-
-      yield* projectionStore.apply({
-        id: EventId.make("event:projection-shared-provider-session:first-detached"),
-        type: "provider-session.detached",
-        threadId: firstThreadId,
-        driver,
-        providerInstanceId,
-        occurredAt: now,
-        payload: { providerSessionId, detachedAt: now },
-      });
-
-      assert.lengthOf(
-        (yield* projectionStore.getThreadProjection(firstThreadId)).providerSessions,
-        0,
-      );
-      assert.lengthOf(
-        (yield* projectionStore.getThreadProjection(secondThreadId)).providerSessions,
-        1,
-      );
-    }),
-  );
-
   it.effect("looks up a thread's last provider error through its own session bindings", () =>
     Effect.gen(function* () {
       const projectionStore = yield* ProjectionStore.ProjectionStoreV2;
       const sql = yield* SqlClient.SqlClient;
       const now = yield* DateTime.now;
       const later = DateTime.add(now, { minutes: 1 });
-      const projectId = ProjectId.make("project:projection-session-error-lookup");
       const attachErroredSession = Effect.fnUntraced(function* (
         name: string,
         lastError: string,
@@ -3341,7 +2922,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
             createdBy: "user",
             creationSource: "web",
             id: threadId,
-            projectId,
             title: name,
             providerInstanceId,
             modelSelection,
@@ -3611,7 +3191,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
     Effect.gen(function* () {
       const projectionStore = yield* ProjectionStore.ProjectionStoreV2;
       const now = yield* DateTime.now;
-      const projectId = ProjectId.make("project:projection-imported-fork-shell");
       const sourceThreadId = ThreadId.make("thread:projection-imported-fork-shell:source");
       const targetThreadId = ThreadId.make("thread:projection-imported-fork-shell:target");
       const sourceRunId = RunId.make("run:projection-imported-fork-shell:source");
@@ -3626,7 +3205,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
           createdBy: "system",
           creationSource: "server",
           id: sourceThreadId,
-          projectId,
           title: "Imported fork source",
           providerInstanceId,
           modelSelection,
@@ -3659,7 +3237,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
           createdBy: "user",
           creationSource: "web",
           id: targetThreadId,
-          projectId,
           title: "Imported fork target",
           providerInstanceId,
           modelSelection,
@@ -3762,7 +3339,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
       const projectionStore = yield* ProjectionStore.ProjectionStoreV2;
       const now = yield* DateTime.now;
       const threadId = ThreadId.make("thread:projection-rollback-prune");
-      const projectId = ProjectId.make("project:projection-rollback-prune");
       const runId = RunId.make("run:projection-rollback-prune");
       const attemptId = RunAttemptId.make("attempt:projection-rollback-prune");
       const rootNodeId = NodeId.make("node:projection-rollback-prune:root");
@@ -3786,7 +3362,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
           createdBy: "user",
           creationSource: "web",
           id: threadId,
-          projectId,
           title: "Projection rollback prune",
           providerInstanceId,
           modelSelection,
@@ -4171,7 +3746,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
       const projectionStore = yield* ProjectionStore.ProjectionStoreV2;
       const sql = yield* SqlClient.SqlClient;
       const now = yield* DateTime.now;
-      const projectId = ProjectId.make("project:projection-fork-source-rollback");
       const sourceThreadId = ThreadId.make("thread:projection-fork-source-rollback:source");
       const targetThreadId = ThreadId.make("thread:projection-fork-source-rollback:target");
       const sourceProviderThreadId = ProviderThreadId.make(
@@ -4196,7 +3770,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
           createdBy: "user",
           creationSource: "web",
           id: sourceThreadId,
-          projectId,
           title: "Projection fork source rollback source",
           providerInstanceId,
           modelSelection,
@@ -4228,7 +3801,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
           createdBy: "user",
           creationSource: "web",
           id: targetThreadId,
-          projectId,
           title: "Projection fork source rollback target",
           providerInstanceId,
           modelSelection,
@@ -4749,7 +4321,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
           createdBy: "user",
           creationSource: "web",
           id: nestedThreadId,
-          projectId,
           title: "Nested bounded fork",
           providerInstanceId,
           modelSelection,
@@ -4886,7 +4457,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
           createdBy: "user",
           creationSource: "web",
           id: emptyMiddleThreadId,
-          projectId,
           title: "Empty middle fork",
           providerInstanceId,
           modelSelection,
@@ -4945,7 +4515,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
           createdBy: "user",
           creationSource: "web",
           id: emptyLeafThreadId,
-          projectId,
           title: "Leaf after empty fork",
           providerInstanceId,
           modelSelection,
@@ -5089,7 +4658,6 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
           createdBy: "user",
           creationSource: "web",
           id: threadId,
-          projectId: ProjectId.make("project:held-completion"),
           title: "Watch the build",
           providerInstanceId,
           modelSelection,
@@ -5143,11 +4711,10 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         occurredAt: completedAt,
         payload: providerThread,
       });
-      const project = { title: "Project" };
       const environmentId = EnvironmentId.make("environment:held-completion");
       const held = yield* store.getThreadShell(threadId);
       assert.equal(
-        held && projectThreadAwarenessV2({ environmentId, project, thread: held })?.phase,
+        held && projectThreadAwarenessV2({ environmentId, thread: held })?.phase,
         "running",
       );
 
@@ -5161,8 +4728,7 @@ it.layer(layerTest)("ProjectionStoreV2", (it) => {
         payload: { ...providerThread, pendingBackgroundTasks: [], updatedAt: releasedAt },
       });
       const released = yield* store.getThreadShell(threadId);
-      const state =
-        released && projectThreadAwarenessV2({ environmentId, project, thread: released });
+      const state = released && projectThreadAwarenessV2({ environmentId, thread: released });
       assert.equal(state?.phase, "completed");
       assert.equal(state?.updatedAt, DateTime.formatIso(releasedAt));
 

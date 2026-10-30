@@ -4,7 +4,6 @@ import * as NodeUtil from "node:util";
 import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import { assert, it } from "@effect/vitest";
 import {
-  ProjectId,
   ProviderInstanceId,
   ScheduledTaskError,
   ScheduledTaskId,
@@ -335,7 +334,7 @@ it.effect("thread cleanup notifies subscribers and a finishing run cannot recrea
       Layer.provide(
         Layer.mergeAll(
           Layer.mock(ThreadManagementService.ThreadManagementService)({
-            getThreadShell: () => Effect.succeed({ projectId: "project:test", deletedAt: null, archivedAt: null } as never),
+            getThreadShell: () => Effect.succeed({ deletedAt: null, archivedAt: null } as never),
             sendToThread: () =>
               Deferred.succeed(started, undefined).pipe(
                 Effect.andThen(Deferred.await(release)),
@@ -357,9 +356,7 @@ it.effect("thread cleanup notifies subscribers and a finishing run cannot recrea
         prompt: "Check progress",
         enabled: true,
         schedule: { type: "interval", everyMs: 60_000 },
-        projectId: ProjectId.make("project:test"),
         threadId,
-        workspaceStrategy: { type: "root" },
         modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.4" },
         runtimeMode: "full-access",
         interactionMode: "default",
@@ -389,9 +386,9 @@ it.effect("thread cleanup notifies subscribers and a finishing run cannot recrea
 
 it.effect("a bound run follows its thread when promotion moves it mid-send", () =>
   Effect.gen(function* () {
-    const scratch = ProjectId.make("project:scratch");
-    const promoted = ProjectId.make("project:promoted");
-    const sends = yield* Ref.make<Array<{ projectId: ProjectId; commandId: string }>>([]);
+    const scratch = "project:scratch";
+    const promoted = "project:promoted";
+    const sends = yield* Ref.make<Array<{ commandId: string }>>([]);
     // Rebind lands first, then the promotion commits between the shell read and the retry.
     const shellProjects = yield* Ref.make([promoted, scratch, promoted]);
     const layer = ScheduledTaskService.layer.pipe(
@@ -399,15 +396,11 @@ it.effect("a bound run follows its thread when promotion moves it mid-send", () 
         Layer.mergeAll(
           Layer.mock(ThreadManagementService.ThreadManagementService)({
             sendToThread: (input) =>
-              Ref.updateAndGet(sends, (all) => [
-                ...all,
-                { projectId: input.projectId, commandId: input.commandId },
-              ]).pipe(
+              Ref.updateAndGet(sends, (all) => [...all, { commandId: input.commandId }]).pipe(
                 Effect.flatMap((all) =>
                   all.length < 3
                     ? Effect.fail(
                         new ThreadManagementService.ThreadManagementThreadNotFoundError({
-                          projectId: input.projectId,
                           threadId: input.threadId,
                         }),
                       )
@@ -415,8 +408,8 @@ it.effect("a bound run follows its thread when promotion moves it mid-send", () 
                 ),
               ),
             getThreadShell: () =>
-              Ref.modify(shellProjects, ([next, ...rest]) => [
-                { projectId: next ?? promoted, deletedAt: null, archivedAt: null } as never,
+              Ref.modify(shellProjects, ([, ...rest]) => [
+                { deletedAt: null, archivedAt: null } as never,
                 rest,
               ]),
           }),
@@ -435,9 +428,7 @@ it.effect("a bound run follows its thread when promotion moves it mid-send", () 
         prompt: "Check progress",
         enabled: true,
         schedule: { type: "interval", everyMs: 60_000 },
-        projectId: promoted,
         threadId,
-        workspaceStrategy: { type: "root" },
         modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.4" },
         runtimeMode: "full-access",
         interactionMode: "default",
@@ -447,10 +438,6 @@ it.effect("a bound run follows its thread when promotion moves it mid-send", () 
 
       assert.equal(result.threadId, threadId);
       const attempts = yield* Ref.get(sends);
-      assert.deepEqual(
-        attempts.map((attempt) => attempt.projectId),
-        [promoted, scratch, promoted],
-      );
       assert.equal(new Set(attempts.map((attempt) => attempt.commandId)).size, 1);
     }).pipe(Effect.provide(layer));
   }).pipe(Effect.provide(SqlitePersistence.layerMemory)),

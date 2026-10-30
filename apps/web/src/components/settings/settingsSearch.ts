@@ -12,7 +12,6 @@ import { commandLabel } from "./KeybindingsSettings.logic";
 import type { ResolvedSettingsScope } from "./settingsScope";
 
 export type SettingsPath =
-  | "/settings/projects"
   | "/settings/general"
   | "/settings/diagnostics"
   | "/settings/appearance"
@@ -33,9 +32,7 @@ export type SettingsPath =
 export type SettingsSearchScope =
   | "environment"
   | "environment-defaults"
-  | "project-defaults"
-  | "project"
-  | "checkout"
+  | "environment-defaults"
   | "connections";
 
 export interface SettingsSearchItem {
@@ -77,7 +74,6 @@ export interface SettingsSearchAvailability {
 
 export const SETTINGS_SECTION_LABELS: Readonly<Record<SettingsPath, string>> = {
   "/settings/diagnostics": "Diagnostics",
-  "/settings/projects": "Projects",
   "/settings/general": "General",
   "/settings/appearance": "Appearance",
   "/settings/chat": "Chat",
@@ -118,10 +114,6 @@ export const SETTINGS_NAV_GROUPS: ReadonlyArray<{
       "/settings/browser",
       "/settings/scheduled-tasks",
     ],
-  },
-  {
-    heading: "Code",
-    paths: ["/settings/projects"],
   },
   { heading: "Connections", paths: ["/settings/connections", "/settings/access"] },
   {
@@ -166,30 +158,24 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["disk storage browser screenshots captures rotated logs cleanup retention"],
   },
   {
-    id: "project-defaults",
-    title: "Project defaults and overrides",
+    id: "environment-defaults",
+    title: "Chat defaults",
     to: "/settings/threads",
-    scope: "project-defaults",
-    searchTerms: ["model workspace environments projects inheritance checkout"],
-  },
-  {
-    id: "project-overview",
-    title: "Project overview",
-    to: "/settings/projects",
-    searchTerms: ["name icon emoji image checkout remove delete"],
+    scope: "environment-defaults",
+    searchTerms: ["model environments defaults"],
   },
   {
     id: "default-model",
     title: "Default model",
     to: "/settings/threads",
-    scope: "project-defaults",
-    searchTerms: ["new thread project provider reasoning effort"],
+    scope: "environment-defaults",
+    searchTerms: ["new chat provider reasoning effort"],
   },
   {
     id: "default-permissions",
     title: "Permissions",
     to: "/settings/threads",
-    scope: "project-defaults",
+    scope: "environment-defaults",
     searchTerms: [
       "new thread default runtime mode supervised approvals auto accept edits full access",
     ],
@@ -304,18 +290,6 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["long lines code blocks diffs file previews"],
   },
   {
-    id: "project-grouping",
-    title: "Project grouping",
-    to: "/settings/general",
-    searchTerms: ["combine matching repositories environments sidebar"],
-  },
-  {
-    id: "project-order",
-    title: "Project order",
-    to: "/settings/general",
-    searchTerms: ["sort projects sidebar manual created recent"],
-  },
-  {
     id: "snooze-options",
     title: "Snooze options",
     to: "/settings/threads",
@@ -340,12 +314,6 @@ export const SETTINGS_SEARCH_ITEMS = [
     title: "Working section",
     to: "/settings/general",
     searchTerms: ["hide fold running monitoring threads inbox sidebar shelf"],
-  },
-  {
-    id: "boring-sidebar",
-    title: "Boring sidebar (group by project)",
-    to: "/settings/labs",
-    searchTerms: ["beta folders project tree legacy old classic sidebar"],
   },
   {
     id: "boring-sidebar-multiline",
@@ -373,7 +341,7 @@ export const SETTINGS_SEARCH_ITEMS = [
     to: "/settings/threads",
     searchTerms: ["sidebar inactivity days no activity automatically"],
     requiresThreadAutoSettlement: true,
-    scope: "project-defaults",
+    scope: "environment-defaults",
   },
   {
     id: "compact-idle-threads",
@@ -389,7 +357,7 @@ export const SETTINGS_SEARCH_ITEMS = [
     targetId: "auto-settle-inactive-threads",
     searchTerms: ["thread timeout activity sidebar"],
     requiresThreadAutoSettlement: true,
-    scope: "project-defaults",
+    scope: "environment-defaults",
   },
   {
     id: "thread-notifications",
@@ -425,7 +393,7 @@ export const SETTINGS_SEARCH_ITEMS = [
     id: "response-streaming",
     title: "Response streaming",
     to: "/settings/threads",
-    scope: "project-defaults",
+    scope: "environment-defaults",
     searchTerms: ["output token paragraph buffered wait turn legacy"],
   },
   {
@@ -463,7 +431,7 @@ export const SETTINGS_SEARCH_ITEMS = [
     id: "continue-threads-after-server-update",
     title: "Continue threads after restarts",
     to: "/settings/maintenance",
-    scope: "project-defaults",
+    scope: "environment-defaults",
     searchTerms: [
       "resume running active interrupted work restart reboot machine crash desktop update automatically",
     ],
@@ -481,15 +449,8 @@ export const SETTINGS_SEARCH_ITEMS = [
     id: "new-threads",
     title: "New threads",
     to: "/settings/threads",
-    scope: "project-defaults",
-    searchTerms: ["default chat model draft"],
-  },
-  {
-    id: "add-project-starts-in",
-    title: "Add project starts in",
-    to: "/settings/threads",
     scope: "environment-defaults",
-    searchTerms: ["base directory folder browser path home"],
+    searchTerms: ["default chat model draft"],
   },
   {
     id: "unpin-confirmation",
@@ -520,14 +481,14 @@ export const SETTINGS_SEARCH_ITEMS = [
     id: "text-generation-model",
     title: "Text generation model",
     to: "/settings/threads",
-    scope: "project-defaults",
+    scope: "environment-defaults",
     searchTerms: ["generated thread titles source control content default provider"],
   },
   {
     id: "thread-title-instructions",
     title: "Thread title instructions",
     to: "/settings/threads",
-    scope: "project-defaults",
+    scope: "environment-defaults",
     searchTerms: ["generated thread titles prompt custom style naming rename regenerate"],
   },
   {
@@ -675,7 +636,7 @@ export const SETTINGS_SEARCH_ITEMS = [
     id: "agent-browser-access",
     title: "Agent browser access",
     to: "/settings/browser",
-    scope: "project-defaults",
+    scope: "environment-defaults",
     searchTerms: ["allow disable enable open drive preview tools sessions project override"],
   },
   {
@@ -744,12 +705,6 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["agent opens browser pop into view hide"],
   },
   {
-    id: "project-actions",
-    title: "Actions",
-    to: "/settings/projects",
-    searchTerms: ["commands scripts run dev server t3.json import"],
-  },
-  {
     id: "environment-icon",
     title: "Environment icon",
     to: "/settings/access",
@@ -785,7 +740,7 @@ export const SETTINGS_SEARCH_ITEMS = [
     title: "WSL backend",
     to: "/settings/access",
     searchTerms: [
-      "windows subsystem linux distro second server projects stop windows backend restart",
+      "windows subsystem linux distro second server chats stop windows backend restart",
     ],
     desktopOnly: true,
     windowsOnly: true,
@@ -848,14 +803,14 @@ export const SETTINGS_SEARCH_ITEMS = [
     title: "Load balancing",
     to: "/settings/connections",
     searchTerms: [
-      "automatic machine environment resources cpu memory capacity preference weight shared projects",
+      "automatic machine environment resources cpu memory capacity preference weight shared chats",
     ],
   },
   {
     id: "archive",
     title: "Archived threads",
     to: "/settings/archived",
-    searchTerms: ["restore reopen deleted history projects"],
+    searchTerms: ["restore reopen deleted chat history"],
   },
 ] as const satisfies ReadonlyArray<SettingsSearchItem>;
 
@@ -865,7 +820,6 @@ const SEARCH_ITEMS_BY_ID = new Map(SETTINGS_SEARCH_ITEMS.map((item) => [item.id,
 
 const SETTINGS_CATEGORY_SCOPES: Readonly<Record<SettingsPath, SettingsSearchScope | null>> = {
   "/settings/diagnostics": "environment",
-  "/settings/projects": "project",
   "/settings/general": null,
   "/settings/appearance": null,
   "/settings/chat": null,
@@ -880,7 +834,7 @@ const SETTINGS_CATEGORY_SCOPES: Readonly<Record<SettingsPath, SettingsSearchScop
   "/settings/maintenance": null,
   "/settings/labs": null,
   "/settings/about": null,
-  "/settings/archived": "project-defaults",
+  "/settings/archived": "environment-defaults",
 };
 
 const RENAMED_SETTINGS_PATHS: Readonly<Record<string, SettingsPath>> = {
@@ -965,19 +919,9 @@ export function isSettingsSearchScopeAvailable(
     case "connections":
       return true;
     case "environment":
-    case "checkout":
       return requiredScope === scopeKind;
-    case "project":
-      return scopeKind === "project" || scopeKind === "checkout";
     case "environment-defaults":
       return scopeKind === "environment" || scopeKind === "all";
-    case "project-defaults":
-      return (
-        scopeKind === "environment" ||
-        scopeKind === "all" ||
-        scopeKind === "project" ||
-        scopeKind === "checkout"
-      );
   }
 }
 
@@ -1007,9 +951,7 @@ export function filterAvailableSettingsSearchItems(
       (!item.peerLinksOnly || availability.hasPeerLinkHost === true),
   );
 }
-
-/** The settings that exist on this platform and app channel. */
-export function settingsForThisPlatform(
+function settingsForThisPlatform(
   items: ReadonlyArray<SettingsSearchItem>,
 ): ReadonlyArray<SettingsSearchItem> {
   const platform = typeof navigator === "undefined" ? "" : navigator.platform;

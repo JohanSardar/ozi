@@ -19,12 +19,10 @@ import {
   type AcpRegistryUrlAuthAction,
   PROVIDER_DISPLAY_NAMES,
   ProviderDriverKind,
-  type ProjectId,
   type ProviderInstanceConfig,
   type ProviderInstanceId,
   type ServerProvider,
   resolveEnvironmentMachineKind,
-  resolveProjectProviderInstanceEnabled,
   resolveProviderInstanceEnabled,
 } from "@t3tools/contracts";
 import { DEFAULT_UNIFIED_SETTINGS, type UnifiedSettings } from "@t3tools/contracts/settings";
@@ -61,7 +59,6 @@ import {
   serverEnvironment,
 } from "../../state/server";
 import { useEnvironmentSessionState } from "../../state/session";
-import { useProjects } from "../../state/entities";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { useRelativeTimeState } from "../../hooks/useRelativeTimeState";
 import {
@@ -119,7 +116,6 @@ import {
 } from "./settingsLayout";
 import {
   buildProviderEnvironmentOptions,
-  buildProviderInstanceOverridePatch,
   classifyProviderEnvironmentAccess,
   isProviderSettingsEnvironmentAvailable,
   type ProviderEnvironmentAccess,
@@ -283,7 +279,6 @@ interface ProviderSettingsTarget {
   readonly instanceId?: ProviderInstanceId;
   readonly scoped?: boolean;
   readonly environmentIds?: readonly EnvironmentId[];
-  readonly projectIds?: readonly ProjectId[];
 }
 
 export function ProviderSettingsPanel(target: ProviderSettingsTarget) {
@@ -448,7 +443,6 @@ function ProviderSettingsPanelContent(target: ProviderSettingsTarget) {
               ? target.instanceId
               : undefined
           }
-          projectIds={target.projectIds ?? []}
         />
       ) : null}
     </>
@@ -459,12 +453,10 @@ function RemoteSessionGatedProviderSettings({
   environment,
   deviceTabs,
   targetInstanceId,
-  projectIds,
 }: {
   readonly environment: EnvironmentPresentation;
   readonly deviceTabs?: ReactNode;
   readonly targetInstanceId?: ProviderInstanceId | undefined;
-  readonly projectIds: readonly ProjectId[];
 }) {
   const sessionState = useEnvironmentSessionState(environment.environmentId);
   const operateAccess = resolveRemoteOperateAccess({
@@ -478,7 +470,6 @@ function RemoteSessionGatedProviderSettings({
       operateAccess={operateAccess}
       deviceTabs={deviceTabs}
       targetInstanceId={targetInstanceId}
-      projectIds={projectIds}
     />
   );
 }
@@ -488,13 +479,11 @@ function AccessGatedProviderSettings({
   operateAccess,
   deviceTabs,
   targetInstanceId,
-  projectIds,
 }: {
   readonly environment: EnvironmentPresentation;
   readonly operateAccess: ProviderOperateAccess;
   readonly deviceTabs?: ReactNode;
   readonly targetInstanceId?: ProviderInstanceId | undefined;
-  readonly projectIds: readonly ProjectId[];
 }) {
   const access = classifyProviderEnvironmentAccess({
     connectionPhase: environment.connection.phase,
@@ -517,12 +506,9 @@ function AccessGatedProviderSettings({
       readOnly={access.kind === "read-only"}
       deviceTabs={deviceTabs}
       targetInstanceId={targetInstanceId}
-      projectIds={projectIds}
     />
   );
 }
-
-const NO_PROJECT_IDS: readonly ProjectId[] = [];
 const NO_FAVORITES: UnifiedSettings["favorites"] = [];
 
 export function EnvironmentProviderSettings({
@@ -531,13 +517,11 @@ export function EnvironmentProviderSettings({
   readOnly = false,
   deviceTabs,
   targetInstanceId,
-  projectIds = NO_PROJECT_IDS,
 }: {
   readonly environmentId: EnvironmentId;
   readonly environmentLabel: string;
   readonly deviceTabs?: ReactNode;
   readonly targetInstanceId?: ProviderInstanceId | undefined;
-  readonly projectIds?: readonly ProjectId[];
   readonly readOnly?: boolean;
 }) {
   const settings = useEnvironmentSettings(environmentId);
@@ -548,11 +532,6 @@ export function EnvironmentProviderSettings({
   const toggleModelFavorite = useToggleEnvironmentModelFavorite(environmentId);
   const persistProviderInstance = usePersistEnvironmentProviderInstanceMutation(environmentId);
   const serverProviders = useAtomValue(providersIgnoringCheckedAtAtom(environmentId));
-  // Hide overrides on older servers that silently ignore providerInstances patches.
-  const supportsProjectProviderOverrides = useAtomValue(
-    serverEnvironment.configValueAtom(environmentId),
-    (config) => config?.environment.capabilities.projectProviderInstanceOverrides === true,
-  );
   const refreshServerProviders = useAtomCommand(serverEnvironment.refreshProviders, {
     reportFailure: false,
   });
@@ -875,19 +854,6 @@ export function EnvironmentProviderSettings({
     }
   });
 
-  const writeProjectOverride = useStableCallback(
-    (instanceId: ProviderInstanceId, next: boolean | undefined) => {
-      updateSettings({
-        projectSettingsOverrides: buildProviderInstanceOverridePatch(
-          settings,
-          projectIds,
-          instanceId,
-          next,
-        ),
-      });
-    },
-  );
-
   const stableUpdateModelPreferences = useStableCallback(updateModelPreferences);
   const stableToggleModelFavorite = useStableCallback(toggleModelFavorite);
   const actions: ProviderInstanceRowActions = {
@@ -897,18 +863,13 @@ export function EnvironmentProviderSettings({
     enableInstance,
     deleteInstance,
     resetDefaultInstance,
-    writeProjectOverride,
     updateModelPreferences: stableUpdateModelPreferences,
     toggleModelFavorite: stableToggleModelFavorite,
     selectInstance: setSelectedInstanceId,
   };
   // resolveModelPreferences falls back to a fresh `[]`; keep it stable for the rows.
   const favorites = settings.favorites.length > 0 ? settings.favorites : NO_FAVORITES;
-
-  const representativeProjectId = projectIds[0];
   const renderProviderInstance = (row: InstanceRow, mode: "list" | "editor") => {
-    const showProjectOverride =
-      representativeProjectId !== undefined && supportsProjectProviderOverrides;
     return (
       <ProviderInstanceRow
         key={row.instanceId}
@@ -925,23 +886,6 @@ export function EnvironmentProviderSettings({
         canWriteSettings={canWriteSettings}
         liveProvider={serverProviders.find((candidate) => candidate.instanceId === row.instanceId)}
         isUpdateDispatching={updatingProviderInstanceIds.has(row.instanceId)}
-        showProjectOverride={showProjectOverride}
-        projectOverrideValue={
-          showProjectOverride
-            ? settings.projectSettingsOverrides[representativeProjectId]?.providerInstances?.[
-                row.instanceId
-              ]?.enabled
-            : undefined
-        }
-        projectOverrideEffectiveEnabled={
-          showProjectOverride
-            ? resolveProjectProviderInstanceEnabled(
-                settings,
-                representativeProjectId,
-                row.instanceId,
-              )
-            : false
-        }
         modelPreferences={settings.providerModelPreferences?.[row.instanceId]}
         favorites={favorites}
         actions={actions}
@@ -1185,10 +1129,6 @@ interface ProviderInstanceRowActions {
     instance: ProviderInstanceConfig,
   ) => Promise<void>;
   readonly resetDefaultInstance: (driverKind: ProviderDriverKind) => Promise<void>;
-  readonly writeProjectOverride: (
-    instanceId: ProviderInstanceId,
-    next: boolean | undefined,
-  ) => void;
   readonly updateModelPreferences: ReturnType<typeof useUpdateEnvironmentModelPreferences>;
   readonly toggleModelFavorite: ReturnType<typeof useToggleEnvironmentModelFavorite>;
   readonly selectInstance: (instanceId: ProviderInstanceId) => void;
@@ -1211,9 +1151,6 @@ function ProviderInstanceRow({
   canWriteSettings,
   liveProvider,
   isUpdateDispatching,
-  showProjectOverride,
-  projectOverrideValue,
-  projectOverrideEffectiveEnabled,
   modelPreferences,
   favorites,
   actions,
@@ -1231,20 +1168,12 @@ function ProviderInstanceRow({
   readonly canWriteSettings: boolean;
   readonly liveProvider: ServerProvider | undefined;
   readonly isUpdateDispatching: boolean;
-  readonly showProjectOverride: boolean;
-  readonly projectOverrideValue: boolean | undefined;
-  readonly projectOverrideEffectiveEnabled: boolean;
   readonly modelPreferences:
     | { readonly hiddenModels: ReadonlyArray<string>; readonly modelOrder: ReadonlyArray<string> }
     | undefined;
   readonly favorites: UnifiedSettings["favorites"];
   readonly actions: ProviderInstanceRowActions;
 }) {
-  const allProjects = useProjects();
-  const acpProjects =
-    mode === "editor" && liveProvider?.driver === "acpRegistry"
-      ? allProjects.filter((project) => project.environmentId === environmentId)
-      : undefined;
   const instance = explicitInstance ?? { driver };
   const driverOption = providerClients.get(driver);
   const updateCandidate =
@@ -1259,14 +1188,6 @@ function ProviderInstanceRow({
     favorite.provider === instanceId ? Result.succeed(favorite.model) : Result.failVoid,
   );
   const resetLabel = driverOption?.label ?? String(driver);
-  const projectOverride = showProjectOverride
-    ? {
-        value: projectOverrideValue,
-        effectiveEnabled: projectOverrideEffectiveEnabled,
-        onChange: (next: boolean) => actions.writeProjectOverride(instanceId, next),
-        onReset: () => actions.writeProjectOverride(instanceId, undefined),
-      }
-    : undefined;
   const codexSetupMode = driver === "codex" ? readCodexSetupMode(instance.config) : null;
   const recommendedVersion = liveProvider?.compatibilityAdvisory?.recommendedVersion;
   const canInstallRecommended =
@@ -1279,8 +1200,6 @@ function ProviderInstanceRow({
   return (
     <ProviderInstanceCard
       environmentId={environmentId}
-      acpProjects={acpProjects}
-      projectOverride={projectOverride}
       onAcceptUrlAuth={
         readOnly ? undefined : (action) => actions.acceptUrlAuthentication(instanceId, action)
       }

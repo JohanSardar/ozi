@@ -1,7 +1,4 @@
-import {
-  navigationCustomizationAvailable,
-  overflowNavigationTabs,
-} from "../workspace/navigation-tab-order";
+import { overflowNavigationTabs } from "../workspace/navigation-tab-order";
 import {
   NAVIGATION_TAB_ICONS,
   WORKSPACE_TAB_LABELS,
@@ -20,7 +17,6 @@ import { use, type ComponentProps } from "react";
 import { Platform, View } from "react-native";
 import { useWorkspaceSurface } from "../workspace/useWorkspaceSurface";
 import { useNativeColumnLayoutMetrics } from "../../native/native-layout-metrics";
-import { deriveProjectGroupLabel } from "@t3tools/client-runtime/state/project-grouping";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 
 import { hasCloudPublicConfig } from "../cloud/publicConfig";
@@ -210,22 +206,8 @@ function SettingsList(props: { readonly connections: readonly SettingsListRow[] 
 }
 
 function useSettingsIndexSections(): SettingsListSection[] {
-  const { selectedTargets, projectGroups, selectedProjectKey } = useSettingsEnvironmentFilter();
+  const { selectedTargets } = useSettingsEnvironmentFilter();
   const noServerTargets = selectedTargets.length === 0;
-  const selectedProject = projectGroups.find((group) => group.key === selectedProjectKey);
-  const scopedProjectMembers =
-    selectedProject?.members
-      .map((member) => member.project)
-      .filter((project) =>
-        selectedTargets.some((target) => target.environmentId === project.environmentId),
-      ) ?? [];
-  const projectLabel =
-    scopedProjectMembers.length > 0
-      ? deriveProjectGroupLabel({
-          representative: scopedProjectMembers[0]!,
-          members: scopedProjectMembers,
-        })
-      : (selectedProject?.label ?? "Unavailable project");
   const page = (
     target: SettingsPageTarget,
     icon: SettingsListRow["icon"],
@@ -237,22 +219,6 @@ function useSettingsIndexSections(): SettingsListSection[] {
   // The same pages and groups as Settings on web, minus what mobile has no setting for.
   return [
     {
-      rows: [
-        page("SettingsOrganization", "gearshape", "General"),
-        page("SettingsAppearance", "paintbrush", "Appearance"),
-        page("SettingsFollowUp", "bubble.left.and.bubble.right", "Chat"),
-        ...(navigationCustomizationAvailable()
-          ? [page("SettingsNavigation", "line.3.horizontal", "Navigation tabs")]
-          : []),
-        ...(Platform.OS === "ios"
-          ? [
-              page("SettingsKeyboard", "keyboard", "Keyboard"),
-              page("SettingsMicrophone", "mic", "Microphone"),
-            ]
-          : []),
-      ],
-    },
-    {
       title: "Agents",
       rows: [
         serverPage("SettingsProviderAccounts", "person.crop.circle", "Providers"),
@@ -262,14 +228,7 @@ function useSettingsIndexSections(): SettingsListSection[] {
     },
     {
       title: "Code",
-      rows: [
-        page(
-          "SettingsProjectOverview",
-          "folder",
-          "Projects",
-          selectedProjectKey !== null ? { value: projectLabel } : undefined,
-        ),
-      ],
+      rows: [],
     },
     {
       rows: [

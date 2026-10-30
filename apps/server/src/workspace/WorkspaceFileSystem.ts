@@ -6,10 +6,10 @@ import type {
   FilesystemEntryMetadata,
   FilesystemGetMetadataInput,
   FilesystemGetMetadataResult,
-  ProjectReadFileInput,
-  ProjectReadFileResult,
-  ProjectWriteFileInput,
-  ProjectWriteFileResult,
+  WorkspaceReadFileInput,
+  WorkspaceReadFileResult,
+  WorkspaceWriteFileInput,
+  WorkspaceWriteFileResult,
 } from "@t3tools/contracts";
 import { expandHomePath } from "@t3tools/provider-core/server/pathExpansion";
 import * as HostProcess from "@t3tools/shared/HostProcess";
@@ -109,16 +109,16 @@ export class WorkspaceFileSystem extends Context.Service<
     ) => Effect.Effect<FilesystemGetMetadataResult>;
 
     readonly readFile: (
-      input: ProjectReadFileInput,
+      input: WorkspaceReadFileInput,
     ) => Effect.Effect<
-      ProjectReadFileResult,
+      WorkspaceReadFileResult,
       WorkspaceFileSystemError | WorkspacePaths.WorkspacePathOutsideRootError
     >;
     /** Writes inside a known workspace only. */
     readonly writeFile: (
-      input: ProjectWriteFileInput,
+      input: WorkspaceWriteFileInput,
     ) => Effect.Effect<
-      ProjectWriteFileResult,
+      WorkspaceWriteFileResult,
       | WorkspaceFileSystemError
       | WorkspacePaths.WorkspacePathOutsideRootError
       | KnownWorkspaces.UnknownWorkspaceError
@@ -216,7 +216,7 @@ export const make = Effect.gen(function* () {
    * Windows signs in to its host with the user's NTLM credentials.
    */
   const resolveReadTarget = Effect.fn("WorkspaceFileSystem.resolveReadTarget")(function* (
-    input: ProjectReadFileInput,
+    input: WorkspaceReadFileInput,
   ) {
     const requestedPath = input.relativePath.trim();
     const hostPath = requestedPath.startsWith("~/")
@@ -439,7 +439,7 @@ export const make = Effect.gen(function* () {
 
   // Resolve existing ancestors and reject dangling links so creation cannot follow symlinks outside root.
   const resolveWriteTarget = Effect.fn("WorkspaceFileSystem.resolveWriteTarget")(function* (
-    input: ProjectWriteFileInput,
+    input: WorkspaceWriteFileInput,
   ) {
     const target = yield* workspacePaths.resolveRelativePathWithinRoot({
       workspaceRoot: input.cwd,

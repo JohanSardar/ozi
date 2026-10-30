@@ -99,9 +99,6 @@ export function summarizeT3ToolCalls(
     `${completed.length > 0 ? past : `Tried to ${infinitive}`} ${object}`;
   const entityIds = (key: string) =>
     selected.map((call) => id(call.output?.[key]) ?? id(call.input?.[key]));
-  const projectIds = selected.map(
-    (call) => id(call.output?.id) ?? id(call.output?.projectId) ?? id(call.input?.projectId),
-  );
   const threadIds = selected.map(
     (call) =>
       id(call.output?.threadId) ??
@@ -294,28 +291,6 @@ export function summarizeT3ToolCalls(
       break;
     case "secret-request":
       label = phrase("Asked for", "ask for", quantity(selected.length, "secret"));
-      break;
-    case "project-list":
-      label = phrase("Listed", "list", `projects ${times}`);
-      break;
-    case "project-read":
-      label = phrase("Read", "read", quantity(countEntities(projectIds), "project"));
-      break;
-    case "project-create":
-      label = phrase("Registered", "register", quantity(countEntities(projectIds), "project"));
-      break;
-    case "project-update":
-      label = phrase("Updated", "update", quantity(countEntities(projectIds), "project"));
-      break;
-    case "project-delete":
-      label = phrase("Deleted", "delete", quantity(countEntities(projectIds), "project"));
-      break;
-    case "project-clone":
-      label = phrase(
-        "Cloned",
-        "clone",
-        quantity(countEntities(entityIds("cwd")), "repository", "repositories"),
-      );
       break;
     case "environment-read":
       label = phrase("Checked", "check", `environment preferences ${times}`);

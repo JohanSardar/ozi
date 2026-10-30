@@ -1,4 +1,4 @@
-import { KeybindingCommand, KeybindingRule, KeybindingsConfig } from "@t3tools/contracts";
+import { KeybindingRule, KeybindingsConfig } from "@t3tools/contracts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import { assertFailure } from "@effect/vitest/utils";
@@ -11,7 +11,11 @@ import * as Schema from "effect/Schema";
 import * as ServerConfig from "./config.ts";
 import * as Keybindings from "./keybindings.ts";
 import * as SharedKeybindings from "@t3tools/shared/keybindings";
-import { KeybindingsConfigError, MAX_KEYBINDINGS_COUNT } from "@t3tools/contracts";
+import {
+  KeybindingsConfigError,
+  MAX_KEYBINDINGS_COUNT,
+  STATIC_KEYBINDING_COMMANDS,
+} from "@t3tools/contracts";
 
 const KeybindingsConfigJson = Schema.fromJsonString(KeybindingsConfig);
 const encodeKeybindingsConfigJson = Schema.encodeEffect(KeybindingsConfigJson);
@@ -214,11 +218,11 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
         const { keybindingsConfigPath } = yield* ServerConfig.ServerConfig;
         yield* writeKeybindingsConfig(keybindingsConfigPath, [
           { key: "mod+shift+y", command: "terminal.toggle" },
-          { key: "mod+shift+r", command: "script.run-tests.run" },
-          { key: "mod+shift+b", command: "script.custom-panel.run" },
+          { key: "mod+shift+r", command: "usage.period.month" },
+          { key: "mod+shift+b", command: "usage.period.week" },
           {
             key: "mod+shift+b",
-            command: "script.custom-composer.run",
+            command: "usage.period.quarter",
             when: "composerFocus",
           },
         ]);
@@ -239,14 +243,14 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
         for (const defaultRule of SharedKeybindings.DEFAULT_KEYBINDINGS) {
           assert.isTrue(byCommand.has(defaultRule.command), `expected ${defaultRule.command}`);
         }
-        assert.isTrue(byCommand.has("script.run-tests.run"));
+        assert.isTrue(byCommand.has("usage.period.month"));
 
         const configState = yield* keybindings.loadConfigState;
         assert.deepEqual(
           configState.keybindings
             .filter((entry) => entry.shortcut.key === "b" && entry.shortcut.shiftKey)
             .map((entry) => entry.command),
-          ["threadPanel.toggle", "script.custom-panel.run", "script.custom-composer.run"],
+          ["threadPanel.toggle", "usage.period.week", "usage.period.quarter"],
         );
       }).pipe(Effect.provide(layerKeybindings())),
   );
@@ -300,9 +304,9 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
       const keybindings = yield* Keybindings.Keybindings;
       const when = "composerFocus && draftThreadRoute";
       const existing = { key: "mod+alt+enter", command: "composer.sendBackground", when } as const;
-      const fillers = Array.from({ length: MAX_KEYBINDINGS_COUNT - 1 }, (_, index) => ({
+      const fillers = Array.from({ length: MAX_KEYBINDINGS_COUNT - 1 }, () => ({
         key: "mod+alt+f1",
-        command: `script.filler-${index}.run` as const,
+        command: "chat.find" as const,
       }));
       const hasModEnter = Effect.map(readKeybindingsConfig(keybindingsConfigPath), (rules) =>
         rules.some(
@@ -329,7 +333,7 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
     return Effect.gen(function* () {
       const { keybindingsConfigPath } = yield* ServerConfig.ServerConfig;
       yield* writeKeybindingsConfig(keybindingsConfigPath, [
-        { key: "mod+j", command: "script.custom-action.run" },
+        { key: "mod+j", command: "usage.period.day" },
       ]);
 
       yield* Effect.gen(function* () {
@@ -339,7 +343,7 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
 
       const persisted = yield* readKeybindingsConfig(keybindingsConfigPath);
       assert.isFalse(persisted.some((entry) => entry.command === "terminal.toggle"));
-      assert.isTrue(persisted.some((entry) => entry.command === "script.custom-action.run"));
+      assert.isTrue(persisted.some((entry) => entry.command === "usage.period.day"));
 
       assert.isTrue(
         messages.some((message) =>
@@ -357,21 +361,21 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
     Effect.gen(function* () {
       const { keybindingsConfigPath } = yield* ServerConfig.ServerConfig;
       yield* writeKeybindingsConfig(keybindingsConfigPath, [
-        { key: "mod+r", command: "script.run-tests.run" },
+        { key: "mod+r", command: "usage.period.month" },
       ]);
       yield* Effect.gen(function* () {
         const keybindings = yield* Keybindings.Keybindings;
         return yield* keybindings.upsertKeybindingRule({
           key: "mod+shift+r",
-          command: "script.run-tests.run",
+          command: "usage.period.month",
         });
       });
 
       const persisted = yield* readKeybindingsConfig(keybindingsConfigPath);
       const persistedView = persisted.map(({ key, command }) => ({ key, command }));
       assert.deepEqual(persistedView, [
-        { key: "mod+r", command: "script.run-tests.run" },
-        { key: "mod+shift+r", command: "script.run-tests.run" },
+        { key: "mod+r", command: "usage.period.month" },
+        { key: "mod+shift+r", command: "usage.period.month" },
       ]);
     }).pipe(Effect.provide(layerKeybindings())),
   );
@@ -380,23 +384,23 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
     Effect.gen(function* () {
       const { keybindingsConfigPath } = yield* ServerConfig.ServerConfig;
       yield* writeKeybindingsConfig(keybindingsConfigPath, [
-        { key: "mod+r", command: "script.run-tests.run" },
-        { key: "mod+shift+r", command: "script.run-tests.run" },
+        { key: "mod+r", command: "usage.period.month" },
+        { key: "mod+shift+r", command: "usage.period.month" },
       ]);
       yield* Effect.gen(function* () {
         const keybindings = yield* Keybindings.Keybindings;
         return yield* keybindings.upsertKeybindingRule({
           key: "mod+alt+r",
-          command: "script.run-tests.run",
-          replace: { key: "mod+r", command: "script.run-tests.run" },
+          command: "usage.period.month",
+          replace: { key: "mod+r", command: "usage.period.month" },
         });
       });
 
       const persisted = yield* readKeybindingsConfig(keybindingsConfigPath);
       const persistedView = persisted.map(({ key, command }) => ({ key, command }));
       assert.deepEqual(persistedView, [
-        { key: "mod+shift+r", command: "script.run-tests.run" },
-        { key: "mod+alt+r", command: "script.run-tests.run" },
+        { key: "mod+shift+r", command: "usage.period.month" },
+        { key: "mod+alt+r", command: "usage.period.month" },
       ]);
     }).pipe(Effect.provide(layerKeybindings())),
   );
@@ -405,21 +409,21 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
     Effect.gen(function* () {
       const { keybindingsConfigPath } = yield* ServerConfig.ServerConfig;
       yield* writeKeybindingsConfig(keybindingsConfigPath, [
-        { key: "mod+r", command: "script.run-tests.run" },
-        { key: "mod+alt+r", command: "script.run-tests.run" },
+        { key: "mod+r", command: "usage.period.month" },
+        { key: "mod+alt+r", command: "usage.period.month" },
       ]);
       yield* Effect.gen(function* () {
         const keybindings = yield* Keybindings.Keybindings;
         return yield* keybindings.upsertKeybindingRule({
           key: "mod+alt+r",
-          command: "script.run-tests.run",
-          replace: { key: "mod+r", command: "script.run-tests.run" },
+          command: "usage.period.month",
+          replace: { key: "mod+r", command: "usage.period.month" },
         });
       });
 
       const persisted = yield* readKeybindingsConfig(keybindingsConfigPath);
       const persistedView = persisted.map(({ key, command }) => ({ key, command }));
-      assert.deepEqual(persistedView, [{ key: "mod+alt+r", command: "script.run-tests.run" }]);
+      assert.deepEqual(persistedView, [{ key: "mod+alt+r", command: "usage.period.month" }]);
     }).pipe(Effect.provide(layerKeybindings())),
   );
 
@@ -427,20 +431,20 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
     Effect.gen(function* () {
       const { keybindingsConfigPath } = yield* ServerConfig.ServerConfig;
       yield* writeKeybindingsConfig(keybindingsConfigPath, [
-        { key: "mod+r", command: "script.run-tests.run" },
-        { key: "mod+shift+r", command: "script.run-tests.run" },
+        { key: "mod+r", command: "usage.period.month" },
+        { key: "mod+shift+r", command: "usage.period.month" },
       ]);
       yield* Effect.gen(function* () {
         const keybindings = yield* Keybindings.Keybindings;
         return yield* keybindings.removeKeybindingRule({
           key: "mod+r",
-          command: "script.run-tests.run",
+          command: "usage.period.month",
         });
       });
 
       const persisted = yield* readKeybindingsConfig(keybindingsConfigPath);
       const persistedView = persisted.map(({ key, command }) => ({ key, command }));
-      assert.deepEqual(persistedView, [{ key: "mod+shift+r", command: "script.run-tests.run" }]);
+      assert.deepEqual(persistedView, [{ key: "mod+shift+r", command: "usage.period.month" }]);
     }).pipe(Effect.provide(layerKeybindings())),
   );
 
@@ -454,7 +458,7 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
         const keybindings = yield* Keybindings.Keybindings;
         return yield* keybindings.upsertKeybindingRule({
           key: "mod+shift+r",
-          command: "script.run-tests.run",
+          command: "usage.period.month",
         });
       }).pipe(toDetailResult);
       assertFailure(result, "expected JSON array");
@@ -490,10 +494,7 @@ it.layer(NodeServices.layer)("keybindings", (it) => {
       const { keybindingsConfigPath } = yield* ServerConfig.ServerConfig;
       yield* writeKeybindingsConfig(keybindingsConfigPath, []);
 
-      const commands = Array.from(
-        { length: 20 },
-        (_, index): KeybindingCommand => `script.concurrent-${index}.run`,
-      );
+      const commands = STATIC_KEYBINDING_COMMANDS.slice(0, 20);
       yield* Effect.gen(function* () {
         const keybindings = yield* Keybindings.Keybindings;
         yield* Effect.forEach(

@@ -1,5 +1,5 @@
-import { scopeProjectRef, scopeThreadRef } from "@t3tools/client-runtime/environment";
-import { type DesktopBridge, EnvironmentId, ProjectId, ThreadId } from "@t3tools/contracts";
+import { scopeThreadRef } from "@t3tools/client-runtime/environment";
+import { type DesktopBridge, EnvironmentId, ThreadId } from "@t3tools/contracts";
 import { describe, expect, it, vi } from "vite-plus/test";
 
 import { DraftId, useComposerDraftStore } from "../../composerDraftStore";
@@ -45,7 +45,7 @@ const storage = vi.hoisted(() => {
 });
 
 const environmentId = EnvironmentId.make("snap-shot-environment");
-const projectRef = scopeProjectRef(environmentId, ProjectId.make("snap-shot-project"));
+const projectRef = environmentId;
 
 // Tests stub globals and spy on module exports freely; disposing restores all of them.
 function setup(): Disposable {
@@ -54,7 +54,7 @@ function setup(): Disposable {
   useComposerDraftStore.setState({
     draftsByThreadKey: {},
     draftThreadsByThreadKey: {},
-    logicalProjectDraftThreadKeyByLogicalProjectKey: {},
+    environmentDraftIdByEnvironmentId: {},
     stickyModelSelectionByProvider: {},
     stickyActiveProvider: null,
   });
@@ -96,7 +96,7 @@ describe("window capture target resolution", () => {
     const draftId = DraftId.make("snap-shot-draft");
     const promotedRef = scopeThreadRef(environmentId, ThreadId.make("snap-shot-promoted-thread"));
     const store = useComposerDraftStore.getState();
-    store.setProjectDraftThreadId(projectRef, draftId, {
+    store.setEnvironmentDraftId(projectRef, draftId, {
       threadId: ThreadId.make("snap-shot-draft-thread"),
     });
     store.markDraftThreadPromoting(draftId, promotedRef);

@@ -2,7 +2,6 @@ import { isWebhookDedupeTemplate } from "@t3tools/contracts";
 import {
   EnvironmentId,
   MAX_WEBHOOK_DELIVERY_AGE_MINUTES,
-  type ProjectId,
   ScheduledTaskId,
   type ScheduledTask,
   type ScheduledTaskUpsertSchedule,
@@ -20,14 +19,8 @@ import type { ResolvedSettingsScope } from "./settingsScope";
 export function matchesScheduledTaskScope(
   scope: ResolvedSettingsScope,
   environmentId: EnvironmentId,
-  projectId: ProjectId,
 ): boolean {
   if (scope.kind === "unavailable" || !scope.environmentIds.includes(environmentId)) return false;
-  if (scope.kind === "project" || scope.kind === "checkout") {
-    return scope.members.some(
-      (member) => member.environmentId === environmentId && member.id === projectId,
-    );
-  }
   return true;
 }
 

@@ -18,7 +18,6 @@ import {
   ORCHESTRATION_PROTOCOL_VERSION,
   ORCHESTRATION_PROTOCOL_HEADER,
   CommandId,
-  ProjectId,
   ProviderInstanceId,
   ThreadId,
   WsRpcGroup,
@@ -265,14 +264,12 @@ try {
     "Content-Type": "application/json",
     [ORCHESTRATION_PROTOCOL_HEADER]: String(ORCHESTRATION_PROTOCOL_VERSION),
   };
-  const projectId = ProjectId.make(NodeCrypto.randomUUID());
   const created = await fetch(`${origin}/api/projects/mutate`, {
     method: "POST",
     headers,
     body: JSON.stringify({
       type: "project.create",
       commandId: NodeCrypto.randomUUID(),
-      projectId,
       title: "Background verification",
       workspaceRoot: project,
     }),
@@ -311,12 +308,10 @@ try {
     yield* client["orchestration.launchThread"]({
       commandId: CommandId.make(NodeCrypto.randomUUID()),
       threadId,
-      projectId,
       title: `Background verification: ${values.scenario}`,
       modelSelection: { instanceId: ProviderInstanceId.make(values.provider), model: values.model },
       runtimeMode: "full-access",
       interactionMode: "default",
-      workspaceStrategy: { type: "root" },
       initialMessage: { text: prompt, attachments: [] },
     });
     const check = (projection: OrchestrationV2ThreadProjection) => {

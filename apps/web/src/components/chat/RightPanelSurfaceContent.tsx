@@ -25,7 +25,7 @@ type RightPanelTerminalProps = Omit<
 >;
 
 interface RightPanelFileProps {
-  readonly projectName: string | null;
+  readonly workspaceName: string | null;
   readonly workspaceRoot: string | undefined;
   readonly availableEditors: ReadonlyArray<EditorId>;
   readonly pendingSurfaceIds: ReadonlySet<string>;
@@ -81,7 +81,7 @@ export function RightPanelSurfaceContent(props: {
     case "file": {
       const files = props.files;
       const attachment = surface.kind === "file" ? surface.attachment : undefined;
-      if (!attachment && (files.projectName === null || !files.workspaceRoot)) return null;
+      if (!attachment && (files.workspaceName === null || !files.workspaceRoot)) return null;
       return (
         <Suspense fallback={null}>
           <FilePreviewPanel
@@ -90,7 +90,7 @@ export function RightPanelSurfaceContent(props: {
             }`}
             environmentId={props.environmentId}
             cwd={files.workspaceRoot ?? ""}
-            projectName={files.projectName ?? ""}
+            workspaceName={files.workspaceName ?? ""}
             threadRef={threadRef}
             composerDraftTarget={props.composerDraftTarget}
             keybindings={props.keybindings}

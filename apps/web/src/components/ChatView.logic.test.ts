@@ -6,14 +6,12 @@ import {
   deriveAvailableRevertTurnCounts,
   deriveWorkspaceMutationId,
 } from "./ChatView.logic";
-import { recallCheckoutIsRepo, rememberCheckoutIsRepo } from "./ChatView.logic";
 import { ProviderDriverKind, type ServerProvider } from "@t3tools/contracts";
 import { deriveProviderInstanceEntries } from "../providerInstances";
 import {
   CommandId,
   EnvironmentId,
   MessageId,
-  ProjectId,
   PROVIDER_SEND_TURN_MAX_ATTACHMENTS,
   ProviderInstanceId,
   ProviderSessionId,
@@ -49,7 +47,6 @@ import {
 } from "./ChatView.logic";
 
 const environmentId = EnvironmentId.make("environment-local");
-const projectId = ProjectId.make("project-1");
 const threadId = ThreadId.make("thread-1");
 const now = "2026-03-29T00:00:00.000Z";
 
@@ -57,7 +54,6 @@ function makeThread(overrides: Partial<Thread> = {}): Thread {
   return makeThreadFixture({
     id: threadId,
     environmentId,
-    projectId,
     title: "Thread",
     modelSelection: {
       instanceId: ProviderInstanceId.make("codex"),
@@ -610,13 +606,6 @@ describe("resolveComposerProviderSelection", () => {
     });
 
     expect(selection.selectedProviderEntry).toBeUndefined();
-  });
-});
-
-describe("checkout Git memory", () => {
-  it("does not confuse an environment id containing the separator with a path", () => {
-    rememberCheckoutIsRepo(EnvironmentId.make("env"), "a:b", false);
-    expect(recallCheckoutIsRepo(EnvironmentId.make("env:a"), "b")).toBeUndefined();
   });
 });
 

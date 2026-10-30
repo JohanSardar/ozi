@@ -1,9 +1,9 @@
-import type { ProjectEntry } from "@t3tools/contracts";
+import type { WorkspaceEntry } from "@t3tools/contracts";
 
 export interface FileTreeNode {
   readonly path: string;
   readonly name: string;
-  readonly kind: ProjectEntry["kind"];
+  readonly kind: WorkspaceEntry["kind"];
   readonly ignored?: boolean;
   readonly children: ReadonlyArray<FileTreeNode>;
 }
@@ -16,7 +16,7 @@ export interface VisibleFileTreeNode {
 interface MutableFileTreeNode {
   path: string;
   name: string;
-  kind: ProjectEntry["kind"];
+  kind: WorkspaceEntry["kind"];
   ignored?: boolean;
   children: Map<string, MutableFileTreeNode>;
 }
@@ -24,7 +24,7 @@ interface MutableFileTreeNode {
 function createMutableNode(
   path: string,
   name: string,
-  kind: ProjectEntry["kind"],
+  kind: WorkspaceEntry["kind"],
 ): MutableFileTreeNode {
   return {
     path,
@@ -56,7 +56,7 @@ function compareNodes(
   return fileNameCollator.compare(left.name, right.name);
 }
 
-export function buildFileTree(entries: ReadonlyArray<ProjectEntry>): ReadonlyArray<FileTreeNode> {
+export function buildFileTree(entries: ReadonlyArray<WorkspaceEntry>): ReadonlyArray<FileTreeNode> {
   const root = createMutableNode("", "", "directory");
 
   for (const entry of entries) {

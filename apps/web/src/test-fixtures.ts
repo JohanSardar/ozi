@@ -6,7 +6,6 @@ import {
   TurnItemId,
   type OrchestrationV2ProjectedTurnItem,
   type OrchestrationV2TurnItem,
-  ProjectId,
   ProviderInstanceId,
   ThreadId,
   type OrchestrationV2ThreadProjection,
@@ -29,7 +28,6 @@ export function makeThreadProjectionFixture(): OrchestrationV2ThreadProjection {
   return {
     thread: {
       id,
-      projectId: ProjectId.make("project-test"),
       title: "Thread",
       providerInstanceId,
       modelSelection: { instanceId: providerInstanceId, model: "gpt-5.4" },
@@ -72,7 +70,6 @@ export function makeThreadProjectionFixture(): OrchestrationV2ThreadProjection {
 export function makeThreadFixture(overrides: ThreadFixtureOverrides = {}): Thread {
   const environmentId = overrides.environmentId ?? EnvironmentId.make("environment-test");
   const id = overrides.id ?? ThreadId.make("thread-test");
-  const projectId = overrides.projectId ?? ProjectId.make("project-test");
   const providerInstanceId =
     overrides.providerInstanceId ??
     overrides.modelSelection?.instanceId ??
@@ -93,7 +90,6 @@ export function makeThreadFixture(overrides: ThreadFixtureOverrides = {}): Threa
       : DateTime.makeUnsafe(overrides.deletedAt);
   const shell = presentThreadShell(environmentId, {
     id,
-    projectId,
     title: overrides.title ?? "Thread",
     providerInstanceId,
     modelSelection,

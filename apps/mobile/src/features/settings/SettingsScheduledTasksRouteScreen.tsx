@@ -1,16 +1,8 @@
 import * as Dialog from "../../components/ui/Dialog";
 import { useAtomValue } from "@effect/atom-react";
-import {
-  AuthOrchestrationOperateScope,
-  resolveProjectProviderInstanceEnabled,
-} from "@t3tools/contracts";
+import { AuthOrchestrationOperateScope } from "@t3tools/contracts";
 import { readEnvironmentScope } from "../../state/session";
-import type {
-  EnvironmentId,
-  ProjectId,
-  ScheduledTask,
-  ScheduledTaskUpsertInput,
-} from "@t3tools/contracts";
+import type { EnvironmentId, ScheduledTask, ScheduledTaskUpsertInput } from "@t3tools/contracts";
 import {
   MAX_WEBHOOK_DELIVERY_AGE_MINUTES,
   MAX_WEBHOOK_FILTERS,
@@ -55,7 +47,7 @@ import { tryCopyTextWithHaptic } from "../../lib/copyTextWithHaptic";
 import { usePreparedConnection } from "../../state/session";
 import { buildModelOptions } from "../../lib/modelOptions";
 import { NativeStackScreenOptions } from "../../native/StackHeader";
-import { useProjects, useEnvironmentServerConfig } from "../../state/entities";
+import { useEnvironmentServerConfig } from "../../state/entities";
 import { useEnvironmentQuery } from "../../state/query";
 import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
@@ -71,11 +63,9 @@ import { SettingsSection } from "./components/SettingsSection";
 import { useSettingsEnvironmentFilter, type SettingsTarget } from "./settings-environment-filter";
 import {
   editDraft,
-  scheduledTaskDefaultModel,
   scheduleFromDraft,
   type ScheduledTaskDraft as Draft,
 } from "./scheduledTaskDraft";
-import { settingsTargetsForProject } from "./settings-environment-filter.logic";
 import { useScheduledTaskEditor } from "./scheduled-task-editor";
 import {
   discardScheduledTaskEditor,
@@ -372,13 +362,8 @@ export function SettingsScheduledTasksRouteScreen() {
       subscription.remove();
     };
   });
-  const { availableTargets, selectedTargets, selectedProjectKey, projectGroups } =
-    useSettingsEnvironmentFilter();
-  const selectedGroup = projectGroups.find((group) => group.key === selectedProjectKey);
-  const visibleEnvironments = settingsTargetsForProject(
-    selectedTargets,
-    selectedProjectKey === null ? null : selectedGroup,
-  );
+  const { availableTargets, selectedTargets } = useSettingsEnvironmentFilter();
+  const visibleEnvironments = selectedTargets;
   const { startEditor, resetEditor } = useScheduledTaskEditor();
   const navigation = useNavigation<NativeStackNavigationProp<ScheduledTaskRoutes>>();
   const insets = useSafeAreaInsets();
@@ -435,15 +420,6 @@ export function SettingsScheduledTasksRouteScreen() {
                 key={environment.environmentId}
                 environment={environment}
                 now={now}
-                projectIds={
-                  selectedProjectKey === null
-                    ? null
-                    : (selectedGroup?.members
-                        .filter(
-                          (member) => member.project.environmentId === environment.environmentId,
-                        )
-                        .map((member) => member.project.id) ?? [])
-                }
                 onEdit={(task) => {
                   startEditor({
                     environmentId: environment.environmentId,
@@ -663,9 +639,8 @@ function TaskForm({
   const tasks = useEnvironmentQuery(
     serverEnvironment.scheduledTasksLive({ environmentId, input: {} }),
   );
-  const projects = useProjects().filter((project) => project.environmentId === environmentId);
   const config = useEnvironmentServerConfig(environmentId);
-  const modelOptions = buildModelOptions(config, null, undefined, draft.projectId);
+  const modelOptions = buildModelOptions(config, null, undefined);
   const canOperate = useAtomValue(
     serverEnvironment.upsertScheduledTask.permissionAtom(environmentId),
   );
@@ -728,21 +703,15 @@ function TaskForm({
       );
       return;
     }
-    if (!projects.some((project) => project.id === draft.projectId)) {
-      Dialog.alert("Project unavailable", "Choose a project in this environment.");
-      return;
-    }
-    if (draft.projectId === null || draft.modelSelection === null || schedule === null) return;
+    if (draft.modelSelection === null || schedule === null) return;
     const input: ScheduledTaskUpsertInput = {
       ...(draft.task ? { id: draft.task.id, requireExisting: true } : {}),
       title: draft.title.trim(),
       prompt: draft.prompt.trim(),
-      projectId: draft.projectId,
       modelSelection: draft.modelSelection,
       schedule,
       enabled: draft.enabled,
       threadId: draft.task?.threadId ?? null,
-      workspaceStrategy: { type: "root" },
       runtimeMode: draft.runtimeMode,
       interactionMode: draft.task?.interactionMode ?? "default",
       creationSource: draft.task?.creationSource ?? "mobile",
@@ -818,39 +787,6 @@ function TaskForm({
         </SettingsSection>
 
         <SettingsSection title="Context">
-          <SelectRow
-            label="Project"
-            value={
-              projects.find((project) => project.id === draft.projectId)?.title ??
-              (projects.length ? "Choose project" : "No projects available")
-            }
-            actions={projects.map((project) => ({
-              id: project.id,
-              title: project.title,
-              state: project.id === draft.projectId ? "on" : undefined,
-            }))}
-            onSelect={(id) => {
-              const project = projects.find((item) => item.id === id);
-              if (!project) return;
-              const keepsExplicitModel =
-                draft.modelSelectionIsExplicit &&
-                (draft.modelSelection === null ||
-                  !config?.settings ||
-                  resolveProjectProviderInstanceEnabled(
-                    config.settings,
-                    project.id,
-                    draft.modelSelection.instanceId,
-                  ));
-              setDraft({
-                ...draft,
-                projectId: project.id,
-                modelSelection: keepsExplicitModel
-                  ? draft.modelSelection
-                  : scheduledTaskDefaultModel(config, project),
-                modelSelectionIsExplicit: keepsExplicitModel,
-              });
-            }}
-          />
           <PickerRow
             label="Model"
             borderTop
@@ -865,21 +801,6 @@ function TaskForm({
             }
             onPress={() => navigation.navigate("SettingsScheduledTaskModel")}
             disabled={saving || dictationPending || environmentUnavailable}
-          />
-        </SettingsSection>
-
-        <SettingsSection title="Workspace">
-          <SelectRow
-            label="Run in"
-            value={draft.workspace === "root" ? "Project checkout" : "Specific checkout"}
-            actions={[
-              {
-                id: "root",
-                title: "Project checkout",
-                state: draft.workspace === "root" ? "on" : undefined,
-              },
-            ]}
-            onSelect={() => {}}
           />
         </SettingsSection>
 
@@ -1195,21 +1116,17 @@ function WebhookScheduleDetails({
 function EnvironmentTasks({
   environment,
   now,
-  projectIds,
   onEdit,
 }: {
   readonly environment: SettingsTarget;
   readonly now: number;
-  readonly projectIds: readonly ProjectId[] | null;
   readonly onEdit: (task: ScheduledTask) => void;
 }) {
   const environmentId = environment.environmentId;
   const tasks = useEnvironmentQuery(
     serverEnvironment.scheduledTasksLive({ environmentId, input: {} }),
   );
-  const visibleTasks = tasks.data?.tasks.filter(
-    (task) => projectIds === null || projectIds.includes(task.projectId),
-  );
+  const visibleTasks = tasks.data?.tasks;
   const canOperate = useAtomValue(
     serverEnvironment.upsertScheduledTask.permissionAtom(environmentId),
   );
@@ -1260,9 +1177,7 @@ function EnvironmentTasks({
       ) : !tasks.data ? (
         <Text className="p-4 text-base text-foreground-muted">Loading tasks…</Text>
       ) : visibleTasks?.length === 0 ? (
-        <Text className="p-4 text-base text-foreground-muted">
-          {projectIds === null ? "No scheduled tasks yet." : "No tasks in this project."}
-        </Text>
+        <Text className="p-4 text-base text-foreground-muted">No scheduled tasks yet.</Text>
       ) : (
         visibleTasks?.map((task, index) => (
           <View

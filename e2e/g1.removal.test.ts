@@ -1,3 +1,4 @@
+import { createProjectFreeUpgrade } from "./fixtures/projectFreeUpgrade.ts";
 import * as NodeChildProcess from "node:child_process";
 import * as NodeFSP from "node:fs/promises";
 import * as NodeEvents from "node:events";
@@ -28,7 +29,7 @@ async function freePort() {
   return port;
 }
 
-it.each(["tools", "chat"] as const)("g1.source-control-removed: %s", async (scenario) => {
+it.each(["tools", "chat", "upgrade"] as const)("g1.project-free: %s", async (scenario) => {
   const home = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "ozi-g1-server-"));
   const stateHome = NodePath.join(home, ".ozi");
   const transport = await startAnthropic(() => ({ text: "g1-chat-ok" }));
@@ -43,6 +44,13 @@ it.each(["tools", "chat"] as const)("g1.source-control-removed: %s", async (scen
   const port = address.port;
   const webPort = await freePort();
   await new Promise<void>((resolve) => reserve.close(() => resolve()));
+  const legacyWorkingDirectory = NodePath.join(home, "legacy-folder");
+  if (scenario === "upgrade") {
+    const directory = NodePath.join(stateHome, "userdata");
+    await NodeFSP.mkdir(directory, { recursive: true });
+    await NodeFSP.mkdir(legacyWorkingDirectory);
+    await createProjectFreeUpgrade(stateHome, legacyWorkingDirectory);
+  }
   const server = NodeChildProcess.spawn(
     process.execPath,
     [
@@ -101,7 +109,14 @@ it.each(["tools", "chat"] as const)("g1.source-control-removed: %s", async (scen
           })
         ).stdout,
       );
-    if (scenario === "tools") {
+    if (scenario === "upgrade") {
+      const chat = await run("thread", "show", "legacy-g1");
+      expect(chat.thread.workingDirectory).toBe(legacyWorkingDirectory);
+      expect(chat.thread).not.toHaveProperty("projectId");
+      expect(await run("thread", "list")).toContainEqual(
+        expect.objectContaining({ threadId: "legacy-g1" }),
+      );
+    } else if (scenario === "tools") {
       const { stdout } = await exec(process.execPath, [
         NodePath.join(root, "apps/server/src/bin.ts"),
         "auth",
@@ -165,20 +180,14 @@ it.each(["tools", "chat"] as const)("g1.source-control-removed: %s", async (scen
       expect(names).toContain("orchestrator_capabilities");
       expect(names).toContain("t3_thread_read");
       expect(
-        names.some((name: string) => /device_|worktree|pull_request|project_clone/.test(name)),
+        names.some((name: string) => /device_|worktree|pull_request|project_/.test(name)),
       ).toBe(false);
       const workspace = NodePath.join(home, "workspace");
       await NodeFSP.mkdir(workspace);
-      await run("project", "add", workspace);
-      const completed = await run(
-        "thread",
-        "start",
-        workspace,
-        "Reply g1-chat-ok without tools.",
-        "--wait",
-      );
+      const completed = await run("thread", "start", "Reply g1-chat-ok without tools.", "--wait");
       expect(JSON.stringify(completed)).toContain("g1-chat-ok");
       const chat = await run("thread", "show", completed.threadId);
+      expect(chat.thread).not.toHaveProperty("projectId");
       expect(chat.thread).not.toHaveProperty("branch");
       expect(chat.thread).not.toHaveProperty("worktreePath");
       await expect(NodeFSP.stat(NodePath.join(workspace, ".git"))).rejects.toThrow();
@@ -217,7 +226,6 @@ it.each(["tools", "chat"] as const)("g1.source-control-removed: %s", async (scen
       const token = new URL(paired.pairingUrl).hash;
       await page.goto(`http://localhost:${webPort}/pair${token}`);
       try {
-        await page.getByRole("button", { name: "Start without a project", exact: true }).click();
         const composer = page.getByRole("textbox", { name: /^Message/ });
         const prompt = "Reply g1-chat-ok without tools.";
         await composer.pressSequentially(prompt);
@@ -235,7 +243,7 @@ it.each(["tools", "chat"] as const)("g1.source-control-removed: %s", async (scen
         const reply = await run("thread", "wait", uiThreadId);
         expect(reply.reply).toContain("g1-chat-ok");
         await page.getByText("g1-chat-ok", { exact: true }).waitFor();
-        await page.screenshot({ path: "/tmp/g1-part2-e2e.png", fullPage: true });
+        await page.screenshot({ path: "/tmp/g1-project-free-e2e.png", fullPage: true });
         expect(await page.getByText("Something went wrong.", { exact: true }).count()).toBe(0);
         expect(
           await page

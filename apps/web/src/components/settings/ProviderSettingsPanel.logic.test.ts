@@ -1,32 +1,9 @@
-import {
-  AuthProvidersManageScope,
-  ProjectId,
-  ProviderInstanceId,
-  type ServerSettings,
-} from "@t3tools/contracts";
+import { AuthProvidersManageScope } from "@t3tools/contracts";
 import { describe, expect, it } from "vite-plus/test";
 
-import {
-  buildProviderInstanceOverridePatch,
-  resolveRemoteOperateAccess,
-} from "./ProviderSettingsPanel.logic";
+import { resolveRemoteOperateAccess } from "./ProviderSettingsPanel.logic";
 
-describe("buildProviderInstanceOverridePatch", () => {
-  const projectId = ProjectId.make("project-a");
-  const instanceId = ProviderInstanceId.make("codex_work");
-
-  it("resets the only override by clearing the whole project entry", () => {
-    const settings: Pick<ServerSettings, "projectSettingsOverrides"> = {
-      projectSettingsOverrides: {
-        [projectId]: { providerInstances: { [instanceId]: { enabled: true } } },
-      },
-    };
-
-    expect(
-      buildProviderInstanceOverridePatch(settings, [projectId], instanceId, undefined),
-    ).toEqual({ [projectId]: null });
-  });
-});
+describe("buildProviderInstanceOverridePatch", () => {});
 
 describe("remote operate access", () => {
   it("does not treat the old orchestration grant as provider management", () => {

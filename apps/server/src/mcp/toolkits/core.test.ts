@@ -37,7 +37,6 @@ import * as ThreadLaunchService from "../../orchestration-v2/ThreadLaunchService
 import * as ThreadManagement from "../../orchestration-v2/ThreadManagementService.ts";
 import * as ThreadSearch from "../../orchestration-v2/ThreadSearch.ts";
 import * as PreviewBrowser from "../../preview/PreviewBrowser.ts";
-import * as ProjectService from "../../project/ProjectService.ts";
 import * as ProviderRegistry from "../../provider/ProviderRegistry.ts";
 import * as SecretRequests from "../../secrets/SecretRequests.ts";
 import * as RemoteDelegation from "../../peer/RemoteDelegation.ts";
@@ -158,7 +157,7 @@ it.effect("an answered question reports already answered instead of not found", 
         Layer.provide(
           Layer.mock(ThreadManagement.ThreadManagementService)({
             getThreadShell: () => Effect.succeed(shell),
-            getProjectThreadRecords: () =>
+            getActiveThreadRecords: () =>
               Effect.succeed({
                 ...projection,
                 runtimeRequests: [
@@ -317,7 +316,7 @@ it.effect("records only failed calls of tools that hand off no work", () => {
         Layer.provide(
           Layer.mock(ThreadManagement.ThreadManagementService)({
             getThreadShell: (id) => Effect.succeed(McpToolAccessTestkit.liveThreadShell(id)),
-            getProjectThreadRecords: ({ threadId: id }) =>
+            getActiveThreadRecords: ({ threadId: id }) =>
               Effect.succeed(
                 McpToolAccessTestkit.idleThreadProjection(McpToolAccessTestkit.liveThreadShell(id)),
               ),
@@ -465,11 +464,10 @@ it.effect("a client caller targets any thread within its ceiling and cannot act 
           Layer.mock(ThreadManagement.ThreadManagementService)({
             getThreadShell: (id) =>
               Effect.succeed(McpToolAccessTestkit.liveThreadShell(id, { runtimeMode: "auto" })),
-            getProjectThreadRecords: () =>
+            getActiveThreadRecords: () =>
               Effect.succeed({
                 thread: {
                   id: ThreadId.make("other-project-thread"),
-                  projectId: "other-project",
                   runtimeMode: "auto",
                   interactionMode: "default",
                   deletedAt: null,
@@ -526,14 +524,12 @@ it.effect("a read-only client reads threads and is refused every write before it
             getThreadShell: () =>
               Effect.succeed({
                 id: ThreadId.make("other-project-thread"),
-                projectId: "other-project",
                 deletedAt: null,
               } as never),
-            getProjectThreadRecords: () =>
+            getActiveThreadRecords: () =>
               Effect.succeed({
                 thread: {
                   id: ThreadId.make("other-project-thread"),
-                  projectId: "other-project",
                   modelSelection: { instanceId: "codex", model: "gpt-5" },
                   runtimeMode: "auto",
                   interactionMode: "default",
@@ -582,7 +578,6 @@ it.effect("refuses act-as-caller tools to a client caller", () =>
         Layer.provide(Layer.mock(PeerForwarding.PeerForwarding)({})),
         Layer.provide(Layer.mock(PeerLinkRequests.PeerLinkRequests)({})),
         Layer.provide(Layer.mock(PeerLinks.PeerLinks)({})),
-        Layer.provide(Layer.mock(ProjectService.ProjectService)({})),
         Layer.provide(Layer.mock(SecretRequests.SecretRequests)({})),
         Layer.provide(Layer.mock(RemoteDelegation.RemoteDelegation)({})),
       ),
@@ -638,7 +633,6 @@ it.effect("a caller cannot rewrite a scheduled task that runs above its own mode
               } as never),
           }),
         ),
-        Layer.provide(Layer.mock(ProjectService.ProjectService)({})),
         Layer.provide(Layer.mock(SecretRequests.SecretRequests)({})),
         Layer.provide(Layer.mock(PeerForwarding.PeerForwarding)({})),
         Layer.provide(Layer.mock(PeerLinkRequests.PeerLinkRequests)({})),
@@ -655,10 +649,8 @@ function scheduledTask(id: string, runtimeMode: "auto" | "full-access"): never {
     title: id,
     prompt: "Check the build",
     enabled: true,
-    projectId: "project-a",
     threadId: null,
     schedule: { type: "interval", everyMs: 3_600_000 },
-    workspaceStrategy: { type: "worktree", baseRef: "main", startFromOrigin: true },
     modelSelection: { instanceId: "codex", model: "gpt-5" },
     runtimeMode,
     interactionMode: "default",
@@ -702,16 +694,14 @@ it.effect.each(["t3_thread_interrupt", "t3_workflow_stop"])(
             Layer.mock(ThreadManagement.ThreadManagementService)({
               getThreadShell: () =>
                 Effect.succeed({
-                  projectId: "project-a",
                   deletedAt: null,
                   runtimeMode: "full-access",
                   interactionMode: "default",
                 } as never),
-              getProjectThreadRecords: () =>
+              getActiveThreadRecords: () =>
                 Effect.succeed({
                   thread: {
                     id: ThreadId.make("full-access-thread"),
-                    projectId: "project-a",
                     runtimeMode: "full-access",
                     interactionMode: "default",
                     deletedAt: null,
@@ -726,7 +716,6 @@ it.effect.each(["t3_thread_interrupt", "t3_workflow_stop"])(
           Layer.provide(Layer.mock(ProviderRegistry.ProviderRegistry)({})),
           Layer.provide(Layer.mock(ProviderAdapterRegistry.ProviderAdapterRegistryV2)({})),
           Layer.provide(Layer.mock(ScheduledTaskService.ScheduledTaskService)({})),
-          Layer.provide(Layer.mock(ProjectService.ProjectService)({})),
           Layer.provide(Layer.mock(SecretRequests.SecretRequests)({})),
           Layer.provide(Layer.mock(RemoteDelegation.RemoteDelegation)({})),
           Layer.provide(Layer.mock(PeerForwarding.PeerForwarding)({})),

@@ -1,6 +1,5 @@
 import {
   EnvironmentId,
-  ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
   ThreadId,
@@ -52,7 +51,6 @@ import { AcpSessionManagementSection } from "./AcpSessionManagementSection";
 
 const environmentId = EnvironmentId.make("remote-device");
 const instanceId = ProviderInstanceId.make("acpRegistry_antigravity");
-const projectId = ProjectId.make("project-antigravity");
 const session = {
   sessionId: "native-session-1",
   cwd: "/workspace/antigravity",
@@ -83,7 +81,6 @@ async function renderSection(readOnly = false) {
       environmentId={environmentId}
       instanceId={instanceId}
       provider={provider}
-      projects={[{ id: projectId, title: "Antigravity", workspaceRoot: session.cwd }]}
       readOnly={readOnly}
     />,
   );

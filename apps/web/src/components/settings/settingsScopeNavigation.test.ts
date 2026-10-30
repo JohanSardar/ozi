@@ -14,9 +14,7 @@ import { retainSettingsScope, validateSettingsRouteSearch } from "./settingsScop
 import { validateScheduledTasksSearch } from "./scheduledTasksSettings.logic";
 
 const checkoutSearch = {
-  project: "repository:ozi",
   machine: "remote-server",
-  checkout: "remote-server:/home/user/Ozi",
 };
 
 function createSettingsRouter(initialEntry = "/settings/general") {
@@ -33,7 +31,6 @@ function createSettingsRouter(initialEntry = "/settings/general") {
     },
   });
   const general = createRoute({ getParentRoute: () => settings, path: "general" });
-  const projects = createRoute({ getParentRoute: () => settings, path: "projects" });
   const integrations = createRoute({ getParentRoute: () => settings, path: "integrations" });
   const providers = createRoute({
     getParentRoute: () => settings,
@@ -52,85 +49,15 @@ function createSettingsRouter(initialEntry = "/settings/general") {
     path: "scheduled-tasks",
     validateSearch: validateScheduledTasksSearch,
   });
-  const legacyProject = createRoute({
-    getParentRoute: () => root,
-    path: "projects/$projectKey",
-    beforeLoad: ({ params }) => {
-      throw redirect({
-        to: "/settings/projects",
-        search: { project: params.projectKey, machine: undefined },
-        replace: true,
-      });
-    },
-  });
   return createRouter({
     routeTree: root.addChildren([
-      settings.addChildren([general, projects, integrations, providers, scheduledTasks]),
-      legacyProject,
+      settings.addChildren([general, integrations, providers, scheduledTasks]),
     ]),
     history: createMemoryHistory({ initialEntries: [initialEntry] }),
   });
 }
 
 describe("settings scope navigation", () => {
-  it("clears a checkout when selecting all environments and all projects", async () => {
-    const router = createSettingsRouter();
-    await router.navigate({ to: "/settings/general", search: checkoutSearch, hash: "old-setting" });
-    await router.navigate({
-      to: "/settings/general",
-      search: { project: undefined, machine: undefined, checkout: undefined },
-      hash: "",
-    });
-    expect(router.state.location.search).toEqual({});
-    expect(router.state.location.hash).toBe("");
-  });
-
-  it.each(["/settings/projects", "/settings/scheduled-tasks"] as const)(
-    "keeps %s when regrouping or selecting a target from the shared settings layout",
-    async (to) => {
-      const router = createSettingsRouter();
-      await router.navigate({ to, search: checkoutSearch });
-
-      const regroupedCheckout = { ...checkoutSearch, project: "separate:ozi" };
-      await router.navigate({
-        from: "/settings",
-        to: router.state.location.pathname,
-        search: () => regroupedCheckout,
-        replace: true,
-        hashScrollIntoView: false,
-      });
-      expect(router.state.location.pathname).toBe(to);
-      expect(router.state.location.search).toEqual(regroupedCheckout);
-      expect(router.state.redirect).toBeUndefined();
-
-      await router.navigate({
-        from: "/settings",
-        to: router.state.location.pathname,
-        search: () => ({ machine: "another-server" }),
-        hash: "",
-        resetScroll: false,
-      });
-      expect(router.state.location.pathname).toBe(to);
-      expect(router.state.location.search).toEqual({ machine: "another-server" });
-      expect(router.state.location.hash).toBe("");
-
-      const selectedCheckout = {
-        project: "another-project",
-        machine: "another-server",
-        checkout: "another-server:/home/user/Another checkout",
-      };
-      await router.navigate({
-        from: "/settings",
-        to: router.state.location.pathname,
-        search: () => selectedCheckout,
-        hash: "requested-setting",
-      });
-      expect(router.state.location.pathname).toBe(to);
-      expect(router.state.location.search).toEqual(selectedCheckout);
-      expect(router.state.location.hash).toBe("requested-setting");
-    },
-  );
-
   it("honors an explicit provider environment and drops its instance on category navigation", async () => {
     const router = createSettingsRouter();
     await router.navigate({ to: "/settings/general", search: checkoutSearch });
@@ -165,44 +92,14 @@ describe("settings scope navigation", () => {
     await router.navigate({ to: "/settings/general", search: { machine: "removed" } });
     expect(router.state.location.search).toEqual({ machine: "removed" });
     expect(
-      resolveSettingsScope(
-        router.state.location.search,
-        [],
-        [{ environmentId: EnvironmentId.make("online"), label: "Online" }],
-      ),
+      resolveSettingsScope(router.state.location.search, [
+        { environmentId: EnvironmentId.make("online"), label: "Online" },
+      ]),
     ).toMatchObject({
       kind: "unavailable",
       reason: "environment-missing",
       environmentIds: [],
     });
-  });
-
-  it("preserves escaped checkout identifiers across reload and browser history", async () => {
-    const router = createSettingsRouter();
-    await router.navigate({ to: "/settings/general", search: checkoutSearch });
-    const checkoutHref = router.state.location.href;
-    await router.navigate({ to: "/settings/general", search: { machine: "another" } });
-    router.history.back();
-    await router.load();
-    expect(router.state.location.search).toEqual(checkoutSearch);
-    const reloaded = createSettingsRouter(checkoutHref);
-    await reloaded.load();
-    expect(reloaded.state.location.search).toEqual(checkoutSearch);
-    await reloaded.navigate({ to: "/settings/integrations", hash: "agent-browser-access" });
-    expect(reloaded.state.location.search).toEqual(checkoutSearch);
-  });
-
-  it("redirects legacy project links without carrying the prior checkout scope", async () => {
-    const router = createSettingsRouter();
-    await router.navigate({ to: "/settings/general", search: checkoutSearch });
-    await router.navigate({
-      to: "/projects/$projectKey",
-      params: { projectKey: "legacy-project" },
-    });
-    expect(router.state.redirect).not.toBeUndefined();
-    await router.navigate(router.state.redirect!.options);
-    expect(router.state.location.pathname).toBe("/settings/projects");
-    expect(router.state.location.search).toEqual({ project: "legacy-project" });
   });
 
   it("keeps scope through the settings index redirect", async () => {
@@ -233,7 +130,7 @@ describe("scheduled task scope navigation", () => {
     await router.navigate({
       from: "/settings",
       to: router.state.location.pathname,
-      search: () => ({ machine: undefined, project: undefined, checkout: undefined }),
+      search: () => ({ machine: undefined }),
     });
     expect(router.state.matches.at(-1)?.search).toEqual({});
   });

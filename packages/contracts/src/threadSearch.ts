@@ -3,7 +3,6 @@ import * as Schema from "effect/Schema";
 import {
   IsoDateTime,
   MessageId,
-  ProjectId,
   ThreadId,
   TrimmedNonEmptyString,
   TrimmedString,
@@ -28,7 +27,6 @@ export type OrchestrationSearchThreadsInput = typeof OrchestrationSearchThreadsI
 
 export const OrchestrationThreadSearchMatch = Schema.Struct({
   threadId: ThreadId,
-  projectId: ProjectId,
   source: OrchestrationThreadSearchSource,
   snippet: Schema.String.check(Schema.isMaxLength(240)),
   messageCreatedAt: Schema.NullOr(IsoDateTime),

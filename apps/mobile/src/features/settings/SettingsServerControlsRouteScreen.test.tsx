@@ -12,7 +12,7 @@ const { Children, mocks } = vi.hoisted(() => ({
     alert: vi.fn(),
     targets: [] as ReturnType<typeof environment>[],
     readOnly: new Set<string>(),
-    projectSelected: false,
+    false: false,
   },
 }));
 
@@ -118,12 +118,9 @@ vi.mock("./settings-environment-filter", () => ({
       {
         key: "project",
         label: "Project",
-        members: mocks.targets.map((target) => ({
-          project: { environmentId: target.environmentId, id: "project" },
-        })),
+        members: mocks.targets.map(() => ({})),
       },
     ],
-    selectedProjectKey: mocks.projectSelected ? "project" : null,
   }),
 }));
 
@@ -140,7 +137,7 @@ function environment(environmentId: string, label: string) {
         sidebarAutoSettleOnMerge: false,
       },
       environment: {
-        capabilities: { projectSettingsOverrides: true, threadAutoSettlement: true },
+        capabilities: { threadAutoSettlement: true },
       },
     },
   };
@@ -154,7 +151,6 @@ beforeEach(() => {
   container = document.createElement("div");
   root = createRoot(container);
   mocks.targets = [environment("local", "Local")];
-  mocks.projectSelected = false;
   mocks.readOnly = new Set();
   mocks.alert.mockReset();
   mocks.updateSettings.mockReset();
@@ -166,24 +162,6 @@ afterEach(() => {
 });
 
 describe("SettingsServerControlsRouteScreen", () => {
-  it("holds auto-settle changes until a pending project override write settles", async () => {
-    mocks.projectSelected = true;
-    const pending = Promise.withResolvers<AsyncResult.Success<void>>();
-    mocks.updateSettings.mockReturnValueOnce(pending.promise);
-    act(() => root.render(<SettingsThreadsRouteScreen />));
-    const toggle = (label: string) =>
-      [...container.querySelectorAll<HTMLButtonElement>('[role="switch"]')].find(
-        (button) => button.textContent === label,
-      )!;
-
-    act(() => toggle("Agent browser access").click());
-    act(() => toggle("Auto-settle merged threads").click());
-
-    // Both rewrite the whole project override, so a second write planned now would drop the first.
-    expect(mocks.updateSettings).toHaveBeenCalledOnce();
-    await act(async () => pending.resolve(AsyncResult.success(undefined)));
-  });
-
   it("disables auto-settle when a selected environment cannot save settings", () => {
     const remote = environment("remote", "Remote");
     // Auto-settle rows skip a server without auto-settlement, but the page still saves to it.

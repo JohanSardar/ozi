@@ -7,8 +7,6 @@ import {
   ServerSettingsPatch,
   ProviderInstanceMutation,
   requiredScopesForServerSettingsPatch,
-  requiredScopesForProjectMutation,
-  ProjectMutation,
   AuthSettingsWriteScope,
   AuthProvidersManageScope,
   AuthEnvironmentMaintainScope,
@@ -53,7 +51,6 @@ export const RPC_REQUIRED_SCOPES = {
   [ORCHESTRATION_V2_WS_METHODS.subscribeShell]: AuthOrchestrationReadScope,
   [ORCHESTRATION_V2_WS_METHODS.subscribeThread]: AuthOrchestrationReadScope,
   [ORCHESTRATION_V2_WS_METHODS.subscribeCommandOutput]: AuthOrchestrationReadScope,
-  [WS_METHODS.projectsMutate]: AuthOrchestrationOperateScope,
   [WS_METHODS.serverProbe]: AuthOrchestrationReadScope,
   [WS_METHODS.serverGetConfig]: AuthOrchestrationReadScope,
   [WS_METHODS.serverRefreshProviders]: AuthOrchestrationReadScope,
@@ -110,18 +107,14 @@ export const RPC_REQUIRED_SCOPES = {
   [WS_METHODS.scheduledTasksGetWebhookDelivery]: AuthOrchestrationOperateScope,
   [WS_METHODS.cloudGetRelayClientStatus]: AuthRelayReadScope,
   [WS_METHODS.cloudInstallRelayClient]: AuthRelayWriteScope,
-  [WS_METHODS.projectsListEntries]: AuthFilesystemReadScope,
-  [WS_METHODS.projectsReadFile]: AuthFilesystemReadScope,
-  [WS_METHODS.projectsSearchContents]: AuthFilesystemReadScope,
-  [WS_METHODS.projectsSearchEntries]: AuthFilesystemReadScope,
-  [WS_METHODS.projectsWriteFile]: AuthFilesystemWriteScope,
-  [WS_METHODS.projectsEnsureScratch]: AuthOrchestrationOperateScope,
-  [WS_METHODS.projectsCreateNew]: AuthOrchestrationOperateScope,
+  [WS_METHODS.workspaceListEntries]: AuthFilesystemReadScope,
+  [WS_METHODS.workspaceReadFile]: AuthFilesystemReadScope,
+  [WS_METHODS.workspaceSearchContents]: AuthFilesystemReadScope,
+  [WS_METHODS.workspaceSearchEntries]: AuthFilesystemReadScope,
+  [WS_METHODS.workspaceWriteFile]: AuthFilesystemWriteScope,
   [WS_METHODS.shellOpenInEditor]: AuthOrchestrationOperateScope,
   [WS_METHODS.filesystemBrowse]: AuthFilesystemReadScope,
   [WS_METHODS.filesystemGetMetadata]: AuthFilesystemReadScope,
-  [WS_METHODS.agentSessionsScan]: AuthOrchestrationReadScope,
-  [WS_METHODS.agentSessionsImport]: AuthOrchestrationOperateScope,
   [WS_METHODS.assetsCreateUrl]: AuthOrchestrationReadScope,
   [WS_METHODS.assetsPersistChatAttachments]: AuthOrchestrationOperateScope,
   [WS_METHODS.attachmentsCreateUploadUrl]: AuthOrchestrationOperateScope,
@@ -187,8 +180,6 @@ const requiredScopesForSettingsUpdate = (payload: unknown) => {
     ? [AuthProvidersManageScope]
     : [...new Set([...scopes, AuthProvidersManageScope])];
 };
-
-const decodeProjectMutation = Schema.decodeUnknownSync(ProjectMutation);
 const decodeAssetCreateUrlInput = Schema.decodeUnknownSync(AssetCreateUrlInput);
 
 const requiredScopesForRpcCall = (
@@ -209,9 +200,6 @@ const requiredScopesForRpcCall = (
     ];
   }
   if (method === WS_METHODS.serverUpdateSettings) return requiredScopesForSettingsUpdate(payload);
-  if (method === WS_METHODS.projectsMutate) {
-    return requiredScopesForProjectMutation(decodeProjectMutation(payload));
-  }
   const guarded = clientRpcRequiredScopes(method);
   if (guarded.length > 0) return guarded;
   return [requiredScopeForRpcMethod(method)];

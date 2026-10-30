@@ -5,7 +5,6 @@ import {
   type OrchestrationV2ThreadProjection,
   type OrchestrationV2TurnItem,
   MessageId,
-  ProjectId,
   ProviderInstanceId,
   NodeId,
   ProviderThreadId,
@@ -64,7 +63,6 @@ function commandItem(id: string, output = "done", ordinal = 1): OrchestrationV2T
 const emptyProjection = {
   thread: {
     id: threadId,
-    projectId: ProjectId.make("project-reducer"),
     title: "Reducer",
     providerInstanceId: ProviderInstanceId.make("codex"),
     modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.4" },

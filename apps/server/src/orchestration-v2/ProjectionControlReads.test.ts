@@ -3,7 +3,6 @@ import {
   EventId,
   MessageId,
   NodeId,
-  ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
   ProviderSessionId,
@@ -47,7 +46,6 @@ function fixtureEvents(now: DateTime.Utc): ReadonlyArray<OrchestrationV2DomainEv
       type: "thread.created",
       payload: {
         id: threadId,
-        projectId: ProjectId.make("project:control-reads"),
         title: "Control reads",
         providerInstanceId,
         modelSelection,

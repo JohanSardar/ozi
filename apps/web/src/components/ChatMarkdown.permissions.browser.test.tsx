@@ -1,7 +1,6 @@
 import {
   AuthOrchestrationOperateScope,
   EnvironmentId,
-  ProjectId,
   ThreadId,
   type AuthEnvironmentScope,
   type EditorId,
@@ -68,7 +67,6 @@ vi.mock(import("../state/server"), async (original) => {
 vi.mock(import("../state/entities"), async (original) => ({
   ...(await original()),
   readThreadShell: (() => ({})) as never,
-  useProjects: (() => [{ id: projectId, environmentId: threadRef.environmentId }]) as never,
 }));
 vi.mock(import("../remoteOpen"), async (original) => ({
   ...(await original()),
@@ -94,7 +92,6 @@ const threadRef = {
   environmentId: EnvironmentId.make("selected"),
   threadId: ThreadId.make("thread"),
 };
-const projectId = ProjectId.make("project");
 const serverConfig = {
   availableEditors: ["vscode", "file-manager"] as readonly EditorId[],
   shellRevealInFileManager: true,

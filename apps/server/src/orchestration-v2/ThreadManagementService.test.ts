@@ -11,7 +11,6 @@ import {
   ProviderSessionId,
   type OrchestrationV2StoredEvent,
   type OrchestrationV2ThreadProjection,
-  ProjectId,
   ProviderInstanceId,
   RunId,
   ThreadId,
@@ -43,7 +42,6 @@ it("stamps authoritative provenance on commands that create threads or messages"
     creationSource: "mcp",
     commandId: CommandId.make("command:thread-management:create"),
     threadId: ThreadId.make("thread:thread-management:create"),
-    projectId: ProjectId.make("project:thread-management"),
     title: "Thread management",
     modelSelection: {
       instanceId: ProviderInstanceId.make("codex"),
@@ -87,7 +85,6 @@ const layerDispatchChokepointTest =
             Effect.succeed({
               thread: {
                 id: ThreadId.make("thread:thread-management:chokepoint"),
-                projectId: ProjectId.make("project:thread-management:chokepoint"),
                 deletedAt: null,
                 modelSelection: {
                   instanceId: ProviderInstanceId.make("codex_work"),
@@ -107,51 +104,8 @@ const layerDispatchChokepointTest =
     );
 
 it.effect(
-  "the dispatch chokepoint refuses a continuation message.dispatch on a project-disabled instance before reaching the orchestrator",
-  () => {
-    const projectId = ProjectId.make("project:thread-management:chokepoint");
-    const threadId = ThreadId.make("thread:thread-management:chokepoint");
-    const instanceId = ProviderInstanceId.make("codex_work");
-    const commandId = CommandId.make("command:thread-management:chokepoint-disabled");
-    const dispatched: Array<string> = [];
-    const layerTest = layerDispatchChokepointTest(
-      ServerSettings.layerTest({
-        providerInstances: { [instanceId]: { driver: "codex", enabled: true } },
-        projectSettingsOverrides: {
-          [projectId]: { providerInstances: { [instanceId]: { enabled: false } } },
-        },
-      }),
-    )(dispatched);
-
-    return Effect.gen(function* () {
-      const threads = yield* ThreadManagementService.ThreadManagementService;
-      const error = yield* Effect.flip(
-        threads.dispatch({
-          type: "message.dispatch",
-          commandId,
-          threadId,
-          messageId: MessageId.make("message:thread-management:chokepoint-disabled"),
-          text: "Background task completed.",
-          attachments: [],
-          dispatchMode: { type: "queue_after_active" },
-          createdBy: "agent",
-          creationSource: "server",
-        }),
-      );
-
-      expect(error).toBeInstanceOf(
-        ThreadManagementService.ThreadManagementProviderInstanceDisabledError,
-      );
-      expect(error).toMatchObject({ projectId, instanceId });
-      expect(dispatched).toEqual([]);
-    }).pipe(Effect.provide(layerTest));
-  },
-);
-
-it.effect(
   "a replay of an already-accepted command id dispatches despite the instance now being disabled",
   () => {
-    const projectId = ProjectId.make("project:thread-management:chokepoint");
     const threadId = ThreadId.make("thread:thread-management:chokepoint");
     const instanceId = ProviderInstanceId.make("codex_work");
     const commandId = CommandId.make("command:thread-management:chokepoint-replay");
@@ -159,9 +113,6 @@ it.effect(
     const layerTest = layerDispatchChokepointTest(
       ServerSettings.layerTest({
         providerInstances: { [instanceId]: { driver: "codex", enabled: true } },
-        projectSettingsOverrides: {
-          [projectId]: { providerInstances: { [instanceId]: { enabled: false } } },
-        },
       }),
     )(dispatched);
 
@@ -197,7 +148,6 @@ it.effect(
 
 it.effect("waitForThread follows a restart continuation instead of the cut run", () =>
   Effect.gen(function* () {
-    const projectId = ProjectId.make("project:thread-management:wait-restart");
     const threadId = ThreadId.make("thread:thread-management:wait-restart");
     const runId = RunId.make("run:thread-management:wait-restart");
     const continuationId = RunId.make("run:thread-management:wait-restart:2");
@@ -229,7 +179,7 @@ it.effect("waitForThread follows a restart continuation instead of the cut run",
             Effect.sync(
               () =>
                 ({
-                  thread: { id: threadId, projectId, deletedAt: null },
+                  thread: { id: threadId, deletedAt: null },
                   runs,
                 }) as unknown as OrchestrationV2ThreadProjection,
             ),
@@ -242,7 +192,7 @@ it.effect("waitForThread follows a restart continuation instead of the cut run",
       Effect.provide(layerTest),
     );
     const fiber = yield* service
-      .waitForThread({ projectId, threadId, runId, timeoutMs: 60 * 60 * 1_000 })
+      .waitForThread({ threadId, runId, timeoutMs: 60 * 60 * 1_000 })
       .pipe(Effect.forkChild);
     yield* Deferred.await(subscribed);
     const continuation = { id: continuationId, restartContinuationOfRunId: runId };
@@ -268,7 +218,6 @@ it.effect("waitForThread follows a restart continuation instead of the cut run",
 
 it.effect("waitForThread can wait past an ended run for the thread's delegated work", () =>
   Effect.gen(function* () {
-    const projectId = ProjectId.make("project:thread-management:wait-delegated");
     const threadId = ThreadId.make("thread:thread-management:wait-delegated");
     const runId = RunId.make("run:thread-management:wait-delegated");
     const wakeRunId = RunId.make("run:thread-management:wait-delegated:wake");
@@ -306,7 +255,7 @@ it.effect("waitForThread can wait past an ended run for the thread's delegated w
             Effect.sync(
               () =>
                 ({
-                  thread: { id: threadId, projectId, deletedAt: null },
+                  thread: { id: threadId, deletedAt: null },
                   runs,
                   messages: [],
                   subagents,
@@ -323,15 +272,14 @@ it.effect("waitForThread can wait past an ended run for the thread's delegated w
     );
     // Without the option, the ended run is the answer, as before.
     expect(
-      yield* service.waitForThread({ projectId, threadId, runId, timeoutMs: 60 * 60 * 1_000 }),
+      yield* service.waitForThread({ threadId, runId, timeoutMs: 60 * 60 * 1_000 }),
     ).toMatchObject({ timedOut: false, run: { id: runId } });
     expect(
-      yield* service.waitForThread({ projectId, threadId, runId, timeoutMs: 60 * 60 * 1_000 }),
+      yield* service.waitForThread({ threadId, runId, timeoutMs: 60 * 60 * 1_000 }),
     ).not.toHaveProperty("resultRun");
 
     const fiber = yield* service
       .waitForThread({
-        projectId,
         threadId,
         runId,
         timeoutMs: 60 * 60 * 1_000,
@@ -356,7 +304,6 @@ it.effect("waitForThread can wait past an ended run for the thread's delegated w
 
 it.effect("waitForThread settles delegated work on a thread rolled back past its only run", () =>
   Effect.gen(function* () {
-    const projectId = ProjectId.make("project:thread-management:wait-rolled-back");
     const threadId = ThreadId.make("thread:thread-management:wait-rolled-back");
     const runId = RunId.make("run:thread-management:wait-rolled-back");
     const rolledBack = {
@@ -376,7 +323,7 @@ it.effect("waitForThread settles delegated work on a thread rolled back past its
           streamStoredEventsFrom: () => Stream.never,
           getThreadRecords: () =>
             Effect.succeed({
-              thread: { id: threadId, projectId, deletedAt: null },
+              thread: { id: threadId, deletedAt: null },
               runs: [rolledBack],
               messages: [],
               subagents: [],
@@ -392,7 +339,6 @@ it.effect("waitForThread settles delegated work on a thread rolled back past its
     );
     const fiber = yield* service
       .waitForThread({
-        projectId,
         threadId,
         runId,
         timeoutMs: 60_000,
@@ -413,7 +359,6 @@ it.effect("waitForThread settles delegated work on a thread rolled back past its
 
 it.effect("waitForThread returns the cut run once its continuation is declined", () =>
   Effect.gen(function* () {
-    const projectId = ProjectId.make("project:thread-management:wait-declined");
     const threadId = ThreadId.make("thread:thread-management:wait-declined");
     const runId = RunId.make("run:thread-management:wait-declined");
     const subscribed = yield* Deferred.make<void>();
@@ -435,7 +380,7 @@ it.effect("waitForThread returns the cut run once its continuation is declined",
               : Stream.never,
           getThreadRecords: () =>
             Effect.succeed({
-              thread: { id: threadId, projectId, deletedAt: null },
+              thread: { id: threadId, deletedAt: null },
               runs: [{ id: runId, status: "cancelled" }],
             } as unknown as OrchestrationV2ThreadProjection),
         }),
@@ -447,7 +392,7 @@ it.effect("waitForThread returns the cut run once its continuation is declined",
       Effect.provide(layerTest),
     );
     const fiber = yield* service
-      .waitForThread({ projectId, threadId, runId, timeoutMs: 60 * 60 * 1_000 })
+      .waitForThread({ threadId, runId, timeoutMs: 60 * 60 * 1_000 })
       .pipe(Effect.forkChild);
     yield* Deferred.await(subscribed);
     pending = false;
@@ -561,7 +506,6 @@ it.effect.each([
   { status: "interrupted" as const, settles: false },
 ])("settleAfterRun settles only when the run $status", ({ status, settles }) =>
   Effect.gen(function* () {
-    const projectId = ProjectId.make("project:thread-management:settle-after-run");
     const threadId = ThreadId.make("thread:thread-management:settle-after-run");
     const runId = RunId.make("run:thread-management:settle-after-run");
     const dispatched: Array<string> = [];
@@ -573,7 +517,7 @@ it.effect.each([
           restartContinuationPending: () => Effect.succeed(false),
           getThreadRecords: () =>
             Effect.succeed({
-              thread: { id: threadId, projectId, deletedAt: null },
+              thread: { id: threadId, deletedAt: null },
               runs: [{ id: runId, status }],
             } as unknown as OrchestrationV2ThreadProjection),
           dispatch: (command) =>
@@ -590,7 +534,7 @@ it.effect.each([
       Effect.provide(layerTest),
     );
 
-    yield* service.settleAfterRun({ projectId, threadId, runId });
+    yield* service.settleAfterRun({ threadId, runId });
 
     expect(dispatched).toEqual(settles ? ["thread.settle"] : []);
   }),

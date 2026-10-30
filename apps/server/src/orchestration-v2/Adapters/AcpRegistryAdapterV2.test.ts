@@ -3,7 +3,6 @@ import { assert, describe, it } from "@effect/vitest";
 import {
   MessageId,
   NodeId,
-  ProjectId,
   RunAttemptId,
   RunId,
   type ModelSelection,
@@ -287,7 +286,6 @@ const openClaudeReplaySession = Effect.fn("openClaudeReplaySession")(function* (
       createdBy: "user",
       creationSource: "web",
       id: threadId,
-      projectId: ProjectId.make(`project-claude-lifecycle`),
       title: "Claude Agent",
       providerInstanceId: instanceId,
       modelSelection,

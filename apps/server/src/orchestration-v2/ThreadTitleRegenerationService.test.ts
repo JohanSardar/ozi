@@ -1,9 +1,10 @@
+import * as NodeServices from "@effect/platform-node/NodeServices";
+import * as ServerConfig from "../config.ts";
 import { assert, describe, it, vi } from "@effect/vitest";
 import {
   CommandId,
   EventId,
   MessageId,
-  ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
   ProviderThreadId,
@@ -13,10 +14,8 @@ import {
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import * as Option from "effect/Option";
 
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
-import * as ProjectStore from "./ProjectStore.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as TextGeneration from "../textGeneration/TextGeneration.ts";
 import { CodexProviderCapabilitiesV2 } from "./Adapters/CodexAdapterV2.ts";
@@ -28,8 +27,6 @@ import * as ThreadManagement from "./ThreadManagementService.ts";
 import * as ThreadTitleRegeneration from "./ThreadTitleRegenerationService.ts";
 import * as ProviderReplayHarness from "./testkit/ProviderReplayHarness.ts";
 import type * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAdapter";
-
-const projectId = ProjectId.make("project:title-regeneration");
 const modelSelection = {
   instanceId: ProviderInstanceId.make("codex"),
   model: "gpt-5.1-codex",
@@ -65,30 +62,13 @@ function makeHarness(
   const generateThreadTitle = vi.fn(
     options.generateTitle ?? (() => Effect.succeed({ title: "Generated title" })),
   );
-  const layerProjectedProjects = Layer.mock(ProjectStore.ProjectStoreV2)({
-    get: (requestedProjectId) =>
-      Effect.succeed(
-        requestedProjectId === projectId
-          ? Option.some({
-              projectId,
-              title: "Project",
-              workspaceRoot: "/repo",
-              defaultModelSelection: modelSelection,
-              faviconPath: null,
-              projectIcon: null,
-              scripts: [],
-              createdAt: "2026-06-20T00:00:00.000Z",
-              updatedAt: "2026-06-20T00:00:00.000Z",
-              deletedAt: null,
-            })
-          : Option.none(),
-      ),
-  });
   const layerTitleRegeneration = ThreadTitleRegeneration.layer.pipe(
     Layer.provide(
       Layer.mergeAll(
+        ServerConfig.layerTest(process.cwd(), { prefix: "title-" }).pipe(
+          Layer.provide(NodeServices.layer),
+        ),
         layerThreadManagement,
-        layerProjectedProjects,
         Layer.mock(TextGeneration.TextGeneration)({ generateThreadTitle }),
         layerServerSettings,
       ),
@@ -114,7 +94,6 @@ function createThread(input: { readonly command: string; readonly thread: string
       type: "thread.create",
       commandId: CommandId.make(input.command),
       threadId,
-      projectId,
       title: "Seed title",
       modelSelection,
       runtimeMode: "full-access",
@@ -142,7 +121,7 @@ function dispatchUserMessage(input: {
       text: input.text,
       attachments: [],
       modelSelection,
-      dispatchMode: { type: "defer_start" },
+      dispatchMode: { type: "start_immediately" },
       createdBy: "user",
       creationSource: "web",
     });
@@ -425,7 +404,7 @@ describe("ThreadTitleRegenerationService", () => {
           titleSeed: "Try SQLite instead",
           attachments: [],
           modelSelection,
-          dispatchMode: { type: "defer_start" },
+          dispatchMode: { type: "start_immediately" },
           createdBy: "user",
           creationSource: "web",
         });

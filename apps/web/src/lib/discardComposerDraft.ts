@@ -17,9 +17,9 @@ export function discardComposerDraft(target: ComposerThreadTarget): void {
   const draft = key === null ? undefined : store.draftsByThreadKey[key];
   if (key === null || !draft) return;
   const session = store.draftThreadsByThreadKey[key];
-  const logicalProjectKeys = Object.entries(store.logicalProjectDraftThreadKeyByLogicalProjectKey)
+  const environmentKeys = Object.entries(store.environmentDraftIdByEnvironmentId)
     .filter(([, draftKey]) => draftKey === key)
-    .map(([logicalProjectKey]) => logicalProjectKey);
+    .map(([environmentKey]) => environmentKey);
   const discardsSession = typeof target === "string";
 
   const claim = ThreadUndo.begin("discard", key);
@@ -40,11 +40,11 @@ export function discardComposerDraft(target: ComposerThreadTarget): void {
         return AsyncResult.failure(Cause.fail(new Error("The draft has new content.")));
       }
       useComposerDraftStore.setState((state) => {
-        const logicalProjectDraftThreadKeyByLogicalProjectKey = {
-          ...state.logicalProjectDraftThreadKeyByLogicalProjectKey,
+        const environmentDraftIdByEnvironmentId = {
+          ...state.environmentDraftIdByEnvironmentId,
         };
-        for (const logicalProjectKey of logicalProjectKeys) {
-          logicalProjectDraftThreadKeyByLogicalProjectKey[logicalProjectKey] ??= key;
+        for (const environmentKey of environmentKeys) {
+          environmentDraftIdByEnvironmentId[environmentKey] ??= key;
         }
         return {
           draftsByThreadKey: {
@@ -63,7 +63,7 @@ export function discardComposerDraft(target: ComposerThreadTarget): void {
           draftThreadsByThreadKey: session
             ? { ...state.draftThreadsByThreadKey, [key]: session }
             : state.draftThreadsByThreadKey,
-          logicalProjectDraftThreadKeyByLogicalProjectKey,
+          environmentDraftIdByEnvironmentId,
         };
       });
       return AsyncResult.success(undefined);

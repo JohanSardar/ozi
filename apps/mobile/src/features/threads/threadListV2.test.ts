@@ -20,7 +20,6 @@ import {
   EnvironmentId,
   MessageId,
   OrchestrationV2ThreadShell,
-  ProjectId,
   ProviderInstanceId,
   RunId,
   ThreadId,
@@ -506,31 +505,6 @@ describe("buildThreadListV2Items", () => {
 
     expect(items.map((item) => item.thread.id)).toEqual(["visible"]);
   });
-
-  it("scopes the flat list to every environment member of a logical project", () => {
-    const remoteEnvironmentId = EnvironmentId.make("environment-remote");
-    const projectId = ProjectId.make("project-1");
-    const { items } = buildThreadListV2Items({
-      threads: [
-        makeThread({ id: ThreadId.make("local"), projectId, title: "Local" }),
-        makeThread({
-          environmentId: remoteEnvironmentId,
-          id: ThreadId.make("remote"),
-          projectId,
-          title: "Remote",
-        }),
-      ],
-      environmentId: null,
-      projectRefs: [
-        { environmentId, projectId },
-        { environmentId: remoteEnvironmentId, projectId },
-      ],
-      searchQuery: "",
-      now: NOW,
-    });
-
-    expect(items.map((item) => item.thread.id)).toEqual(["local", "remote"]);
-  });
 });
 
 describe("buildThreadListV2Items settled paging", () => {
@@ -695,7 +669,6 @@ describe("buildThreadListV2Items settled sort reuse", () => {
 
 function makePendingTask(id: string): PendingNewTask {
   const creation = {
-    projectId: ProjectId.make("project-1"),
     workspaceMode: "local" as const,
     workingDirectory: null,
   };
@@ -703,9 +676,7 @@ function makePendingTask(id: string): PendingNewTask {
     kind: "pending",
     key: `pending-task:${id}`,
     environmentId,
-    projectId: creation.projectId,
-    projectTitle: undefined,
-    projectCwd: undefined,
+    defaultCwd: undefined,
     title: id,
     createdAt: NOW,
     message: {
@@ -746,16 +717,13 @@ describe("buildThreadListV2ListItems", () => {
           kind: "draft",
           key: "draft-task:new-task:unsent",
           environmentId,
-          projectId: ProjectId.make("project-1"),
-          projectTitle: undefined,
-          projectCwd: undefined,
+          defaultCwd: undefined,
           title: "unsent",
           createdAt: NOW,
           draftKey: "new-task:unsent",
           draft: {
             text: "unsent",
             attachments: [],
-            project: { environmentId, projectId: ProjectId.make("project-1"), createdAt: NOW },
           },
         },
         makePendingTask("queued-1"),

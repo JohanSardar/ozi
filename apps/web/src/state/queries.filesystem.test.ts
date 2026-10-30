@@ -34,8 +34,8 @@ vi.mock("./presentation", () => ({
   }),
 }));
 vi.mock("./projects", () => ({
-  projectEnvironment: { searchEntries: () => state.searchAtom },
-  projectContentSearch: (target: unknown) => {
+  workspaceEnvironment: { searchEntries: () => state.searchAtom },
+  workspaceContentSearch: (target: unknown) => {
     state.contentRequests(target);
     return state.contentAtom;
   },

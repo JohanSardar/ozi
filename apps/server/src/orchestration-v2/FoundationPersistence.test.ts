@@ -16,7 +16,6 @@ import {
   type OrchestrationV2Run,
   type OrchestrationV2ThreadProjection,
   type OrchestrationV2TurnItem,
-  ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
   ProviderSessionId,
@@ -62,7 +61,6 @@ import * as EventStore from "./EventStore.ts";
 import * as IdAllocator from "@t3tools/provider-core/server/IdAllocator";
 import * as ProjectionMaintenance from "./ProjectionMaintenance.ts";
 import * as ProjectionStore from "./ProjectionStore.ts";
-import * as ProjectStore from "./ProjectStore.ts";
 import * as ProviderRuntimeRecovery from "./ProviderRuntimeRecoveryService.ts";
 import * as TurnItemPositionStore from "./TurnItemPositionStore.ts";
 
@@ -107,7 +105,6 @@ function makeThread(threadId: ThreadId, now: DateTime.Utc): OrchestrationV2AppTh
     createdBy: "user",
     creationSource: "web",
     id: threadId,
-    projectId: ProjectId.make(`project:${threadId}`),
     title: `Thread ${threadId}`,
     providerInstanceId,
     modelSelection,
@@ -3312,7 +3309,6 @@ it.effect("publishes live events in commit order across concurrent writers", () 
           layerStoresProvided,
           layerPausingOutbox,
           layerCommandReceiptStoreProvided,
-          ProjectStore.layer.pipe(Layer.provide(layerDatabase)),
           TurnItemPositionStore.layer.pipe(Layer.provide(layerDatabase)),
         ),
       ),
@@ -3601,7 +3597,6 @@ it.effect.each(["cancel transaction", "fail transaction", "cancel publication"] 
             layerStoresProvided,
             layerPausingOutbox,
             layerCommandReceiptStoreProvided,
-            ProjectStore.layer.pipe(Layer.provide(layerDatabase)),
             TurnItemPositionStore.layer.pipe(Layer.provide(layerDatabase)),
           ),
         ),

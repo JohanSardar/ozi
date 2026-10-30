@@ -12,8 +12,6 @@ import {
   IsoDateTime,
   NonNegativeInt,
   PositiveInt,
-  ProjectId,
-  ThreadId,
   TrimmedNonEmptyString,
 } from "./baseSchemas.ts";
 import {
@@ -611,8 +609,6 @@ export const ServerConfig = Schema.Struct({
   threadSnapshotPagination: Schema.optionalKey(Schema.Boolean),
   threadFind: Schema.optionalKey(Schema.Boolean),
   threadFindProgressive: Schema.optionalKey(Schema.Boolean),
-  scratchWorkspaceRoot: Schema.optionalKey(TrimmedNonEmptyString),
-  newProjectsRoot: Schema.optionalKey(TrimmedNonEmptyString),
   /**
    * The latest stall long enough to notice, sent only for a few minutes after
    * it. A client that reconnects reads it to say why the host stopped
@@ -777,11 +773,7 @@ export type ServerLifecycleReadyPayload = typeof ServerLifecycleReadyPayload.Typ
 export const ServerLifecycleWelcomePayload = Schema.Struct({
   environment: ExecutionEnvironmentDescriptor,
   cwd: TrimmedNonEmptyString,
-  projectName: TrimmedNonEmptyString,
   bootstrapStatus: Schema.optional(Schema.Literals(["pending", "complete"])),
-  bootstrapProjectId: Schema.optional(ProjectId),
-  bootstrapThreadId: Schema.optional(ThreadId),
-  bootstrapProjectCreated: Schema.optional(Schema.Boolean),
   bootstrapThreadCreated: Schema.optional(Schema.Boolean),
 });
 export type ServerLifecycleWelcomePayload = typeof ServerLifecycleWelcomePayload.Type;

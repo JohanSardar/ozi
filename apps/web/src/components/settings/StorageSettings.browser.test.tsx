@@ -90,7 +90,6 @@ function setup() {
       browserArtifactsAfterDays: null,
       logsAfterDays: null,
     },
-    projectSettingsOverrides: {},
   };
   state.report = null;
   state.run.mockReset();

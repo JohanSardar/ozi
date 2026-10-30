@@ -1,3 +1,5 @@
+import { workspaceEnvironment, workspaceContentSearch } from "./workspaceFiles";
+
 import { useAtomValue } from "@effect/atom-react";
 import { type ComposerPathSearchTarget } from "@t3tools/client-runtime/state/threads";
 import {
@@ -14,9 +16,9 @@ import { messageSearchTokens } from "@t3tools/shared/paletteSearch";
 import type {
   EnvironmentId,
   OrchestrationV2GetTurnItemResult,
-  ProjectContentMatch,
-  ProjectEntry,
-  ProjectEntryKind,
+  WorkspaceContentMatch,
+  WorkspaceEntry,
+  WorkspaceEntryKind,
   ThreadId,
   TurnItemId,
 } from "@t3tools/contracts";
@@ -27,7 +29,6 @@ import { appAtomRegistry } from "../rpc/atomRegistry";
 import { useFilesystemReadAccess } from "./filesystem";
 import { orchestrationEnvironment } from "./orchestration";
 import { olderSettledThreads, threadFamilies } from "./threads";
-import { projectContentSearch, projectEnvironment } from "./projects";
 import { useEnvironmentQuery } from "./query";
 
 const PROJECT_PATH_SEARCH_DEBOUNCE_MS = 120;
@@ -35,8 +36,8 @@ const COMPOSER_PATH_SEARCH_LIMIT = 80;
 const PROJECT_CONTENT_SEARCH_DEBOUNCE_MS = 120;
 const PROJECT_CONTENT_SEARCH_LIMIT = 500;
 const THREAD_SEARCH_DEBOUNCE_MS = 120;
-const EMPTY_PROJECT_ENTRIES: ReadonlyArray<ProjectEntry> = [];
-const EMPTY_CONTENT_MATCHES: ReadonlyArray<ProjectContentMatch> = [];
+const EMPTY_PROJECT_ENTRIES: ReadonlyArray<WorkspaceEntry> = [];
+const EMPTY_CONTENT_MATCHES: ReadonlyArray<WorkspaceContentMatch> = [];
 const EMPTY_THREAD_SEARCH_MATCHES: ReadonlyArray<EnvironmentThreadSearchMatch> = Object.freeze([]);
 const EMPTY_THREAD_SEARCH_ATOM = Atom.make<ThreadSearchResultsState>({
   matches: EMPTY_THREAD_SEARCH_MATCHES,
@@ -151,14 +152,14 @@ export function useThreadSearch(
   };
 }
 
-type ProjectPathSearchTarget = ComposerPathSearchTarget & {
-  readonly kind?: ProjectEntryKind | undefined;
+type WorkspacePathSearchTarget = ComposerPathSearchTarget & {
+  readonly kind?: WorkspaceEntryKind | undefined;
   readonly imageOnly?: boolean | undefined;
 };
 
-function areProjectPathSearchTargetsEqual(
-  left: ProjectPathSearchTarget,
-  right: ProjectPathSearchTarget,
+function areWorkspacePathSearchTargetsEqual(
+  left: WorkspacePathSearchTarget,
+  right: WorkspacePathSearchTarget,
 ): boolean {
   return (
     left.environmentId === right.environmentId &&
@@ -170,7 +171,7 @@ function areProjectPathSearchTargetsEqual(
 }
 
 export function useProjectPathSearch(
-  target: ProjectPathSearchTarget,
+  target: WorkspacePathSearchTarget,
   limit: number,
   options?: { readonly allowEmptyQuery?: boolean },
 ) {
@@ -202,7 +203,7 @@ export function useProjectPathSearch(
         }
       : null;
   const result = useEnvironmentQuery(
-    canReadFiles && searchTarget !== null ? projectEnvironment.searchEntries(searchTarget) : null,
+    canReadFiles && searchTarget !== null ? workspaceEnvironment.searchEntries(searchTarget) : null,
   );
   const hasTarget = searchTarget !== null;
 
@@ -215,7 +216,7 @@ export function useProjectPathSearch(
           ? result.error
           : (fileAccess.error ?? "This connection cannot search host files."),
     isPending:
-      !areProjectPathSearchTargetsEqual(normalizedTarget, debouncedTarget) ||
+      !areWorkspacePathSearchTargetsEqual(normalizedTarget, debouncedTarget) ||
       (hasTarget && (fileAccess.isPending || result.isPending)),
     searchedTarget: debouncedTarget,
     searchedQuery: debouncedTarget.query ?? "",
@@ -252,7 +253,7 @@ export function useProjectContentSearch(target: ProjectContentSearchTarget) {
       target.cwd !== null &&
       hasQuery &&
       debouncedQuery.trim().length > 0
-      ? projectContentSearch({
+      ? workspaceContentSearch({
           environmentId: target.environmentId,
           input: {
             cwd: target.cwd,

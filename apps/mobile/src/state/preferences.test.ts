@@ -74,12 +74,9 @@ describe("mobile preferences state", () => {
       const unmountPreferences = registry.mount(state.preferencesAtom);
       const unmountUpdate = registry.mount(state.updatePreferencesAtom);
 
-      registry.set(state.updatePreferencesAtom, {
-        collapsedProjectGroups: ["project:new"],
-      });
+      registry.set(state.updatePreferencesAtom, {});
       pendingLoad.resolve({
         baseFontSize: 18,
-        collapsedProjectGroups: ["project:old"],
       });
 
       const preferences = yield* AtomRegistry.getResult(registry, state.preferencesAtom, {
@@ -87,11 +84,8 @@ describe("mobile preferences state", () => {
       });
       expect(preferences).toEqual({
         baseFontSize: 18,
-        collapsedProjectGroups: ["project:new"],
       });
-      expect(savePatch).toHaveBeenCalledWith({
-        collapsedProjectGroups: ["project:new"],
-      });
+      expect(savePatch).toHaveBeenCalledWith({});
       expect(AsyncResult.isFailure(registry.get(state.updatePreferencesAtom))).toBe(false);
 
       unmountUpdate();

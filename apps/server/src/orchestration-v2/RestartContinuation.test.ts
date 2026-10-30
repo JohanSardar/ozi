@@ -2,7 +2,6 @@ import { assert, it } from "@effect/vitest";
 import {
   MessageId,
   NodeId,
-  ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
   ProviderSessionId,
@@ -35,14 +34,12 @@ const driver = ProviderDriverKind.make("codex");
 const providerThreadId = ProviderThreadId.make("provider-thread:restart");
 const sessionId = ProviderSessionId.make("session:restart");
 const attemptId = RunAttemptId.make("attempt:restart");
-const scratchProjectId = ProjectId.make("project:scratch");
 const now = DateTime.makeUnsafe("2026-10-03T12:00:00.000Z");
 
 function makeProjection() {
   return {
     thread: {
       id: threadId,
-      projectId: ProjectId.make("restart-project"),
       providerInstanceId: instanceId,
       archivedAt: null,
       deletedAt: null,
@@ -176,18 +173,17 @@ it("does not continue settled root runs with restart-cancelled background work",
     providerSessions: [{ ...projection.providerSessions[0]!, status: "stopped" as const }],
     providerTurns: [],
   };
-  for (const projectId of [scratchProjectId, projection.thread.projectId])
-    for (const status of ["completed", "waiting"] as const)
-      assert.isUndefined(
-        restartContinuationRun(
-          {
-            ...settled,
-            thread: { ...settled.thread, projectId },
-            runs: [{ ...settled.runs[0]!, status }],
-          },
-          now,
-        ),
-      );
+  for (const status of ["completed", "waiting"] as const)
+    assert.isUndefined(
+      restartContinuationRun(
+        {
+          ...settled,
+          thread: { ...settled.thread },
+          runs: [{ ...settled.runs[0]!, status }],
+        },
+        now,
+      ),
+    );
 });
 
 it.effect.each(["completed", "waiting", "cancelled"] as const)(
@@ -229,66 +225,6 @@ it.effect.each(["completed", "waiting", "cancelled"] as const)(
       assert.equal(command.restartContinuationOfRunId, runId);
       assert.include(command.text, "- monitor: Watch CI run 42");
       assert.include(command.text, "- shell: vp run dev");
-    }),
-);
-
-it.effect.each([
-  [false, undefined],
-  [true, undefined],
-  [false, true],
-  [true, false],
-] as const)(
-  "atomically records restart intent with cancellation when opt-in is %s and project override is %s",
-  ([enabled, projectOverride]) =>
-    Effect.gen(function* () {
-      let committed: Parameters<EventSink.EventSinkV2["Service"]["commitCommand"]>[0] | undefined;
-      const recovery = yield* ProviderRuntimeRecovery.make.pipe(
-        Effect.provide(
-          Layer.mergeAll(
-            ServerSettings.layerTest({
-              continueThreadsAfterServerUpdate: enabled,
-              projectSettingsOverrides:
-                projectOverride === undefined
-                  ? {}
-                  : {
-                      [ProjectId.make("restart-project")]: {
-                        continueThreadsAfterServerUpdate: projectOverride,
-                      },
-                    },
-            }),
-            Layer.mock(ProjectionStore.ProjectionStoreV2)({
-              getRecoveryThreadIds: () => Effect.succeed([threadId]),
-              getRuntimeRecoveryProjection: () => Effect.succeed(makeProjection()),
-            }),
-            Layer.mock(EventSink.EventSinkV2)({
-              commitCommand: (input) => {
-                committed = input;
-                return Effect.succeed({ committed: true, cancelledEffectCount: 1 } as never);
-              },
-            }),
-            IdAllocator.layer,
-            Layer.mock(EffectWorker.OrchestrationEffectWorkerV2)({
-              runRecoveryOnce: Effect.succeed(false),
-            }),
-            Layer.mock(EffectOutbox.EffectOutboxV2)({
-              reconcileAfterProcessLoss: Effect.succeed({ requeued: 0, cancelled: 0 }),
-            }),
-          ),
-        ),
-      );
-      yield* recovery.reconcile("startup");
-      assert.isDefined(committed);
-      assert.isTrue(
-        committed!.events.some(
-          (event) => event.type === "run.updated" && event.payload.status === "cancelled",
-        ),
-      );
-      assert.lengthOf(committed!.effects, (projectOverride ?? enabled) ? 1 : 0);
-      if (projectOverride ?? enabled)
-        assert.deepEqual(committed!.effects[0]?.request, {
-          type: "provider-runtime.continue",
-          sourceRunId: runId,
-        });
     }),
 );
 
@@ -580,106 +516,6 @@ const backgroundSubagent = {
     id: "turn-item:background-subagent",
   },
 };
-const devServer = {
-  turnItem: {
-    id: "turn-item:dev-server",
-    runId,
-    nodeId: null,
-    providerThreadId,
-    providerInstanceId: instanceId,
-    type: "command_execution",
-    input: "vp run dev",
-    status: "running",
-  },
-  work: { kind: "shell" as const, label: "vp run dev", id: "turn-item:dev-server" },
-};
-
-it.effect.each([
-  ["completed", scratchProjectId, backgroundSubagent, true],
-  ["waiting", ProjectId.make("restart-project"), backgroundSubagent, true],
-  ["completed", ProjectId.make("restart-project"), devServer, false],
-  ["waiting", scratchProjectId, devServer, false],
-] as const)(
-  "cleans up background work of a %s run in project %s and wakes it only for awaited work",
-  ([status, projectId, background, wakes]) =>
-    Effect.gen(function* () {
-      const base = makeProjection();
-      const projection = {
-        ...base,
-        thread: { ...base.thread, projectId },
-        runs: [{ ...base.runs[0]!, status }],
-        providerTurns: [{ ...base.providerTurns[0]!, status: "completed" }],
-        turnItems: [background.turnItem],
-        subagents:
-          background === backgroundSubagent
-            ? [
-                {
-                  id: "subagent:background",
-                  runId,
-                  origin: "provider_native",
-                  driver,
-                  providerInstanceId: instanceId,
-                  status: "running",
-                },
-              ]
-            : [],
-      } as unknown as OrchestrationV2ThreadProjection;
-      for (const trigger of ["startup", "shutdown"] as const) {
-        const commits: Parameters<EventSink.EventSinkV2["Service"]["commitCommand"]>[0][] = [];
-        const writes: Parameters<EventSink.EventSinkV2["Service"]["writeWithEffects"]>[0][] = [];
-        const recovery = yield* ProviderRuntimeRecovery.make.pipe(
-          Effect.provide(
-            Layer.mergeAll(
-              ServerSettings.layerTest({ continueThreadsAfterServerUpdate: true }),
-              Layer.mock(ProjectionStore.ProjectionStoreV2)({
-                getRecoveryThreadIds: () => Effect.succeed([threadId]),
-                getRuntimeRecoveryProjection: () => Effect.succeed(projection),
-              }),
-              Layer.mock(EventSink.EventSinkV2)({
-                writeWithEffects: (input) =>
-                  Effect.sync(() => {
-                    writes.push(input);
-                    return [];
-                  }),
-                commitCommand: (input) =>
-                  Effect.sync(() => {
-                    commits.push(input);
-                    return { committed: true, cancelledEffectCount: 0 } as never;
-                  }),
-              }),
-              IdAllocator.layer,
-              Layer.mock(EffectWorker.OrchestrationEffectWorkerV2)({
-                runRecoveryOnce: Effect.succeed(false),
-              }),
-              Layer.mock(EffectOutbox.EffectOutboxV2)({
-                listByCommandId: () => Effect.succeed([]),
-                reconcileAfterProcessLoss: Effect.succeed({ requeued: 0, cancelled: 0 }),
-              }),
-            ),
-          ),
-        );
-        if (trigger === "shutdown") yield* recovery.prepareForShutdown;
-        yield* recovery.reconcile(trigger);
-        const recorded = [...writes.flatMap((write) => write.effects), ...commits[0]!.effects];
-        assert.deepEqual(
-          recorded.map((effect) => effect.request),
-          wakes ? [{ type: "provider-runtime.continue", sourceRunId: runId }] : [],
-        );
-        assert.lengthOf(commits, 1);
-        const events = commits[0]!.events;
-        assert.isTrue(
-          events.some(
-            (event) => event.type === "turn-item.updated" && event.payload.status === "cancelled",
-          ),
-        );
-        const note = events.find((event) => event.type === "run.background-work-cancelled");
-        assert.equal(note?.runId, runId);
-        assert.deepEqual(note?.payload.restartCancelledBackgroundWork, [background.work]);
-        if (status === "completed")
-          assert.isFalse(events.some((event) => event.type === "run.updated"));
-      }
-    }),
-);
 
 it("does not wake a settled run for work left by a session that already stopped", () => {
   const base = makeProjection();

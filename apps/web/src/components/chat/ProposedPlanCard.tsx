@@ -1,3 +1,5 @@
+import { workspaceEnvironment } from "~/state/workspaceFiles";
+
 import { proposedPlanTitle, stripDisplayedPlanMarkdown } from "@t3tools/shared/proposedPlanText";
 import { memo, useState, useId } from "react";
 import { findRevealRef } from "./markdownFindContext";
@@ -33,7 +35,6 @@ import {
   DialogTitle,
 } from "../ui/dialog";
 import { stackedThreadToast, toastManager } from "../ui/toast";
-import { projectEnvironment } from "~/state/projects";
 import { useCopyToClipboard } from "~/hooks/useCopyToClipboard";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { readEnvironmentScope, useEnvironmentScope } from "~/state/session";
@@ -58,7 +59,7 @@ export const ProposedPlanCard = memo(function ProposedPlanCard({
   const [isSaveDialogOpen, setIsSaveDialogOpen] = useState(false);
   const [lastSavePath, setLastSavePath] = useState("");
   const [isSavingToWorkspace, setIsSavingToWorkspace] = useState(false);
-  const writeProjectFile = useAtomCommand(projectEnvironment.writeFile, {
+  const writeProjectFile = useAtomCommand(workspaceEnvironment.writeFile, {
     reportFailure: false,
   });
   const { copyToClipboard, isCopied } = useCopyToClipboard({

@@ -3,7 +3,7 @@ import type {
   ContextMenuItem as TreeContextMenuItem,
   ContextMenuOpenContext as TreeContextMenuOpenContext,
 } from "@pierre/trees";
-import type { EnvironmentId, ProjectEntry } from "@t3tools/contracts";
+import type { EnvironmentId, WorkspaceEntry } from "@t3tools/contracts";
 import { FileTree, useFileTree, useFileTreeSearch, useFileTreeSelector } from "@pierre/trees/react";
 import { settlePromise } from "@t3tools/client-runtime/state/runtime";
 import { serializeComposerFileLink } from "@t3tools/shared/composerTrigger";
@@ -38,7 +38,7 @@ import { useProjectPathSearch } from "~/state/queries";
 interface FileBrowserPanelProps {
   environmentId: EnvironmentId;
   cwd: string;
-  projectName: string;
+  workspaceName: string;
   selectedPath: string | null;
   selectedPathRevealId: number;
   onOpenFile: (relativePath: string) => void;
@@ -49,7 +49,7 @@ interface FileBrowserPanelProps {
   workspaceMutationId: string | null;
 }
 
-function treePath(entry: ProjectEntry): string {
+function treePath(entry: WorkspaceEntry): string {
   return entry.kind === "directory" ? `${entry.path}/` : entry.path;
 }
 
@@ -104,8 +104,8 @@ function FileSearchField(props: {
 }
 
 function buildTreeEntries(
-  directoryEntries: readonly ProjectEntry[],
-  searchEntries: readonly ProjectEntry[],
+  directoryEntries: readonly WorkspaceEntry[],
+  searchEntries: readonly WorkspaceEntry[],
   searchPending: boolean,
   query: string,
 ) {
@@ -121,7 +121,7 @@ function buildTreeEntries(
     }
   }
   const entries = [...result.values()];
-  const entryKinds: ReadonlyMap<string, ProjectEntry["kind"]> = new Map(
+  const entryKinds: ReadonlyMap<string, WorkspaceEntry["kind"]> = new Map(
     entries.map((entry) => [entry.path, entry.kind] as const),
   );
   const treePaths = entries.map(treePath);
@@ -136,7 +136,7 @@ function buildTreeEntries(
 export default function FileBrowserPanel({
   environmentId,
   cwd,
-  projectName,
+  workspaceName,
   selectedPath,
   selectedPathRevealId,
   onOpenFile,
@@ -479,7 +479,7 @@ export default function FileBrowserPanel({
         <RefreshFilesButton isPending={isPending} onRefresh={handleRefresh} />
         <FileSearchField
           name="project-files-search"
-          ariaLabel={`Search ${projectName} files`}
+          ariaLabel={`Search ${workspaceName} files`}
           value={search.value}
           onValueChange={handleSearchValueChange}
           onClose={closeSearch}
@@ -547,7 +547,7 @@ export default function FileBrowserPanel({
       ) : (
         <FileTree
           model={model}
-          aria-label={`${projectName} files`}
+          aria-label={`${workspaceName} files`}
           className="min-h-0 flex-1 overflow-hidden"
           style={pierreTreeStyle(resolvedTheme)}
         />

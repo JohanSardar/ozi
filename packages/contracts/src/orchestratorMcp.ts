@@ -11,7 +11,6 @@ import {
   NodeId,
   NonNegativeInt,
   PositiveInt,
-  ProjectId,
   RunId,
   RuntimeRequestId,
   ScheduledTaskId,
@@ -109,12 +108,6 @@ export const OrchestratorMcpTarget = Schema.Struct({
     EnvironmentId.annotate({
       description:
         "Linked environment to run in. Provider and model default to yours; others come from `orchestrator_capabilities` with this `environmentId`.",
-    }),
-  ),
-  projectId: Schema.optional(
-    ProjectId.annotate({
-      description:
-        "With `environmentId`: its project to run in. Default: the one with this project's repository.",
     }),
   ),
 });
@@ -302,12 +295,6 @@ export const OrchestratorMcpThreadStatus = Schema.Union([
 ]);
 export type OrchestratorMcpThreadStatus = typeof OrchestratorMcpThreadStatus.Type;
 
-const OrchestratorMcpProjectTarget = Schema.optional(
-  ProjectId.annotate({
-    description: "Project to use. Default: your thread's project. Required outside a thread.",
-  }),
-);
-
 /**
  * A linked environment to act in instead of this one. The tools that take it
  * forward the call there, where the link's access and the caller's own modes
@@ -322,8 +309,6 @@ export const OrchestratorMcpEnvironmentTarget = Schema.optional(
 
 export const OrchestratorMcpThreadListInput = Schema.Struct({
   environmentId: OrchestratorMcpEnvironmentTarget,
-  projectId: OrchestratorMcpProjectTarget,
-  allProjects: Schema.optional(Schema.Boolean),
   statuses: Schema.optional(
     Schema.Array(OrchestratorMcpThreadStatus).check(Schema.isMaxLength(10)),
   ),
@@ -338,7 +323,6 @@ export type OrchestratorMcpThreadListInput = typeof OrchestratorMcpThreadListInp
 
 export const OrchestratorMcpThreadListItem = Schema.Struct({
   threadId: ThreadId,
-  projectId: ProjectId,
   title: Schema.String,
   link: Schema.optional(Schema.String),
   createdBy: OrchestrationV2Actor,
@@ -362,8 +346,6 @@ export const OrchestratorMcpThreadListItem = Schema.Struct({
 export type OrchestratorMcpThreadListItem = typeof OrchestratorMcpThreadListItem.Type;
 
 export const OrchestratorMcpThreadListResult = Schema.Struct({
-  /** null with `allProjects`. */
-  projectId: Schema.NullOr(ProjectId),
   currentThreadId: Schema.NullOr(ThreadId),
   threads: Schema.Array(OrchestratorMcpThreadListItem),
   nextCursor: Schema.NullOr(NonNegativeInt),
@@ -406,7 +388,6 @@ export type OrchestratorMcpThreadReadInput = typeof OrchestratorMcpThreadReadInp
 
 export const OrchestratorMcpThreadDetail = Schema.Struct({
   threadId: ThreadId,
-  projectId: ProjectId,
   title: Schema.String,
   link: Schema.optional(Schema.String),
   createdBy: OrchestrationV2Actor,
@@ -656,7 +637,6 @@ export const OrchestratorMcpScheduledTask = Schema.Struct({
   title: Schema.String,
   prompt: Schema.String,
   enabled: Schema.Boolean,
-  projectId: ProjectId,
   boundThreadId: Schema.NullOr(ThreadId),
   schedule: ScheduledTaskSchedule,
   nextRunAt: Schema.NullOr(IsoDateTime),

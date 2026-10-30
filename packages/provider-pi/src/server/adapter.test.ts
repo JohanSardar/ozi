@@ -464,7 +464,6 @@ const makeAppThread = Effect.fnUntraced(function* (model: string, threadId = THR
     createdBy: "user",
     creationSource: "web",
     id: threadId,
-    projectId: "project:fixture:pi" as OrchestrationV2AppThread["projectId"],
     title: "Pi test thread",
     providerInstanceId: PI_INSTANCE_ID,
     modelSelection: modelSelection(model),

@@ -12,11 +12,9 @@ import {
   RunId,
   ThreadId,
   TurnItemId,
-  WS_METHODS,
   type OrchestrationV2Command,
   type OrchestrationV2ThreadLaunchInput,
   type OrchestrationV2ThreadProjection,
-  type ProjectMutation,
 } from "@t3tools/contracts";
 import { describe, expect, it } from "@effect/vitest";
 import * as Crypto from "effect/Crypto";
@@ -59,7 +57,6 @@ const TARGET = new PrimaryConnectionTarget({
 
 const makeSupervisor = Effect.fn("TestEnvironmentCommands.makeSupervisor")(function* (input: {
   readonly commands: OrchestrationV2Command[];
-  readonly projects: ProjectMutation[];
   readonly launches?: OrchestrationV2ThreadLaunchInput[];
   readonly projection?: OrchestrationV2ThreadProjection;
   readonly projectionRequests?: ThreadId[];
@@ -85,22 +82,6 @@ const makeSupervisor = Effect.fn("TestEnvironmentCommands.makeSupervisor")(funct
           threadId: launchInput.threadId ?? v2ThreadId,
           projection: input.projection ?? v2Projection,
           resumed: false,
-        };
-      }),
-    [WS_METHODS.projectsMutate]: (mutation: ProjectMutation) =>
-      Effect.sync(() => {
-        input.projects.push(mutation);
-        return {
-          id: mutation.projectId,
-          title: mutation.type === "project.create" ? mutation.title : "Project",
-          workspaceRoot:
-            mutation.type === "project.create" ? mutation.workspaceRoot : "/workspace/project",
-          faviconPath: null,
-          defaultModelSelection: null,
-          scripts: [],
-          createdAt: "2026-06-06T00:00:00.000Z",
-          updatedAt: "2026-06-06T00:00:00.000Z",
-          deletedAt: null,
         };
       }),
   } as unknown as WsRpcProtocolClient;
@@ -132,7 +113,7 @@ describe("V2 environment commands", () => {
   it.effect("distinguishes sending a selected queued message from resuming queue order", () =>
     Effect.gen(function* () {
       const commands: OrchestrationV2Command[] = [];
-      const supervisor = yield* makeSupervisor({ commands, projects: [] });
+      const supervisor = yield* makeSupervisor({ commands });
       const threadId = ThreadId.make("thread-1");
       yield* resumeThreadQueue({
         commandId: CommandId.make("send-selected"),
@@ -154,7 +135,7 @@ describe("V2 environment commands", () => {
   it.effect("preserves caller command ids for idempotent V2 commands", () =>
     Effect.gen(function* () {
       const commands: OrchestrationV2Command[] = [];
-      const supervisor = yield* makeSupervisor({ commands, projects: [] });
+      const supervisor = yield* makeSupervisor({ commands });
 
       yield* archiveThread({
         commandId: CommandId.make("queued-command"),
@@ -190,7 +171,7 @@ describe("V2 environment commands", () => {
         ],
       };
       const commands: OrchestrationV2Command[] = [];
-      const supervisor = yield* makeSupervisor({ commands, projects: [], projection });
+      const supervisor = yield* makeSupervisor({ commands, projection });
 
       yield* revertThreadCheckpoint({
         commandId: CommandId.make("rollback-thread-start"),
@@ -214,7 +195,7 @@ describe("V2 environment commands", () => {
     Effect.gen(function* () {
       const commands: OrchestrationV2Command[] = [];
       const projectionRequests: ThreadId[] = [];
-      const supervisor = yield* makeSupervisor({ commands, projects: [], projectionRequests });
+      const supervisor = yield* makeSupervisor({ commands, projectionRequests });
 
       for (const [mode, expectedType] of [
         ["queue", "queue_after_active"],
@@ -294,7 +275,7 @@ describe("V2 environment commands", () => {
           ],
         };
         const commands: OrchestrationV2Command[] = [];
-        const supervisor = yield* makeSupervisor({ commands, projects: [], projection });
+        const supervisor = yield* makeSupervisor({ commands, projection });
 
         const result = yield* interruptThreadTurn({ threadId: v2ThreadId }).pipe(
           Effect.provideService(EnvironmentSupervisor.EnvironmentSupervisor, supervisor),
@@ -326,7 +307,6 @@ describe("V2 environment commands", () => {
         const commands: OrchestrationV2Command[] = [];
         const supervisor = yield* makeSupervisor({
           commands,
-          projects: [],
           projection: {
             ...v2Projection,
             subagents: [
@@ -381,7 +361,6 @@ describe("V2 environment commands", () => {
         const commands: OrchestrationV2Command[] = [];
         const supervisor = yield* makeSupervisor({
           commands,
-          projects: [],
           advertiseThreadStop: true,
           projection: {
             ...v2Projection,
@@ -436,7 +415,6 @@ describe("V2 environment commands", () => {
       const projectionRequests: ThreadId[] = [];
       const supervisor = yield* makeSupervisor({
         commands,
-        projects: [],
         projectionRequests,
         advertiseThreadStop: true,
       });

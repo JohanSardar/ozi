@@ -1,3 +1,4 @@
+import * as ServerConfig from "../config.ts";
 import * as NodeSqliteClient from "@t3tools/shared/nodeSqliteClient";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -6,7 +7,6 @@ import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 import * as SqlClient from "effect/sql/SqlClient";
-import * as ProjectStore from "../orchestration-v2/ProjectStore.ts";
 
 export class UnknownWorkspaceError extends Schema.TaggedError<UnknownWorkspaceError>()(
   "UnknownWorkspaceError",
@@ -16,7 +16,7 @@ export class UnknownWorkspaceError extends Schema.TaggedError<UnknownWorkspaceEr
   },
 ) {
   override get message(): string {
-    return `'${this.cwd}' is not a registered folder or a chat's working directory.`;
+    return `'${this.cwd}' is outside this environment and its chats' working directories.`;
   }
 }
 
@@ -43,7 +43,7 @@ export class KnownWorkspaces extends Context.Service<
 export const make = Effect.gen(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  const projectStore = yield* ProjectStore.ProjectStoreV2;
+  const config = yield* ServerConfig.ServerConfig;
   const sql = yield* SqlClient.SqlClient;
 
   // Missing roots keep lexical paths; other resolution failures and filesystem roots grant nothing.
@@ -61,15 +61,11 @@ export const make = Effect.gen(function* () {
   const contains: KnownWorkspaces["Service"]["contains"] = Effect.fn("KnownWorkspaces.contains")(
     function* (realPath) {
       const within = (root: string | null) => root !== null && isWithinRoot(path, realPath, root);
-      const projects = yield* projectStore.listShells().pipe(Effect.orElseSucceed(() => []));
-      for (const project of projects) {
-        if (within(yield* resolveRoot(project.workspaceRoot))) return true;
-      }
+      if (within(yield* resolveRoot(config.cwd))) return true;
 
-      const threads = yield* sql<{ readonly workingDirectory: string; readonly projectId: string }>`
+      const threads = yield* sql<{ readonly workingDirectory: string }>`
         SELECT DISTINCT
-          json_extract(payload_json, '$.workingDirectory') AS "workingDirectory",
-          project_id AS "projectId"
+          json_extract(payload_json, '$.workingDirectory') AS "workingDirectory"
         FROM orchestration_v2_projection_threads
         WHERE deleted_at IS NULL AND json_extract(payload_json, '$.workingDirectory') IS NOT NULL
       `.pipe(

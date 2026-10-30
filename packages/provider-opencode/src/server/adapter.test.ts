@@ -4,7 +4,6 @@ import type { OpencodeClient, ToolPart } from "@opencode-ai/sdk/v2";
 import {
   CheckpointId,
   NodeId,
-  ProjectId,
   ProviderInstanceId,
   ProviderSessionId,
   ProviderThreadId,
@@ -189,7 +188,6 @@ const makeOpenCodeRuntimeHarness = Effect.fn("makeOpenCodeRuntimeHarness")(funct
     runtime.startTurn({
       appThread: {
         id: threadId,
-        projectId: ProjectId.make(`project-opencode-${suffix}`),
         title: suffix,
         providerInstanceId: modelSelection.instanceId,
         modelSelection,
@@ -1626,7 +1624,6 @@ describe("OpenCodeAdapterV2", () => {
         .startTurn({
           appThread: {
             id: threadId,
-            projectId: ProjectId.make("project-opencode-admission-race"),
             title: "race",
             providerInstanceId: modelSelection.instanceId,
             modelSelection,
@@ -2016,7 +2013,6 @@ describe("OpenCodeAdapterV2", () => {
         .startTurn({
           appThread: {
             id: threadId,
-            projectId: ProjectId.make("project-opencode-initial-stop"),
             title: "initial stop",
             providerInstanceId: modelSelection.instanceId,
             modelSelection,

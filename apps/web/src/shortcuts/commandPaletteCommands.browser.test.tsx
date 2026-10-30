@@ -3,7 +3,6 @@ import { describe, expect, it, vi } from "vite-plus/test";
 import { userEvent } from "vite-plus/test/browser";
 
 import { render } from "../../test/render";
-import { openCommandPalette } from "../commandPaletteBus";
 import { useCommandPaletteMount, useCommandPaletteStore } from "../commandPaletteStore";
 import { installCommandPaletteCommands } from "./commandPaletteCommands";
 
@@ -52,19 +51,4 @@ describe("command palette shortcuts", () => {
   });
 });
 
-describe("openCommandPalette", () => {
-  it("drops a request made while no palette is mounted", async () => {
-    setup();
-    await using screen = await render(null, { router: "/pair" });
-
-    openCommandPalette({ open: "new-thread-in" });
-    await screen.rerender(<MountedPalette />);
-    expect(useCommandPaletteStore.getState()).toMatchObject({ open: false, openIntent: null });
-
-    openCommandPalette({ open: "new-thread-in" });
-    expect(useCommandPaletteStore.getState()).toMatchObject({
-      open: true,
-      openIntent: { kind: "new-thread-in" },
-    });
-  });
-});
+describe("openCommandPalette", () => {});

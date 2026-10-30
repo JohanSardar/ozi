@@ -28,7 +28,7 @@ import {
   sortPinnedThreadsByOrderKey,
   sortSettledThreads,
 } from "@t3tools/client-runtime/state/thread-sort";
-import type { EnvironmentId, ProjectId } from "@t3tools/contracts";
+import type { EnvironmentId } from "@t3tools/contracts";
 import type { SnoozePresetSetting } from "@t3tools/contracts/settings";
 
 import type { ThreadListProvider } from "../../state/thread-list-environments";
@@ -595,10 +595,6 @@ export function buildThreadListV2Items(input: {
   readonly pendingOrder?: PendingThreadOrder | null;
   readonly threads: ReadonlyArray<EnvironmentThreadShell>;
   readonly environmentId: EnvironmentId | null;
-  readonly projectRefs?: ReadonlyArray<{
-    readonly environmentId: EnvironmentId;
-    readonly projectId: ProjectId;
-  }> | null;
   readonly searchQuery: string;
   readonly matchedThreadKeys?: ReadonlySet<string>;
   readonly settlementEnvironmentIds?: ReadonlySet<EnvironmentId>;
@@ -632,10 +628,6 @@ export function buildThreadListV2Items(input: {
         );
   const query = foldSearchQuery(input.searchQuery);
   const nowMs = Date.parse(now);
-  const projectKeys = input.projectRefs
-    ? new Set(input.projectRefs.map((ref) => `${ref.environmentId}:${ref.projectId}`))
-    : null;
-
   const workingShelfEnabled = input.workingShelfEnabled === true;
   const pinned: EnvironmentThreadShell[] = [];
   const active: EnvironmentThreadShell[] = [];
@@ -648,15 +640,14 @@ export function buildThreadListV2Items(input: {
     (thread) =>
       thread.archivedAt === null &&
       thread.lineage.relationshipToParent !== "subagent" &&
-      (input.environmentId === null || thread.environmentId === input.environmentId) &&
-      (projectKeys === null || projectKeys.has(`${thread.environmentId}:${thread.projectId}`)),
+      (input.environmentId === null || thread.environmentId === input.environmentId),
   );
   // The same matches as the command palette, typo fallback included. Only
   // listed threads are ranked: a hidden exact match must not turn typos off.
   const rankedMatches =
     query.length > 0
       ? rankSearchItems(listedThreads, (thread, options) =>
-          scoreThreadSearch(query, threadSearchSubject(thread, null), nowMs, {
+          scoreThreadSearch(query, threadSearchSubject(thread), nowMs, {
             ...options,
             picks: false,
           }),

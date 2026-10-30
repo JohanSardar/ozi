@@ -1,7 +1,4 @@
-import type {
-  EnvironmentProject,
-  EnvironmentThreadShell,
-} from "@t3tools/client-runtime/state/shell";
+import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/shell";
 
 import type {
   AgentActivityPhase,
@@ -40,24 +37,16 @@ const ACTIVE_PHASES: ReadonlySet<AgentActivityPhase> = new Set([
 /** Returns null until every staged thread and its project have loaded. */
 export function buildShowcaseAgentActivity(
   threads: ReadonlyArray<EnvironmentThreadShell>,
-  projects: ReadonlyArray<EnvironmentProject>,
   now: number,
 ): AgentActivityProps | null {
   const rows: AgentActivityRowProps[] = [];
   for (const definition of SHOWCASE_AGENT_ACTIVITY_ROWS) {
     const thread = threads.find((candidate) => String(candidate.id) === definition.threadId);
-    const project = thread
-      ? projects.find(
-          (candidate) =>
-            candidate.environmentId === thread.environmentId && candidate.id === thread.projectId,
-        )
-      : undefined;
-    if (!thread || !project) return null;
+    if (!thread) return null;
     const environmentId = String(thread.environmentId);
     rows.push({
       environmentId,
       threadId: definition.threadId,
-      projectTitle: project.title,
       threadTitle: thread.title,
       modelTitle: "",
       phase: definition.phase,
@@ -80,7 +69,7 @@ function showcaseAgentAlert(activity: AgentActivityProps) {
   if (!row) return null;
   return {
     title: row.threadTitle,
-    body: `${row.status}: ${row.projectTitle}`,
+    body: `${row.status}: ${row.modelTitle}`,
     path: row.deepLink,
     environmentId: row.environmentId,
     threadId: row.threadId,
@@ -106,11 +95,11 @@ export function showcaseAndroidActivityData(
     activity_phase: hero?.phase ?? "",
     activity_active_count: String(activity.activeCount),
     activity_attention_count: String(attentionCount),
-    activity_body: hero ? `${hero.status}: ${hero.threadTitle} · ${hero.projectTitle}` : "",
+    activity_body: hero ? `${hero.status}: ${hero.threadTitle} · ${hero.modelTitle}` : "",
     ...Object.fromEntries(
       activity.activities.map((row, index) => [
         `activity_line_${index}`,
-        [row.status, row.threadTitle, row.projectTitle].join("\t"),
+        [row.status, row.threadTitle, row.modelTitle].join("\t"),
       ]),
     ),
     activity_path: hero?.deepLink ?? "/",

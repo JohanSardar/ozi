@@ -8,11 +8,9 @@ import {
   MessageId,
   NodeId,
   type OrchestrationV2Run,
-  ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
   ProviderThreadId,
-  type Project,
   RunId,
   ThreadId,
   TurnItemId,
@@ -47,8 +45,6 @@ import * as ThreadLaunch from "../orchestration-v2/ThreadLaunchService.ts";
 import * as ThreadManagement from "../orchestration-v2/ThreadManagementService.ts";
 import * as ProviderReplayHarness from "../orchestration-v2/testkit/ProviderReplayHarness.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
-import * as ManagedProjectFolders from "../project/ManagedProjectFolders.ts";
-import * as ProjectService from "../project/ProjectService.ts";
 import * as ProviderRegistry from "../provider/ProviderRegistry.ts";
 import * as ScheduledTaskService from "../scheduledTasks/ScheduledTaskService.ts";
 import * as SecretRequests from "../secrets/SecretRequests.ts";
@@ -67,7 +63,6 @@ import * as PeerLinkRequests from "./PeerLinkRequests.ts";
 
 const laptop = descriptorOf("environment-laptop", "Laptop");
 const box = descriptorOf("environment-box", "Box");
-const boxProject = ProjectId.make("project:box");
 const instanceId = ProviderInstanceId.make("codex");
 const driver = ProviderDriverKind.make("codex");
 const modelSelection = { instanceId, model: "gpt-5.4" };
@@ -160,30 +155,6 @@ const makeBoxThread = Effect.gen(function* () {
   } satisfies BoxThread;
 });
 
-/** The box's projects: more than a page, with this repository's last. */
-const boxProjects: ReadonlyArray<Project> = [
-  ...Array.from({ length: 120 }, (_, index) => ({
-    id: ProjectId.make(`project:box-other-${index}`),
-    title: `other ${index}`,
-    workspaceRoot: `/srv/other-${index}`,
-    defaultModelSelection: null,
-    scripts: [],
-    createdAt: "2026-10-01T00:00:00.000Z",
-    updatedAt: "2026-10-01T00:00:00.000Z",
-    deletedAt: null,
-  })),
-  {
-    id: boxProject,
-    title: "app",
-    workspaceRoot: "/srv/app",
-    defaultModelSelection: null,
-    scripts: [],
-    createdAt: "2026-10-01T00:00:00.000Z",
-    updatedAt: "2026-10-01T00:00:00.000Z",
-    deletedAt: null,
-  },
-];
-
 const serveBox = (thread: BoxThread) => {
   return servePeer(box, boxToolkitLayer(thread));
 };
@@ -200,7 +171,6 @@ const boxToolkitLayer = (thread: BoxThread) => {
       const linkOrigin = yield* Ref.get(thread.linkOrigin);
       return {
         ...liveThreadShell(threadId, { runtimeMode: "full-access" }),
-        projectId: boxProject,
         ...(linkOrigin === null ? {} : { linkOrigin }),
       };
     });
@@ -237,7 +207,7 @@ const boxToolkitLayer = (thread: BoxThread) => {
     });
   const layerBoxThreads = Layer.mock(ThreadManagement.ThreadManagementService)({
     getThreadShell: shellOf,
-    getProjectThreadRecords: (input) => projectionOf(input.threadId),
+    getActiveThreadRecords: (input) => projectionOf(input.threadId),
     getThreadRecords: (threadId) => projectionOf(threadId),
     waitForThread: (input) =>
       Effect.gen(function* () {
@@ -248,7 +218,6 @@ const boxToolkitLayer = (thread: BoxThread) => {
         }
         if (yield* Ref.get(thread.gone)) {
           return yield* new ThreadManagement.ThreadManagementThreadNotFoundError({
-            projectId: boxProject,
             threadId: input.threadId,
           });
         }
@@ -425,7 +394,6 @@ const boxToolkitLayer = (thread: BoxThread) => {
               projection: {
                 thread: {
                   id: input.threadId,
-                  projectId: input.projectId,
                   title: input.title,
                   modelSelection: input.modelSelection,
                 },
@@ -448,7 +416,7 @@ const boxToolkitLayer = (thread: BoxThread) => {
   });
   return Layer.merge(
     McpHttpServer.layerOrchestratorToolkit,
-    McpHttpServer.layerProjectRegistration,
+    McpHttpServer.layerThreadLaunchRegistration,
   ).pipe(
     Layer.provide(DocumentText.layer.pipe(Layer.provideMerge(NodeServices.layer))),
     Layer.provide(NodeCrypto.layer),
@@ -459,9 +427,6 @@ const boxToolkitLayer = (thread: BoxThread) => {
     Layer.provide(Layer.mock(PeerLinkRequests.PeerLinkRequests)({})),
     Layer.provide(Layer.mock(PeerLinks.PeerLinks)({})),
     Layer.provide(
-      Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({ namedProjectsRoot: "/p" }),
-    ),
-    Layer.provide(
       ServerConfig.layerTest(process.cwd(), { prefix: "t3-remote-delegation-box-" }).pipe(
         Layer.provide(NodeServices.layer),
       ),
@@ -469,17 +434,6 @@ const boxToolkitLayer = (thread: BoxThread) => {
     Layer.provide(Layer.mock(ProviderRegistry.ProviderRegistry)({})),
     Layer.provide(Layer.mock(ProviderAdapterRegistry.ProviderAdapterRegistryV2)({})),
     Layer.provide(Layer.mock(ScheduledTaskService.ScheduledTaskService)({})),
-    Layer.provide(
-      Layer.mock(ProjectService.ProjectService)({
-        getById: () => Effect.succeedNone,
-        // More than a page, so finding the project with this repository pages.
-        listPage: ({ cursor, limit }) =>
-          Effect.succeed({
-            projects: boxProjects.slice(cursor, cursor + limit),
-            nextCursor: cursor + limit < boxProjects.length ? cursor + limit : null,
-          }),
-      }),
-    ),
     Layer.provide(Layer.mock(SecretRequests.SecretRequests)({})),
     Layer.provide(ServerSettings.layerTest()),
     Layer.provide(NodeServices.layer),
@@ -554,7 +508,6 @@ const makeLaptop = (
       Layer.provide(Layer.mock(ProviderRegistry.ProviderRegistry)({})),
       Layer.provide(Layer.mock(ProviderAdapterRegistry.ProviderAdapterRegistryV2)({})),
       Layer.provide(Layer.mock(ScheduledTaskService.ScheduledTaskService)({})),
-      Layer.provide(Layer.mock(ProjectService.ProjectService)({})),
       Layer.provide(Layer.mock(SecretRequests.SecretRequests)({})),
       Layer.provide(Layer.mock(ThreadLaunch.ThreadLaunchService)({})),
       Layer.fresh,
@@ -606,7 +559,6 @@ const seedParent = (laptopEnv: Effect.Success<ReturnType<typeof makeLaptop>>) =>
       creationSource: "web",
       commandId: CommandId.make("command:create:laptop-parent"),
       threadId: parentThreadId,
-      projectId: ProjectId.make("project:laptop"),
       title: "Laptop parent",
       modelSelection,
       runtimeMode: "full-access",
@@ -1678,7 +1630,7 @@ it.effect("a local task runs in this thread's project", () =>
 
       const result = yield* a.call("delegate_task", {
         task: "Run it here.",
-        target: { projectId: "project:elsewhere" },
+        target: {},
       });
       expect(result.isError).toBe(true);
       expect(JSON.stringify(result.content)).toContain("invalid_request");

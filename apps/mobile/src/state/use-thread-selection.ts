@@ -6,7 +6,6 @@ import {
   ThreadId,
   type OrchestrationV2ThreadProjection,
   type OrchestrationV2ThreadShell,
-  type ScopedProjectRef,
   type ScopedThreadRef,
 } from "@t3tools/contracts";
 import {
@@ -20,7 +19,7 @@ import {
 import * as Option from "effect/Option";
 
 import { scopedThreadKey } from "../lib/scopedEntities";
-import { useProject, useQuietThreadShell } from "../state/entities";
+import { useQuietThreadShell } from "../state/entities";
 import { useEnvironmentThread } from "../state/threads";
 import {
   resolvePendingThreadCreation,
@@ -68,7 +67,6 @@ function threadDetailToShell(
     projection.runtimeRequests.find((request) => request.status === "pending") ?? null;
   return presentThreadShell(environmentId, {
     id: thread.id,
-    projectId: thread.projectId,
     title: thread.title,
     providerInstanceId: thread.providerInstanceId,
     modelSelection: thread.modelSelection,
@@ -180,14 +178,6 @@ function useResolvedThreadSelection(params: ThreadSelectionRouteParams | undefin
     setPreviousCreation(resolvedCreation);
   }
   const selectedThreadCreation = creationUnchanged ? previousCreation : resolvedCreation;
-  const selectedProjectRef: ScopedProjectRef | null =
-    selectedThread === null
-      ? null
-      : {
-          environmentId: selectedThread.environmentId,
-          projectId: selectedThread.projectId,
-        };
-  const selectedThreadProject = useProject(selectedProjectRef);
   const selectedEnvironmentId = selectedThread?.environmentId ?? null;
   const selectedEnvironmentConnection = useSavedRemoteConnection(selectedEnvironmentId);
   const selectedEnvironmentRuntime = useRemoteEnvironmentRuntime(selectedEnvironmentId);
@@ -197,7 +187,6 @@ function useResolvedThreadSelection(params: ThreadSelectionRouteParams | undefin
     selectedThread,
     selectedThreadCreation,
     selectedThreadDetailRef,
-    selectedThreadProject,
     selectedEnvironmentConnection,
     selectedEnvironmentRuntime,
   };

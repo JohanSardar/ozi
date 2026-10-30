@@ -1,14 +1,12 @@
 import { describe, expect, it, vi } from "vite-plus/test";
-import { EnvironmentId, ProjectId, ProviderInstanceId, ThreadId } from "@t3tools/contracts";
+import { EnvironmentId, ProviderInstanceId, ThreadId } from "@t3tools/contracts";
 import type { Thread } from "../types";
 import { makeThreadFixture } from "../test-fixtures";
 import {
-  buildNestedSearchItems,
   buildThreadActionItems,
   filterPinnedBrowseEntries,
   filterCommandPaletteGroups,
   reduceCommandPaletteUiState,
-  resolveAddProjectEntry,
   createCommandPaletteSearchState,
   reduceCommandPaletteSearchState,
   type CommandPaletteUiState,
@@ -45,60 +43,14 @@ describe("reduceCommandPaletteUiState", () => {
       reduceCommandPaletteUiState(second, { _tag: "SetOpen", open: false }).openIntent,
     ).toBeNull();
   });
-
-  it("keeps the session across mode switches so only intents start the palette over", () => {
-    let state: CommandPaletteUiState = {
-      open: false,
-      mode: "command",
-      openIntent: null,
-      session: 0,
-    };
-    state = reduceCommandPaletteUiState(state, { _tag: "OpenNewThreadIn" });
-    expect(state).toMatchObject({ open: true, openIntent: { kind: "new-thread-in" }, session: 1 });
-    state = reduceCommandPaletteUiState(state, { _tag: "ToggleMode", mode: "files" });
-    expect(state).toMatchObject({ mode: "files", openIntent: null, session: 1 });
-    state = reduceCommandPaletteUiState(state, { _tag: "OpenAddProject" });
-    expect(state).toMatchObject({
-      mode: "command",
-      openIntent: { kind: "add-project" },
-      session: 2,
-    });
-  });
-});
-
-describe("resolveAddProjectEntry", () => {
-  const local = EnvironmentId.make("local");
-  const remote = EnvironmentId.make("remote");
-
-  it("sends the user to connect an environment when none can add a project", () => {
-    expect(resolveAddProjectEntry([], null)).toEqual({ kind: "connect-environment" });
-  });
-
-  it("asks for an environment when there is a choice or no connected default", () => {
-    expect(
-      resolveAddProjectEntry([{ environmentId: local }, { environmentId: remote }], local),
-    ).toEqual({ kind: "choose-environment" });
-    expect(resolveAddProjectEntry([{ environmentId: local }], null)).toEqual({
-      kind: "choose-environment",
-    });
-  });
-
-  it("goes straight to sources for the only environment", () => {
-    expect(resolveAddProjectEntry([{ environmentId: local }], local)).toEqual({
-      kind: "choose-source",
-      environmentId: local,
-    });
-  });
 });
 
 const LOCAL_ENVIRONMENT_ID = EnvironmentId.make("environment-local");
-const PROJECT_ID = ProjectId.make("project-1");
 
 function makeThread(overrides: Partial<Thread> = {}): Thread {
   return makeThreadFixture({
     id: ThreadId.make("thread-1"),
     environmentId: LOCAL_ENVIRONMENT_ID,
-    projectId: PROJECT_ID,
     title: "Thread",
     modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5" },
     runtimeMode: "full-access",
@@ -126,10 +78,6 @@ describe("buildThreadActionItems", () => {
     const items = buildThreadActionItems({
       threads: [local, remote],
       activeThread: remote,
-      projectByKey: new Map([
-        [`${local.environmentId}:${local.projectId}`, { title: "Local project" }],
-        [`${remote.environmentId}:${remote.projectId}`, { title: "Remote project" }],
-      ]),
       icon: null,
       runThread,
     });
@@ -139,89 +87,6 @@ describe("buildThreadActionItems", () => {
     expect(runThread).toHaveBeenCalledWith(remote);
   });
 
-  it("ranks thread title matches ahead of contextual project-name matches", () => {
-    const threadItems = buildThreadActionItems({
-      threads: [
-        makeThread({
-          id: ThreadId.make("thread-context-match"),
-          title: "Fix navbar spacing",
-          updatedAt: "2026-03-20T00:00:00.000Z",
-        }),
-        makeThread({
-          id: ThreadId.make("thread-title-match"),
-          title: "Project kickoff notes",
-          createdAt: "2026-03-02T00:00:00.000Z",
-          updatedAt: "2026-03-19T00:00:00.000Z",
-        }),
-      ],
-      projectByKey: new Map([[`${LOCAL_ENVIRONMENT_ID}:${PROJECT_ID}`, { title: "Project" }]]),
-      icon: null,
-      runThread: async (_thread) => undefined,
-    });
-
-    const groups = filterCommandPaletteGroups({
-      activeGroups: [],
-      query: "project",
-      isInSubmenu: false,
-      projectSearchItems: [],
-      threadSearchItems: threadItems,
-    });
-
-    expect(groups).toHaveLength(1);
-    expect(groups[0]?.value).toBe("threads-search");
-    expect(groups[0]?.items.map((item) => item.value)).toEqual([
-      "thread:environment-local:thread-title-match",
-      "thread:environment-local:thread-context-match",
-    ]);
-  });
-
-  it("searches submenu options from the root and from a submenu with no match", () => {
-    const action = (value: string, title: string) => ({
-      kind: "action" as const,
-      value,
-      searchTerms: [title],
-      title,
-      icon: null,
-      run: async () => undefined,
-    });
-    const projects = [action("new-thread-in:ozi", "ozi"), action("new-thread-in:web", "web")];
-    const newThreadIn = {
-      kind: "submenu" as const,
-      value: "action:new-thread-in",
-      searchTerms: ["new thread"],
-      title: "New thread in...",
-      icon: null,
-      addonIcon: null,
-      groups: [{ value: "projects", label: "Projects", items: projects }],
-    };
-    const addProject = action("action:add-project", "Add project");
-    const rootGroups = [{ value: "actions", label: "Actions", items: [newThreadIn, addProject] }];
-    const search = (query: string, isInSubmenu: boolean) =>
-      filterCommandPaletteGroups({
-        activeGroups: isInSubmenu ? newThreadIn.groups : rootGroups,
-        query,
-        isInSubmenu,
-        allOptions: {
-          rootGroups,
-          nestedItems: buildNestedSearchItems([newThreadIn, addProject], query),
-        },
-        projectSearchItems: [],
-        threadSearchItems: [
-          ...buildThreadActionItems({
-            threads: [makeThread({ title: "Thread about ozi" })],
-            projectByKey: new Map(),
-            icon: null,
-            runThread: async () => undefined,
-          }),
-        ],
-      }).map((group) => [group.label, group.items.map((item) => item.title)]);
-
-    expect(search("new thread in ozi", false)[0]).toEqual(["Suggestions", ["New thread in ozi"]]);
-    expect(search("new thread", false).map(([label]) => label)).not.toContain("Suggestions");
-    expect(search("ozi", true)).toEqual([["Projects", ["ozi"]]]);
-    expect(search("add project", true)).toEqual([["Actions", ["Add project"]]]);
-  });
-
   it("lists message matches last, once, without moving the title matches above them", () => {
     const threads = [
       makeThread({ id: ThreadId.make("title"), title: "Disable Convex schema validation" }),
@@ -229,7 +94,6 @@ describe("buildThreadActionItems", () => {
     ];
     const items = buildThreadActionItems({
       threads,
-      projectByKey: new Map(),
       icon: null,
       runThread: async () => undefined,
     });
@@ -238,7 +102,6 @@ describe("buildThreadActionItems", () => {
         activeGroups: [],
         query: "convex",
         isInSubmenu: false,
-        projectSearchItems: [],
         threadSearchItems: items,
         threadMessageItems,
       }).map((group) => [group.label, group.items.map((item) => item.value)]);
@@ -270,7 +133,6 @@ describe("buildThreadActionItems", () => {
           latestUserMessageAt: "2026-10-11T00:00:00.000Z",
         }),
       ],
-      projectByKey: new Map(),
       icon: null,
       runThread: async () => undefined,
     });
@@ -281,7 +143,6 @@ describe("buildThreadActionItems", () => {
         ],
         query,
         isInSubmenu: false,
-        projectSearchItems: [],
         settingsSearchItems: [
           action("setting:compact", "Compact idle threads"),
           action("setting:providers", "Providers", ["Providers", "compatibility"]),
@@ -306,7 +167,6 @@ describe("buildThreadActionItems", () => {
     });
     const threadSearchItems = buildThreadActionItems({
       threads: [makeThread({ title: "Upgrade to pnpm 12" })],
-      projectByKey: new Map(),
       icon: null,
       runThread: async () => undefined,
     });
@@ -317,7 +177,6 @@ describe("buildThreadActionItems", () => {
         ],
         query,
         isInSubmenu: false,
-        projectSearchItems: [],
         threadSearchItems,
       }).map((group) => group.label);
 
@@ -344,7 +203,6 @@ describe("buildThreadActionItems", () => {
       ],
       query: "pr",
       isInSubmenu: false,
-      projectSearchItems: [],
       threadSearchItems: [],
     });
     expect(prGroups.flatMap((group) => group.items.map((item) => item.value))).toEqual([
@@ -364,7 +222,6 @@ describe("buildThreadActionItems", () => {
     const threadSearchItems = buildThreadActionItems({
       threads,
       activeThread: threads[1]!,
-      projectByKey: new Map(),
       icon: null,
       runThread: async () => undefined,
     });
@@ -387,7 +244,6 @@ describe("buildThreadActionItems", () => {
       ],
       query: "new thread",
       isInSubmenu: false,
-      projectSearchItems: [],
       threadSearchItems,
     });
     expect(groups.map((group) => group.label)).toEqual(["Actions", "Threads"]);
@@ -397,26 +253,14 @@ describe("buildThreadActionItems", () => {
   it("lists a project above threads that only hold its name when the name is typed", () => {
     const threadSearchItems = buildThreadActionItems({
       threads: [makeThread({ title: "Lakebed performance gains" })],
-      projectByKey: new Map(),
       icon: null,
       runThread: async () => undefined,
     });
-    const projectSearchItems = [
-      {
-        kind: "action" as const,
-        value: "project:lakebed",
-        searchTerms: ["Lakebed", "/code/lakebed"],
-        title: "Lakebed",
-        icon: null,
-        run: async () => undefined,
-      },
-    ];
     const labels = (query: string) =>
       filterCommandPaletteGroups({
         activeGroups: [],
         query,
         isInSubmenu: false,
-        projectSearchItems,
         threadSearchItems,
       }).map((group) => group.label);
     expect(labels("lakebed")).toEqual(["Projects", "Threads"]);
@@ -433,7 +277,6 @@ describe("buildThreadActionItems", () => {
           opens: { openedAt: Date.parse("2026-10-22T00:00:00.000Z"), score: 7, picks: [] },
         }),
       ],
-      projectByKey: new Map(),
       icon: null,
       runThread: async () => undefined,
     });
@@ -456,7 +299,6 @@ describe("buildThreadActionItems", () => {
       ],
       query: "new",
       isInSubmenu: false,
-      projectSearchItems: [],
       threadSearchItems,
       now,
     });
@@ -487,7 +329,6 @@ describe("buildThreadActionItems", () => {
       activeGroups: [],
       query: "pairing remote",
       isInSubmenu: false,
-      projectSearchItems: [],
       settingsSearchItems,
       threadSearchItems: [],
     });
@@ -522,7 +363,6 @@ describe("buildThreadActionItems", () => {
       ],
       query: "> new ozi",
       isInSubmenu: false,
-      projectSearchItems: [],
       threadSearchItems: [],
     });
     expect(groups.flatMap((group) => group.items.map((item) => item.value))).toEqual([
@@ -535,7 +375,6 @@ describe("buildThreadActionItems", () => {
       activeGroups: [],
       query: "keybindngs",
       isInSubmenu: false,
-      projectSearchItems: [],
       threadSearchItems: [],
       settingsSearchItems: [
         {
@@ -565,7 +404,6 @@ describe("buildThreadActionItems", () => {
         activeGroups: [],
         query: "GIT",
         isInSubmenu: false,
-        projectSearchItems: [],
         threadSearchItems: [],
         settingsSearchItems: [
           {
@@ -599,7 +437,6 @@ describe("buildThreadActionItems", () => {
     });
     const items = buildThreadActionItems({
       threads: [idThread, titleThread],
-      projectByKey: new Map([[`${LOCAL_ENVIRONMENT_ID}:${PROJECT_ID}`, { title: "Ozi" }]]),
       icon: null,
       runThread: async (_thread) => undefined,
     });
@@ -608,7 +445,6 @@ describe("buildThreadActionItems", () => {
       activeGroups: [],
       query: "  THREAD-ALPHA-1234  ",
       isInSubmenu: false,
-      projectSearchItems: [],
       settingsSearchItems: [],
       threadSearchItems: items,
     });
@@ -643,7 +479,6 @@ describe("buildThreadActionItems", () => {
           },
         }),
       ],
-      projectByKey: new Map(),
       icon: null,
       runThread: async () => undefined,
     });
@@ -673,7 +508,6 @@ describe("buildThreadActionItems", () => {
           updatedAt: "2026-03-01T00:00:00.000Z",
         }),
       ],
-      projectByKey: new Map(),
       icon: null,
       runThread: async () => undefined,
     });
@@ -682,7 +516,6 @@ describe("buildThreadActionItems", () => {
       activeGroups: [],
       query: "auth",
       isInSubmenu: false,
-      projectSearchItems: [],
       threadSearchItems: items,
     });
 
@@ -709,7 +542,6 @@ describe("buildThreadActionItems", () => {
           latestUserMessageAt: "2026-03-10T00:00:00.000Z",
         }),
       ],
-      projectByKey: new Map(),
       icon: null,
       runThread: async () => undefined,
     });
@@ -718,7 +550,6 @@ describe("buildThreadActionItems", () => {
       activeGroups: [],
       query: "auth",
       isInSubmenu: false,
-      projectSearchItems: [],
       threadSearchItems: items,
       now: Date.parse("2026-03-20T00:00:00.000Z"),
     });
@@ -803,7 +634,6 @@ describe("returning from file and content search", () => {
         threads: [
           {
             id: ThreadId.make("linked-thread"),
-            projectId: ProjectId.make("project"),
             title: "Completed work",
             archivedAt: "2026-09-01T00:00:00.000Z",
           },

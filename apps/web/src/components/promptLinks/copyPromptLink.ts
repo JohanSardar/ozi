@@ -1,4 +1,3 @@
-import type { EnvironmentProject } from "@t3tools/client-runtime/state/shell";
 import { type ModelSelection, type ServerProvider } from "@t3tools/contracts";
 import { buildNewThreadLink, PROMPT_LINK_MAX_PROMPT_LENGTH } from "@t3tools/shared/promptLinks";
 
@@ -23,7 +22,6 @@ export function promptLinkFor(
 
 export function composerPromptLink(input: {
   readonly target: ComposerThreadTarget;
-  readonly project: EnvironmentProject | undefined;
   readonly providers: ReadonlyArray<ServerProvider>;
   readonly threadModelSelection: ModelSelection | null;
   readonly withContext: boolean;

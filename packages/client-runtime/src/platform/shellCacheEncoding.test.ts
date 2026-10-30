@@ -1,7 +1,6 @@
 import {
   CommandId,
   EnvironmentId,
-  ProjectId,
   ProviderInstanceId,
   ThreadId,
   type OrchestrationV2ShellSnapshot,
@@ -18,28 +17,15 @@ import {
 import { makeStoredShellSnapshotEncoder } from "./shellCacheEncoding.ts";
 
 const ENVIRONMENT_ID = EnvironmentId.make("environment-1");
-const PROJECT_ID = ProjectId.make("project-1");
 const THREAD_ID = ThreadId.make("thread-1");
 const PROVIDER_INSTANCE_ID = ProviderInstanceId.make("codex");
 const NOW = DateTime.makeUnsafe("2026-07-29T12:00:00.000Z");
 const SHELL_SNAPSHOT: OrchestrationV2ShellSnapshot = {
   schemaVersion: 1,
   snapshotSequence: 3,
-  projects: [
-    {
-      id: PROJECT_ID,
-      title: "Project",
-      workspaceRoot: "/repo",
-      defaultModelSelection: null,
-      scripts: [],
-      createdAt: "2026-07-29T12:00:00.000Z",
-      updatedAt: "2026-07-29T12:00:00.000Z",
-    },
-  ],
   threads: [
     {
       id: THREAD_ID,
-      projectId: PROJECT_ID,
       title: "Thread",
       providerInstanceId: PROVIDER_INSTANCE_ID,
       modelSelection: {
@@ -98,11 +84,6 @@ describe("cooperative shell cache encoding", () => {
     environmentId: ENVIRONMENT_ID,
     snapshot: {
       ...SHELL_SNAPSHOT,
-      projects: SHELL_SNAPSHOT.projects.map((project) => ({
-        ...project,
-        title: "  Project  ",
-        unexpected: "drop this field",
-      })),
       threads: Array.from({ length: 64 }, (_, index) => ({
         ...SHELL_SNAPSHOT.threads[0]!,
         id: ThreadId.make(`thread-${index}`),

@@ -1,4 +1,4 @@
-import { CommandId, NonNegativeInt, ProjectId, ThreadId } from "@t3tools/contracts";
+import { CommandId, NonNegativeInt, ThreadId } from "@t3tools/contracts";
 import * as Context from "effect/Context";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
@@ -51,18 +51,7 @@ export const CommandReceiptV2 = Schema.Struct({
 });
 export type CommandReceiptV2 = typeof CommandReceiptV2.Type;
 
-export const ProjectCommandReceiptV2 = Schema.Struct({
-  commandId: CommandId,
-  projectId: ProjectId,
-  commandType: Schema.String,
-  acceptedAt: Schema.DateTimeUtc,
-  resultSequence: NonNegativeInt,
-  status: CommandReceiptV2Status,
-  error: Schema.NullOr(Schema.String),
-});
-export type ProjectCommandReceiptV2 = typeof ProjectCommandReceiptV2.Type;
-
-type AnyCommandReceiptV2 = CommandReceiptV2 | ProjectCommandReceiptV2;
+type AnyCommandReceiptV2 = CommandReceiptV2;
 
 export interface CommandReceiptStoreV2Shape {
   readonly insertIfAbsent: (
@@ -71,14 +60,9 @@ export interface CommandReceiptStoreV2Shape {
   readonly upsert: (
     receipt: AnyCommandReceiptV2,
   ) => Effect.Effect<void, CommandReceiptStoreV2Error>;
-  /** None for project command ids. */
   readonly getByCommandId: (
     commandId: CommandId,
   ) => Effect.Effect<Option.Option<CommandReceiptV2>, CommandReceiptStoreV2Error>;
-  /** None for thread command ids. */
-  readonly getProjectByCommandId: (
-    commandId: CommandId,
-  ) => Effect.Effect<Option.Option<ProjectCommandReceiptV2>, CommandReceiptStoreV2Error>;
 }
 
 export class CommandReceiptStoreV2 extends Context.Service<
@@ -88,12 +72,6 @@ export class CommandReceiptStoreV2 extends Context.Service<
 
 const decodeReceipt = Schema.decodeUnknownEffect(
   CommandReceiptV2.mapFields((fields) => ({
-    ...fields,
-    acceptedAt: Schema.DateTimeUtcFromString,
-  })),
-);
-const decodeProjectReceipt = Schema.decodeUnknownEffect(
-  ProjectCommandReceiptV2.mapFields((fields) => ({
     ...fields,
     acceptedAt: Schema.DateTimeUtcFromString,
   })),
@@ -116,9 +94,8 @@ function toApplicationReceipt(
 ): OrchestrationCommandReceipts.OrchestrationCommandReceipt {
   return {
     commandId: receipt.commandId,
-    ...("projectId" in receipt
-      ? { aggregateKind: "project" as const, aggregateId: receipt.projectId }
-      : { aggregateKind: "thread" as const, aggregateId: receipt.threadId }),
+    aggregateKind: "thread",
+    aggregateId: receipt.threadId,
     commandType: receipt.commandType,
     acceptedAt: DateTime.formatIso(receipt.acceptedAt),
     resultSequence: receipt.resultSequence,
@@ -175,23 +152,6 @@ const layerBase: Layer.Layer<
                 cause,
               }),
           ),
-        ),
-      getProjectByCommandId: (commandId) =>
-        receipts.getByCommandId({ commandId }).pipe(
-          Effect.flatMap((receipt) =>
-            Option.isNone(receipt) || receipt.value.aggregateKind !== "project"
-              ? Effect.succeedNone
-              : decodeProjectReceipt({
-                  commandId: receipt.value.commandId,
-                  projectId: receipt.value.aggregateId,
-                  commandType: receipt.value.commandType,
-                  acceptedAt: receipt.value.acceptedAt,
-                  resultSequence: receipt.value.resultSequence,
-                  status: receipt.value.status,
-                  error: receipt.value.error,
-                }).pipe(Effect.asSome),
-          ),
-          Effect.mapError((cause) => new CommandReceiptStoreReadError({ commandId, cause })),
         ),
     } satisfies CommandReceiptStoreV2Shape);
   }),

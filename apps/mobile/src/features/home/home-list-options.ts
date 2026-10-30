@@ -1,48 +1,34 @@
-import type { EnvironmentId, SidebarProjectGroupingMode } from "@t3tools/contracts";
-import { DEFAULT_SIDEBAR_PROJECT_SORT_ORDER } from "@t3tools/contracts";
+import type { EnvironmentId } from "@t3tools/contracts";
 import { RegistryContext, useAtomSet, useAtomValue } from "@effect/atom-react";
 import { Atom } from "effect/reactivity";
 import { createContext, createElement, useContext, useState, type PropsWithChildren } from "react";
 
 import type { ThreadListFilters } from "../../persistence/mobile-preferences";
 import { updateMobilePreferencesAtom } from "../../state/preferences";
-import type { HomeProjectSortOrder } from "./homeThreadList";
 
 export interface HomeListOptions {
   readonly selectedEnvironmentId: EnvironmentId | null;
-  readonly selectedProjectKey: string | null;
-  readonly projectSortOrder: HomeProjectSortOrder;
 }
 
-export interface ResolvedHomeListOptions extends HomeListOptions {
-  readonly projectGroupingMode: SidebarProjectGroupingMode;
-}
+export interface ResolvedHomeListOptions extends HomeListOptions {}
 
 function defaultHomeListOptions(filters?: ThreadListFilters): HomeListOptions {
   return {
     selectedEnvironmentId: filters?.environmentId ?? null,
-    selectedProjectKey: filters?.projectKey ?? null,
-    projectSortOrder:
-      DEFAULT_SIDEBAR_PROJECT_SORT_ORDER === "manual"
-        ? "updated_at"
-        : DEFAULT_SIDEBAR_PROJECT_SORT_ORDER,
   };
 }
 
 interface HomeListOptionsContextValue {
   readonly options: HomeListOptions;
   readonly updateOptions: (patch: Partial<HomeListOptions>) => void;
-  readonly projectGroupingMode: SidebarProjectGroupingMode;
 }
 
 const HomeListOptionsContext = createContext<HomeListOptionsContextValue | null>(null);
 
 export function HomeListOptionsProvider({
   children,
-  projectGroupingMode,
   savedFilters,
 }: PropsWithChildren<{
-  readonly projectGroupingMode: SidebarProjectGroupingMode;
   readonly savedFilters?: ThreadListFilters | undefined;
 }>) {
   const registry = useContext(RegistryContext);
@@ -55,19 +41,15 @@ export function HomeListOptionsProvider({
     const current = registry.get(optionsAtom);
     const next = { ...current, ...patch };
     registry.set(optionsAtom, next);
-    if (
-      next.selectedEnvironmentId !== current.selectedEnvironmentId ||
-      next.selectedProjectKey !== current.selectedProjectKey
-    ) {
+    if (next.selectedEnvironmentId !== current.selectedEnvironmentId) {
       savePreferences({
         threadListFilters: {
           environmentId: next.selectedEnvironmentId,
-          projectKey: next.selectedProjectKey,
         },
       });
     }
   };
-  const value = { options, updateOptions, projectGroupingMode };
+  const value = { options, updateOptions };
   return createElement(HomeListOptionsContext, { value }, children);
 }
 
@@ -89,22 +71,13 @@ export function useHomeListOptions(availableEnvironmentIds: ReadonlySet<Environm
       : { ...options, selectedEnvironmentId };
   const resolvedOptions: ResolvedHomeListOptions = {
     ...availableOptions,
-    projectGroupingMode: shared?.projectGroupingMode ?? "repository",
   };
 
   const setSelectedEnvironmentId = (value: EnvironmentId | null) => {
     updateOptions({ selectedEnvironmentId: value });
   };
-  const setSelectedProjectKey = (value: string | null) => {
-    updateOptions({ selectedProjectKey: value });
-  };
-  const setProjectSortOrder = (value: HomeProjectSortOrder) => {
-    updateOptions({ projectSortOrder: value });
-  };
   return {
     options: resolvedOptions,
     setSelectedEnvironmentId,
-    setSelectedProjectKey,
-    setProjectSortOrder,
   } as const;
 }

@@ -95,8 +95,8 @@ it.skipIf(process.platform !== "linux")(
       });
       const page = await app.firstWindow();
       page.setDefaultTimeout(20_000);
-      await page.getByText("What should we work on?", { exact: true }).waitFor();
-      for (const name of ["Continue", "Continue", "Do not import projects"]) {
+      await page.getByRole("button", { name: "Continue", exact: true }).waitFor();
+      for (const name of ["Continue", "Continue"]) {
         const button = page.getByRole("button", { name, exact: true });
         if (await button.isVisible()) await button.click();
       }

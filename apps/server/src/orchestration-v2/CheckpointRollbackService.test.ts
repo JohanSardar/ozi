@@ -12,7 +12,6 @@ import {
   RunAttemptId,
   RunId,
   CheckpointScopeId,
-  ProjectId,
   ProviderInstanceId,
   ProviderSessionId,
   ProviderThreadId,
@@ -23,7 +22,6 @@ import * as DateTime from "effect/DateTime";
 import * as SqlClient from "effect/sql/SqlClient";
 import * as Deferred from "effect/Deferred";
 import * as Fiber from "effect/Fiber";
-import * as Option from "effect/Option";
 import * as Layer from "effect/Layer";
 
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
@@ -37,21 +35,15 @@ import * as ThreadCommandExecutor from "./ThreadCommandExecutor.ts";
 import * as EventSink from "./EventSink.ts";
 import * as IdAllocator from "@t3tools/provider-core/server/IdAllocator";
 import * as ProjectionStore from "./ProjectionStore.ts";
-import * as ProjectStore from "./ProjectStore.ts";
 import type * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAdapter";
 import * as ProviderSessionManager from "./ProviderSessionManager.ts";
 import * as RuntimePolicy from "./RuntimePolicy.ts";
-
-const unrelatedProject = Option.some({
-  workspaceRoot: "/nonexistent/t3-rollback-project",
-} as never);
 const layerCheckpointRollbackService = CheckpointRollbackService.layer.pipe(
   Layer.provide(
     Layer.mergeAll(
       NodeServices.layer,
       Layer.mock(ServerConfig.ServerConfig)({} as never),
       ServerSettings.layerTest(),
-      Layer.mock(ProjectStore.ProjectStoreV2)({ get: () => Effect.succeed(unrelatedProject) }),
     ),
   ),
 );
@@ -199,7 +191,6 @@ const seedRollbackHistory = Effect.gen(function* () {
       id: threadId,
       createdBy: "user",
       creationSource: "web",
-      projectId: ProjectId.make("rollback-history-project"),
       title: "Rollback history",
       providerInstanceId,
       modelSelection,

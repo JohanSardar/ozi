@@ -1,7 +1,7 @@
 import JSZip from "jszip";
 import { openRtf, openNotebook, openDocument, openEpub } from "./extendedDocumentPreview";
 import type { ScopedThreadRef } from "@t3tools/contracts";
-import { ProjectReadFileError } from "@t3tools/contracts";
+import { WorkspaceReadFileError } from "@t3tools/contracts";
 import * as Schema from "effect/Schema";
 import { describe, expect, it, vi } from "vite-plus/test";
 import {
@@ -13,13 +13,13 @@ import {
   workspaceAssetResource,
 } from "./filePreviewMode";
 
-const decodeReadError = Schema.decodeSync(ProjectReadFileError);
+const decodeReadError = Schema.decodeSync(WorkspaceReadFileError);
 
 describe("file preview read errors", () => {
   // regression: #15628 read errors from servers without attempted paths keep their own message
   it("preserves the public message from older servers", () => {
     const error = decodeReadError({
-      _tag: "ProjectReadFileError",
+      _tag: "WorkspaceReadFileError",
       message: "Legacy file read failure.",
     });
     expect(filePreviewReadErrorMessage(error)).toBe("Legacy file read failure.");

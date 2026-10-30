@@ -17,7 +17,6 @@ import {
   OrchestrationV2ThreadBoundedSnapshot,
   OrchestrationV2ThreadHistoryPage,
   OrchestrationV2ThreadStreamItem,
-  ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
   RunId,
@@ -44,11 +43,9 @@ import { Etag, HttpRouter } from "effect/http";
 import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import * as OrchestrationEventStore from "../persistence/OrchestrationEventStore.ts";
-import * as ProjectEnrichmentService from "../project/ProjectEnrichmentService.ts";
 import { subscribeOrchestrationV2Thread } from "../ws.ts";
 import * as OrchestrationHttp from "./http.ts";
 import * as ProjectionStore from "./ProjectionStore.ts";
-import * as ProjectStore from "./ProjectStore.ts";
 import * as ThreadManagementService from "./ThreadManagementService.ts";
 
 const decodeBounded = Schema.decodeUnknownSync(
@@ -64,7 +61,6 @@ const encodeStreamItem = Schema.encodeSync(Schema.toCodecJson(OrchestrationV2Thr
 
 const provider = ProviderInstanceId.make("codex");
 const modelSelection = { instanceId: provider, model: "gpt-5.4" };
-const projectId = ProjectId.make("project:compact-transport");
 const PARENT = ThreadId.make("thread:compact-transport:parent");
 const FORK = ThreadId.make("thread:compact-transport:fork");
 const LONG = ThreadId.make("thread:compact-transport:long");
@@ -119,7 +115,6 @@ function threadCreated(id: ThreadId, at: DateTime.Utc, forkOf?: RunId): Orchestr
       createdBy: "user",
       creationSource: "web",
       id,
-      projectId,
       title: String(id),
       providerInstanceId: provider,
       modelSelection,
@@ -394,8 +389,6 @@ const TestLayer = Layer.mergeAll(
   }),
   Layer.effectDiscard(seed),
   Layer.mock(OrchestrationEventStore.OrchestrationEventStore)({}),
-  Layer.mock(ProjectStore.ProjectStoreV2)({}),
-  Layer.mock(ProjectEnrichmentService.ProjectEnrichmentService)({}),
 ).pipe(Layer.provideMerge(store));
 
 const withHttp = <A>(use: (get: (path: string) => Promise<Response>) => Promise<A>) =>

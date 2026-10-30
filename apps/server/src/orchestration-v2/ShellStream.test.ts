@@ -4,9 +4,8 @@ import type {
   OrchestrationV2ShellStreamItem,
   OrchestrationV2ThreadShell,
 } from "@t3tools/contracts";
-import { ProjectId, ProviderInstanceId, ThreadId } from "@t3tools/contracts";
+import { ProviderInstanceId, ThreadId } from "@t3tools/contracts";
 import * as DateTime from "effect/DateTime";
-import * as Deferred from "effect/Deferred";
 import * as Duration from "effect/Duration";
 import * as Effect from "effect/Effect";
 import * as Stream from "effect/Stream";
@@ -14,8 +13,6 @@ import * as TestClock from "effect/testing/TestClock";
 
 import {
   activeShellRowsForSubscriber,
-  bufferShellLiveStream,
-  composeShellStreamWithEnrichment,
   omitIdleSubagentShells,
   omitOlderSettledShells,
   shouldPublishShellApplicationEvent,
@@ -142,7 +139,6 @@ describe("omitOlderSettledShells", () => {
   ) =>
     shellFixture({
       id: ThreadId.make(id),
-      projectId: ProjectId.make(id.startsWith("b-") ? "project-b" : "project-a"),
       lineage: {
         parentThreadId: null,
         relationshipToParent: null,
@@ -170,10 +166,7 @@ describe("omitOlderSettledShells", () => {
     expect(result.olderSettled).toEqual({
       before: DateTime.formatIso(DateTime.makeUnsafe(100 * DAY - 2.4 * DAY)),
       asOfSequence: 7,
-      counts: [
-        { projectId: "project-a", count: 1 },
-        { projectId: "project-b", count: 1 },
-      ],
+      counts: [{ count: 1 }, { count: 1 }],
     });
   });
 
@@ -186,7 +179,7 @@ describe("omitOlderSettledShells", () => {
     const old = Array.from({ length: 5 }, (_, index) => row(`old-${index}`, 300 + index));
     const result = omit(old);
     expect(result.threads).toEqual(old);
-    expect(result.olderSettled.counts).toEqual([]);
+    expect(result.olderSettled.count).toEqual(0);
   });
 
   it("keeps older rows that are snoozed, live, or above a kept subagent, and still counts them", () => {
@@ -198,7 +191,6 @@ describe("omitOlderSettledShells", () => {
       row("parent", 30),
       shellFixture({
         id: ThreadId.make("child"),
-        projectId: ProjectId.make("project-a"),
         lineage: {
           parentThreadId: ThreadId.make("parent"),
           relationshipToParent: "subagent",
@@ -215,54 +207,11 @@ describe("omitOlderSettledShells", () => {
       "parent",
       "child",
     ]);
-    expect(result.olderSettled.counts).toEqual([{ projectId: "project-a", count: 4 }]);
+    expect(result.olderSettled.count).toEqual(4);
   });
 });
 
 describe("shellStreamItemsFromInitialSnapshot", () => {});
-
-describe("composeShellStreamWithEnrichment", () => {
-  it.effect("keeps a merged shell batch charged while the client withholds its ACK", () =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        const update = yield* Deferred.make<void>();
-        const closed = yield* Deferred.make<void>();
-        const initial = {
-          kind: "thread.removed" as const,
-          sequence: 1,
-          location: "active" as const,
-          threadId: ThreadId.make("thread-a"),
-        };
-        const pull = yield* Stream.toPull(
-          composeShellStreamWithEnrichment({
-            initial: Stream.empty,
-            tail: bufferShellLiveStream(
-              Stream.concat(
-                Stream.succeed(initial),
-                Stream.fromEffect(Deferred.await(update)).pipe(
-                  Stream.map(() => ({ ...initial, sequence: 2 })),
-                ),
-              ).pipe(Stream.ensuring(Deferred.succeed(closed, undefined))),
-              { maxItems: 1 },
-            ),
-            enrichment: Stream.empty,
-          }),
-        );
-        expect(yield* pull).toEqual([initial]);
-        // Let the merge producer run while the client still withholds its ACK.
-        yield* Effect.yieldNow;
-        yield* Deferred.succeed(update, undefined);
-        yield* Deferred.await(closed);
-        const result = yield* Stream.fromPull(Effect.succeed(pull)).pipe(
-          Stream.runDrain,
-          Effect.result,
-        );
-        expect(result._tag).toBe("Failure");
-        if (result._tag === "Failure") expect(result.failure._tag).toBe("LiveStreamBufferError");
-      }),
-    ),
-  );
-});
 
 describe("skipUnchangedThreadShells", () => {
   const at = (ms: number) => DateTime.makeUnsafe(Date.parse("2026-10-01T00:00:00.000Z") + ms);
@@ -271,7 +220,6 @@ describe("skipUnchangedThreadShells", () => {
     overrides: Partial<OrchestrationV2ThreadShell> = {},
   ): OrchestrationV2ThreadShell => ({
     id: ThreadId.make(id),
-    projectId: ProjectId.make("project-a"),
     title: "Thread",
     providerInstanceId: ProviderInstanceId.make("codex"),
     modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.4" },

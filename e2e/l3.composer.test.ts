@@ -133,7 +133,6 @@ it("l3.composer: steer, queue, stop and attachments behave as in T3", async () =
       ),
     );
     await page.goto(JSON.parse(stdout).pairingUrl);
-    await page.getByRole("button", { name: "Start without a project" }).click();
     const composer = page.getByRole("textbox", { name: /^Message/ });
     const say = async (text: string, modifiers: Array<"Control"> = []) => {
       await composer.click();

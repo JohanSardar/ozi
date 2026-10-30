@@ -5,7 +5,6 @@ import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
 
 import {
-  ProjectId,
   ThreadId,
   type DesktopAppActivationRequest,
   type DesktopAppActivationResponse,
@@ -52,7 +51,6 @@ function startOkServer(target: ReturnType<typeof makeTarget>, userId: number | u
       version: 1,
       requestId: input.requestId,
       ok: true,
-      projectId: ProjectId.make("project-1"),
       threadId: ThreadId.make("thread-1"),
     }),
     cancel: () => undefined,

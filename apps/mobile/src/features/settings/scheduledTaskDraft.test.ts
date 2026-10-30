@@ -4,7 +4,6 @@ import {
   type ServerConfig,
   ProviderDriverKind,
   ProviderInstanceId,
-  ProjectId,
 } from "@t3tools/contracts";
 import {
   scheduledTaskDefaultModel,
@@ -83,13 +82,11 @@ describe("scheduleFromDraft", () => {
 
 describe("scheduled task model defaults", () => {
   const instanceId = ProviderInstanceId.make("codex");
-  const projectId = ProjectId.make("project");
   const environmentSelection = {
     instanceId,
     model: "environment-model",
     options: [{ id: "reasoning", value: "high" }],
   };
-  const projectSelection = { instanceId, model: "project-model" };
   const config = {
     settings: { ...DEFAULT_SERVER_SETTINGS, defaultModelSelection: environmentSelection },
     providers: [
@@ -117,56 +114,23 @@ describe("scheduled task model defaults", () => {
     ],
   } as unknown as ServerConfig;
   const resolve = scheduledTaskDefaultModel;
-  it("prefers the project's configured model", () => {
-    expect(resolve(config, { id: projectId, defaultModelSelection: projectSelection })).toEqual(
-      projectSelection,
-    );
-    expect(
-      resolve(
-        {
-          ...config,
-          settings: {
-            ...config.settings,
-            projectSettingsOverrides: {
-              [projectId]: { defaultModelSelection: projectSelection },
-            },
-          },
-        },
-        { id: projectId },
-      ),
-    ).toEqual(projectSelection);
-  });
   it("uses the advertised default instead of catalog order when no default is configured", () => {
     expect(
-      resolve({ ...config, settings: { ...config.settings, defaultModelSelection: null } }, null),
+      resolve({ ...config, settings: { ...config.settings, defaultModelSelection: null } }),
     ).toEqual({ instanceId, model: "catalog-default" });
-  });
-  it("falls back to the environment default when the project provider is unavailable", () => {
-    expect(
-      resolve(config, {
-        id: projectId,
-        defaultModelSelection: {
-          instanceId: ProviderInstanceId.make("unavailable"),
-          model: "missing",
-        },
-      }),
-    ).toEqual(environmentSelection);
   });
   it("does not choose an implicit model on a disabled provider", () => {
     expect(
-      resolve(
-        {
-          ...config,
-          settings: {
-            ...config.settings,
-            providerInstances: {
-              [instanceId]: { driver: ProviderDriverKind.make("codex"), enabled: false },
-            },
+      resolve({
+        ...config,
+        settings: {
+          ...config.settings,
+          providerInstances: {
+            [instanceId]: { driver: ProviderDriverKind.make("codex"), enabled: false },
           },
-          providers: config.providers.map((provider) => ({ ...provider, enabled: false })),
         },
-        null,
-      ),
+        providers: config.providers.map((provider) => ({ ...provider, enabled: false })),
+      }),
     ).toBeNull();
   });
 });

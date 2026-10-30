@@ -55,7 +55,6 @@ import {
   OrchestrationV2ThreadHistoryPage,
   OrchestrationV2ThreadTranscript,
 } from "./orchestrationV2.ts";
-import { Project, ProjectMutation, ProjectSnapshot } from "./project.ts";
 import {
   RelayCloudEnvironmentHealthRequest,
   RelayCloudMintCredentialRequest,
@@ -112,8 +111,6 @@ export const EnvironmentInternalErrorReason = Schema.Literals([
   "pairing_link_revoke_failed",
   "client_sessions_load_failed",
   "client_session_revoke_failed",
-  "project_snapshot_failed",
-  "project_mutation_failed",
   "orchestration_snapshot_failed",
   "orchestration_thread_snapshot_failed",
   "orchestration_thread_bounded_snapshot_failed",
@@ -346,10 +343,6 @@ const EnvironmentSessionRevokeErrors = [
   EnvironmentOperationForbiddenError,
   EnvironmentInternalError,
 ] as const;
-const EnvironmentProjectSnapshotErrors = [
-  EnvironmentScopeRequiredError,
-  EnvironmentInternalError,
-] as const;
 const EnvironmentOrchestrationSnapshotErrors = [
   EnvironmentScopeRequiredError,
   EnvironmentInternalError,
@@ -357,11 +350,6 @@ const EnvironmentOrchestrationSnapshotErrors = [
 const EnvironmentOrchestrationThreadSnapshotErrors = [
   EnvironmentScopeRequiredError,
   EnvironmentResourceNotFoundError,
-  EnvironmentInternalError,
-] as const;
-const EnvironmentProjectMutationErrors = [
-  EnvironmentRequestInvalidError,
-  EnvironmentScopeRequiredError,
   EnvironmentInternalError,
 ] as const;
 
@@ -711,23 +699,6 @@ class EnvironmentOrchestrationHttpApi extends HttpApiGroup.make("orchestration")
     }).middleware(EnvironmentAuthenticatedAuth),
   ) {}
 
-class EnvironmentProjectsHttpApi extends HttpApiGroup.make("projects")
-  .add(
-    HttpApiEndpoint.get("snapshot", "/api/projects", {
-      headers: OptionalBearerHeaders,
-      success: ProjectSnapshot,
-      error: EnvironmentProjectSnapshotErrors,
-    }).middleware(EnvironmentAuthenticatedAuth),
-  )
-  .add(
-    HttpApiEndpoint.post("mutate", "/api/projects/mutate", {
-      headers: OptionalBearerHeaders,
-      payload: ProjectMutation,
-      success: Project,
-      error: EnvironmentProjectMutationErrors,
-    }).middleware(EnvironmentAuthenticatedAuth),
-  ) {}
-
 class EnvironmentConnectHttpApi extends HttpApiGroup.make("connect")
   .add(
     HttpApiEndpoint.post("linkProof", "/api/connect/link-proof", {
@@ -814,6 +785,5 @@ export class EnvironmentHttpApi extends HttpApi.make("environment")
   .add(EnvironmentAuthHttpApi)
   .add(EnvironmentMcpOAuthHttpApi)
   .add(EnvironmentOrchestrationHttpApi)
-  .add(EnvironmentProjectsHttpApi)
   .add(EnvironmentConnectHttpApi)
   .add(EnvironmentWebhooksHttpApi) {}

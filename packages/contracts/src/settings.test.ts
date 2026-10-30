@@ -1,7 +1,5 @@
 import { describe, expect, it } from "vite-plus/test";
 import * as Schema from "effect/Schema";
-
-import { type CommandId, ProjectId } from "./baseSchemas.ts";
 import { ProviderDriverKind, ProviderInstanceId } from "./providerInstance.ts";
 import {
   ClientSettingsSchema,
@@ -10,9 +8,7 @@ import {
   DEFAULT_SERVER_SETTINGS,
   globalIdleCompaction,
   idleCompactionPatch,
-  requiredScopesForProjectMutation,
   resolveIdleCompaction,
-  resolveProjectProviderInstanceEnabled,
   resolveProviderInstanceEnabled,
   ServerSettings,
   ServerSettingsPatch,
@@ -164,42 +160,6 @@ describe("provider enabled defaults", () => {
 describe("ServerSettings environment icon", () => {
   it("decodes a kind from a newer server as null instead of failing the snapshot", () => {
     expect(decodeServerSettings({ environmentIcon: "toaster" }).environmentIcon).toBeNull();
-  });
-});
-
-describe("resolveProjectProviderInstanceEnabled", () => {
-  const projectId = "project-a" as ProjectId;
-  const instanceId = ProviderInstanceId.make("codex_work");
-
-  it("lets a project disable an instance the machine enabled", () => {
-    const settings: ServerSettings = {
-      ...DEFAULT_SERVER_SETTINGS,
-      providerInstances: {
-        [instanceId]: { driver: ProviderDriverKind.make("codex"), enabled: true },
-      },
-      projectSettingsOverrides: {
-        [projectId]: { providerInstances: { [instanceId]: { enabled: false } } },
-      },
-    };
-    expect(resolveProjectProviderInstanceEnabled(settings, projectId, instanceId)).toBe(false);
-  });
-});
-
-describe("requiredScopesForProjectMutation", () => {
-  it("adds the settings scope only when a mutation carries scripts", () => {
-    const projectId = "project-1" as ProjectId;
-    const commandId = "command-1" as CommandId;
-    expect(
-      requiredScopesForProjectMutation({ type: "project.update", commandId, projectId }),
-    ).toEqual(["orchestration:operate"]);
-    expect(
-      requiredScopesForProjectMutation({
-        type: "project.update",
-        commandId,
-        projectId,
-        scripts: [],
-      }),
-    ).toEqual(["orchestration:operate", "settings:write"]);
   });
 });
 

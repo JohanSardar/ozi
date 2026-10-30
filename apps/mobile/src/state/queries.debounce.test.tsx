@@ -19,7 +19,7 @@ vi.mock("./presentation", () => ({
 }));
 vi.mock("./pull-requests", () => ({}));
 vi.mock("./projects", () => ({
-  projectEnvironment: { searchEntries: mocks.searchEntries },
+  workspaceEnvironment: { searchEntries: mocks.searchEntries },
 }));
 vi.mock("./atom-registry", () => ({ appAtomRegistry: {} }));
 vi.mock("./orchestration", () => ({ orchestrationEnvironment: {} }));

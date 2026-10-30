@@ -130,12 +130,7 @@ function CleanupResults({
                 <span className="grid grid-cols-[auto_minmax(0,1fr)] gap-x-3 gap-y-1 border-l border-border/60 pl-3">
                   <span>Machine</span>
                   <span className="text-foreground/80">{environmentLabel}</span>
-                  {entry.projectPath && (
-                    <>
-                      <span>Project</span>
-                      <code className="text-foreground/80">{entry.projectPath}</code>
-                    </>
-                  )}
+
                   {entry.path && (
                     <>
                       <span>Folder</span>
@@ -353,10 +348,9 @@ function StorageCleanupScopeNotice() {
 
 /** Retention for logs and captures, and the manual cleanup run, which covers worktrees too. */
 export function StorageCleanupSections() {
-  const { scope, connectedEnvironments, targets } = useSettingsScope();
+  const { connectedEnvironments, targets } = useSettingsScope();
   const scopedSettings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
-  if (scope.kind === "project" || scope.kind === "checkout") return null;
   const settings = scopedSettings.storageCleanup;
   const ruleStatus = (key: "browserArtifactsAfterDays" | "logsAfterDays") =>
     targets.some((target) => target.settings.storageCleanup[key] !== settings[key])

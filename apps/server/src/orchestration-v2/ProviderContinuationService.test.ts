@@ -1,7 +1,6 @@
 import { assert, describe, it } from "@effect/vitest";
 import {
   MessageId,
-  ProjectId,
   ProviderDriverKind,
   ProviderInstanceId,
   ProviderThreadId,
@@ -262,7 +261,6 @@ describe("ProviderContinuationService", () => {
                 Effect.andThen(
                   Effect.fail(
                     new ThreadManagementService.ThreadManagementProviderInstanceDisabledError({
-                      projectId: ProjectId.make("project-provider-continuation-disabled"),
                       instanceId: ProviderInstanceId.make(
                         "instance-provider-continuation-disabled",
                       ),
@@ -335,7 +333,6 @@ describe("ProviderContinuationService", () => {
           dispatch: () =>
             Effect.fail(
               new ThreadManagementService.ThreadManagementProviderInstanceDisabledError({
-                projectId: ProjectId.make("project-provider-continuation-disabled"),
                 instanceId: ProviderInstanceId.make("instance-provider-continuation-disabled"),
               }) as never,
             ),
@@ -384,7 +381,6 @@ describe("ProviderContinuationService", () => {
           dispatch: () =>
             Effect.fail(
               new ThreadManagementService.ThreadManagementProviderInstanceDisabledError({
-                projectId: ProjectId.make("project-provider-continuation-disabled"),
                 instanceId: ProviderInstanceId.make("instance-provider-continuation-disabled"),
               }) as never,
             ),

@@ -37,9 +37,7 @@ function CommandPaletteEmptyState(props: { emptyStateMessage?: string; isActions
   return (
     <div className="py-10 text-center text-sm text-muted-foreground">
       {props.emptyStateMessage ??
-        (props.isActionsOnly
-          ? "No matching actions."
-          : "No matching commands, projects, or threads.")}
+        (props.isActionsOnly ? "No matching actions." : "No matching commands or chats.")}
     </div>
   );
 }
@@ -147,8 +145,7 @@ export function CommandPaletteVirtualizedResults(props: CommandPaletteVirtualize
     </CommandListVirtualized>
   );
 }
-
-export function CommandPaletteTitleIcon(props: { children: ReactNode }) {
+function CommandPaletteTitleIcon(props: { children: ReactNode }) {
   return <span className="flex h-5 shrink-0 items-center self-start pt-0.5">{props.children}</span>;
 }
 
@@ -176,7 +173,7 @@ function ThreadRowContext({
 }) {
   if (!item.threadSearch || !(item.threadContentMatch || item.matchHint)) return null;
   // A "Project: …" hint already names the project.
-  const context = [item.threadSearch.projectTitle, item.threadSearch.environmentLabel]
+  const context = [item.threadSearch.environmentLabel]
     .filter((part) => part && part !== item.matchHint?.text)
     .join(" · ");
   return context ? (

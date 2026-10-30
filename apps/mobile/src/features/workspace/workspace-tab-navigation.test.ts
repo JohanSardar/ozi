@@ -20,7 +20,7 @@ const names = (state: { routes: readonly { name: string }[] }) =>
 
 describe("workspace tab selections", () => {
   it("doesn't remember pages a Settings row doesn't open", () => {
-    for (const name of ["SettingsEnvironmentNew", "SettingsProjectOverview", "SettingsAuth"]) {
+    for (const name of ["SettingsEnvironmentNew", "SettingsAuth"]) {
       expect(workspaceSelectionsIn([home, settings, { key: name, name }], {}).settings).toBe(
         undefined,
       );

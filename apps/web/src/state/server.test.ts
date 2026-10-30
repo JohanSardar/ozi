@@ -13,7 +13,7 @@ const B = EnvironmentId.make("b");
 
 // The reporter's swap: Cmd+N opens a local thread instead of a regular one.
 const SWAPPED: KeybindingRule[] = [{ key: "mod+n", command: "chat.newLocal" }];
-const STALE: KeybindingRule[] = [{ key: "mod+n", command: "chat.newWithoutProject" }];
+const STALE: KeybindingRule[] = [];
 
 function config(rules: readonly KeybindingRule[]) {
   return {
@@ -79,20 +79,12 @@ describe("createShortcutKeybindingsAtom", () => {
     for (const [a, b, command] of [
       [environment("offline", aConfig), environment("connected", bConfig), "chat.newLocal"],
       [environment("connected", null), environment("connected", bConfig), "chat.newLocal"],
-      [
-        environment("connected", aConfig),
-        environment("connected", bConfig),
-        "chat.newWithoutProject",
-      ],
+      [environment("connected", aConfig), environment("connected", bConfig)],
       [environment("connected", edited), environment("connected", bConfig), "sidebar.toggle"],
       [environment("offline", edited), environment("connected", bConfig), "chat.newLocal"],
       [environment("offline", edited), environment("offline", bConfig), "chat.new"],
       [environment("reconnecting", edited), environment("offline", bConfig), "chat.new"],
-      [
-        environment("connected", aConfig),
-        environment("offline", bConfig),
-        "chat.newWithoutProject",
-      ],
+      [environment("connected", aConfig), environment("offline", bConfig)],
     ] as const) {
       harness.registry.set(
         harness.environmentsAtom,

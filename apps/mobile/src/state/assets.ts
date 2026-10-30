@@ -4,7 +4,6 @@ import {
   assetUrlStateFromResult,
   blockedAssetUrlState,
   createAssetEnvironmentAtoms,
-  createProjectFaviconUrlAtomFamily,
   EMPTY_ASSET_URL_ATOM,
 } from "@t3tools/client-runtime/state/assets";
 import { executeAtomQuery } from "@t3tools/client-runtime/state/runtime";
@@ -14,7 +13,6 @@ import { Atom, AsyncResult } from "effect/reactivity";
 
 import { environmentCatalog } from "../connection/catalog";
 import { connectionAtomRuntime } from "../connection/runtime";
-import { projectFaviconDatabaseCache } from "../lib/projectFaviconDatabaseCache";
 import { type AssetUrlState, deriveAssetUrlState } from "./asset-url-state";
 import { appAtomRegistry } from "./atom-registry";
 import { environmentSession, usePreparedConnection } from "./session";
@@ -25,12 +23,6 @@ import { useAtomQueryRunner } from "./use-atom-query-runner";
 export type { AssetUrlFailureReason, AssetUrlState } from "./asset-url-state";
 
 export const assetEnvironment = createAssetEnvironmentAtoms(connectionAtomRuntime);
-
-export const projectFaviconUrlAtom = createProjectFaviconUrlAtomFamily({
-  imageCache: projectFaviconDatabaseCache,
-  createUrl: assetEnvironment.createUrl,
-  preparedConnection: environmentSession.preparedConnectionValueAtom,
-});
 
 export function useAssetUrlState(
   environmentId: EnvironmentId | null,

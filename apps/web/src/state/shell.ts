@@ -103,7 +103,7 @@ function catalogIsComplete(
   );
 }
 
-export function createAllEnvironmentProjectSnapshotsReadyAtom(input: {
+export function createAllEnvironmentSnapshotsReadyAtom(input: {
   readonly catalogValueAtom: Atom.Atom<EnvironmentCatalogState>;
   readonly shellStateValueAtom: (environmentId: EnvironmentId) => Atom.Atom<EnvironmentShellState>;
   readonly requiresPrimaryEnvironment: boolean;
@@ -119,12 +119,11 @@ export function createAllEnvironmentProjectSnapshotsReadyAtom(input: {
   }).pipe(Atom.withLabel("web-all-environment-project-snapshots-ready"));
 }
 
-export const allEnvironmentProjectSnapshotsReadyAtom =
-  createAllEnvironmentProjectSnapshotsReadyAtom({
-    catalogValueAtom: environmentCatalog.catalogValueAtom,
-    shellStateValueAtom: environmentShell.stateValueAtom,
-    requiresPrimaryEnvironment: !isHostedStaticApp(),
-  });
+export const allEnvironmentSnapshotsReadyAtom = createAllEnvironmentSnapshotsReadyAtom({
+  catalogValueAtom: environmentCatalog.catalogValueAtom,
+  shellStateValueAtom: environmentShell.stateValueAtom,
+  requiresPrimaryEnvironment: !isHostedStaticApp(),
+});
 
 export const allReachableShellsLiveAtom = Atom.make((get) => {
   const catalog = get(environmentCatalog.catalogValueAtom);

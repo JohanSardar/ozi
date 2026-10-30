@@ -1,4 +1,3 @@
-import { resolveProjectSettings } from "@t3tools/shared/projectSettings";
 import {
   CommandId,
   type ChatAttachment,
@@ -13,13 +12,12 @@ import * as Cause from "effect/Cause";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
 import * as Layer from "effect/Layer";
-import * as Option from "effect/Option";
 import * as Schedule from "effect/Schedule";
 
+import * as ServerConfig from "../config.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as TextGeneration from "../textGeneration/TextGeneration.ts";
 import type { OrchestratorV2Error } from "./Orchestrator.ts";
-import * as ProjectStore from "./ProjectStore.ts";
 import * as ThreadManagementService from "./ThreadManagementService.ts";
 
 import { formatThreadTitleContext } from "@t3tools/provider-core/server/threadTitleContext";
@@ -37,7 +35,6 @@ export class ThreadTitleRegenerationService extends Context.Service<
     }) => Effect.Effect<
       void,
       | OrchestratorV2Error
-      | ProjectStore.ProjectStoreV2Error
       | ServerSettingsError
       | ThreadManagementService.ThreadManagementProviderInstanceDisabledError
     >;
@@ -46,7 +43,7 @@ export class ThreadTitleRegenerationService extends Context.Service<
 
 const make = Effect.gen(function* () {
   const threads = yield* ThreadManagementService.ThreadManagementService;
-  const projects = yield* ProjectStore.ProjectStoreV2;
+  const config = yield* ServerConfig.ServerConfig;
   const serverSettings = yield* ServerSettings.ServerSettingsService;
   const textGeneration = yield* TextGeneration.TextGeneration;
 
@@ -121,11 +118,6 @@ const make = Effect.gen(function* () {
         return { type: "stale" as const };
       }
 
-      const project = yield* projects.get(projection.thread.projectId);
-      if (Option.isNone(project)) {
-        return { type: "complete" as const };
-      }
-
       let context: {
         readonly message: string;
         readonly attachments: ReadonlyArray<ChatAttachment>;
@@ -152,12 +144,9 @@ const make = Effect.gen(function* () {
       const inherited = yield* forkSource(projection.thread).pipe(
         Effect.orElseSucceed(() => undefined),
       );
-      const settings = resolveProjectSettings(
-        yield* serverSettings.getSettings,
-        projection.thread.projectId,
-      ).settings;
+      const settings = yield* serverSettings.getSettings;
       const result = yield* textGeneration.generateThreadTitle({
-        cwd: projection.thread.workingDirectory ?? project.value.workspaceRoot,
+        cwd: projection.thread.workingDirectory ?? config.cwd,
         message: context.message,
         attachments: context.attachments,
         ...(input.kind.type === "regenerate" ? { previousTitle: projection.thread.title } : {}),

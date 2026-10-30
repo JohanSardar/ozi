@@ -113,7 +113,6 @@ function makeProjection(visibleTurnItems: OrchestrationV2ProjectedTurnItem[]) {
   return {
     thread: {
       id: THREAD,
-      projectId: "project-1",
       title: "Thread",
       providerInstanceId: "codex",
       modelSelection: { instanceId: "codex", model: "gpt-5" },

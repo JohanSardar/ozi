@@ -1,4 +1,3 @@
-import type { EnvironmentProject } from "@t3tools/client-runtime/state/shell";
 import type { ThreadPreviewState } from "../../previewStateStore";
 import { formatFilePathForClipboard } from "@t3tools/client-runtime/media-actions";
 import { resolvePathLinkTarget } from "@t3tools/shared/fileLinks";
@@ -29,7 +28,6 @@ import { useAtomCommand } from "../../state/use-atom-command";
 import type { ChatShortcutCommands } from "./useChatShortcuts";
 interface RightPanelActionsInput {
   readonly activeThreadRef: ScopedThreadRef | null;
-  readonly activeProject: EnvironmentProject | null;
   readonly activeRightPanelSurface: RightPanelSurface | null;
   readonly activePreviewState: ThreadPreviewState;
   readonly threadPanelPresentation: ThreadPanelPresentation;
@@ -40,7 +38,7 @@ interface RightPanelActionsInput {
   readonly rightPanelOpen: boolean;
   readonly canMaximizeRightPanel: boolean;
   readonly rightPanelMaximized: boolean;
-  readonly activeProjectCwd: string | null;
+  readonly defaultCwd: string | null;
   readonly closeRightPanelSurface: (surface: RightPanelSurface) => void;
 }
 
@@ -52,7 +50,6 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
   const {
     closeRightPanelSurface,
     activeThreadRef,
-    activeProject,
     activeRightPanelSurface,
     activePreviewState,
     threadPanelPresentation,
@@ -62,7 +59,7 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
     rightPanelOpen,
     canMaximizeRightPanel,
     rightPanelMaximized,
-    activeProjectCwd,
+    defaultCwd,
   } = input;
 
   const openPreview = useAtomCommand(previewEnvironment.open, { reportFailure: false });
@@ -87,15 +84,13 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
     });
   };
   const createBrowserSurfaceStable = useStableCallback(createBrowserSurface);
-  const openChangesFromThreadPanel = () => {};
-  const openChangesFromThreadPanelStable = useStableCallback(openChangesFromThreadPanel);
   const addFilesSurface = () => {
-    if (!activeThreadRef || !activeProject) return;
+    if (!activeThreadRef) return;
     useRightPanelStore.getState().open(activeThreadRef, "files");
   };
   const addFilesSurfaceStable = useStableCallback(addFilesSurface);
   const openFileSurface = (relativePath: string) => {
-    if (!activeThreadRef || !activeProject) return;
+    if (!activeThreadRef) return;
     useRightPanelStore.getState().openFile(activeThreadRef, relativePath);
   };
   const openFileSurfaceStable = useStableCallback(openFileSurface);
@@ -188,7 +183,7 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
 
     const clipboardPath = formatFilePathForClipboard(
       relativePath,
-      resolvePathLinkTarget(relativePath, activeProjectCwd ?? ""),
+      resolvePathLinkTarget(relativePath, defaultCwd ?? ""),
     );
     void navigator.clipboard.writeText(clipboardPath).then(
       () => {
@@ -240,7 +235,6 @@ export function useRightPanelActions(input: RightPanelActionsInput) {
     createBrowserSurface,
     createBrowserSurfaceStable,
     moveRightPanelSurfaceStable,
-    openChangesFromThreadPanelStable,
     openFileSurfaceStable,
     toggleRightPanelMaximizedStable,
     toggleRightPanelStable,

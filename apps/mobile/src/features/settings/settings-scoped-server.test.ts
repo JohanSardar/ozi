@@ -19,16 +19,13 @@ describe("mobile usage-limit settings across environments", () => {
   it.each(["autoResumeLimitedThreads", "snoozeLimitedThreads"] as const)(
     "shows %s as mixed and can enable it everywhere without changing other settings",
     (key) => {
-      const targets = resolveMobileSettingsTargets(
-        [
-          environment(firstId, { ...DEFAULT_SERVER_SETTINGS, [key]: true }),
-          environment(secondId, { ...DEFAULT_SERVER_SETTINGS, [key]: false }),
-        ],
-        null,
-      );
+      const targets = resolveMobileSettingsTargets([
+        environment(firstId, { ...DEFAULT_SERVER_SETTINGS, [key]: true }),
+        environment(secondId, { ...DEFAULT_SERVER_SETTINGS, [key]: false }),
+      ]);
 
       expect(uniformMobileSetting(targets, key)).toBeNull();
-      const writes = planMobileScopedSettingsPatch(targets, false, { [key]: true });
+      const writes = planMobileScopedSettingsPatch(targets, { [key]: true });
       expect(writes).toEqual([
         { environmentId: firstId, patch: { [key]: true } },
         { environmentId: secondId, patch: { [key]: true } },
@@ -56,7 +53,7 @@ function environment(environmentId: EnvironmentId, settings: ServerSettings): Se
     environmentId,
     serverConfig: {
       settings,
-      environment: { capabilities: { projectSettingsOverrides: true } },
+      environment: { capabilities: {} },
     },
   } as SettingsTarget;
 }

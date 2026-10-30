@@ -45,18 +45,6 @@ export function applyShellStreamEvent(
   if (event.sequence <= snapshot.snapshotSequence) return snapshot;
 
   switch (event.kind) {
-    case "project.updated":
-      return {
-        ...snapshot,
-        projects: upsertById(snapshot.projects, event.project),
-        snapshotSequence: event.sequence,
-      };
-    case "project.removed":
-      return {
-        ...snapshot,
-        projects: snapshot.projects.filter((project) => project.id !== event.projectId),
-        snapshotSequence: event.sequence,
-      };
     case "thread.updated": {
       const existing =
         event.location === "active"

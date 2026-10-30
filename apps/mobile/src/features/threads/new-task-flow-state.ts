@@ -1,9 +1,7 @@
 import type { EnvironmentConnectionPhase } from "@t3tools/client-runtime/connection";
 import type { EnvironmentShellStatus } from "@t3tools/client-runtime/state/shell";
-import type { EnvironmentId, ProjectId } from "@t3tools/contracts";
+import type { EnvironmentId } from "@t3tools/contracts";
 import { Atom } from "effect/reactivity";
-
-import { scopedProjectKey } from "../../lib/scopedEntities";
 import { appAtomRegistry } from "../../state/atom-registry";
 import { isNewTaskDraftKey } from "../../state/new-task-draft-key";
 import {
@@ -26,7 +24,6 @@ export function newTaskFlowKey(route: {
 
 export interface NewTaskFlowState {
   readonly environmentId: EnvironmentId | null;
-  readonly projectKey: string | null;
   readonly draftKey: string | null;
   readonly submitting: boolean;
   readonly expandedProvider: string | null;
@@ -34,7 +31,6 @@ export interface NewTaskFlowState {
 
 export const INITIAL_NEW_TASK_FLOW_STATE: NewTaskFlowState = {
   environmentId: null,
-  projectKey: null,
   draftKey: null,
   submitting: false,
   expandedProvider: null,
@@ -81,14 +77,9 @@ export function resolveRouteDraft(input: {
   readonly flow: NewTaskFlowState;
   readonly routeDraftId: string | undefined;
   readonly draftsLoaded: boolean;
-  readonly stamp:
-    | { readonly environmentId: EnvironmentId; readonly projectId: ProjectId }
-    | undefined;
-  readonly projects: ReadonlyArray<{
-    readonly environmentId: EnvironmentId;
-    readonly id: ProjectId;
-  }>;
-  /** See `stampedEnvironmentProjectsLoading`. */
+  readonly stamp: { readonly environmentId: EnvironmentId } | undefined;
+  readonly environments: ReadonlyArray<{ readonly environmentId: EnvironmentId }>;
+  /** See `stampedEnvironmentLoading`. */
   readonly stampedEnvironmentLoading: boolean;
 }): RouteDraftResolution {
   const { routeDraftId, stamp } = input;
@@ -98,8 +89,8 @@ export function resolveRouteDraft(input: {
   // The stamped project must be loaded: the composer falls back to the
   // environment's first project otherwise, and the draft would be sent
   // somewhere the user never chose.
-  const loaded = input.projects.some(
-    (project) => project.environmentId === stamp.environmentId && project.id === stamp.projectId,
+  const loaded = input.environments.some(
+    (environment) => environment.environmentId === stamp.environmentId,
   );
   if (!loaded) return input.stampedEnvironmentLoading ? { kind: "pending" } : { kind: "missing" };
   return {
@@ -107,7 +98,6 @@ export function resolveRouteDraft(input: {
     flow: {
       ...input.flow,
       environmentId: stamp.environmentId,
-      projectKey: scopedProjectKey(stamp.environmentId, stamp.projectId),
       draftKey: routeDraftId,
     },
   };
@@ -118,7 +108,7 @@ export function resolveRouteDraft(input: {
  * unknown, offline, or failed environment is settled, so a project it lacks
  * sends the route back to the picker. Mirrors `threadRouteIsHydrating`.
  */
-export function stampedEnvironmentProjectsLoading(input: {
+export function stampedEnvironmentLoading(input: {
   readonly connectionsReady: boolean;
   readonly connectionState: EnvironmentConnectionPhase | null;
   readonly shellCacheRead: boolean;

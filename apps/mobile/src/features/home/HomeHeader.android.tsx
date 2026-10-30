@@ -10,8 +10,7 @@ function checkedMenuState(checked: boolean) {
 }
 
 export function HomeHeader(props: HomeHeaderProps) {
-  const hasCustomListOptions =
-    props.selectedEnvironmentId !== null || props.selectedProjectKey !== null;
+  const hasCustomListOptions = props.selectedEnvironmentId !== null;
   const menuActions: MenuAction[] = [
     {
       id: "environment",
@@ -29,26 +28,6 @@ export function HomeHeader(props: HomeHeaderProps) {
         })),
       ],
     },
-    ...(props.projects.length === 0
-      ? []
-      : ([
-          {
-            id: "project",
-            title: "Project",
-            subactions: [
-              {
-                id: "project:all",
-                title: "All projects",
-                state: checkedMenuState(props.selectedProjectKey === null),
-              },
-              ...props.projects.map((project) => ({
-                id: `project:${project.key}`,
-                title: project.label,
-                state: checkedMenuState(props.selectedProjectKey === project.key),
-              })),
-            ],
-          },
-        ] satisfies MenuAction[])),
   ];
   const handleMenuAction = (event: { nativeEvent: { event: string } }) => {
     const id = event.nativeEvent.event;
@@ -64,19 +43,6 @@ export function HomeHeader(props: HomeHeaderProps) {
       );
       if (environment) {
         props.onEnvironmentChange(environment.environmentId);
-      }
-      return;
-    }
-
-    if (id === "project:all") {
-      props.onProjectChange(null);
-      return;
-    }
-
-    if (id.startsWith("project:")) {
-      const projectKey = id.slice("project:".length);
-      if (props.projects.some((project) => project.key === projectKey)) {
-        props.onProjectChange(projectKey);
       }
       return;
     }

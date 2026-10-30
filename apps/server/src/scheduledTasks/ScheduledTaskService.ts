@@ -2,7 +2,6 @@ import {
   CommandId,
   MessageId,
   PROVIDER_SEND_TURN_MAX_INPUT_CHARS,
-  type ProjectId,
   ScheduledTask,
   ScheduledTaskError,
   ScheduledTaskId,
@@ -154,9 +153,6 @@ const decodeTaskId = Schema.decodeUnknownOption(ScheduledTaskId);
 const decodeScheduleJson = Schema.decodeUnknownEffect(
   Schema.fromJsonString(ScheduledTask.fields.schedule),
 );
-const decodeWorkspaceStrategyJson = Schema.decodeUnknownEffect(
-  Schema.fromJsonString(ScheduledTask.fields.workspaceStrategy),
-);
 const decodeModelSelectionJson = Schema.decodeUnknownEffect(
   Schema.fromJsonString(ScheduledTask.fields.modelSelection),
 );
@@ -173,9 +169,7 @@ interface ScheduledTaskRow {
   readonly prompt: string;
   readonly enabled: number;
   readonly schedule_json: string;
-  readonly project_id: string;
   readonly thread_id: string | null;
-  readonly workspace_strategy_json: string;
   readonly model_selection_json: string;
   readonly runtime_mode: string;
   readonly interaction_mode: string;
@@ -226,11 +220,6 @@ export class ScheduledTaskService extends Context.Service<
     ) => Effect.Effect<ScheduledTaskDeleteResult, ScheduledTaskError>;
     /** Deletes only tasks that still target this thread, including their webhook deliveries. */
     readonly deleteForThread: (threadId: ThreadId) => Effect.Effect<void, ScheduledTaskError>;
-    /** Points tasks bound to these threads at the project the threads moved to. */
-    readonly moveThreadTasks: (input: {
-      readonly threadIds: ReadonlyArray<ThreadId>;
-      readonly projectId: ProjectId;
-    }) => Effect.Effect<void, ScheduledTaskError>;
     /** The dispatched thread, or null if dispatch failed; leaves the task's binding unchanged. */
     readonly runNow: (
       input: ScheduledTaskRunNowInput,
@@ -310,7 +299,6 @@ const decodeRow = Effect.fnUntraced(
   function* (row: ScheduledTaskRow, origin: WebhookOrigin | null = null) {
     const schedule = yield* decodeScheduleJson(row.schedule_json);
     const webhook = schedule.type === "webhook" ? webhookEndpoint(row, origin) : undefined;
-    const workspaceStrategy = yield* decodeWorkspaceStrategyJson(row.workspace_strategy_json);
     const modelSelection = yield* decodeModelSelectionJson(row.model_selection_json);
     return yield* decodeTask({
       id: row.task_id,
@@ -318,9 +306,7 @@ const decodeRow = Effect.fnUntraced(
       prompt: row.prompt,
       enabled: row.enabled === 1,
       schedule,
-      projectId: row.project_id,
       threadId: row.thread_id,
-      workspaceStrategy,
       modelSelection,
       runtimeMode: row.runtime_mode,
       interactionMode: row.interaction_mode,
@@ -419,9 +405,9 @@ export const layer = Layer.effect(
         prompt,
         enabled,
         schedule_json,
-        project_id,
+
         thread_id,
-        workspace_strategy_json,
+
         model_selection_json,
         runtime_mode,
         interaction_mode,
@@ -456,9 +442,9 @@ export const layer = Layer.effect(
         prompt,
         enabled,
         schedule_json,
-        project_id,
+
         thread_id,
-        workspace_strategy_json,
+
         model_selection_json,
         runtime_mode,
         interaction_mode,
@@ -531,9 +517,9 @@ export const layer = Layer.effect(
           prompt,
           enabled,
           schedule_json,
-          project_id,
+
           thread_id,
-          workspace_strategy_json,
+
           model_selection_json,
           runtime_mode,
           interaction_mode,
@@ -555,9 +541,9 @@ export const layer = Layer.effect(
           ${task.prompt},
           ${task.enabled ? 1 : 0},
           ${JSON.stringify(task.schedule)},
-          ${task.projectId},
+
           ${task.threadId},
-          ${JSON.stringify(task.workspaceStrategy)},
+
           ${JSON.stringify(task.modelSelection)},
           ${task.runtimeMode},
           ${task.interactionMode},
@@ -580,9 +566,9 @@ export const layer = Layer.effect(
           prompt = excluded.prompt,
           enabled = excluded.enabled,
           schedule_json = excluded.schedule_json,
-          project_id = excluded.project_id,
+
           thread_id = excluded.thread_id,
-          workspace_strategy_json = excluded.workspace_strategy_json,
+
           model_selection_json = excluded.model_selection_json,
           runtime_mode = excluded.runtime_mode,
           interaction_mode = excluded.interaction_mode,
@@ -797,16 +783,13 @@ export const layer = Layer.effect(
         // A webhook prompt was rendered from the row when the request arrived.
         const prompt = webhook?.prompt ?? active.prompt;
 
-        // A bound thread can move to another project (No project to a project) while
-        // this fires. Follow it; one move needs at most two retries. Same ids replay safely.
-        const sendBound = (
-          threadId: ThreadId,
-          projectId: ProjectId,
-          retries: number,
-        ): ReturnType<typeof threadManagement.sendToThread> =>
-          threadManagement
-            .sendToThread({
-              projectId,
+        // Capture defects and interrupts too so dispatch failures still reach markCompleted.
+        const result = yield* Effect.exit(
+          Effect.gen(function* () {
+            if (active.threadId === null)
+              return yield* taskError("Select a target chat.", { taskId: active.id });
+            const threadId = ThreadId.make(active.threadId);
+            yield* threadManagement.sendToThread({
               commandId,
               threadId,
               messageId,
@@ -816,30 +799,7 @@ export const layer = Layer.effect(
               mode: "queue",
               createdBy: active.createdBy,
               creationSource: active.creationSource,
-            })
-            .pipe(
-              Effect.catchTags({
-                ThreadManagementThreadNotFoundError: (error) =>
-                  retries === 0
-                    ? Effect.fail(error)
-                    : threadManagement.getThreadShell(threadId).pipe(
-                        Effect.orElseSucceed(() => null),
-                        Effect.flatMap((shell) =>
-                          shell === null || shell.projectId === projectId
-                            ? Effect.fail(error)
-                            : sendBound(threadId, shell.projectId, retries - 1),
-                        ),
-                      ),
-              }),
-            );
-
-        // Capture defects and interrupts too so dispatch failures still reach markCompleted.
-        const result = yield* Effect.exit(
-          Effect.gen(function* () {
-            if (active.threadId === null)
-              return yield* taskError("Select a target chat.", { taskId: active.id });
-            const threadId = ThreadId.make(active.threadId);
-            yield* sendBound(threadId, active.projectId, 2);
+            });
             return threadId;
           }),
         );
@@ -1037,12 +997,7 @@ export const layer = Layer.effect(
         const chat = yield* threadManagement
           .getThreadShell(input.threadId)
           .pipe(Effect.mapError((cause) => taskError("Could not load target chat.", { cause })));
-        if (
-          chat === null ||
-          chat.deletedAt !== null ||
-          chat.archivedAt !== null ||
-          chat.projectId !== input.projectId
-        ) {
+        if (chat === null || chat.deletedAt !== null || chat.archivedAt !== null) {
           return yield* taskError("Select an available target chat.");
         }
       }
@@ -1112,7 +1067,7 @@ export const layer = Layer.effect(
                 signature?.secretRef === undefined
                   ? undefined
                   : yield* secretRequests
-                      .consume({ ref: signature.secretRef, projectId: input.projectId })
+                      .consume({ ref: signature.secretRef })
                       .pipe(
                         Effect.catch((error) =>
                           replay
@@ -1144,9 +1099,7 @@ export const layer = Layer.effect(
         prompt: input.prompt,
         enabled: input.enabled,
         schedule,
-        projectId: input.projectId,
         threadId: input.threadId ?? null,
-        workspaceStrategy: { type: "root" },
         modelSelection: input.modelSelection,
         runtimeMode: input.runtimeMode,
         interactionMode: input.interactionMode,
@@ -1262,22 +1215,6 @@ export const layer = Layer.effect(
         discard: true,
       });
       if (removed.length > 0) yield* notifyChanged;
-    });
-
-    const moveThreadTasks: ScheduledTaskService["Service"]["moveThreadTasks"] = Effect.fn(
-      "ScheduledTaskService.moveThreadTasks",
-    )(function* (input) {
-      if (input.threadIds.length === 0) return;
-      const moved = yield* sql<{ task_id: ScheduledTaskId }>`
-        UPDATE scheduled_tasks SET project_id = ${input.projectId}
-        WHERE project_id != ${input.projectId} AND thread_id IN ${sql.in(input.threadIds)}
-        RETURNING task_id
-      `.pipe(
-        Effect.mapError((cause) =>
-          taskError("Could not move the thread's schedule tasks.", { cause }),
-        ),
-      );
-      if (moved.length > 0) yield* notifyChanged;
     });
 
     const runNow: ScheduledTaskService["Service"]["runNow"] = Effect.fn(
@@ -2156,7 +2093,6 @@ export const layer = Layer.effect(
       setEnabled,
       delete: deleteTask,
       deleteForThread,
-      moveThreadTasks,
       runNow,
       rotateWebhookToken,
       listWebhookDeliveries,

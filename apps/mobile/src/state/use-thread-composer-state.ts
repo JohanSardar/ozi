@@ -292,9 +292,7 @@ export function useThreadComposerState() {
   const serverConfig = selectedEnvironmentRuntime?.serverConfig;
   const pendingHandoff = resolvePendingHandoff(
     selectedThreadProjection?.projection,
-    isModelSelectionUnavailable(serverConfig, modelSelection, selectedThread?.projectId ?? null)
-      ? null
-      : modelSelection,
+    isModelSelectionUnavailable(serverConfig, modelSelection) ? null : modelSelection,
     serverConfig?.providers ?? [],
   );
   const runtimeMode = selectedDraft.runtimeMode ?? selectedThread?.runtimeMode ?? null;
@@ -550,13 +548,9 @@ export function useThreadComposerState() {
     const serverConfig = selectedEnvironmentRuntime?.serverConfig;
     if (
       selectedEnvironmentRuntime?.connectionState === "connected" &&
-      isModelSelectionUnavailable(serverConfig, modelSelection, thread.projectId)
+      isModelSelectionUnavailable(serverConfig, modelSelection)
     ) {
-      const { title, detail } = describeUnavailableModelSelection(
-        serverConfig,
-        modelSelection,
-        thread.projectId,
-      );
+      const { title, detail } = describeUnavailableModelSelection(serverConfig, modelSelection);
       Dialog.alert(title, detail);
       return null;
     }
