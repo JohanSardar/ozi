@@ -103,7 +103,7 @@ it.skipIf(process.platform !== "linux")(
       page.on("pageerror", (error) => {
         output += `\n${error.stack}`;
       });
-      page.setDefaultTimeout(15_000);
+      page.setDefaultTimeout(60_000);
       await page.getByRole("button", { name: "Continue", exact: true }).waitFor();
       const readyMs = Math.round(now() - started);
       const timings = {

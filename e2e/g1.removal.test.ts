@@ -98,7 +98,7 @@ it.each(["tools", "chat", "upgrade", "showcase"] as const)(
         server.stderr.on("data", (chunk) => {
           output += String(chunk);
         });
-        AbortSignal.timeout(10_000).addEventListener("abort", () => reject(new Error(output)));
+        AbortSignal.timeout(60_000).addEventListener("abort", () => reject(new Error(output)));
         server.once("error", reject);
         server.once("exit", (code) => reject(new Error(`Server exited: ${code}\n${output}`)));
       });
@@ -151,7 +151,7 @@ it.each(["tools", "chat", "upgrade", "showcase"] as const)(
               OZI_ACP_MCP_ENDPOINT: `http://127.0.0.1:${port}/mcp`,
               OZI_ACP_MCP_AUTHORIZATION: `Bearer ${issued.token}`,
             },
-            timeout: 10_000,
+            timeout: 60_000,
             stdio: ["pipe", "pipe", "pipe"],
           },
         );

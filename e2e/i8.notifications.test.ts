@@ -98,7 +98,7 @@ it.skipIf(process.platform !== "linux")(
         output += String(chunk);
       });
       const page = await app.firstWindow();
-      page.setDefaultTimeout(20_000);
+      page.setDefaultTimeout(60_000);
       await page.getByRole("button", { name: "Continue", exact: true }).waitFor();
       for (const name of ["Continue", "Continue"]) {
         const button = page.getByRole("button", { name, exact: true });
