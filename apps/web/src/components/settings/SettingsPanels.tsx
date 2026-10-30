@@ -446,6 +446,12 @@ export function useSettingsRestore(onRestored?: () => void) {
     ...(settings.inAppNotificationsEnabled !== DEFAULT_UNIFIED_SETTINGS.inAppNotificationsEnabled
       ? ["In-app notifications"]
       : []),
+    ...(settings.ticketNotificationsEnabled !== DEFAULT_UNIFIED_SETTINGS.ticketNotificationsEnabled
+      ? ["Ticket notifications"]
+      : []),
+    ...(settings.ticketBadgeEnabled !== DEFAULT_UNIFIED_SETTINGS.ticketBadgeEnabled
+      ? ["Dock badge"]
+      : []),
     ...(settings.sidebarProjectGroupingMode !== DEFAULT_UNIFIED_SETTINGS.sidebarProjectGroupingMode
       ? ["Project Grouping"]
       : []),
@@ -575,6 +581,8 @@ export function useSettingsRestore(onRestored?: () => void) {
       timestampFormat: DEFAULT_UNIFIED_SETTINGS.timestampFormat,
       notificationMode: DEFAULT_UNIFIED_SETTINGS.notificationMode,
       inAppNotificationsEnabled: DEFAULT_UNIFIED_SETTINGS.inAppNotificationsEnabled,
+      ticketNotificationsEnabled: DEFAULT_UNIFIED_SETTINGS.ticketNotificationsEnabled,
+      ticketBadgeEnabled: DEFAULT_UNIFIED_SETTINGS.ticketBadgeEnabled,
       wordWrap: DEFAULT_UNIFIED_SETTINGS.wordWrap,
       showSkillsInSlashMenu: DEFAULT_UNIFIED_SETTINGS.showSkillsInSlashMenu,
       composerRichTextEnabled: DEFAULT_UNIFIED_SETTINGS.composerRichTextEnabled,
@@ -729,6 +737,33 @@ export function GeneralSettingsPanel() {
               checked={settings.inAppNotificationsEnabled}
               onCheckedChange={(checked) => updateSettings({ inAppNotificationsEnabled: checked })}
               aria-label="In-app notifications"
+            />
+          }
+        />
+        <SettingsRow
+          {...searchableSetting("ticket-notifications")}
+          description="A system notification when a new ticket arrives, while Ozi is open on this device."
+          control={
+            <Switch
+              checked={settings.ticketNotificationsEnabled}
+              onCheckedChange={async (checked) => {
+                if (checked && typeof Notification !== "undefined") {
+                  await Notification.requestPermission().catch(() => undefined);
+                }
+                updateSettings({ ticketNotificationsEnabled: checked });
+              }}
+              aria-label="Ticket notifications"
+            />
+          }
+        />
+        <SettingsRow
+          {...searchableSetting("dock-badge")}
+          description="Show the number of open tickets on the app icon."
+          control={
+            <Switch
+              checked={settings.ticketBadgeEnabled}
+              onCheckedChange={(checked) => updateSettings({ ticketBadgeEnabled: checked })}
+              aria-label="Dock badge"
             />
           }
         />
