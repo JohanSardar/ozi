@@ -192,7 +192,7 @@ const make = Effect.gen(function* () {
       const task = taskPrompt(input);
       const launched = yield* forwarding.call(
         scope,
-        ThreadLaunchToolkit.tools.t3_thread_launch,
+        ThreadLaunchToolkit.tools.ozi_thread_launch,
         target.environmentId,
         {
           title: input.title ?? parent.thread.title,

@@ -126,7 +126,7 @@ it.effect("a launch retried with the same clientRequestId replays the first one"
     );
     const launch = (clientRequestId: string | undefined) =>
       toolkit
-        .handle("t3_thread_launch", {
+        .handle("ozi_thread_launch", {
           title: "Fix",
           message: "Fix the bug",
           ...(clientRequestId === undefined ? {} : { clientRequestId }),
@@ -165,7 +165,7 @@ it.effect("a launch key of any length or content gives a short id and never a de
     );
     const launch = (clientRequestId: string) =>
       toolkit
-        .handle("t3_thread_launch", { title: "Fix", clientRequestId })
+        .handle("ozi_thread_launch", { title: "Fix", clientRequestId })
         .pipe(Stream.unwrap, Stream.runCollect, Effect.provide(dependencies));
 
     // Percent-encoding would grow this six times; scratch folders are named from the id.
@@ -219,7 +219,7 @@ it.effect("a client launches with the fallback for an exhausted default", () =>
       ),
     );
     const result = yield* toolkit
-      .handle("t3_thread_launch", {
+      .handle("ozi_thread_launch", {
         title: "Fallback",
       })
       .pipe(Stream.unwrap, Stream.runCollect, Effect.provide(dependencies));

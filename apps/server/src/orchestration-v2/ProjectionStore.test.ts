@@ -268,7 +268,7 @@ it.effect("SQL shells flag only an active turn blocked solely on T3 thread waits
       id: TurnItemId.make("item:thread-wait:active"),
       runId: run.id,
       type: "dynamic_tool" as const,
-      toolName: "mcp__t3_code__t3_thread_wait",
+      toolName: "mcp__ozi__ozi_thread_wait",
       input: { threadId: "child-thread" },
       status: "running" as const,
     };
@@ -282,7 +282,7 @@ it.effect("SQL shells flag only an active turn blocked solely on T3 thread waits
     const foreign = {
       ...wait,
       id: TurnItemId.make("item:thread-wait:foreign"),
-      toolName: "weather.t3_thread_wait",
+      toolName: "weather.ozi_thread_wait",
     };
     yield* updateItem(foreign);
     yield* assertBlocked(false);

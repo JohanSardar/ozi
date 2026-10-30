@@ -28,7 +28,7 @@ import * as ScheduledTaskService from "../../../scheduledTasks/ScheduledTaskServ
 import * as ThreadManagementService from "../../../orchestration-v2/ThreadManagementService.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 
-const ThreadOrganizeTool = Tool.make("t3_thread_organize", {
+const ThreadOrganizeTool = Tool.make("ozi_thread_organize", {
   description:
     "Pin, snooze, settle, archive, or mark a thread unread. Omit `threadId` for this thread. `snooze` needs `snoozedUntil`. Settling this thread applies at turn end. A failed turn or queued message leaves it active.",
   parameters: Schema.Struct({
@@ -78,7 +78,7 @@ const queueEntry = Schema.Struct({
   truncated: Schema.Boolean,
 });
 const QUEUE_READ_ACTIONS = ["list", "read"] as const;
-const QueueTool = Tool.make("t3_queue", {
+const QueueTool = Tool.make("ozi_queue", {
   ...commandTool,
   description:
     "Manage a thread's queued messages. Omit `threadId` for this thread. list: send order, paged by `cursor` and `limit`. read: up to 16,000 chars of one. edit: replace its `text`; attachments stay. cancel. reorder: before `beforeRunId`, or to the end with null. promote_to_steer: send it now as steering to active `targetRunId`. Writes fail once the run is no longer queued.",
@@ -122,7 +122,7 @@ const question = Schema.Struct({
   initialAnswer: Schema.optional(Schema.String),
   required: Schema.optional(Schema.Boolean),
 });
-const PendingRequestTool = Tool.make("t3_pending_request", {
+const PendingRequestTool = Tool.make("ozi_pending_request", {
   ...commandTool,
   description:
     "Pending user questions in a thread. Omit `threadId` for this thread. list: their ids; approvals are not listed. read: one by `requestId`. respond: answer one with `answers`; this cannot approve a permission request.",
@@ -148,7 +148,7 @@ const threadConfiguration = Schema.Struct({
   runtimeMode: RuntimeMode,
   interactionMode: ProviderInteractionMode,
 });
-const ThreadConfigureTool = Tool.make("t3_thread_configure", {
+const ThreadConfigureTool = Tool.make("ozi_thread_configure", {
   ...commandTool,
   description:
     "Read a thread's provider, model, and modes, or set its provider, model, and options with `modelSelection`. Omit `threadId` for this thread. Permission modes stay. Values from `orchestrator_capabilities`.",
@@ -160,7 +160,7 @@ const ThreadConfigureTool = Tool.make("t3_thread_configure", {
   success: Schema.Union([threadConfiguration, OrchestrationV2DispatchCommandResult]),
 }).annotate(Tool.Destructive, true);
 
-const ThreadTransferTool = Tool.make("t3_thread_transfer", {
+const ThreadTransferTool = Tool.make("ozi_thread_transfer", {
   ...commandTool,
   description:
     "Move context between threads. Omit `threadId` for this thread. fork: copy it from `sourcePoint` (default latest stable run) into a new thread with the same setup; no turn runs yet. merge_back: merge it from `sourcePoint` into a related `targetThreadId` in the same environment. status: its context transfers.",
@@ -187,7 +187,7 @@ const ThreadTransferTool = Tool.make("t3_thread_transfer", {
   ]),
 }).annotate(Tool.Destructive, true);
 
-const ThreadSearchTool = Tool.make("t3_thread_search", {
+const ThreadSearchTool = Tool.make("ozi_thread_search", {
   ...commandTool,
   description:
     "Search active threads by title, then message text. Skips subagent threads. Not exhaustive.",

@@ -191,7 +191,7 @@ it.each(["tools", "chat", "upgrade", "showcase"] as const)(
         expect(response?.error, output).toBeUndefined();
         const names = response.result.tools.map((tool: { name: string }) => tool.name);
         expect(names).toContain("orchestrator_capabilities");
-        expect(names).toContain("t3_thread_read");
+        expect(names).toContain("ozi_thread_read");
         expect(
           names.some((name: string) => /device_|worktree|pull_request|project_/.test(name)),
         ).toBe(false);

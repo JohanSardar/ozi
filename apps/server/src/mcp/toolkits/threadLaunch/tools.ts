@@ -24,11 +24,11 @@ import { Tool, Toolkit } from "effect/ai";
 import * as ThreadManagementService from "../../../orchestration-v2/ThreadManagementService.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 
-const ThreadLaunchTool = Tool.make("t3_thread_launch", {
+const ThreadLaunchTool = Tool.make("ozi_thread_launch", {
   failure: OrchestratorMcpFailure,
   failureMode: "return" as const,
   description:
-    "Create one new top-level chat. Task in `message`. Omit the model, modes and workingDirectory to inherit yours; modes cannot exceed yours. After an error or lost reply, retry with the same `clientRequestId`. Follow it with `t3_thread_read` or `t3_thread_wait`. Mention it with its `link`.",
+    "Create one new top-level chat. Task in `message`. Omit the model, modes and workingDirectory to inherit yours; modes cannot exceed yours. After an error or lost reply, retry with the same `clientRequestId`. Follow it with `ozi_thread_read` or `ozi_thread_wait`. Mention it with its `link`.",
   parameters: Schema.Struct({
     environmentId: OrchestratorMcpEnvironmentTarget,
     workingDirectory: Schema.optional(TrimmedNonEmptyString),

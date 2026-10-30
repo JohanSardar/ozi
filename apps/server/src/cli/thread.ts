@@ -33,7 +33,7 @@ import { readRemoteConnection, RemoteConnectionError, reportRemoteErrors } from 
 
 /**
  * Short enough that a run which stops to ask the user something is noticed
- * soon, since `t3_thread_wait` only returns on a terminal run.
+ * soon, since `ozi_thread_wait` only returns on a terminal run.
  */
 const WAIT_SLICE_MS = 15_000;
 const READ_PAGE_LIMIT = 100;
@@ -307,7 +307,7 @@ export const readTimeline = Effect.fn("cli.thread.readTimeline")(function* (
   let page: OrchestratorMcpThreadReadResult;
   do {
     page = yield* tools.call(
-      "t3_thread_read",
+      "ozi_thread_read",
       {
         threadId,
         view,
@@ -333,7 +333,7 @@ export const readFullText = Effect.fn("cli.thread.readFullText")(function* (
   let nextTextOffset = item.textTruncated ? (item.nextTextOffset ?? null) : null;
   while (nextTextOffset !== null) {
     const page = yield* tools.call(
-      "t3_thread_read",
+      "ozi_thread_read",
       { threadId, itemId: item.itemId, textOffset: nextTextOffset, runLimit: 1 },
       OrchestratorMcpThreadReadResult,
     );
@@ -379,7 +379,7 @@ export const waitForRun = Effect.fn("cli.thread.waitForRun")(function* (
   runId: RunId,
 ) {
   const waitSlice = (timeoutMs: number) =>
-    tools.call("t3_thread_wait", { threadId, runId, timeoutMs }, OrchestratorMcpThreadWaitResult);
+    tools.call("ozi_thread_wait", { threadId, runId, timeoutMs }, OrchestratorMcpThreadWaitResult);
   const ended = (waited: OrchestratorMcpThreadWaitResult) =>
     ({ type: "ended", runId: waited.runId, status: waited.status }) satisfies WaitOutcome;
   while (true) {
@@ -388,7 +388,7 @@ export const waitForRun = Effect.fn("cli.thread.waitForRun")(function* (
     // A pending request on this run, or on an earlier run this one is queued
     // behind, blocks it until someone answers.
     const { thread } = yield* tools.call(
-      "t3_thread_read",
+      "ozi_thread_read",
       { threadId, limit: 1, runLimit: 1 },
       OrchestratorMcpThreadReadResult,
     );
@@ -483,7 +483,7 @@ const threadListCommand = Command.make("list", {
         let cursor: number | null = 0;
         while (cursor !== null) {
           const page: OrchestratorMcpThreadListResult = yield* tools.call(
-            "t3_thread_list",
+            "ozi_thread_list",
             { includeSubagents: false, limit: 100, cursor },
             OrchestratorMcpThreadListResult,
           );
@@ -537,7 +537,7 @@ const threadStartCommand = Command.make("start", {
         flags,
         Effect.fn("cli.thread.start")(function* (tools) {
           const launched = yield* tools.call(
-            "t3_thread_launch",
+            "ozi_thread_launch",
             {
               title,
               message,
@@ -586,7 +586,7 @@ const threadSendCommand = Command.make("send", {
         flags,
         Effect.fn("cli.thread.send")(function* (tools) {
           const sent = yield* tools.call(
-            "t3_thread_send",
+            "ozi_thread_send",
             { threadId, message, mode: "queue" },
             OrchestratorMcpThreadSendResult,
           );
@@ -615,7 +615,7 @@ const threadStopCommand = Command.make("stop", {
         flags,
         Effect.fn("cli.thread.stop")(function* (tools) {
           const result = yield* tools.call(
-            "t3_thread_interrupt",
+            "ozi_thread_interrupt",
             { threadId, stop: true },
             OrchestratorMcpThreadInterruptResult,
           );
@@ -706,7 +706,7 @@ const threadWaitCommand = Command.make("wait", {
         flags,
         Effect.fn("cli.thread.wait")(function* (tools) {
           const { thread } = yield* tools.call(
-            "t3_thread_read",
+            "ozi_thread_read",
             { threadId, limit: 1, runLimit: 1 },
             OrchestratorMcpThreadReadResult,
           );

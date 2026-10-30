@@ -225,7 +225,7 @@ describe("p2.codex-inbox", () => {
       records.filter((record) => record.event === "restricted").map((record) => record.status),
     ).toEqual([403, 403, 403]);
     for (const fork of records.filter((record) => record.method === "thread/fork")) {
-      const mcp = fork.params.config["mcp_servers.t3-code"];
+      const mcp = fork.params.config["mcp_servers.ozi"];
       const result = await fetch(mcp.url, {
         method: "POST",
         headers: {

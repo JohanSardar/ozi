@@ -469,7 +469,7 @@ describe("AcpSessionRuntime", () => {
         (event) => event.method === "session/new" && event.status === "started",
       );
       expect(created?.payload).toMatchObject({
-        mcpServers: [{ type: "acp", name: "t3-code", serverId: "t3-code" }],
+        mcpServers: [{ type: "acp", name: "ozi", serverId: "ozi" }],
       });
     }).pipe(
       Effect.provide(
@@ -482,8 +482,8 @@ describe("AcpSessionRuntime", () => {
           cwd: process.cwd(),
           clientInfo: { name: "t3-test", version: "0.0.0" },
           authMethodId: "test",
-          mcpServers: [{ type: "stdio", name: "t3-code", command: "/usr/bin/node", args: [] }],
-          acpMcpServers: [{ type: "acp", name: "t3-code", serverId: "t3-code" }],
+          mcpServers: [{ type: "stdio", name: "ozi", command: "/usr/bin/node", args: [] }],
+          acpMcpServers: [{ type: "acp", name: "ozi", serverId: "ozi" }],
           requestLogger: (event) =>
             Effect.sync(() => {
               requestEvents.push(event);

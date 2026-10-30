@@ -30,7 +30,7 @@ const launchCommandId = Effect.fn("mcp.launchCommandId")(function* (
 });
 
 export const layer = McpToolAccess.toLayer(ThreadLaunchToolkit, {
-  t3_thread_launch: McpToolAccess.startsThreads(
+  ozi_thread_launch: McpToolAccess.startsThreads(
     (input) => input,
     (input, { runtimeMode, interactionMode, linkOrigin }) =>
       Effect.gen(function* () {
