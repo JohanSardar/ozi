@@ -87,6 +87,7 @@ export const mcpToolSession = (
 
   const send = Effect.fn("AcpMcpStdioBridge.send")(function* (
     message: unknown,
+    responseId?: string,
   ): Effect.fn.Return<ReadonlyArray<unknown>, AcpMcpBridgeError> {
     const response = yield* Effect.tryPromise({
       try: (signal) =>
@@ -105,7 +106,17 @@ export const mcpToolSession = (
         new AcpMcpBridgeError(`Ozi MCP endpoint responded with HTTP ${response.status}.`),
       );
     }
-    const payloads = yield* Stream.runCollect(responsePayloads(response, bridgeError));
+    const payloads = yield* Effect.acquireUseRelease(
+      Effect.succeed(response),
+      (response) =>
+        responseId === undefined
+          ? Effect.succeed([])
+          : responsePayloads(response, bridgeError).pipe(
+              Stream.takeUntil((entry) => asEnvelope(entry)?.id === responseId),
+              Stream.runCollect,
+            ),
+      discardResponseBody,
+    );
     for (const payload of payloads) {
       protocolVersion = protocolVersionOf(payload) ?? protocolVersion;
     }
@@ -117,7 +128,7 @@ export const mcpToolSession = (
     params: unknown,
   ): Effect.fn.Return<JsonRpcEnvelope, AcpMcpBridgeError> {
     const id = `t3-cli-${nextId++}`;
-    const responses = yield* send({ jsonrpc: "2.0", id, method, params });
+    const responses = yield* send({ jsonrpc: "2.0", id, method, params }, id);
     const envelope = asEnvelope(responses.find((entry) => asEnvelope(entry)?.id === id));
     if (envelope === null || envelope.error !== undefined) {
       return yield* Effect.fail(
@@ -134,7 +145,7 @@ export const mcpToolSession = (
       ? Effect.void
       : Effect.tryPromise(() =>
           fetchImplementation(options.endpoint, { method: "DELETE", headers: headers() }),
-        ).pipe(Effect.flatMap(discardResponseBody), Effect.ignore),
+        ).pipe(Effect.flatMap(discardResponseBody), Effect.timeout("3 seconds"), Effect.ignore),
   );
 
   // Registered before the handshake so a session the server opened is ended
@@ -145,8 +156,11 @@ export const mcpToolSession = (
       protocolVersion: MCP_PROTOCOL_VERSION,
       capabilities: {},
       clientInfo: { name: options.clientName, version: "0.0.0" },
-    });
-    yield* send({ jsonrpc: "2.0", method: "notifications/initialized" });
+    }).pipe(Effect.timeout("30 seconds"), Effect.mapError(bridgeError));
+    yield* send({ jsonrpc: "2.0", method: "notifications/initialized" }).pipe(
+      Effect.timeout("30 seconds"),
+      Effect.mapError(bridgeError),
+    );
     return {
       call: (tool, args) =>
         request("tools/call", { name: tool, arguments: args }).pipe(

@@ -5,6 +5,7 @@ import {
   NodeId,
   NonNegativeInt,
   ProviderSessionId,
+  RunId,
   ThreadId,
   TrimmedNonEmptyString,
 } from "./baseSchemas.ts";
@@ -128,3 +129,33 @@ export class TicketError extends Schema.TaggedError<TicketError>()("TicketError"
     return `Ticket operation failed (${this.reason}).`;
   }
 }
+
+export const TicketReplyInput = Schema.Struct({
+  id: TicketId,
+  chatId: ThreadId,
+  text: TrimmedNonEmptyString,
+});
+export type TicketReplyInput = typeof TicketReplyInput.Type;
+export const TicketResponse = Schema.Struct({
+  ticket: Ticket,
+  threadId: ThreadId,
+  messageId: MessageId,
+  runId: RunId,
+});
+export type TicketResponse = typeof TicketResponse.Type;
+export const InboxRequest = Schema.Union([
+  Schema.Struct({ action: Schema.Literal("list"), input: TicketListInput }),
+  Schema.Struct({ action: Schema.Literal("get"), input: TicketGetInput }),
+  Schema.Struct({ action: Schema.Literal("create"), input: TicketCreateInput }),
+  Schema.Struct({ action: Schema.Literal("update"), input: TicketUpdateInput }),
+  Schema.Struct({ action: Schema.Literal("close"), input: TicketCloseInput }),
+  Schema.Struct({ action: Schema.Literal("choose"), input: TicketChooseInput }),
+  Schema.Struct({ action: Schema.Literal("reply"), input: TicketReplyInput }),
+  Schema.Struct({
+    action: Schema.Literal("watch"),
+    input: Schema.Struct({ ...TicketListInput.fields, after: Schema.optional(Schema.String) }),
+  }),
+]);
+export type InboxRequest = typeof InboxRequest.Type;
+export const InboxSnapshot = Schema.Struct({ ...TicketListResult.fields, cursor: Schema.String });
+export const InboxResult = Schema.Union([Ticket, TicketResponse, InboxSnapshot, TicketListResult]);
