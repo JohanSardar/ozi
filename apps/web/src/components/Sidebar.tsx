@@ -349,6 +349,20 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   };
   const keydown = useStableCallback((event: KeyboardEvent) => {
     if (event.defaultPrevented || terminalFocused || isModelPickerOpen()) return;
+    if (
+      event.key === "/" &&
+      !event.metaKey &&
+      !event.ctrlKey &&
+      !event.altKey &&
+      !(
+        event.target instanceof HTMLElement &&
+        event.target.closest("input, textarea, [contenteditable]")
+      )
+    ) {
+      event.preventDefault();
+      document.getElementById("sidebar-search")?.focus();
+      return;
+    }
     const command = resolveShortcutCommand(event, keybindings, {
       platform: navigator.platform,
       context: {
@@ -485,7 +499,13 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   return (
     <>
       <ThreadContextDragGhost />
-      <SidebarChromeHeader isElectron={isElectron} />
+      <SidebarChromeHeader
+        isElectron={isElectron}
+        newChatShortcut={newChatShortcut}
+        onNewChat={
+          defaultEnvironmentId === null ? null : () => void handleNewThread(defaultEnvironmentId)
+        }
+      />
       <SidebarContent
         className="min-h-full"
         fixedHeader={
@@ -493,11 +513,16 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
             <div className="flex h-8.5 items-center gap-2 rounded-md border border-transparent bg-sidebar-row-hover px-2.5 text-sidebar-muted-foreground transition-colors focus-within:border-input focus-within:bg-background">
               <SearchIcon className="size-4" />
               <SidebarInput
+                id="sidebar-search"
                 aria-label="Search chats"
                 placeholder="Search chats"
                 value={query}
                 onChange={(event) => setQuery(event.currentTarget.value)}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") event.currentTarget.blur();
+                }}
               />
+              <Kbd>/</Kbd>
             </div>
             <Button
               className="mt-2 justify-start"
