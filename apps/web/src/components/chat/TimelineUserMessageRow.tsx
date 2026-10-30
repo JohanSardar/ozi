@@ -192,7 +192,7 @@ function AutomationMessageRow({ row }: { row: Extract<TimelineRow, { kind: "mess
       </div>
       <UserMessageProjectedStatus row={row} />
       {expanded ? (
-        <div className="flex w-full max-w-[80%] items-center justify-end pe-1 text-xs tabular-nums opacity-0 transition-opacity duration-200 pointer-coarse:opacity-100 focus-within:opacity-100 group-hover:opacity-100">
+        <div className="flex w-full max-w-[80%] items-center justify-end pe-1 text-xs tabular-nums">
           <div className="flex shrink-0 items-center gap-2">
             {scheduledTaskId ? (
               <Link
@@ -208,7 +208,7 @@ function AutomationMessageRow({ row }: { row: Extract<TimelineRow, { kind: "mess
               timestampFormat={ctx.timestampFormat}
               alwaysVisible
             />
-            <div className="flex items-center gap-0.5">
+            <div className="-order-1 flex items-center gap-0.5 opacity-0 transition-opacity duration-200 pointer-coarse:opacity-100 focus-within:opacity-100 group-hover:opacity-100">
               {typeof revertTurnCount === "number" && (
                 <RevertUserMessageButton turnCount={revertTurnCount} messageId={row.message.id} />
               )}
@@ -630,7 +630,7 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
       </div>
       <UserMessageProjectedStatus row={row} />
       {!folded || expanded ? (
-        <div className="flex w-full max-w-[80%] items-center justify-end pe-1 text-xs tabular-nums opacity-0 transition-opacity duration-200 pointer-coarse:opacity-100 focus-within:opacity-100 group-hover:opacity-100">
+        <div className="flex w-full max-w-[80%] items-center justify-end pe-1 text-xs tabular-nums">
           <div className="flex shrink-0 items-center gap-2">
             {folded && senderThreadId ? (
               <InlineButton onClick={() => ctx.onOpenThread(senderThreadId)} tone="muted">
@@ -638,14 +638,16 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
               </InlineButton>
             ) : null}
             <Tooltip>
-              <TooltipTrigger render={<p className="text-muted-foreground text-xs tabular-nums" />}>
+              <TooltipTrigger
+                render={<p className="text-muted-foreground/70 text-xs tabular-nums" />}
+              >
                 {formatDayAwareTimestamp(row.message.createdAt, ctx.timestampFormat)}
               </TooltipTrigger>
               <TooltipPopup>
                 {formatChatTimestampTooltip(row.message.createdAt, ctx.timestampFormat)}
               </TooltipPopup>
             </Tooltip>
-            <div className="flex items-center gap-0.5">
+            <div className="-order-1 flex items-center gap-0.5 opacity-0 transition-opacity duration-200 pointer-coarse:opacity-100 focus-within:opacity-100 group-hover:opacity-100">
               {typeof revertTurnCount === "number" && (
                 <RevertUserMessageButton turnCount={revertTurnCount} messageId={row.message.id} />
               )}
