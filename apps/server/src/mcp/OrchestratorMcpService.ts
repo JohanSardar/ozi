@@ -791,6 +791,7 @@ function threadDetail(
     archived: projection.thread.archivedAt !== null,
     ...threadSettlement(projection.thread),
     ...threadSnooze(shell, nowMs),
+    extensionUi: shell.extensionUi ?? null,
     createdAt: DateTime.formatIso(projection.thread.createdAt),
     updatedAt: DateTime.formatIso(projection.thread.updatedAt),
   };
@@ -910,6 +911,9 @@ function timelineItem(input: {
     sourceThreadId: input.row.sourceThreadId,
     itemId: input.row.sourceItemId,
     ...(input.row.item.type === "subagent" ? { subagentId: input.row.item.subagentId } : {}),
+    ...(input.row.item.type === "approval_request" || input.row.item.type === "user_input_request"
+      ? { requestId: input.row.item.requestId }
+      : {}),
     runId: input.row.item.runId,
     messageId,
     createdBy: message?.createdBy ?? null,

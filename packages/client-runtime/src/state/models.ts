@@ -2,6 +2,7 @@ import { backgroundWorkHoldsCompletion } from "@t3tools/shared/orchestrationV2Pe
 import type {
   EnvironmentId,
   MessageId,
+  OrchestrationV2ExtensionUi,
   OrchestrationV2ProviderGoal,
   OrchestrationV2RunStatus,
   OrchestrationV2ProviderFailureClass,
@@ -156,6 +157,7 @@ export interface EnvironmentThreadShell {
   >;
   readonly providerInstanceHistory: ReadonlyArray<ProviderInstanceId>;
   readonly goal: OrchestrationV2ProviderGoal | null;
+  readonly extensionUi: OrchestrationV2ExtensionUi | null;
   readonly itemCount: number;
   readonly visibleItemCount: number;
   readonly createdAt: string;
@@ -298,6 +300,7 @@ export function presentThreadShell(
     pendingBackgroundTasks: thread.pendingBackgroundTasks ?? [],
     providerInstanceHistory: thread.providerInstanceHistory ?? [],
     goal: thread.goal ?? null,
+    extensionUi: thread.extensionUi ?? null,
     itemCount: thread.itemCount,
     visibleItemCount: thread.visibleItemCount,
     createdAt: iso(thread.createdAt),

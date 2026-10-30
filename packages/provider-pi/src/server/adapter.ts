@@ -9,6 +9,7 @@ import {
   type ChatAttachment,
   type ModelSelection,
   type OrchestrationV2ExecutionNode,
+  type OrchestrationV2ExtensionUi,
   type OrchestrationV2ProviderCapabilities,
   type OrchestrationV2ProviderFailure,
   type OrchestrationV2ProviderRef,
@@ -1282,10 +1283,33 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
           if (status !== "running") inboxChecks.delete(key);
           return;
         }
+        const turn = threadState?.activeTurn ?? null;
+        const message = recordString(event, "message") ?? "";
+        if (
+          threadState !== null &&
+          (["setStatus", "setWidget", "setTitle", "set_editor_text"].includes(method) ||
+            (method === "notify" && turn === null && message.length > 0))
+        ) {
+          const updatedAt = yield* DateTime.now;
+          threadState.providerThread = {
+            ...threadState.providerThread,
+            extensionUi: piExtensionUi(
+              threadState.providerThread.extensionUi ?? null,
+              method,
+              event,
+              DateTime.formatIso(updatedAt),
+            ),
+            updatedAt,
+          };
+          yield* emit({
+            type: "provider_thread.updated",
+            driver: PI_PROVIDER,
+            providerThread: threadState.providerThread,
+            ...(turn === null ? { sessionScoped: true } : {}),
+          });
+          return;
+        }
         if (method === "notify") {
-          const state = threadState;
-          const turn = state?.activeTurn ?? null;
-          const message = recordString(event, "message") ?? "";
           if (turn === null || message.length === 0) return;
           const emittedAt = yield* DateTime.now;
           const nativeItemId = `notify:${turn.providerTurn.id}:${turn.nextItemOrdinal}`;
@@ -1325,7 +1349,6 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
           return;
         }
         const state = threadState;
-        const turn = state?.activeTurn ?? null;
         const createdAt = yield* DateTime.now;
         const timeout = recordNumber(event, "timeout");
         // Pi treats zero as no timeout and negative durations as immediate expiry.
@@ -1351,7 +1374,11 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
           nativeRequestRef: providerRef(nativeRequestId),
           kind: method === "confirm" ? "command" : "user_input",
           status: "pending",
-          responseCapability: { type: "live", providerSessionId: input.providerSessionId },
+          responseCapability: {
+            type: "live",
+            providerSessionId: input.providerSessionId,
+            supportsCancel: method !== "confirm",
+          },
           createdAt,
           resolvedAt: null,
         };
@@ -3312,6 +3339,71 @@ function piThreadSnapshot(
   providerThread: OrchestrationV2ProviderThread,
 ): ProviderAdapter.ProviderAdapterV2ThreadSnapshot {
   return { providerThread, providerTurns: [], messages: [], runtimeRequests: [] };
+}
+
+function piExtensionUi(
+  current: OrchestrationV2ExtensionUi | null,
+  method: string,
+  event: PiRpcRecord,
+  at: string,
+): OrchestrationV2ExtensionUi {
+  const ui = {
+    ...(current ?? { statuses: {}, widgets: {}, title: null, notices: [], editorText: null }),
+    revision: (current?.revision ?? 0) + 1,
+  };
+  const lines = event["widgetLines"];
+  const notifyType = recordString(event, "notifyType");
+  const type: OrchestrationV2ExtensionUi["notices"][number]["type"] =
+    notifyType === "warning" || notifyType === "error" ? notifyType : "info";
+  switch (method) {
+    case "setStatus":
+      return {
+        ...ui,
+        statuses: withEntry(ui.statuses, event["statusKey"], recordString(event, "statusText")),
+      };
+    case "setWidget":
+      return {
+        ...ui,
+        widgets: withEntry<OrchestrationV2ExtensionUi["widgets"][string]>(
+          ui.widgets,
+          event["widgetKey"],
+          Array.isArray(lines)
+            ? {
+                lines: lines.filter(Predicate.isString),
+                placement:
+                  event["widgetPlacement"] === "belowEditor" ? "belowEditor" : "aboveEditor",
+              }
+            : undefined,
+        ),
+      };
+    case "setTitle":
+      return { ...ui, title: recordString(event, "title") || null };
+    case "set_editor_text":
+      return { ...ui, editorText: { text: recordString(event, "text") ?? "", at } };
+    default:
+      return {
+        ...ui,
+        notices: [
+          ...ui.notices,
+          {
+            id: recordString(event, "id") ?? at,
+            message: recordString(event, "message") ?? "",
+            type,
+            at,
+          },
+        ].slice(-20),
+      };
+  }
+}
+
+function withEntry<T>(
+  entries: Readonly<Record<string, T>>,
+  key: unknown,
+  value: T | undefined,
+): Record<string, T> {
+  if (typeof key !== "string") return { ...entries };
+  const rest = Object.fromEntries(Object.entries(entries).filter(([name]) => name !== key));
+  return value === undefined ? rest : { ...rest, [key]: value };
 }
 
 function piQuestion(

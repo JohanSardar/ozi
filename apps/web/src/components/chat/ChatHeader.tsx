@@ -48,6 +48,7 @@ interface ChatHeaderProps {
   activeThreadTitle: string;
   activeThreadLinkOrigin?: string | null | undefined;
   workStartedAt: string | null;
+  extensionTitle: string | null;
   isServerThread: boolean;
   parentThreadLink: { threadId: ThreadId; title: string } | null;
   onOpenThread: (threadId: ThreadId) => void;
@@ -73,6 +74,7 @@ export const ChatHeader = memo(function ChatHeader({
   activeThreadTitle,
   activeThreadLinkOrigin,
   workStartedAt,
+  extensionTitle,
   isServerThread,
   parentThreadLink,
   onOpenThread,
@@ -379,6 +381,11 @@ export const ChatHeader = memo(function ChatHeader({
                   return `Working ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
                 }, true)}
               />
+            </span>
+          ) : null}
+          {renamingTitle === null && extensionTitle ? (
+            <span className="ms-2 min-w-0 truncate text-muted-foreground text-xs">
+              {extensionTitle}
             </span>
           ) : null}
           {renamingTitle === null && activeThreadLinkOrigin ? (
