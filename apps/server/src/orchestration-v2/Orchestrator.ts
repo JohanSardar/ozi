@@ -8154,7 +8154,13 @@ const makeOrchestrator = Effect.fn("orchestrationV2.Orchestrator.layer")(functio
           cause: "This question has already been answered.",
         });
       }
-      if (request.kind !== "user_input" || request.responseCapability.type !== "message") {
+      if (
+        request.kind !== "user_input" ||
+        (request.responseCapability.type !== "message" &&
+          !(
+            request.responseCapability.type === "live" && request.responseCapability.supportsCancel
+          ))
+      ) {
         return yield* new OrchestratorDispatchError({
           commandId: command.commandId,
           commandType: command.type,

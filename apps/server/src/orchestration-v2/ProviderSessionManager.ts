@@ -244,6 +244,10 @@ function sessionScopedRuntimeRequestThreadId(
   event: ProviderAdapter.ProviderAdapterV2Event,
 ): ThreadId | undefined {
   switch (event.type) {
+    case "provider_thread.updated":
+      return event.sessionScoped === true
+        ? (event.providerThread.appThreadId ?? undefined)
+        : undefined;
     case "runtime_request.updated":
       return event.runtimeRequest.providerTurnId === null ? event.threadId : undefined;
     case "node.updated":

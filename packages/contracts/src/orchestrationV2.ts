@@ -999,6 +999,41 @@ export const OrchestrationV2ProviderGoal = Schema.Struct({
 });
 export type OrchestrationV2ProviderGoal = typeof OrchestrationV2ProviderGoal.Type;
 
+export const OrchestrationV2ExtensionUi = Schema.Struct({
+  revision: NonNegativeInt,
+  statuses: Schema.Record(Schema.String, Schema.String),
+  widgets: Schema.Record(
+    Schema.String,
+    Schema.Struct({
+      lines: Schema.Array(Schema.String),
+      placement: Schema.Literals(["aboveEditor", "belowEditor"]),
+    }),
+  ),
+  title: Schema.NullOr(Schema.String),
+  notices: Schema.Array(
+    Schema.Struct({
+      id: Schema.String,
+      message: Schema.String,
+      type: Schema.Literals(["info", "warning", "error"]),
+      at: Schema.String,
+    }),
+  ),
+  editorText: Schema.NullOr(Schema.Struct({ text: Schema.String, at: Schema.String })),
+});
+export type OrchestrationV2ExtensionUi = typeof OrchestrationV2ExtensionUi.Type;
+
+export function withNewestExtensionUi<
+  T extends {
+    readonly id: string;
+    readonly extensionUi?: OrchestrationV2ExtensionUi | null | undefined;
+  },
+>(items: ReadonlyArray<T>, next: T): T {
+  const current = items.find((item) => item.id === next.id)?.extensionUi;
+  return current && current.revision > (next.extensionUi?.revision ?? -1)
+    ? { ...next, extensionUi: current }
+    : next;
+}
+
 export const OrchestrationV2ProviderThread = Schema.Struct({
   id: ProviderThreadId,
   driver: ProviderDriverKind,
@@ -1029,6 +1064,9 @@ export const OrchestrationV2ProviderThread = Schema.Struct({
     Schema.withDecodingDefault(Effect.succeed(null)),
   ),
   goal: Schema.optional(Schema.NullOr(OrchestrationV2ProviderGoal)).pipe(
+    Schema.withDecodingDefault(Effect.succeed(null)),
+  ),
+  extensionUi: Schema.optional(Schema.NullOr(OrchestrationV2ExtensionUi)).pipe(
     Schema.withDecodingDefault(Effect.succeed(null)),
   ),
   createdAt: Schema.DateTimeUtc,
@@ -1145,6 +1183,7 @@ export const OrchestrationV2RuntimeRequest = Schema.Struct({
       type: Schema.Literal("live"),
       providerSessionId: ProviderSessionId,
       supportsFeedback: Schema.optional(Schema.Boolean),
+      supportsCancel: Schema.optional(Schema.Boolean),
     }),
     Schema.Struct({ type: Schema.Literal("message") }),
     Schema.Struct({ type: Schema.Literal("not_resumable"), reason: Schema.String }),
@@ -2004,6 +2043,7 @@ export const OrchestrationV2ThreadShell = Schema.Struct({
     Schema.withDecodingDefault(Effect.succeed([])),
   ),
   goal: Schema.optional(Schema.NullOr(OrchestrationV2ProviderGoal)),
+  extensionUi: Schema.optional(Schema.NullOr(OrchestrationV2ExtensionUi)),
   itemCount: NonNegativeInt,
   visibleItemCount: NonNegativeInt,
   createdAt: Schema.DateTimeUtc,

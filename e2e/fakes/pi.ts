@@ -89,7 +89,45 @@ const answer = (text: string) => {
   if (!text.includes("hold")) settle();
 };
 
+const dialogs: Array<Rpc> = [];
+const dialogResults: Array<unknown> = [];
+let idleNotice = false;
+const ui = (id: string, method: string, fields: Rpc = {}) =>
+  send({ type: "extension_ui_request", id, method, ...fields });
+const nextDialog = () => {
+  const dialog = dialogs.shift();
+  if (dialog) return ui(String(dialog.id), String(dialog.method), dialog);
+  answer(`dialogs ${JSON.stringify(dialogResults)}`);
+  idleNotice = true;
+};
+const extensionUi = () => {
+  ui("notice", "notify", { message: "Turn notice" });
+  ui("status", "setStatus", { statusKey: "mail", statusText: "Mail 2" });
+  ui("status-gone", "setStatus", { statusKey: "gone", statusText: "Gone" });
+  ui("status-cleared", "setStatus", { statusKey: "gone" });
+  ui("widget", "setWidget", { widgetKey: "plan", widgetLines: ["Plan", "1. Pack"] });
+  ui("widget-below", "setWidget", {
+    widgetKey: "foot",
+    widgetLines: ["Below the editor"],
+    widgetPlacement: "belowEditor",
+  });
+  ui("title", "setTitle", { title: "Trip planner" });
+  ui("text", "set_editor_text", { text: "Draft from extension" });
+  dialogs.push(
+    { id: "pick", method: "select", title: "Colour", options: ["Amber", "Blue"] },
+    { id: "name", method: "input", title: "Name", placeholder: "Your name" },
+    { id: "sure", method: "confirm", title: "Book it?", message: "Book the trip" },
+    { id: "note", method: "editor", title: "Note", prefill: "Pack light" },
+  );
+  nextDialog();
+};
+
 const handlers: Record<string, (request: Rpc) => void> = {
+  extension_ui_response: (request) => {
+    const { type: _type, id: _id, ...result } = request;
+    dialogResults.push(result);
+    nextDialog();
+  },
   get_state: (request) =>
     respond(request, {
       model,
@@ -114,13 +152,16 @@ const handlers: Record<string, (request: Rpc) => void> = {
       leafId: entries.at(-1)?.id ?? null,
     });
   },
-  get_session_stats: (request) =>
+  get_session_stats: (request) => {
     respond(request, {
       sessionFile,
       sessionId: NodePath.basename(sessionFile),
       totalMessages: entries.length,
       tokens: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0, total: 0 },
-    }),
+    });
+    if (idleNotice) ui("idle-notice", "notify", { message: "Idle notice", notifyType: "warning" });
+    idleNotice = false;
+  },
   set_model: (request) => respond(request, model),
   prompt: (request) => {
     const text = String(request.message);
@@ -135,7 +176,8 @@ const handlers: Record<string, (request: Rpc) => void> = {
     }
     send({ type: "turn_start" });
     userMessage(text);
-    answer(text);
+    if (text === "extension ui") extensionUi();
+    else answer(text);
   },
   abort: (request) => {
     if (streaming) settle();

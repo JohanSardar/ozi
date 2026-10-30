@@ -1,8 +1,9 @@
-import type {
-  OrchestrationV2DomainEvent,
-  OrchestrationV2Run,
-  OrchestrationV2ThreadProjection,
-  OrchestrationV2TurnItem,
+import {
+  type OrchestrationV2DomainEvent,
+  type OrchestrationV2Run,
+  type OrchestrationV2ThreadProjection,
+  type OrchestrationV2TurnItem,
+  withNewestExtensionUi,
 } from "@t3tools/contracts";
 import {
   restoreSubagentBodies,
@@ -337,7 +338,13 @@ export function applyOrchestrationV2ProjectionEvent(
         ),
       };
     case "provider-thread.updated":
-      return { ...base, providerThreads: upsertEntity(base.providerThreads, event.payload) };
+      return {
+        ...base,
+        providerThreads: upsertEntity(
+          base.providerThreads,
+          withNewestExtensionUi(base.providerThreads, event.payload),
+        ),
+      };
     case "provider-turn.updated":
       return {
         ...base,

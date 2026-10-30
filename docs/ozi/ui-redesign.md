@@ -32,6 +32,7 @@ Three columns: chats, conversation, inbox.
 - A delegated job shows as a line "↳ ‹job› · waiting on you" that opens its ticket.
 - Hovering or selecting assistant text offers Reply; the quote sits above the composer and goes with the message.
 - Composer as T3: one composer for new and existing chats, attachments, model and thinking picker. While the agent works, Enter steers and ⌘Enter queues; Stop shows when the composer is empty. Queued messages sit right-aligned above the composer with send now, edit and remove.
+- Pi extension UI, quiet and muted: the title beside the chat title, widgets above or below the composer, statuses in one line below it, notices from a turn in the work log and notices between turns (last 20) above the composer, editor text into the draft once. They persist on the chat across restarts and show in `ozi thread show --json` as `extensionUi`. Select, input, editor and confirm dialogs use T3's question and approval panels; select, input and editor can be dismissed (cancelled). `ozi thread show --activity` lists each request's `requestId` for `ozi answer`.
 
 ### Sessions (C3)
 

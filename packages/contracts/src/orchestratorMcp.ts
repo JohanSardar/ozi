@@ -30,6 +30,7 @@ import { ThreadTitleRegeneration } from "./threadTitle.ts";
 import {
   OrchestrationV2Actor,
   OrchestrationV2CreationSource,
+  OrchestrationV2ExtensionUi,
   OrchestrationV2RunStatus,
   OrchestrationV2TurnItemStatus,
 } from "./orchestrationV2.ts";
@@ -411,6 +412,7 @@ export const OrchestratorMcpThreadDetail = Schema.Struct({
   settledAt: Schema.NullOr(IsoDateTime),
   snoozed: Schema.Boolean,
   snoozedUntil: Schema.NullOr(IsoDateTime),
+  extensionUi: Schema.optional(Schema.NullOr(OrchestrationV2ExtensionUi)),
   createdAt: IsoDateTime,
   updatedAt: IsoDateTime,
 });
@@ -434,6 +436,7 @@ export const OrchestratorMcpThreadTimelineItem = Schema.Struct({
   sourceThreadId: ThreadId,
   itemId: TurnItemId,
   subagentId: Schema.optional(NodeId),
+  requestId: Schema.optional(RuntimeRequestId),
   runId: Schema.NullOr(RunId),
   messageId: Schema.NullOr(MessageId),
   createdBy: Schema.NullOr(OrchestrationV2Actor),

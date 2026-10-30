@@ -258,6 +258,7 @@ import { QueuedRunsControl, type QueuedRunsControlHandle } from "./chat/QueuedRu
 import { useIncrementalTimelineEntries } from "../hooks/useIncrementalTimelineEntries";
 import { useRightPanelSurfaceClose } from "../hooks/useRightPanelSurfaceClose";
 import type { ComposerBannerStackItem } from "./chat/ComposerBannerStack";
+import { ExtensionUiLines, useExtensionEditorText } from "./chat/ExtensionUi";
 import { modelFallbackBannerItem } from "./chat/ComposerUsageLimits";
 import { ComposerSurface } from "./chat/ComposerSurface";
 import { resolveThreadSyncPhase } from "../threadSync";
@@ -877,6 +878,8 @@ export default function ChatView(props: ChatViewProps) {
   );
   const browserAvailable = isPreviewSupportedInRuntime() || activeEnvironmentServerBrowser;
   const activeThreadShell = serverThread;
+  const extensionUi = activeThreadShell?.extensionUi ?? null;
+  useExtensionEditorText(extensionUi, activeThreadId, composerDraftTarget);
   const timelineThreadError =
     serverRuntime?.status === "failed" &&
     serverRuntime.lastErrorClass === "usage_limit" &&
@@ -2741,6 +2744,7 @@ export default function ChatView(props: ChatViewProps) {
             activeThreadTitle={activeThread.title}
             activeThreadLinkOrigin={activeThreadShell?.linkOrigin?.label ?? null}
             workStartedAt={isWorking ? (activeWorkStartedAt ?? null) : null}
+            extensionTitle={extensionUi?.title ?? null}
             defaultCwd={defaultCwd}
             parentThreadLink={headerParentThreadLink}
             onOpenThread={onOpenRelatedThreadStable}
@@ -2927,6 +2931,7 @@ export default function ChatView(props: ChatViewProps) {
                         : undefined
                     }
                   >
+                    <ExtensionUiLines ui={extensionUi} placement="aboveEditor" />
                     <ComposerSurface.Shell contextRow={showComposerContextStrip}>
                       <ComposerSurface.Host
                         inert={queuedRunEdit.isSaving}
@@ -3082,6 +3087,7 @@ export default function ChatView(props: ChatViewProps) {
                         </div>
                       </div>
                     </ComposerSurface.Shell>
+                    <ExtensionUiLines ui={extensionUi} placement="belowEditor" />
                     <div
                       aria-hidden
                       className="h-[calc(env(safe-area-inset-bottom)+1rem)] sm:h-[calc(env(safe-area-inset-bottom)+1.25rem)]"
