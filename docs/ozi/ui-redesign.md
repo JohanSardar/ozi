@@ -61,6 +61,7 @@ Three columns: chats, conversation, inbox.
 - A ticket clears when answered, replied to, acknowledged with Got it, or closed by an agent after the user acknowledged it in chat; the chat then shows "✓ Closed: ‹title›".
 - Cleared tickets go to the archive with what cleared them. The archive is searchable and replyable.
 - New tickets raise a desktop notification and a dock badge; both can be turned off in Settings → General.
+- The old build's read-only external to-dos are not carried over: a scheduled chat that uses that MCP source files Do tickets instead.
 
 ## Look
 
