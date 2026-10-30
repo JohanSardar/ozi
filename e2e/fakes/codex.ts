@@ -53,9 +53,9 @@ const check = async (threadId: string, turn: any) => {
   const state = threads.get(threadId)!;
   const source = state.turns.at(-2)?.text ?? "";
   if (source.includes("decision")) await gate("release");
-  if (state.config["mcp_servers.t3-code.default_tools_approval_mode"] !== "approve")
+  if (state.config["mcp_servers.ozi.default_tools_approval_mode"] !== "approve")
     throw new Error("Inbox ticket tools require approval");
-  const mcp = state.config["mcp_servers.t3-code"];
+  const mcp = state.config["mcp_servers.ozi"];
   let session: string | null = null;
   let next = 0;
   const rpc = async (method: string, params: unknown) => {
@@ -85,7 +85,7 @@ const check = async (threadId: string, turn: any) => {
     capabilities: {},
     clientInfo: { name: "p2-fake", version: "1" },
   });
-  const denied = await rpc("tools/call", { name: "t3_thread_launch", arguments: {} });
+  const denied = await rpc("tools/call", { name: "ozi_thread_launch", arguments: {} });
   record({ event: "restricted", threadId, status: denied.status });
   const call = async (name: string, args: unknown) => {
     const result = await rpc("tools/call", { name, arguments: args });

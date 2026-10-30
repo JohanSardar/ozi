@@ -256,7 +256,7 @@ describe("i2.ticket-tools", () => {
       .map((line) => JSON.parse(line));
     expect(replies.find((reply) => reply.id === 2)?.error, responseText).toBeUndefined();
     const tools = replies.find((reply) => reply.id === 2).result.tools;
-    expect(tools.some((tool: { name: string }) => tool.name === "t3_thread_read")).toBe(true);
+    expect(tools.some((tool: { name: string }) => tool.name === "ozi_thread_read")).toBe(true);
     for (const name of toolNames) {
       const tool = tools.find((tool: { name: string }) => tool.name === name);
       expect(tool.description.length).toBeGreaterThan(10);

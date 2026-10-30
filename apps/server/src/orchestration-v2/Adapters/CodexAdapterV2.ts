@@ -1342,7 +1342,7 @@ function codexThreadRuntimeParams(input: {
         ? {}
         : {
             // Override only T3's server so launch-argument MCP servers survive.
-            "mcp_servers.t3-code": {
+            "mcp_servers.ozi": {
               url: mcpSession.endpoint,
               tool_timeout_sec: CODEX_T3_MCP_TOOL_TIMEOUT_SEC,
               http_headers: {
@@ -1989,8 +1989,8 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
                         { ...state, enabled: false },
                       ]),
                     ),
-                    "mcp_servers.t3-code.default_tools_approval_mode": "approve",
-                    "mcp_servers.t3-code.enabled_tools": [
+                    "mcp_servers.ozi.default_tools_approval_mode": "approve",
+                    "mcp_servers.ozi.enabled_tools": [
                       "ticket_create",
                       "ticket_update",
                       "ticket_close",

@@ -152,7 +152,7 @@ export const terminalCommand = Command.make("terminal", {
                 let cursor: number | null = 0;
                 do {
                   const result: OrchestratorMcpThreadListResult = yield* tools.call(
-                    "t3_thread_list",
+                    "ozi_thread_list",
                     { includeSubagents: false, cursor, limit: 100 },
                     OrchestratorMcpThreadListResult,
                   );
@@ -169,7 +169,7 @@ export const terminalCommand = Command.make("terminal", {
               }
               case "/new": {
                 const result = yield* tools.call(
-                  "t3_thread_launch",
+                  "ozi_thread_launch",
                   { title: argument.slice(0, 80), message: argument },
                   ThreadLaunchResult,
                 );
@@ -223,7 +223,7 @@ export const terminalCommand = Command.make("terminal", {
                     detail: "Select a current chat with /chat <id> or /new <message>.",
                   });
                 const result = yield* tools.call(
-                  "t3_thread_send",
+                  "ozi_thread_send",
                   { threadId: chatId, message: line, mode: "queue" },
                   OrchestratorMcpThreadSendResult,
                 );

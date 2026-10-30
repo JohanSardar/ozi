@@ -11,7 +11,7 @@ Ozi splits into a GUI that runs any harness and the Ozi harness. The GUI moves t
 ## Base
 
 - Port the client onto T3 Code v0.1.5's own components: sidebar, chat view, work log, composer, attachments (images, video, files), queued runs, settings window, themes. Copy their code; remove projects, git, worktrees, diffs and devices.
-- Rename `t3` to `ozi` in the MCP server name, tool names (`t3_thread_*`, `t3_queue_*`, …) and descriptions, which also lose T3 examples and project wording.
+- Rename `t3` to `ozi` in the MCP server name, tool names (`ozi_thread_*`, `ozi_queue_*`, …) and descriptions, which also lose T3 examples and project wording.
 - Nothing may sit under the macOS window buttons; the sidebar header keeps their native 90-point inset clear, including after zoom and reload. Desktop automation runs under Xvfb on Linux with Playwright Electron; the macOS layout is forced there for verification. Test-only keychain switches stay in the dev launcher.
 - No pills, coloured dots or monospace capital labels. Working shows as a thin spinner; labels are plain sentence case.
 
@@ -75,7 +75,7 @@ Multiple bots (personas, each its own harness) in the sidebar, an animated bot a
 
 ## F1 foundation
 
-The GUI uses the public `ozi` command, `OZI_` environment variables and `~/.ozi` (`OZI_HOME`). Desktop names are Ozi Beta / Ozi Dev, app IDs com.ozi.app / com.ozi.app.dev, profiles and schemes ozi / ozi-dev. No T3 homes, environment variables or profiles are read or migrated. T3 Code's MIT notice and “Forked from T3 Code” credit remain. Internal `@t3tools/*` package names remain. MCP names stay upstream-named until G2.
+The GUI uses the public `ozi` command, `OZI_` environment variables and `~/.ozi` (`OZI_HOME`). Desktop names are Ozi Beta / Ozi Dev, app IDs com.ozi.app / com.ozi.app.dev, profiles and schemes ozi / ozi-dev. No T3 homes, environment variables or profiles are read or migrated. T3 Code's MIT notice and “Forked from T3 Code” credit remain. Internal `@t3tools/*` package names remain. G2 uses the `ozi` MCP server key and `ozi_*` tool names; `ticket_*` and `inbox` keep their names.
 
 `pnpm dev` resolves every git checkout to its own `.ozi`, derives ports from the checkout path and never seeds from installed state. The GUI stores runtime data beneath `.ozi/userdata`; the harness's separate data repository is outside F1. CI runs typecheck and lint only; release and deployment workflows are removed.
 
@@ -131,7 +131,7 @@ Each job the main agent delegates shows in its chat as one line: the job title, 
 
 The shared MCP server registers `ticket_create`, `ticket_update`, `ticket_close` and `ticket_list` for every provider, including delegated workers. Create accepts ticket content; update accepts its ID and content changes; close accepts its ID. No tool accepts origin or clearance IDs. The server derives the thread from its authenticated MCP credential, the provider session from its bound provider thread, and the latest user message in its active run (or its last run with background work). Queued messages are excluded. I1 resolves chat, job, worker and transcript links. Content updates preserve that origin; close records an agent clearance using the caller's user message. Agents decide which acknowledgement warrants closure.
 
-List accepts the I1 status, search and chat filters. All four tools require an in-app thread credential; writes also require that provider to own a live run or background task. Pi exposes all four ticket tools directly, including through the Claude subscription bridge; other providers use their existing MCP discovery. Other MCP tools and the server name remain unchanged until G2.
+List accepts the I1 status, search and chat filters. All four tools require an in-app thread credential; writes also require that provider to own a live run or background task. Pi exposes all four ticket tools directly, including through the Claude subscription bridge; other providers use their existing MCP discovery. Other MCP tools use G2’s `ozi` server key and `ozi_*` names.
 
 ## I6 ticket choices
 
@@ -141,7 +141,7 @@ A passive, persisted `Answered: ‹title›: ‹choice›` line appears in the c
 
 ## I5 ticket replies
 
-A reply from a row, the window or the archive goes into the chat shown behind the inbox, through T3's turn start with the default follow-up behaviour (steer or queue while the agent works). On a new chat it starts that chat, titled after the ticket. The message carries a `ticket` context record: the bubble shows a quiet quote, "↩ ‹title› · ‹need›", above the reply. The agent receives the ticket's title, group, need, summary, choices, details and files, who filed it (chat, or worker for a chat) and when, whether it is still open, an absolute transcript link, and the ticket, thread, chat, worker, job, session and message IDs, with a note to read the filing session with `t3_thread_read`. Once the message is accepted, the reply clears an open ticket (I7).
+A reply from a row, the window or the archive goes into the chat shown behind the inbox, through T3's turn start with the default follow-up behaviour (steer or queue while the agent works). On a new chat it starts that chat, titled after the ticket. The message carries a `ticket` context record: the bubble shows a quiet quote, "↩ ‹title› · ‹need›", above the reply. The agent receives the ticket's title, group, need, summary, choices, details and files, who filed it (chat, or worker for a chat) and when, whether it is still open, an absolute transcript link, and the ticket, thread, chat, worker, job, session and message IDs, with a note to read the filing session with `ozi_thread_read`. Once the message is accepted, the reply clears an open ticket (I7).
 
 ## C1 schedules and webhooks
 

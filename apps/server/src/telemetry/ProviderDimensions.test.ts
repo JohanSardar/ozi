@@ -40,7 +40,7 @@ const thread = (
 it("omits custom, user-configured, and unknown models and instance names", () => {
   expect(
     agentToolProperties({
-      tool: "t3_thread_send",
+      tool: "ozi_thread_send",
       providers,
       caller: thread("claudeAgent", "my-private-finetune"),
       targets: [thread("opencode", "ollama/acme-internal"), thread("removed-instance", "gpt-5.5")],
@@ -72,7 +72,7 @@ it("drops input strings outside the schema's literals, since rejected calls are 
     targetChosen: false,
     mode: "async",
   });
-  expect(handoffSettings("t3_thread_launch", {}, {})).toEqual({
+  expect(handoffSettings("ozi_thread_launch", {}, {})).toEqual({
     targetChosen: false,
     workspace: "root",
   });

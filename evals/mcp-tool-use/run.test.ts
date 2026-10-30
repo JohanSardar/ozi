@@ -22,7 +22,7 @@ it("grades Codex shell and subagent calls with the shared rules", () => {
   const calls = [
     { name: "exec_command", input: { cmd: "sleep 60" } },
     { name: "collaboration.spawn_agent", input: { task: "review" } },
-    { name: "mcp__t3_code__delegate_task", input: {} },
+    { name: "mcp__ozi__delegate_task", input: {} },
   ].map(({ name, input }) => ({
     step: 0,
     tool: normalizeToolName(name),
@@ -82,7 +82,7 @@ it("passes a good run and names every rule a bad run breaks", () => {
   const expect = {
     calls: [{ tool: "delegate_task", args: { task: "~FINDING", "target.options": "~max" } }],
     callsMustNot: [{ tool: "delegate_task", args: { runtimeMode: "approval-required" } }],
-    notCalls: ["t3_thread_send"],
+    notCalls: ["ozi_thread_send"],
     order: ["orchestrator_capabilities", "delegate_task"],
     minCalls: { orchestrator_capabilities: 1 },
     maxCalls: { task_status: 0 },
@@ -112,7 +112,7 @@ it("passes a good run and names every rule a bad run breaks", () => {
         tool: "delegate_task",
         input: { task: "Review again", runtimeMode: "approval-required" },
       },
-      { step: 1, tool: "t3_thread_send", input: {} },
+      { step: 1, tool: "ozi_thread_send", input: {} },
       { step: 2, tool: "Monitor", input: { command: "sleep 60" } },
       { step: 3, tool: "task_status", input: { taskId: "task-1" } },
     ],
@@ -122,7 +122,7 @@ it("passes a good run and names every rule a bad run breaks", () => {
   assert.deepEqual(failed(expect, bad), [
     'calls delegate_task {"task":"~FINDING","target.options":"~max"}',
     'callsMustNot delegate_task {"runtimeMode":"approval-required"}',
-    "notCalls t3_thread_send",
+    "notCalls ozi_thread_send",
     "order orchestrator_capabilities > delegate_task",
     "minCalls orchestrator_capabilities >= 1",
     "maxCalls task_status <= 0",
@@ -136,13 +136,13 @@ it("passes a good run and names every rule a bad run breaks", () => {
 it("bounds numbers and reads target.options in either schema form", () => {
   const expect = {
     calls: [
-      { tool: "t3_thread_read", args: { limit: "<=20" } },
+      { tool: "ozi_thread_read", args: { limit: "<=20" } },
       { tool: "delegate_task", args: { "target.options.effort": "max", timeoutMs: ">=60000" } },
     ],
   };
   const run = (limit: unknown, options: unknown, timeoutMs: number): SampleRun => ({
     calls: [
-      { step: 0, tool: "t3_thread_read", input: { limit } },
+      { step: 0, tool: "ozi_thread_read", input: { limit } },
       { step: 0, tool: "delegate_task", input: { target: { options }, timeoutMs } },
     ],
     text: "",
@@ -180,14 +180,14 @@ const template = {
     {
       role: "system",
       content:
-        "You are powered by the model named Opus 5.5. The exact model ID is claude-opus-5-5.\n\nThe following deferred tools are now available via ToolSearch. Load them first:\nMonitor\nmcp__t3-code__retired_tool\n\nAfter the list.",
+        "You are powered by the model named Opus 5.5. The exact model ID is claude-opus-5-5.\n\nThe following deferred tools are now available via ToolSearch. Load them first:\nMonitor\nmcp__ozi__retired_tool\n\nAfter the list.",
     },
     { role: "assistant", content: [{ type: "text", text: "A later turn." }] },
   ],
   tools: [
     { name: "mcp__host__term_Bash", input_schema: { type: "object" } },
     { name: "mcp__host__clown_ToolSearch", input_schema: { type: "object" } },
-    { name: "mcp__t3-code__retired_tool", input_schema: { type: "object" }, defer_loading: true },
+    { name: "mcp__ozi__retired_tool", input_schema: { type: "object" }, defer_loading: true },
   ],
 };
 
@@ -222,11 +222,11 @@ it("lists link tools only while a case turns the beta on, and sends chips as T3 
   });
   assert.notInclude(
     off.t3.map((tool) => tool.name),
-    "mcp__t3-code__t3_environment_link",
+    "mcp__ozi__ozi_environment_link",
   );
   assert.include(
     on.t3.map((tool) => tool.name),
-    "mcp__t3-code__t3_environment_link",
+    "mcp__ozi__ozi_environment_link",
   );
 
   const testCase: McpToolUseCase = {

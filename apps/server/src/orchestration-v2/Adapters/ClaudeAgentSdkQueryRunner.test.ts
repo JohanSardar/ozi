@@ -131,7 +131,7 @@ const resumedMcpQueryInput = {
     tools: [],
     permissionMode: "default",
     mcpServers: {
-      "t3-code": {
+      ozi: {
         type: "http",
         url: "http://localhost:3773/mcp",
         headers: { Authorization: "Bearer test-mcp-credential" },
@@ -154,7 +154,7 @@ it.effect("reopens a stalled MCP registration before delivering the resumed prom
         return new Promise<ClaudeSdk.McpSetServersResult>(() => {});
       });
       const secondRegistration = vi.fn(async () => ({
-        added: ["t3-code"],
+        added: ["ozi"],
         removed: [],
         errors: {},
       }));
@@ -241,7 +241,7 @@ it.effect.each([true, false])("only retries after confirmed process exit: %s", (
             registrationStarted.resolve();
             return first
               ? new Promise<ClaudeSdk.McpSetServersResult>(() => {})
-              : Promise.resolve({ added: ["t3-code"], removed: [], errors: {} });
+              : Promise.resolve({ added: ["ozi"], removed: [], errors: {} });
           },
           close: vi.fn(),
           [Symbol.asyncDispose]: disposed,

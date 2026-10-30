@@ -181,7 +181,7 @@ const makeLaptop = Effect.gen(function* () {
     sql: Context.get(database, SqlClient.SqlClient),
     call: (args: Record<string, unknown>, callScope = scope) =>
       server
-        .callTool({ name: "t3_environment_link", arguments: args })
+        .callTool({ name: "ozi_environment_link", arguments: args })
         .pipe(
           Effect.provideService(McpInvocationContext.McpInvocationContext, callScope),
           Effect.provideService(McpSchema.McpServerClient, mcpClient),

@@ -71,7 +71,7 @@ export function deriveBlockedOnThreadWait(input: {
     if (item.type !== "dynamic_tool") return false;
     const tool = resolveT3McpToolId(item.toolName);
     if (
-      tool !== "t3_thread_wait" &&
+      tool !== "ozi_thread_wait" &&
       !(
         tool === "delegate_task" &&
         Predicate.isObject(item.input) &&
