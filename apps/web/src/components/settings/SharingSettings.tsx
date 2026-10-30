@@ -1,27 +1,26 @@
 import { useAuth } from "@clerk/react";
-import { Link } from "@tanstack/react-router";
 
 import { hasCloudPublicConfig } from "~/cloud/publicConfig";
 import { useT3ConnectAuthPrompt } from "../clerk/useT3ConnectAuthPrompt";
 import { Button } from "../ui/button";
 import { ScopedSwitch } from "./ScopedSwitch";
-import { SettingsPageContainer, SettingsRow, SettingsSection } from "./settingsLayout";
+import { SettingsRow, SettingsSection } from "./settingsLayout";
 import { searchableSetting } from "./settingsSearch";
-import { LegacyFeaturesSection } from "./SettingsPanels";
 import { useScopedSettings, useUpdateScopedSettings } from "./useScopedSettings";
 
-/** Features still settling in, and legacy behavior kept for people who rely on it. */
-export function LabsSettingsPanel() {
+export function GuestLinksSection() {
   return (
-    <SettingsPageContainer>
-      <SettingsSection id="beta" title="Beta">
-        {/* Clerk is only mounted when this build has Ozi Connect. */}
-        {hasCloudPublicConfig() ? <GuestLinksRowWithSignIn /> : <GuestLinksRow />}
-        <LinkedEnvironmentsRow />
-        {null}
-      </SettingsSection>
-      <LegacyFeaturesSection />
-    </SettingsPageContainer>
+    <SettingsSection id="guest-sharing" title="Guests">
+      {hasCloudPublicConfig() ? <GuestLinksRowWithSignIn /> : <GuestLinksRow />}
+    </SettingsSection>
+  );
+}
+
+export function LinkedEnvironmentsSection() {
+  return (
+    <SettingsSection id="linked-environments-setting" title="Your machines">
+      <LinkedEnvironmentsRow />
+    </SettingsSection>
   );
 }
 
@@ -55,11 +54,8 @@ function GuestLinksRow() {
       description={
         <>
           Share a thread with a guest who watches it live in their browser and sends messages you
-          approve. Needs Ozi Connect: sign in and link this machine in{" "}
-          <Link to="/settings/access" className="underline underline-offset-2">
-            Sharing & access
-          </Link>
-          . While it is off, every guest link stops working.
+          approve. Needs Ozi Connect: sign in and link this machine above. While it is off, every
+          guest link stops working.
         </>
       }
       control={
@@ -85,11 +81,8 @@ function LinkedEnvironmentsRow() {
       description={
         <>
           Let agents here work on your other machines, and theirs here. Turn it on for each machine,
-          then link them in{" "}
-          <Link to="/settings/connections" className="underline underline-offset-2">
-            Connections
-          </Link>
-          . While it is off, nothing new starts over a link; tasks already running finish.
+          then link them below. While it is off, nothing new starts over a link; tasks already
+          running finish.
         </>
       }
       control={

@@ -16,7 +16,6 @@ import {
 } from "./baseSchemas.ts";
 import { UsageLimitSourceId } from "./usageLimitSourceId.ts";
 import { EnvironmentMachineKind } from "./environment.ts";
-import { KeybindingShortcut } from "./keybindings.ts";
 import {
   CustomModelSetting,
   DEFAULT_TEXT_GENERATION_MODEL,
@@ -60,8 +59,7 @@ export const SidebarAutoSettleAfterDays = Schema.Number.check(
 export type SidebarAutoSettleAfterDays = typeof SidebarAutoSettleAfterDays.Type;
 const DEFAULT_SIDEBAR_AUTO_SETTLE_AFTER_DAYS: SidebarAutoSettleAfterDays = 3;
 
-export const MAX_SNOOZE_PRESET_MINUTES = 30 * 24 * 60;
-export const MAX_SNOOZE_PRESETS = 8;
+const MAX_SNOOZE_PRESET_MINUTES = 30 * 24 * 60;
 export const SnoozePresetDay = Schema.Literals([
   "today",
   "tomorrow",
@@ -87,9 +85,6 @@ export const SnoozePresetSetting = Schema.Union([
   }),
 ]);
 export type SnoozePresetSetting = typeof SnoozePresetSetting.Type;
-export const SnoozePresetSettings = Schema.Array(SnoozePresetSetting).check(
-  Schema.isMaxLength(MAX_SNOOZE_PRESETS),
-);
 export const DEFAULT_SNOOZE_PRESETS: ReadonlyArray<SnoozePresetSetting> = [
   { kind: "after", minutes: 60 },
   { kind: "after", minutes: 180 },
@@ -170,66 +165,6 @@ export const EnvironmentIdentificationMode = Schema.Literals([
 ]);
 export type EnvironmentIdentificationMode = typeof EnvironmentIdentificationMode.Type;
 export const DEFAULT_ENVIRONMENT_IDENTIFICATION_MODE: EnvironmentIdentificationMode = "artwork";
-
-export const SnapShotKeyChord = KeybindingShortcut.check(
-  Schema.makeFilter(
-    (shortcut) =>
-      shortcut.metaKey ||
-      shortcut.ctrlKey ||
-      shortcut.shiftKey ||
-      shortcut.altKey ||
-      shortcut.modKey ||
-      "Snapshot shortcut requires a modifier.",
-  ),
-);
-export type SnapShotKeyChord = typeof SnapShotKeyChord.Type;
-export const SNAP_SHOT_MODIFIERS = ["shift", "meta", "control", "alt"] as const;
-export const SnapShotModifier = Schema.Literals(SNAP_SHOT_MODIFIERS);
-export type SnapShotModifier = typeof SnapShotModifier.Type;
-export const SnapShotShortcut = Schema.Union([
-  Schema.Struct({ kind: Schema.Literal("both-shift-keys") }),
-  Schema.Struct({ kind: Schema.Literal("modifier-pair"), modifier: SnapShotModifier }),
-  SnapShotKeyChord,
-]);
-export type SnapShotShortcut = typeof SnapShotShortcut.Type;
-export const SnapShotSound = Schema.Literals(["soft-pop", "camera-shutter"]);
-export type SnapShotSound = typeof SnapShotSound.Type;
-const DEFAULT_SNAP_SHOT_SOUND: SnapShotSound = "soft-pop";
-
-export type SnapShotModifierPairShortcut = Extract<SnapShotShortcut, { readonly kind: string }>;
-
-export function isModifierPairShortcut(
-  shortcut: SnapShotShortcut,
-): shortcut is SnapShotModifierPairShortcut {
-  return "kind" in shortcut;
-}
-
-export function snapShotShortcutModifierPair(
-  shortcut: SnapShotModifierPairShortcut,
-): SnapShotModifier {
-  return shortcut.kind === "both-shift-keys" ? "shift" : shortcut.modifier;
-}
-
-const APPLE_MODIFIER_LABELS: Record<SnapShotModifier, string> = {
-  shift: "Shift",
-  meta: "Command",
-  control: "Control",
-  alt: "Option",
-};
-const OTHER_MODIFIER_LABELS: Record<SnapShotModifier, string> = {
-  shift: "Shift",
-  meta: "Super",
-  control: "Ctrl",
-  alt: "Alt",
-};
-
-export function snapShotModifierPairLabel(modifier: SnapShotModifier, apple: boolean): string {
-  const label = (apple ? APPLE_MODIFIER_LABELS : OTHER_MODIFIER_LABELS)[modifier];
-  return `${label} + ${label}`;
-}
-const DEFAULT_SNAP_SHOT_SHORTCUT: SnapShotShortcut = {
-  kind: "both-shift-keys",
-};
 
 export const NotificationMode = Schema.Literals([
   "off",
@@ -425,7 +360,6 @@ export const ClientSettingsSchema = Schema.Struct({
   ),
 
   planModeEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
-  contextWindowMeterEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   composerRichTextEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   sendShortcut: Schema.Literals(["enter", "mod-enter-multiline", "mod-enter"]).pipe(
     Schema.withDecodingDefault(Effect.succeed("enter")),
@@ -448,19 +382,6 @@ export const ClientSettingsSchema = Schema.Struct({
   timestampFormat: TimestampFormat.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_TIMESTAMP_FORMAT)),
   ),
-  snapShotEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
-  snapShotIncludeAccessibility: Schema.Boolean.pipe(
-    Schema.withDecodingDefault(Effect.succeed(true)),
-  ),
-  snapShotShortcut: SnapShotShortcut.pipe(
-    Schema.withDecodingDefault(Effect.succeed(DEFAULT_SNAP_SHOT_SHORTCUT)),
-  ),
-  snapShotPlaySound: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
-  snapShotSound: SnapShotSound.pipe(
-    Schema.withDecodingDefault(Effect.succeed(DEFAULT_SNAP_SHOT_SOUND)),
-  ),
-  snapShotFlash: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
-  snapShotAnimations: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   wordWrap: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(true))),
   // Opt-in TeX typesetting in rendered Markdown. Off keeps math parsing and
   // KaTeX out of the render path entirely.
@@ -958,9 +879,6 @@ export const ServerSettings = Schema.Struct({
   idleCompaction: Schema.optionalKey(IdleCompactionMode),
   snoozeLimitedThreads: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   autoResumeLimitedThreads: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
-  snoozePresets: SnoozePresetSettings.pipe(
-    Schema.withDecodingDefault(Effect.succeed(DEFAULT_SNOOZE_PRESETS)),
-  ),
   /** Beta: guest links for this machine's threads. Off refuses new links and pauses existing ones. */
   guestSharingEnabled: Schema.Boolean.pipe(Schema.withDecodingDefault(Effect.succeed(false))),
   /**
@@ -1211,7 +1129,6 @@ export const ServerSettingsPatch = Schema.Struct({
   idleCompaction: Schema.optionalKey(IdleCompactionMode),
   autoResumeLimitedThreads: Schema.optionalKey(Schema.Boolean),
   snoozeLimitedThreads: Schema.optionalKey(Schema.Boolean),
-  snoozePresets: Schema.optionalKey(SnoozePresetSettings),
   guestSharingEnabled: Schema.optionalKey(Schema.Boolean),
   linkedEnvironmentsEnabled: Schema.optionalKey(Schema.Boolean),
   backgroundActivity: Schema.optionalKey(
@@ -1313,7 +1230,6 @@ export const ClientSettingsPatch = Schema.Struct({
   favorites: Schema.optionalKey(ModelFavorites),
   providerModelPreferences: Schema.optionalKey(ProviderModelPreferences),
   planModeEnabled: Schema.optionalKey(Schema.Boolean),
-  contextWindowMeterEnabled: Schema.optionalKey(Schema.Boolean),
   composerRichTextEnabled: Schema.optionalKey(Schema.Boolean),
   sendShortcut: Schema.optionalKey(Schema.Literals(["enter", "mod-enter-multiline", "mod-enter"])),
   followUpBehavior: Schema.optionalKey(Schema.Literals(["queue", "steer"])),
@@ -1323,13 +1239,6 @@ export const ClientSettingsPatch = Schema.Struct({
   sidebarWorkingShelfEnabled: Schema.optionalKey(Schema.Boolean),
   sidebarThreadSortOrder: Schema.optionalKey(SidebarThreadSortOrder),
   timestampFormat: Schema.optionalKey(TimestampFormat),
-  snapShotEnabled: Schema.optionalKey(Schema.Boolean),
-  snapShotIncludeAccessibility: Schema.optionalKey(Schema.Boolean),
-  snapShotShortcut: Schema.optionalKey(SnapShotShortcut),
-  snapShotPlaySound: Schema.optionalKey(Schema.Boolean),
-  snapShotSound: Schema.optionalKey(SnapShotSound),
-  snapShotFlash: Schema.optionalKey(Schema.Boolean),
-  snapShotAnimations: Schema.optionalKey(Schema.Boolean),
   wordWrap: Schema.optionalKey(Schema.Boolean),
   mathRenderingEnabled: Schema.optionalKey(Schema.Boolean),
 });

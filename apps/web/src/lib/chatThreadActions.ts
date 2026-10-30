@@ -50,9 +50,7 @@ export function hasExplicitComposerModelSelection(
   );
 }
 
-export function resolveThreadActionEnvironmentId(
-  context: ChatThreadActionContext,
-): EnvironmentId | null {
+function resolveThreadActionEnvironmentId(context: ChatThreadActionContext): EnvironmentId | null {
   if (context.activeThread) {
     return context.activeThread.environmentId;
   }

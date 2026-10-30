@@ -199,7 +199,7 @@ export function ChatDefaultsSettings() {
   );
 
   return (
-    <SettingsSection id="environment-defaults" title="New threads">
+    <SettingsSection id="environment-defaults" title="New chats">
       {
         <>
           {modelRow}

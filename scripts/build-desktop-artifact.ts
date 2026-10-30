@@ -21,7 +21,6 @@ import { clerkFrontendApiHostnameFromPublishableKey } from "@t3tools/shared/rela
 import { resolveSpawnCommand } from "@t3tools/shared/shell";
 import rootPackageJson from "../package.json" with { type: "json" };
 import desktopPackageJson from "../apps/desktop/package.json" with { type: "json" };
-import gnomeCaptureBundle from "../apps/desktop/gnome-extension/bundle.json" with { type: "json" };
 import serverPackageJson from "../apps/server/package.json" with { type: "json" };
 
 import {
@@ -991,8 +990,6 @@ export const DESKTOP_FILE_EXCLUSIONS = [
   "!apps/desktop/prod-resources/windows-server/**/*",
   "!apps/desktop/prod-resources/wsl-runtime.tar.gz",
   "!apps/desktop/prod-resources/wsl-runtime.tar.gz.sha256",
-  "!apps/desktop/gnome-extension",
-  "!apps/desktop/gnome-extension/**/*",
 ] as const;
 // Windows terminal helpers cannot run on macOS and slow signing and notarization.
 export const MAC_FILE_EXCLUSIONS = [
@@ -1088,21 +1085,6 @@ export const DESKTOP_EXTRA_RESOURCES = [
   {
     from: "apps/desktop/prod-resources/resource-monitor",
     to: "resource-monitor",
-  },
-] as const;
-export const LINUX_CAPTURE_EXTRA_RESOURCES = [
-  {
-    from: "apps/desktop/prod-resources/hyprland-capture",
-    to: "hyprland-capture",
-  },
-  {
-    from: "apps/desktop/prod-resources/kde-capture",
-    to: "kde-capture",
-  },
-  {
-    from: "apps/desktop/gnome-extension",
-    to: "gnome-extension",
-    filter: gnomeCaptureBundle.files,
   },
 ] as const;
 export const LINUX_BROWSER_SECRET_EXTRA_RESOURCES = [
@@ -1916,10 +1898,7 @@ export const preflightLinuxDesktopBuild = Effect.fn("preflightLinuxDesktopBuild"
   const reuseResourceMonitor = yield* Config.Boolean("OZI_DESKTOP_REUSE_RESOURCE_MONITOR").pipe(
     Config.withDefault(false),
   );
-  const reuseCaptureHelpers = yield* Config.Boolean("OZI_DESKTOP_REUSE_LINUX_CAPTURE_HELPERS").pipe(
-    Config.withDefault(false),
-  );
-  const needsRust = !reuseResourceMonitor || !reuseCaptureHelpers;
+  const needsRust = !reuseResourceMonitor;
   const rustTarget = resolveResourceMonitorRustTargets("linux", arch)[0]!;
 
   const checks = yield* Effect.all(
@@ -2275,68 +2254,6 @@ export const verifyPackagedBundleIsSelfContained = Effect.fn("verifyPackagedBund
     );
   },
 );
-
-export const stageLinuxCaptureHelper = Effect.fn("stageLinuxCaptureHelper")(function* (input: {
-  readonly backend: "kde" | "hyprland";
-  readonly repoRoot: string;
-  readonly stageResourcesDir: string;
-  readonly arch: typeof BuildArch.Type;
-  readonly verbose: boolean;
-}) {
-  const fs = yield* FileSystem.FileSystem;
-  const path = yield* Path.Path;
-  const [rustTarget] = resolveResourceMonitorRustTargets("linux", input.arch);
-  // CI skips Rust on helper-cache hits; allow reuse without rebuilding.
-  const reuseHelpers = yield* Config.Boolean("OZI_DESKTOP_REUSE_LINUX_CAPTURE_HELPERS").pipe(
-    Config.withDefault(false),
-  );
-  const binaryPath = path.join(
-    input.repoRoot,
-    `native/${input.backend}-snap-shot/target`,
-    rustTarget!,
-    `release/ozi-${input.backend}-snap-shot`,
-  );
-  if (!reuseHelpers) {
-    const spawnCommand = yield* resolveSpawnCommand("cargo", [
-      "build",
-      "--locked",
-      "--release",
-      "--manifest-path",
-      path.join(input.repoRoot, `native/${input.backend}-snap-shot/Cargo.toml`),
-      "--target",
-      rustTarget!,
-    ]);
-    yield* runCommand(
-      ChildProcess.make(spawnCommand.command, spawnCommand.args, {
-        cwd: input.repoRoot,
-        shell: spawnCommand.shell,
-      }),
-      {
-        label: `cargo build ${input.backend} capture helper (${rustTarget})`,
-        verbose: input.verbose,
-      },
-    );
-  } else if (!(yield* fs.exists(binaryPath))) {
-    return yield* new ResourceMonitorBuildOutputMissingError({
-      binaryPath,
-      rustTarget: rustTarget!,
-      platform: "linux",
-      arch: input.arch,
-    });
-  }
-  const destination = path.join(input.stageResourcesDir, `${input.backend}-capture`);
-  yield* fs.makeDirectory(destination, { recursive: true });
-  const executable = path.join(destination, `ozi-${input.backend}-snap-shot`);
-  yield* fs.copyFile(binaryPath, executable);
-  yield* fs.chmod(executable, 0o755);
-  if (input.backend === "hyprland") {
-    // The official protocol XML includes the BSD notices required with binary distribution.
-    yield* fs.copy(
-      path.join(input.repoRoot, "native/hyprland-snap-shot/protocols"),
-      path.join(destination, "protocols"),
-    );
-  }
-});
 
 export const stageResourceMonitor = Effect.fn("stageResourceMonitor")(function* (input: {
   readonly repoRoot: string;
@@ -2792,7 +2709,6 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
       : {}),
     extraResources: [
       ...DESKTOP_EXTRA_RESOURCES,
-      ...(platform === "linux" ? LINUX_CAPTURE_EXTRA_RESOURCES : []),
       ...(platform === "linux" ? LINUX_BROWSER_SECRET_EXTRA_RESOURCES : []),
       ...(platform === "win" ? WINDOWS_SERVER_EXTRA_RESOURCES : []),
       ...(platform === "win" && wslRuntimeBundled ? WSL_RUNTIME_EXTRA_RESOURCES : []),
@@ -2827,8 +2743,6 @@ export const createBuildConfig = Effect.fn("createBuildConfig")(function* (
         NSAutoFillRequiresTextContentTypeForOneTimeCodeOnMac: true,
         NSLocalNetworkUsageDescription:
           "Ozi connects to devices on your local network for remote environments and commands run by terminals and coding agents.",
-        NSScreenCaptureUsageDescription:
-          "Ozi captures the active window when you use the window capture shortcut.",
         NSCameraUsageDescription:
           "Ozi lets commands run by terminals and coding agents use the camera.",
         NSMicrophoneUsageDescription:
@@ -3734,16 +3648,6 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
   yield* Effect.log("[desktop-artifact] Staging release app...");
   yield* fs.copy(distDirs.desktopDist, path.join(stageAppDir, "apps/desktop/dist-electron"));
   yield* fs.copy(distDirs.desktopResources, stageResourcesDir);
-  if (options.platform === "linux") {
-    const extensionDir = path.join(stageAppDir, "apps/desktop/gnome-extension");
-    yield* fs.makeDirectory(extensionDir, { recursive: true });
-    for (const file of gnomeCaptureBundle.files) {
-      yield* fs.copyFile(
-        path.join(repoRoot, "apps/desktop/gnome-extension", file),
-        path.join(extensionDir, file),
-      );
-    }
-  }
   if (options.platform === "mac" && options.target === "dmg") {
     yield* stageDesktopDmgBackground(
       stageResourcesDir,
@@ -3761,16 +3665,6 @@ const buildDesktopArtifactUnlocked = Effect.fn("buildDesktopArtifactUnlocked")(f
     arch: options.arch,
     verbose: options.verbose,
   });
-  if (options.platform === "linux") {
-    for (const backend of ["kde", "hyprland"] as const)
-      yield* stageLinuxCaptureHelper({
-        backend,
-        repoRoot,
-        stageResourcesDir,
-        arch: options.arch,
-        verbose: options.verbose,
-      });
-  }
   yield* stageBrowserSecret({
     repoRoot,
     stageResourcesDir,

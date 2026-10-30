@@ -1,5 +1,3 @@
-import type { SnapShotSource } from "@t3tools/contracts";
-
 import type { ComposerFileAttachment } from "../../composerDraftStore";
 import { type ChatFileAttachment, type ChatImageAttachment, isVideoAttachment } from "../../types";
 import type {
@@ -26,7 +24,6 @@ export interface ExpandedImageItem {
   type?: "video";
   /** Revoke this owned object URL; other blob URLs belong to the timeline. */
   ownsSrc?: boolean;
-  source?: SnapShotSource;
   autoPlay?: boolean;
   originalUrl?: string;
   srcFragment?: string;
@@ -185,7 +182,6 @@ export function buildExpandedImagePreview(
             src: image.previewUrl,
             name: image.name,
             mimeType: image.mimeType,
-            source: image.source,
           },
         ]
       : [],
@@ -202,7 +198,6 @@ export function buildExpandedImagePreview(
       src: image.src,
       name: image.name,
       mimeType: image.mimeType,
-      ...(image.source?.kind === "snap-shot" ? { source: image.source } : {}),
     })),
     index: selectedIndex,
   };

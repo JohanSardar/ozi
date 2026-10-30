@@ -1,9 +1,7 @@
 import { describe, expect, it, vi } from "vite-plus/test";
-import { EnvironmentId } from "@t3tools/contracts";
 
 import {
   filterAvailableSettingsSearchItems,
-  getThreadAutoSettlementSearchAvailability,
   searchSettings,
   SETTINGS_SEARCH_ITEMS,
   type SettingsSearchItem,
@@ -91,7 +89,6 @@ describe("searchSettings", () => {
       canManageLocalBackend: false,
       localEnvironmentDisabled: true,
       isWslSettingsRowVisible: false,
-      hasThreadAutoSettlement: false,
     };
     const results = (hasPeerLinkHost: boolean) =>
       searchSettings(
@@ -133,40 +130,3 @@ describe("searchSettings", () => {
 });
 
 describe("settings search targets", () => {});
-
-describe("auto-settlement search availability", () => {
-  function environment(id: string, { connected = true, loaded = true } = {}) {
-    return {
-      environmentId: EnvironmentId.make(id),
-      connection: { phase: connected ? ("connected" as const) : ("offline" as const) },
-      serverConfig: loaded ? { environment: { capabilities: {} } } : null,
-    };
-  }
-
-  const capable = environment("capable");
-  const offline = environment("offline", { connected: false });
-  const loading = environment("loading", { loaded: false });
-  const environments = [capable, offline, loading];
-
-  it.each([offline, loading])(
-    "does not render the target on $environmentId or silently fall back",
-    (selected) => {
-      expect(
-        getThreadAutoSettlementSearchAvailability(environments, {
-          kind: "environment",
-          environmentIds: [selected.environmentId],
-        }),
-      ).toEqual({ eligibleEnvironmentIds: [capable.environmentId], isTargetAvailable: false });
-    },
-  );
-
-  it("ignores offline and unloaded targets when all connected targets support the setting", () => {
-    const selected = [capable, offline, loading];
-    expect(
-      getThreadAutoSettlementSearchAvailability(selected, {
-        kind: "all",
-        environmentIds: selected.map((entry) => entry.environmentId),
-      }).isTargetAvailable,
-    ).toBe(true);
-  });
-});

@@ -11,10 +11,6 @@ import {
   readComposerImageThumbnail,
 } from "./imageCompression";
 
-import type { SnapShotSource } from "@t3tools/contracts";
-import { hydrateImagesFromPersisted } from "../composerDraftStore";
-import { resizeSnapShotSource } from "./snapShotSource";
-
 const mocks = vi.hoisted(() => ({
   heicTo: vi.fn(),
 }));
@@ -436,79 +432,4 @@ describe("attachment max edge", () => {
     expect(result.ok && result.recompressed).toBe(false);
     expect(decode).not.toHaveBeenCalled();
   });
-});
-
-describe("snapshot coordinates after compression", () => {
-  const source: SnapShotSource = {
-    kind: "snap-shot",
-    capturedAt: "2026-09-01T00:00:00.000Z",
-    appName: "Editor",
-    windowTitle: "main.ts",
-    accessibility: {
-      format: "element-tree",
-      coordinateSpace: "captured-image",
-      imageSize: { width: 2560, height: 1600 },
-      truncated: false,
-      root: {
-        role: "window",
-        bounds: { x: 0, y: 0, width: 2560, height: 1600 },
-        children: [
-          {
-            role: "button",
-            name: "Save",
-            bounds: { x: 2400, y: 1400, width: 100, height: 100 },
-            children: [],
-          },
-          { role: "static_text", name: "Untitled", bounds: null, children: [] },
-        ],
-      },
-    },
-  };
-
-  it.each(["stash", "delivery"])(
-    "rescales the source and restores it with the compressed %s image",
-    async (path) => {
-      stubCanvasPipeline(() => 100);
-      vi.stubGlobal(
-        "createImageBitmap",
-        vi.fn(async () => ({ width: 2560, height: 1600, close: vi.fn() })),
-      );
-      const original = makeFile(2000);
-      const compressed =
-        path === "stash"
-          ? await compressImageForStash(original, 1000)
-          : await compressImageToByteLimit(original, 1000);
-      expect(compressed.ok).toBe(true);
-      if (!compressed.ok) throw new Error("Compression failed");
-      const image =
-        "image" in compressed
-          ? compressed.image
-          : {
-              ...compressed,
-              mimeType: compressed.file.type,
-              sizeBytes: compressed.file.size,
-              dataUrl: `data:${compressed.file.type};base64,${Buffer.from(await compressed.file.arrayBuffer()).toString("base64")}`,
-            };
-      expect(image.imageSize).toEqual({ width: 2000, height: 1250 });
-      const resized = resizeSnapShotSource(source, image.imageSize);
-      const [restored] = hydrateImagesFromPersisted([
-        {
-          id: "capture",
-          name: "window.webp",
-          mimeType: image.mimeType,
-          sizeBytes: image.sizeBytes,
-          dataUrl: image.dataUrl,
-          source: resized,
-        },
-      ]);
-      expect(restored?.source?.accessibility).toMatchObject({
-        imageSize: { width: 2000, height: 1250 },
-        root: {
-          bounds: { x: 0, y: 0, width: 2000, height: 1250 },
-          children: [{ bounds: { x: 1875, y: 1094, width: 78, height: 78 } }, { bounds: null }],
-        },
-      });
-      expect(source.accessibility).toMatchObject({ imageSize: { width: 2560, height: 1600 } });
-    },
-  );
 });

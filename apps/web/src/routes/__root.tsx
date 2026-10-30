@@ -1,7 +1,6 @@
 import {
   Outlet,
   Link,
-  redirect,
   createRootRoute,
   type ErrorComponentProps,
   useLocation,
@@ -21,7 +20,6 @@ import { FirstRunGate } from "../components/onboarding/FirstRunGate";
 import { ConnectOnboardingDialog } from "../components/cloud/ConnectOnboardingDialog";
 import { RelayClientInstallDialog } from "../components/cloud/RelayClientInstallDialog";
 import { SshPasswordPromptDialog } from "../components/desktop/SshPasswordPromptDialog";
-import { SnapShotCoordinator } from "../components/desktop/SnapShotCoordinator";
 import { DesktopAppActivationCoordinator } from "../components/desktop/DesktopAppActivationCoordinator";
 import { DesktopWebLinkCoordinator } from "../components/desktop/DesktopWebLinkCoordinator";
 import { RunningThreadKeepAlive } from "../components/desktop/RunningThreadKeepAlive";
@@ -41,9 +39,6 @@ import { GUEST_PAGE_PATH } from "../guestPage";
 import { hasHostedPairingRequest, isHostedStaticApp } from "../hostedPairing";
 import { useHostedPromptLinkLanding } from "../components/promptLinks/HostedPromptLinkLanding";
 import { isLocalEnvironmentDisabled } from "../localEnvironment";
-
-import { getDesktopSnapShotBridge } from "../lib/desktopSnapShot";
-import { shouldResumeSnapShotSetupOnStartup } from "../lib/snapShotSetupResume";
 
 export const Route = createRootRoute({
   beforeLoad: async ({ location }) => {
@@ -77,14 +72,6 @@ export const Route = createRootRoute({
     if (authGateState.status === "authenticated") {
       // Idempotent, so every navigation can ask for it.
       void configureClientTracing();
-    }
-    if (
-      authGateState.status === "authenticated" &&
-      getDesktopSnapShotBridge() &&
-      shouldResumeSnapShotSetupOnStartup() &&
-      location.pathname !== "/settings/snap-shot"
-    ) {
-      throw redirect({ to: "/settings/snap-shot", replace: true });
     }
     return {
       authGateState,
@@ -190,7 +177,6 @@ function RootRouteBranch() {
         <RelayClientInstallDialog />
         <ConnectOnboardingDialog />
         <SshPasswordPromptDialog />
-        <SnapShotCoordinator />
         <ReopenClosedViewShortcut />
         <ConfirmDialogHost />
         <CustomSnoozeDialogHost />

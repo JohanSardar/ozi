@@ -98,7 +98,7 @@ import { CodexSetupSection, CodexManagedRuntimeFields } from "./CodexSetupSectio
 import { readCodexSetupMode } from "./CodexSetupSection.logic";
 import { providerClients } from "./providerDriverMeta";
 import { searchableSetting } from "./settingsSearch";
-import { CompactIdleThreadsRow } from "./SettingsPanels";
+import { CompactIdleThreadsRow, UsageLimitRows } from "./SettingsPanels";
 import {
   backgroundActivityOverrideSettings,
   buildProviderInstanceUpdatePatch,
@@ -1091,6 +1091,7 @@ export function EnvironmentProviderSettings({
           }
         />
         <CompactIdleThreadsRow />
+        <UsageLimitRows />
       </SettingsSection>
 
       {isAddInstanceDialogOpen && !readOnly ? (

@@ -262,8 +262,6 @@ function resolveMacBundleInfoPlistStrings(executableName) {
     CFBundleIdentifier: APP_BUNDLE_ID,
     CFBundleExecutable: executableName,
     CFBundleIconFile: "icon.icns",
-    NSScreenCaptureUsageDescription:
-      "Ozi captures the active window when you use the snapshot shortcut.",
     NSDocumentsFolderUsageDescription: "Ozi reads project files you open in the desktop app.",
   };
 }
