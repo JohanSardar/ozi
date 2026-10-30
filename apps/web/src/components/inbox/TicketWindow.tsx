@@ -13,10 +13,11 @@ import { useAtomQueryRunner } from "../../state/use-atom-query-runner";
 import { buildThreadRouteParams } from "../../threadRoutes";
 import { AppRouteModalClose } from "../AppRouteModal";
 import ChatMarkdown from "../ChatMarkdown";
-import { HtmlRenderDialog } from "../chat/HtmlRenderDialog";
+import { RichActionsContext } from "../chat/RichBlocks";
 import { Button } from "../ui/button";
 import { Dialog, DialogPanel, DialogPopup, DialogTitle } from "../ui/dialog";
 import { Textarea } from "../ui/textarea";
+import { TicketAttachment, TicketImage, TicketPages } from "./TicketMedia";
 
 export function Age(props: { iso: string }) {
   const relative = useRelativeTimeState(props.iso);
@@ -32,25 +33,63 @@ export function clearedBy(ticket: Ticket) {
   return "Closed from chat";
 }
 
-export function Choices(props: { ticket: Ticket; onChoose: (index: number) => void }) {
+export function Choices(props: {
+  environmentId: EnvironmentId;
+  ticket: Ticket;
+  onChoose: (index: number) => void;
+}) {
+  const pictures = props.ticket.choices.some((choice) => choice.image);
   return (
-    <div role="group" aria-label="Choices" className="grid gap-1.5">
-      {props.ticket.choices.map((choice, index) => (
-        <button
-          key={choice.label}
-          type="button"
-          onClick={() => props.onChoose(index)}
-          className="grid w-full grid-cols-[22px_minmax(0,1fr)] gap-x-2.5 rounded-md border border-border py-2 pr-3 pl-2 text-left transition-colors hover:bg-accent"
-        >
-          <span className="h-5 rounded-sm bg-accent text-center text-xs leading-5 text-muted-foreground tabular-nums">
-            {index + 1}
-          </span>
-          <span className="text-sm leading-5">{choice.label}</span>
-          <span className="col-start-2 text-xs leading-4.5 text-muted-foreground">
-            {choice.detail}
-          </span>
-        </button>
-      ))}
+    <div
+      role="group"
+      aria-label="Choices"
+      className={
+        pictures ? "grid grid-cols-[repeat(auto-fill,minmax(10.5rem,1fr))] gap-2" : "grid gap-1.5"
+      }
+    >
+      {props.ticket.choices.map((choice, index) =>
+        pictures ? (
+          <button
+            key={choice.label}
+            type="button"
+            onClick={() => props.onChoose(index)}
+            className="relative flex flex-col overflow-hidden rounded-lg border border-border bg-card text-left transition-colors hover:border-ring/40 hover:bg-accent"
+          >
+            {choice.image ? (
+              <TicketImage
+                environmentId={props.environmentId}
+                ticket={props.ticket}
+                image={choice.image}
+                className="aspect-4/3 w-full"
+              />
+            ) : (
+              <span className="block aspect-4/3 w-full bg-muted" />
+            )}
+            <span className="absolute top-1.5 left-1.5 h-5 min-w-5 rounded-sm bg-background/85 px-1 text-center text-xs leading-5 text-muted-foreground tabular-nums backdrop-blur">
+              {index + 1}
+            </span>
+            <span className="px-2.5 pt-2 text-sm leading-5 font-medium">{choice.label}</span>
+            <span className="px-2.5 pb-2.5 text-xs leading-4.5 text-muted-foreground">
+              {choice.detail}
+            </span>
+          </button>
+        ) : (
+          <button
+            key={choice.label}
+            type="button"
+            onClick={() => props.onChoose(index)}
+            className="grid w-full grid-cols-[22px_minmax(0,1fr)] gap-x-2.5 rounded-md border border-border py-2 pr-3 pl-2 text-left transition-colors hover:bg-accent"
+          >
+            <span className="h-5 rounded-sm bg-accent text-center text-xs leading-5 text-muted-foreground tabular-nums">
+              {index + 1}
+            </span>
+            <span className="text-sm leading-5">{choice.label}</span>
+            <span className="col-start-2 text-xs leading-4.5 text-muted-foreground">
+              {choice.detail}
+            </span>
+          </button>
+        ),
+      )}
     </div>
   );
 }
@@ -89,16 +128,11 @@ export function TicketWindow(props: {
 }) {
   const { environmentId, ticket, titles, onClose, inline = false } = props;
   const [reply, setReply] = useState("");
-  const [page, setPage] = useState<{ src: string; title: string } | null>(null);
   const navigate = useNavigate();
   const createAssetUrl = useAtomQueryRunner(assetEnvironment.createUrl, { refresh: true });
   const routeRef = useThreadRouteRef();
   const open = ticket.status === "open";
   const workerId = ticket.origin.workerId;
-  const files = [
-    ...ticket.htmlPages.map((page) => ({ title: page.title, attachment: page.attachment })),
-    ...ticket.attachments.map((attachment) => ({ title: attachment.name, attachment })),
-  ];
   const goTo = (threadId: ThreadId) => {
     onClose();
     void navigate({
@@ -106,16 +140,16 @@ export function TicketWindow(props: {
       params: buildThreadRouteParams(scopeThreadRef(environmentId, threadId)),
     });
   };
-  const openFile = async (file: (typeof files)[number]) => {
+  const openFile = async (attachment: Ticket["attachments"][number]) => {
     const connection = readPreparedConnection(environmentId);
     const result = await createAssetUrl({
       environmentId,
       input: {
         resource: {
           _tag: "attachment",
-          attachmentId: file.attachment.id,
-          fileName: file.attachment.name,
-          mimeType: file.attachment.mimeType,
+          attachmentId: attachment.id,
+          fileName: attachment.name,
+          mimeType: attachment.mimeType,
         },
       },
     });
@@ -123,9 +157,7 @@ export function TicketWindow(props: {
       connection && result._tag === "Success"
         ? resolveAssetUrl(connection.httpBaseUrl, result.value.relativeUrl)
         : null;
-    if (src === null) return;
-    if (file.attachment.mimeType === "text/html") setPage({ src, title: file.title });
-    else window.open(src, "_blank", "noopener");
+    if (src !== null) window.open(src, "_blank", "noopener");
   };
   const send = () => {
     if (!reply.trim()) return;
@@ -134,159 +166,177 @@ export function TicketWindow(props: {
   };
 
   const header = (
-        <header className="flex h-12 shrink-0 items-center gap-2 border-b ps-5 pe-2 text-sm">
-          {inline ? (
-            <Button variant="ghost" size="sm" className="-ms-3 me-1" onClick={onClose}>
-              <ArrowLeftIcon />
-              Inbox
-            </Button>
-          ) : null}
-          <span className="font-medium">{open ? ticket.group : "Archived"}</span>
-          <span className="min-w-0 flex-1 truncate text-muted-foreground">
-            · {titles.get(ticket.origin.chatId) ?? ""} · <Age iso={ticket.createdAt} />
-            {open ? null : ` · ${clearedBy(ticket)}`}
-          </span>
-          {inline ? null : <AppRouteModalClose />}
-        </header>
+    <header className="flex h-12 shrink-0 items-center gap-2 border-b ps-5 pe-2 text-sm">
+      {inline ? (
+        <Button variant="ghost" size="sm" className="-ms-3 me-1" onClick={onClose}>
+          <ArrowLeftIcon />
+          Inbox
+        </Button>
+      ) : null}
+      <span className="font-medium">{open ? ticket.group : "Archived"}</span>
+      <span className="min-w-0 flex-1 truncate text-muted-foreground">
+        · {titles.get(ticket.origin.chatId) ?? ""} · <Age iso={ticket.createdAt} />
+        {open ? null : ` · ${clearedBy(ticket)}`}
+      </span>
+      {inline ? null : <AppRouteModalClose />}
+    </header>
   );
   const body = (
-        <>
-          <div>
-            {inline ? (
-              <h2 className="mb-2 wrap-anywhere text-xl font-semibold leading-none">
-                {ticket.title}
-              </h2>
-            ) : (
-              <DialogTitle className="mb-2">{ticket.title}</DialogTitle>
-            )}
-            <p className="font-semibold leading-snug">{ticket.need}</p>
+    <>
+      <div>
+        {inline ? (
+          <h2 className="mb-2 wrap-anywhere text-xl font-semibold leading-none">{ticket.title}</h2>
+        ) : (
+          <DialogTitle className="mb-2">{ticket.title}</DialogTitle>
+        )}
+        <p className="font-semibold leading-snug">{ticket.need}</p>
+      </div>
+      <Section label="What happened">
+        <p className="whitespace-pre-line text-sm leading-relaxed">{ticket.summary}</p>
+      </Section>
+      {ticket.markdown.trim() ? (
+        <Section label="Details">
+          <ChatMarkdown
+            text={ticket.markdown}
+            cwd={undefined}
+            environmentId={environmentId}
+            threadRef={scopeThreadRef(environmentId, ticket.origin.threadId)}
+          />
+        </Section>
+      ) : null}
+      {open && ticket.choices.length > 0 ? (
+        <Section label="Pick one">
+          <Choices
+            environmentId={environmentId}
+            ticket={ticket}
+            onChoose={(index) => {
+              props.onChoose(index);
+              onClose();
+            }}
+          />
+        </Section>
+      ) : null}
+      {ticket.htmlPages.length > 0 ? (
+        <Section label="Pages">
+          <div className="grid gap-3">
+            <TicketPages environmentId={environmentId} ticket={ticket} />
           </div>
-          <Section label="What happened">
-            <p className="whitespace-pre-line text-sm leading-relaxed">{ticket.summary}</p>
-          </Section>
-          {ticket.markdown.trim() ? (
-            <Section label="Details">
-              <ChatMarkdown text={ticket.markdown} cwd={undefined} />
-            </Section>
-          ) : null}
-          {open && ticket.choices.length > 0 ? (
-            <Section label="Pick one">
-              <Choices
+        </Section>
+      ) : null}
+      {ticket.attachments.length > 0 ? (
+        <Section label="Files">
+          <div className="grid gap-3">
+            {ticket.attachments.map((attachment) => (
+              <TicketAttachment
+                key={attachment.id}
+                environmentId={environmentId}
                 ticket={ticket}
-                onChoose={(index) => {
-                  props.onChoose(index);
-                  onClose();
-                }}
+                attachment={attachment}
+                onOpen={() => void openFile(attachment)}
               />
-            </Section>
+            ))}
+          </div>
+        </Section>
+      ) : null}
+      <Section label="Sources">
+        <div className="grid gap-1.5">
+          <Source
+            label="Session transcript"
+            detail={titles.get(ticket.origin.threadId) ?? ""}
+            onClick={() => goTo(ticket.origin.threadId)}
+          />
+          {workerId ? (
+            <Source
+              label={`Job · ${titles.get(workerId) ?? ""}`}
+              detail="Worker"
+              onClick={() => goTo(workerId)}
+            />
           ) : null}
-          {files.length > 0 ? (
-            <Section label="Files">
-              <div className="grid gap-1.5">
-                {files.map((file) => (
-                  <Source
-                    key={file.attachment.id}
-                    label={file.title}
-                    detail={file.attachment.name}
-                    onClick={() => void openFile(file)}
-                  />
-                ))}
-              </div>
-            </Section>
-          ) : null}
-          <Section label="Sources">
-            <div className="grid gap-1.5">
-              <Source
-                label="Session transcript"
-                detail={titles.get(ticket.origin.threadId) ?? ""}
-                onClick={() => goTo(ticket.origin.threadId)}
-              />
-              {workerId ? (
-                <Source
-                  label={`Job · ${titles.get(workerId) ?? ""}`}
-                  detail="Worker"
-                  onClick={() => goTo(workerId)}
-                />
-              ) : null}
-            </div>
-          </Section>
-        </>
+        </div>
+      </Section>
+    </>
   );
   const footer = (
-        <footer className="shrink-0 border-t px-4 pt-3 pb-4">
-          <p className="mx-1 mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-            <ReplyIcon className="size-3.5" />
-            <span className="shrink-0">Your reply goes to</span>
-            <b className="min-w-0 truncate font-medium text-foreground">
-              {inline
-                ? (titles.get(ticket.origin.chatId) ?? "")
-                : (routeRef && titles.get(routeRef.threadId)) || "New chat"}
-            </b>
-            <span className="shrink-0">with this ticket attached</span>
-          </p>
-          <div className="flex items-end gap-2">
-            <div className="relative flex-1">
-              <Textarea
-                autoFocus={!inline}
-                rows={1}
-                value={reply}
-                onChange={(event) => setReply(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key !== "Enter" || event.shiftKey) return;
-                  event.preventDefault();
-                  send();
-                }}
-                placeholder="Reply…"
-                aria-label={`Reply to ${ticket.title}`}
-                className="[&_textarea]:min-h-9 [&_textarea]:pe-9"
-              />
-              {reply.trim() ? (
-                <Button
-                  size="icon-xs"
-                  aria-label="Send reply"
-                  className="absolute end-1.5 bottom-1.5"
-                  onClick={send}
-                >
-                  <ArrowUpIcon />
-                </Button>
-              ) : null}
-            </div>
-            {open ? (
-              <Button
-                variant="outline"
-                onClick={() => {
-                  props.onGotIt();
-                  onClose();
-                }}
-              >
-                <CheckIcon />
-                Got it
-              </Button>
-            ) : null}
-          </div>
-        </footer>
+    <footer className="shrink-0 border-t px-4 pt-3 pb-4">
+      <p className="mx-1 mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
+        <ReplyIcon className="size-3.5" />
+        <span className="shrink-0">Your reply goes to</span>
+        <b className="min-w-0 truncate font-medium text-foreground">
+          {inline
+            ? (titles.get(ticket.origin.chatId) ?? "")
+            : (routeRef && titles.get(routeRef.threadId)) || "New chat"}
+        </b>
+        <span className="shrink-0">with this ticket attached</span>
+      </p>
+      <div className="flex items-end gap-2">
+        <div className="relative flex-1">
+          <Textarea
+            autoFocus={!inline}
+            rows={1}
+            value={reply}
+            onChange={(event) => setReply(event.target.value)}
+            onKeyDown={(event) => {
+              if (event.key !== "Enter" || event.shiftKey) return;
+              event.preventDefault();
+              send();
+            }}
+            placeholder="Reply…"
+            aria-label={`Reply to ${ticket.title}`}
+            className="[&_textarea]:min-h-9 [&_textarea]:pe-9"
+          />
+          {reply.trim() ? (
+            <Button
+              size="icon-xs"
+              aria-label="Send reply"
+              className="absolute end-1.5 bottom-1.5"
+              onClick={send}
+            >
+              <ArrowUpIcon />
+            </Button>
+          ) : null}
+        </div>
+        {open ? (
+          <Button
+            variant="outline"
+            onClick={() => {
+              props.onGotIt();
+              onClose();
+            }}
+          >
+            <CheckIcon />
+            Got it
+          </Button>
+        ) : null}
+      </div>
+    </footer>
   );
-  const pageDialog = page ? (
-    <HtmlRenderDialog src={page.src} title={page.title} onClose={() => setPage(null)} />
-  ) : null;
+  const richActions = {
+    send: (text: string) => {
+      props.onReply(text);
+      onClose();
+    },
+    ...(inline ? {} : { done: onClose }),
+  };
   if (inline)
     return (
       <section aria-label={ticket.title} className="flex min-h-0 min-w-0 flex-1 flex-col">
         {header}
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto flex max-w-3xl flex-col gap-4 p-6">{body}</div>
+          <div className="mx-auto flex max-w-3xl flex-col gap-4 p-6">
+            <RichActionsContext value={richActions}>{body}</RichActionsContext>
+          </div>
         </div>
         <div className="mx-auto w-full max-w-3xl">{footer}</div>
-        {pageDialog}
       </section>
     );
   return (
     <Dialog open onOpenChange={(next) => !next && onClose()}>
       <DialogPopup showCloseButton={false} className="max-w-190 sm:max-h-[86vh]">
         {header}
-        <DialogPanel>{body}</DialogPanel>
+        <DialogPanel>
+          <RichActionsContext value={richActions}>{body}</RichActionsContext>
+        </DialogPanel>
         {footer}
-        {pageDialog}
       </DialogPopup>
     </Dialog>
   );

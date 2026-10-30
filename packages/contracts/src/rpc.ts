@@ -271,6 +271,7 @@ export const WS_METHODS = {
   ticketsGet: "tickets.get",
   ticketsList: "tickets.list",
   ticketsSubscribe: "tickets.subscribe",
+  linksPreview: "links.preview",
   workspaceListEntries: "workspace.listEntries",
   workspaceReadFile: "workspace.readFile",
   workspaceSearchContents: "workspace.searchContents",
@@ -1225,6 +1226,22 @@ const WsTicketsSubscribeRpc = Rpc.make(WS_METHODS.ticketsSubscribe, {
   stream: true,
 });
 
+export const LinkPreviewInput = Schema.Struct({ url: TrimmedNonEmptyString });
+export const LinkPreview = Schema.Struct({
+  url: Schema.String,
+  title: Schema.NullOr(Schema.String),
+  description: Schema.NullOr(Schema.String),
+  image: Schema.NullOr(Schema.String),
+  site: Schema.NullOr(Schema.String),
+});
+export type LinkPreview = typeof LinkPreview.Type;
+
+const WsLinksPreviewRpc = Rpc.make(WS_METHODS.linksPreview, {
+  payload: LinkPreviewInput,
+  success: LinkPreview,
+  error: EnvironmentAuthorizationError,
+});
+
 const WsChatSessionsExecuteRpc = Rpc.make(WS_METHODS.chatSessionsExecute, {
   payload: ChatSessionInput,
   success: ChatSessionResult,
@@ -1256,6 +1273,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsTicketsChooseRpc,
   WsTicketsUpdateRpc,
   WsTicketsCreateRpc,
+  WsLinksPreviewRpc,
   WsChatSessionsExecuteRpc,
   WsChatSessionsPrintRpc,
   WsChatSessionsAnswerRpc,

@@ -17,11 +17,17 @@ export type TicketId = typeof TicketId.Type;
 export const TicketGroup = Schema.Literals(["Decide", "Do", "Review", "Read"]);
 export const TicketChoice = Schema.Struct({
   label: TrimmedNonEmptyString.annotate({
-    description: "A short action in plain words, e.g. \"Book Nella at 7:30\".",
+    description: 'A short action in plain words, e.g. "Book Nella at 7:30".',
   }),
   detail: TrimmedNonEmptyString.annotate({
     description: "One plain line on what happens if the user picks it.",
   }),
+  image: Schema.optional(
+    TrimmedNonEmptyString.annotate({
+      description:
+        "Optional picture of this option: an absolute file path or https URL, e.g. a photo of the restaurant or the product. Give every choice one when the options are things to look at.",
+    }),
+  ),
 });
 export const TicketHtmlPage = Schema.Struct({
   title: TrimmedNonEmptyString,
@@ -37,10 +43,11 @@ export const TicketContent = Schema.Struct({
   group: TicketGroup,
   title: TrimmedNonEmptyString.annotate({
     description:
-      "What happened or what's needed, like a good email subject: \"Your habit tracker is ready to try\", \"Pick a restaurant for tonight\". Never internal names like \"sleep 30 job finished\".",
+      'What happened or what\'s needed, like a good email subject: "Your habit tracker is ready to try", "Pick a restaurant for tonight". Never internal names like "sleep 30 job finished".',
   }),
   need: TrimmedNonEmptyString.annotate({
-    description: "One plain sentence saying exactly what the user should do, or that there is nothing to do.",
+    description:
+      "One plain sentence saying exactly what the user should do, or that there is nothing to do.",
   }),
   summary: TrimmedNonEmptyString.annotate({
     description:
@@ -49,7 +56,7 @@ export const TicketContent = Schema.Struct({
   choices: Schema.Array(TicketChoice).check(Schema.isMaxLength(4)),
   markdown: Schema.String.annotate({
     description:
-      "Optional: more context for someone who wants it, still plain language. Mention a file, link or command only when the user needs it.",
+      'Optional: more context for someone who wants it, still plain language. Mention a file, link or command only when the user needs it. Show, don\'t describe: ![alt](/absolute/path.png or https URL) for a photo, screenshot or recording as proof (the first image becomes the ticket\'s thumbnail); a line that is only a URL shows as a link card. Rich cards are fenced blocks with a JSON body: ```map {"name","address"} for a place; ```event {"title","start","end"?,"location"?} for a booking or appointment (ISO times); ```draft {"kind":"email"|"message","to","subject"?,"body"} for anything sent in the user\'s name, so they can send or edit it; ```browser {"url","label"?,"note"?} when only the user can finish a step, like a payment, BankID, CAPTCHA or final confirm.',
   }),
   attachments: Schema.Array(ChatAttachment),
   htmlPages: Schema.Array(TicketHtmlPage),

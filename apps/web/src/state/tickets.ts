@@ -8,6 +8,7 @@ import {
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import {
   createEnvironmentRpcCommand,
+  createEnvironmentRpcQueryAtomFamily,
   createEnvironmentRpcSubscriptionAtomFamily,
 } from "@t3tools/client-runtime/state/runtime";
 import {
@@ -85,3 +86,10 @@ export function ticketReplyMessage(environmentId: EnvironmentId, ticket: Ticket,
     context: { version: 1 as const, records: [record] },
   };
 }
+
+export const linkPreview = createEnvironmentRpcQueryAtomFamily(connectionAtomRuntime, {
+  label: "environment-data:links:preview",
+  tag: WS_METHODS.linksPreview,
+  staleTimeMs: 60 * 60_000,
+  idleTtlMs: 10 * 60_000,
+});

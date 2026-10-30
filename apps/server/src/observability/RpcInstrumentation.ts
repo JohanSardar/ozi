@@ -138,6 +138,7 @@ const RPC_AGGREGATES = {
   [WS_METHODS.ticketsGet]: "tickets",
   [WS_METHODS.ticketsList]: "tickets",
   [WS_METHODS.ticketsSubscribe]: "tickets",
+  [WS_METHODS.linksPreview]: "links",
   [WS_METHODS.chatSessionsExecute]: "sessions",
   [WS_METHODS.chatSessionsPrint]: "sessions",
   [WS_METHODS.chatSessionsAnswer]: "sessions",

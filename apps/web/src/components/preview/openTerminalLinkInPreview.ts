@@ -32,6 +32,7 @@ interface OpenTerminalLinkInPreviewInput<E> {
   readonly openPreview: OpenPreviewMutation<E>;
   readonly fallbackToBrowser: () => void;
   readonly forceBrowser: boolean;
+  readonly forceApp?: boolean;
 }
 
 export async function openTerminalLinkInPreview<E>(
@@ -42,7 +43,7 @@ export async function openTerminalLinkInPreview<E>(
     isWebUrl(input.url) &&
     isPreviewAvailableFor(input.threadRef.environmentId) &&
     input.threadRef.threadId.length > 0 &&
-    (await resolveBrowserLinkTargetPreference()) === "app";
+    (input.forceApp === true || (await resolveBrowserLinkTargetPreference()) === "app");
 
   if (!supportsPreview) {
     input.fallbackToBrowser();

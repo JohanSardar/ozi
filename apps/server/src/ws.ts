@@ -1,4 +1,5 @@
 import * as Tickets from "./tickets/Tickets.ts";
+import { linkPreview } from "./linkPreview.ts";
 import * as TicketClearing from "./tickets/TicketClearing.ts";
 import * as ChatSessions from "./sessions/ChatSessions.ts";
 import * as Context from "effect/Context";
@@ -1579,6 +1580,7 @@ export const layerWsRpc = (
         [WS_METHODS.ticketsGet]: ({ id }) => tickets.get(id),
         [WS_METHODS.ticketsList]: (input) => tickets.list(input),
         [WS_METHODS.ticketsSubscribe]: (input) => tickets.subscribe(input),
+        [WS_METHODS.linksPreview]: ({ url }) => Effect.promise(() => linkPreview(url)),
         [ORCHESTRATION_V2_WS_METHODS.dispatchCommand]: (command) =>
           Effect.annotateCurrentSpan({
             "orchestration_v2.command_id": command.commandId,

@@ -38,6 +38,7 @@ import { Button } from "../ui/button";
 import { Input } from "../ui/input";
 import { Spinner } from "../ui/spinner";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
+import { TicketImage, TicketPages, ticketThumbnail } from "./TicketMedia";
 import { Age, Choices, clearedBy, TicketWindow } from "./TicketWindow";
 
 export interface TicketHooks {
@@ -190,21 +191,23 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks; page?:
         ordered[Math.min(selected.index, ordered.length - 1)]);
   const shown = details && (open.find((ticket) => ticket.id === details.id) ?? details);
   const titles = new Map(threads.map((thread) => [thread.id, thread.title]));
-  const jobs = threads.flatMap((thread) =>
-    (thread.pendingBackgroundTasks ?? []).flatMap((task) =>
-      task.kind === "subagent"
-        ? [
-            {
-              id: task.taskId,
-              threadId: task.childThreadId ?? thread.id,
-              title: task.description ?? titles.get(task.childThreadId ?? thread.id) ?? "",
-              chat: titles.get(thread.lineage.rootThreadId) ?? "",
-              root: thread.lineage.rootThreadId,
-            },
-          ]
-        : [],
-    ),
-  ).filter((job) => page || job.root === chatId);
+  const jobs = threads
+    .flatMap((thread) =>
+      (thread.pendingBackgroundTasks ?? []).flatMap((task) =>
+        task.kind === "subagent"
+          ? [
+              {
+                id: task.taskId,
+                threadId: task.childThreadId ?? thread.id,
+                title: task.description ?? titles.get(task.childThreadId ?? thread.id) ?? "",
+                chat: titles.get(thread.lineage.rootThreadId) ?? "",
+                root: thread.lineage.rootThreadId,
+              },
+            ]
+          : [],
+      ),
+    )
+    .filter((job) => page || job.root === chatId);
   const toggle = (ticket: Ticket) =>
     setSelected(
       current?.id === ticket.id
@@ -245,34 +248,49 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks; page?:
       tab === "inbox"
         ? ordered.find((ticket) => ticket.id === archivedPick)
         : archived.find((ticket) => ticket.id === archivedPick);
-    const tile = (ticket: Ticket) => (
-      <button
-        key={ticket.id}
-        type="button"
-        onClick={() => setArchivedPick(ticket.id)}
-        className="flex h-52 flex-col rounded-xl border border-border bg-card p-4 text-left transition-colors hover:border-ring/40 hover:bg-accent/40"
-      >
-        <span className="line-clamp-2 text-sm font-medium">{ticket.title}</span>
-        <span className="mt-1.5 line-clamp-2 text-sm font-semibold leading-snug">
-          {ticket.need}
-        </span>
-        <span className="mt-1.5 line-clamp-3 text-xs leading-relaxed text-muted-foreground">
-          {ticket.summary}
-        </span>
-        <span className="mt-auto flex items-center gap-1 pt-3 text-xs text-muted-foreground">
-          <span className="min-w-0 truncate">
-            {ticket.status === "open" ? "" : `${clearedBy(ticket)} · `}
-            {titles.get(ticket.origin.chatId) ?? ""}
+    const tile = (ticket: Ticket) => {
+      const thumbnail = ticketThumbnail(ticket);
+      return (
+        <button
+          key={ticket.id}
+          type="button"
+          onClick={() => setArchivedPick(ticket.id)}
+          className="flex h-52 flex-col rounded-xl border border-border bg-card p-4 text-left transition-colors hover:border-ring/40 hover:bg-accent/40"
+        >
+          <span className="flex gap-3">
+            <span className="min-w-0 flex-1">
+              <span className="line-clamp-2 text-sm font-medium">{ticket.title}</span>
+              <span className="mt-1.5 line-clamp-2 text-sm font-semibold leading-snug">
+                {ticket.need}
+              </span>
+            </span>
+            {thumbnail ? (
+              <TicketImage
+                environmentId={environmentId}
+                ticket={ticket}
+                image={thumbnail}
+                className="size-16 shrink-0 rounded-md"
+              />
+            ) : null}
           </span>
-          <span className="shrink-0">
-            · <Age iso={ticket.createdAt} />
+          <span className="mt-1.5 line-clamp-3 text-xs leading-relaxed text-muted-foreground">
+            {ticket.summary}
           </span>
-          {ticket.status === "open" && ticket.choices.length > 0 ? (
-            <span className="ms-auto shrink-0 tabular-nums">{ticket.choices.length} choices</span>
-          ) : null}
-        </span>
-      </button>
-    );
+          <span className="mt-auto flex items-center gap-1 pt-3 text-xs text-muted-foreground">
+            <span className="min-w-0 truncate">
+              {ticket.status === "open" ? "" : `${clearedBy(ticket)} · `}
+              {titles.get(ticket.origin.chatId) ?? ""}
+            </span>
+            <span className="shrink-0">
+              · <Age iso={ticket.createdAt} />
+            </span>
+            {ticket.status === "open" && ticket.choices.length > 0 ? (
+              <span className="ms-auto shrink-0 tabular-nums">{ticket.choices.length} choices</span>
+            ) : null}
+          </span>
+        </button>
+      );
+    };
     const grid = "grid grid-cols-[repeat(auto-fill,minmax(17rem,1fr))] gap-3";
     return (
       <main aria-label="Inbox" className="flex min-h-0 min-w-0 flex-1 flex-col bg-background">
@@ -431,6 +449,7 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks; page?:
                   {tickets.map((ticket) => (
                     <TicketRow
                       key={ticket.id}
+                      environmentId={environmentId}
                       ticket={ticket}
                       chat={titles.get(ticket.origin.chatId) ?? ""}
                       open={current?.id === ticket.id}
@@ -551,6 +570,7 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks; page?:
 }
 
 function TicketRow(props: {
+  environmentId: EnvironmentId;
   ticket: Ticket;
   chat: string;
   open: boolean;
@@ -560,8 +580,9 @@ function TicketRow(props: {
   onGotIt: () => void;
   onOpenDetails: () => void;
 }) {
-  const { ticket, hooks } = props;
+  const { environmentId, ticket, hooks } = props;
   const [reply, setReply] = useState("");
+  const thumbnail = ticketThumbnail(ticket);
   const send = () => {
     if (!reply.trim() || !hooks.reply) return;
     hooks.reply(ticket, reply.trim());
@@ -586,12 +607,22 @@ function TicketRow(props: {
         type="button"
         aria-expanded={props.open}
         onClick={props.onToggle}
-        className="block w-full px-3.5 py-2.5 text-left"
+        className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left"
       >
-        <span className="block truncate text-sm font-medium leading-snug">{ticket.title}</span>
-        <span className="mt-px block truncate text-xs text-muted-foreground">
-          {props.chat} · <Age iso={ticket.createdAt} />
+        <span className="min-w-0 flex-1">
+          <span className="block truncate text-sm font-medium leading-snug">{ticket.title}</span>
+          <span className="mt-px block truncate text-xs text-muted-foreground">
+            {props.chat} · <Age iso={ticket.createdAt} />
+          </span>
         </span>
+        {thumbnail ? (
+          <TicketImage
+            environmentId={environmentId}
+            ticket={ticket}
+            image={thumbnail}
+            className="size-9 shrink-0 rounded-md"
+          />
+        ) : null}
       </button>
       {props.open ? (
         <div className="px-3.5 pb-3.5">
@@ -599,9 +630,18 @@ function TicketRow(props: {
           <p className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
             {ticket.summary}
           </p>
+          {ticket.htmlPages.length > 0 ? (
+            <div className="mt-3 grid gap-2">
+              <TicketPages environmentId={environmentId} ticket={ticket} />
+            </div>
+          ) : null}
           {ticket.choices.length > 0 ? (
             <div className="mt-3">
-              <Choices ticket={ticket} onChoose={(index) => hooks.choose?.(ticket, index)} />
+              <Choices
+                environmentId={environmentId}
+                ticket={ticket}
+                onChoose={(index) => hooks.choose?.(ticket, index)}
+              />
             </div>
           ) : null}
           <div className="mt-2.5 flex items-center gap-2">

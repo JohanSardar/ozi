@@ -109,6 +109,7 @@ import { ExpandedImageDialog } from "./chat/ExpandedImageDialog";
 import { markdownImageGallery } from "./chat/markdownImageGallery";
 import { type MediaActionSource } from "./media/MediaActions";
 import { resolveProtocolRelativeMediaUrl } from "./media/mediaContent";
+import { LinkCard, richBlock } from "./chat/RichBlocks";
 import {
   revealInFileExplorerLabelForKind,
   revealInFileExplorerLabelForOs,
@@ -895,6 +896,22 @@ function selectInlineCode(event: ReactMouseEvent<HTMLElement>) {
   window.getSelection()?.selectAllChildren(event.currentTarget);
 }
 
+function soleLinkUrl(node: ReactMarkdownExtraProps["node"]): string | null {
+  const [link, ...rest] = (node?.children ?? []).filter(
+    (child) => !(child.type === "text" && !child.value.trim()),
+  );
+  if (rest.length > 0 || link?.type !== "element" || link.tagName !== "a") return null;
+  const href = link.properties?.href;
+  const [label] = link.children;
+  return typeof href === "string" &&
+    /^https?:\/\//i.test(href) &&
+    link.children.length === 1 &&
+    label?.type === "text" &&
+    label.value.trim().replace(/\/$/, "") === href.replace(/\/$/, "")
+    ? href
+    : null;
+}
+
 const CHAT_MARKDOWN_COMPONENTS = {
   h1: markdownHeadingRenderer(1),
   h2: markdownHeadingRenderer(2),
@@ -912,8 +929,10 @@ const CHAT_MARKDOWN_COMPONENTS = {
     }
     return <div {...props}>{children}</div>;
   },
-  p: function MarkdownParagraph({ node: _node, children, ...props }) {
-    const { skills, threadRef } = use(ChatMarkdownRendererContext);
+  p: function MarkdownParagraph({ node, children, ...props }) {
+    const { skills, threadRef, inline } = use(ChatMarkdownRendererContext);
+    const url = inline ? null : soleLinkUrl(node);
+    if (url) return <LinkCard url={url}>{children}</LinkCard>;
     return <p {...props}>{renderSkillInlineMarkdownChildren(children, skills, threadRef)}</p>;
   },
   blockquote: function MarkdownBlockquote({ node: _node, children, ...props }) {
@@ -1384,6 +1403,10 @@ const CHAT_MARKDOWN_COMPONENTS = {
     ) {
       return <MarkdownMath tex={codeBlock.code} display focusable={!inline} />;
     }
+    const rich = isClosedCodeFence(node, text, codeBlock.code)
+      ? richBlock(language, codeBlock.code)
+      : null;
+    if (rich) return rich;
     const fenceTitle = extractFenceTitle(extractPreCodeMeta(node));
     const highlightedCode = (
       <RenderErrorBoundary
