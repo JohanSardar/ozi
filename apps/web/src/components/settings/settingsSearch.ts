@@ -404,6 +404,18 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["notification toast popup completion input approval failure"],
   },
   {
+    id: "ticket-notifications",
+    title: "Ticket notifications",
+    to: "/settings/general",
+    searchTerms: ["notification inbox ticket desktop alert"],
+  },
+  {
+    id: "dock-badge",
+    title: "Dock badge",
+    to: "/settings/general",
+    searchTerms: ["badge count inbox ticket icon dock taskbar"],
+  },
+  {
     id: "time-format",
     title: "Time format",
     to: "/settings/general",

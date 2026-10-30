@@ -15,7 +15,6 @@ const state = vi.hoisted(() => ({
   shells: null as unknown as { set: (id: string, value: unknown) => void },
   navigate: vi.fn(),
   sound: vi.fn(),
-  badge: vi.fn(),
   settingsListeners: new Set<() => void>(),
 }));
 vi.mock(import("./ui/toast"), async (original) => {
@@ -73,7 +72,6 @@ vi.mock(import("../threadNotifications"), async (original) => ({
   ...(await original()),
   playNotificationSound: state.sound,
   unlockNotificationAudio: vi.fn(),
-  setNotificationBadge: state.badge,
 }));
 
 import { startThreadNotifications } from "./ThreadNotificationCoordinator";
@@ -221,12 +219,11 @@ function setup() {
 }
 
 it.each(["hasPendingApprovals", "hasPendingUserInput"] as const)(
-  "badges %s and clears when notifications are disabled",
+  "notifies on %s and closes when notifications are disabled",
   async (flag) => {
     await using app = setup();
     app.start();
     state.shells.set("one", shell({ [flag]: true }));
-    expect(state.badge).toHaveBeenLastCalledWith(1);
     const notification = TestNotification.sent[0]!;
     notification.dispatchEvent(new Event("click"));
     expect(state.navigate).toHaveBeenCalledWith({
@@ -235,7 +232,6 @@ it.each(["hasPendingApprovals", "hasPendingUserInput"] as const)(
     });
     state.mode = "sound";
     app.changeSettings();
-    expect(state.badge).toHaveBeenLastCalledWith(0);
     expect(notification.close).toHaveBeenCalled();
   },
 );
