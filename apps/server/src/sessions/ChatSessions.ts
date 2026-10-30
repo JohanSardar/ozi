@@ -66,7 +66,7 @@ const decodeAttachment = Schema.decodeEffect(ChatAttachment);
 const isChatSessionError = Schema.is(ChatSessionError);
 const encodeStoredEvent = Schema.encodeEffect(Schema.fromJsonString(OrchestrationV2StoredEvent));
 
-const parseSession = (content: string) =>
+export const parseSession = (content: string) =>
   Effect.try({
     try: () => {
       const lines = content.trim().split("\n");

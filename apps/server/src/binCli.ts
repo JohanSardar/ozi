@@ -1,5 +1,6 @@
 import { sessionCommand, printCommand, answerCommand } from "./cli/chatSessions.ts";
 import { doctorCommand } from "./cli/doctor.ts";
+import { migrateCommand } from "./cli/migrate.ts";
 import * as NodeRuntime from "@effect/platform-node/NodeRuntime";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import * as Effect from "effect/Effect";
@@ -79,6 +80,7 @@ export const makeCli = () =>
       themeCommand,
       traceCommand,
       doctorCommand,
+      migrateCommand,
       connectCommand,
       disconnectCommand,
     ]),
