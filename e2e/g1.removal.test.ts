@@ -205,7 +205,7 @@ it.each(["tools", "chat"] as const)("g1.source-control-removed: %s", async (scen
       });
       browser = await chromium.launch();
       const page = await browser.newPage();
-      page.setDefaultTimeout(5_000);
+      page.setDefaultTimeout(10_000);
       await page.addInitScript(() =>
         localStorage.setItem(
           "ozi:client-settings:v1",

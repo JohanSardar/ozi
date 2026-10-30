@@ -768,7 +768,7 @@ const threadWaitCommand = Command.make("wait", {
           yield* finishRun(tools, { threadId, runId: thread.latestRunId, json: flags.json });
         }),
       );
-    }).pipe(reportThreadErrors),
+    }).pipe(reportThreadErrors(flags.json)),
   ),
 );
 

@@ -139,7 +139,7 @@ describe("l5.handoff", () => {
       modelSelection: { instanceId: "codex", model: "gpt-5.4" },
       runtimeMode: "full-access",
       interactionMode: "default",
-      workspaceStrategy: { type: "worktree", baseRef: "missing" },
+      workspaceStrategy: { type: "root" },
     });
     const { subagents } = (await rpc("orchestration.getThreadProjection", {
       threadId: "dinner-l5",
