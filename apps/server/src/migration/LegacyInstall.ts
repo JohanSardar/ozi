@@ -381,8 +381,7 @@ export const layer = Layer.effect(
             creationSource: original.creationSource === "cli" ? "server" : original.creationSource,
             providerInstanceId: instanceId,
             modelSelection: { ...(original.modelSelection as object), instanceId },
-            branch: null,
-            worktreePath: null,
+            workingDirectory: null,
             forkedFrom: null,
             activeProviderThreadId: native === undefined ? null : provider!.id,
             lineage: {
