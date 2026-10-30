@@ -278,7 +278,7 @@ export const makeThreadFind = Effect.fn("makeThreadFind")(function* (
     function* (input: OrchestrationV2SearchThreadInput) {
       const { threadId } = input;
       const active = yield* sql<{ cwd: string | null }>`
-      SELECT COALESCE(json_extract(t.payload_json, '$.worktreePath'), p.workspace_root) AS cwd
+      SELECT COALESCE(json_extract(t.payload_json, '$.workingDirectory'), p.workspace_root) AS cwd
       FROM orchestration_v2_projection_threads t JOIN projection_projects p ON p.project_id = t.project_id
       WHERE t.thread_id = ${threadId} AND t.deleted_at IS NULL AND p.deleted_at IS NULL
     `;

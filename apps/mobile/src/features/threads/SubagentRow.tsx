@@ -142,7 +142,7 @@ function SubagentMetadata(props: {
         >
           <Text className="text-xs text-foreground-muted">·</Text>
           <SymbolView
-            name={label === "Branch" ? "arrow.triangle.branch" : "folder"}
+            name={label === "Branch" ? "bubble.left.and.bubble.right" : "folder"}
             size={11}
             tintColorClassName="accent-icon-muted"
           />

@@ -1,7 +1,6 @@
 import type { ClaudeModelCatalog } from "./ClaudeModelCatalog.ts";
-
-export const SYNTHETIC_CLAUDE_CAPABLE_MODEL = "claude-synthetic-capable";
-export const SYNTHETIC_CLAUDE_COLLIDING_ALIAS = "synthetic-collision";
+const SYNTHETIC_CLAUDE_CAPABLE_MODEL = "claude-synthetic-capable";
+const SYNTHETIC_CLAUDE_COLLIDING_ALIAS = "synthetic-collision";
 export const SYNTHETIC_CLAUDE_STANDARD_MODEL = "claude-synthetic-standard";
 const SYNTHETIC_CLAUDE_THINKING_MODEL = "claude-synthetic-thinking";
 

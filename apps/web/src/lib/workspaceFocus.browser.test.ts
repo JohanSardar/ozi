@@ -226,14 +226,6 @@ describe("workspace area focus", () => {
     await vi.waitFor(() => expect(document.activeElement).toBe(composer.button));
   });
 
-  it("waits for a requested area to mount", async () => {
-    using fixture = setup();
-    fixture.area("composer", 2);
-    fixture.controller.request({ area: "pull-requests" });
-    const list = fixture.area("pull-requests", 1);
-    await vi.waitFor(() => expect(document.activeElement).toBe(list.button));
-  });
-
   it("keeps focus on a control that React remounted elsewhere", async () => {
     using fixture = setup();
     fixture.area("composer", 2);

@@ -28,7 +28,6 @@ function machine(
         platform: { os: "linux", arch: "x64" },
         serverVersion,
         capabilities: {
-          repositoryIdentity: true,
           ...(selfUpdate ? { serverSelfUpdate: selfUpdate } : {}),
           ...(selfUpdate === "desktop-managed"
             ? { desktopAppUpdate: true, desktopAppChannelSwitch: true }
@@ -170,39 +169,6 @@ describe("collectChannelSwitchTargets", () => {
       ["old-server", "its server predates database checks; update it on Nightly first"],
       ["mac-desktop", "switch the Mac app on that Mac"],
       ["preview", "runs a preview build"],
-    ]);
-  });
-
-  it("moves stable hosts to nightly only when nightly knows their database", () => {
-    const nightly = { channel: "nightly" as const, version: NIGHTLY, databaseMigration: 72 };
-    const { targets, skipped } = collectChannelSwitchTargets(
-      [
-        host(machine("service", "0.1.2", "boot-service"), 70),
-        // A Stable tag built a migration the latest Nightly does not have yet.
-        host(machine("ahead", "0.1.3", "boot-service"), 73),
-        machine("old-desktop", "0.1.2", "desktop-managed", {
-          serverConfig: {
-            ...machine("old-desktop", "0.1.2", "desktop-managed").serverConfig!,
-            environment: {
-              ...machine("old-desktop", "0.1.2", "desktop-managed").serverConfig!.environment,
-              capabilities: { repositoryIdentity: true, serverSelfUpdate: "desktop-managed" },
-            },
-          },
-        }),
-        machine("current", NIGHTLY, "boot-service"),
-      ],
-      nightly,
-    );
-
-    expect(targets.map((target) => [target.serverLabel, target.targetVersion])).toEqual([
-      ["service", NIGHTLY],
-    ]);
-    expect(skipped.map((entry) => [entry.label, entry.reason])).toEqual([
-      [
-        "ahead",
-        `its database has changes ${NIGHTLY} does not support yet; stay on Stable until Nightly has them`,
-      ],
-      ["old-desktop", "needs a newer desktop app"],
     ]);
   });
 });

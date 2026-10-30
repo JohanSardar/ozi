@@ -1,24 +1,21 @@
+import { SplitIcon } from "lucide-react";
 import { shouldPreserveAssistantLineBreaks } from "@t3tools/shared/markdownPipeline";
-import { ASSISTANT_CITATION_MAX_TEXT_LENGTH, type RunId } from "@t3tools/contracts";
+import { ASSISTANT_CITATION_MAX_TEXT_LENGTH } from "@t3tools/contracts";
 import { canForkProjectedAssistantItem } from "@t3tools/client-runtime/state/thread-workflows";
-import { memo, use, useState } from "react";
-import { type ChatMessage, type TurnDiffSummary } from "../../types";
+import { use, useState } from "react";
+import { type ChatMessage } from "../../types";
 import ChatMarkdown from "../ChatMarkdown";
-import { CornerUpLeftIcon, GitForkIcon } from "lucide-react";
+import { CornerUpLeftIcon } from "lucide-react";
 import { Button } from "../ui/button";
 import { ProposedPlanCard } from "./ProposedPlanCard";
 import { HtmlRenderFrame } from "./HtmlRenderFrame";
 import { McpAppFrame } from "./McpAppFrame";
-import { ChangedFilesCard } from "./ChangedFilesTree";
-import { useFileContextMenuHandler } from "../../fileContextMenu";
-import { useProject, useThreadShell } from "../../state/entities";
 import { MessageCopyButton } from "./MessageCopyButton";
 import { AssistantCitationSource } from "./AssistantCitationSource";
 import { resolveAssistantMessageCopyState } from "./MessagesTimeline.logic";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { cn } from "~/lib/utils";
 import { captureAssistantTextRange } from "~/lib/assistantTextSelection";
-import { useUiStateStore } from "~/uiStateStore";
 import { formatChatTimestampTooltip, formatDayAwareTimestamp } from "../../timestampFormat";
 import { useV2ItemSupport } from "../../state/v2ItemSupport";
 import { TimelineRowCtx, TimelineRowActivityCtx, type TimelineRow } from "./timelineRowContext";
@@ -54,14 +51,7 @@ export function AssistantTimelineRow({ row }: { row: Extract<TimelineRow, { kind
             />
           </AssistantCitationSource>
         </div>
-        {ctx.onOpenTurnDiff ? (
-          <AssistantChangedFilesSection
-            turnSummary={row.assistantTurnDiffSummary}
-            routeThreadKey={ctx.routeThreadKey}
-            resolvedTheme={ctx.resolvedTheme}
-            onOpenTurnDiff={ctx.onOpenTurnDiff}
-          />
-        ) : null}
+
         {row.showAssistantMeta ? (
           <AssistantMessageMeta
             className="mt-1.5"
@@ -116,7 +106,7 @@ function AssistantForkButton({
           />
         }
       >
-        <GitForkIcon className={cn("size-3", busy && "animate-pulse")} />
+        <SplitIcon className={cn("size-3", busy && "animate-pulse")} />
       </TooltipTrigger>
       <TooltipPopup side="top">Fork from this response</TooltipPopup>
     </Tooltip>
@@ -315,91 +305,5 @@ export function McpAppTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "
         onFullscreenChange={(fullscreen) => ctx.onAppFullscreenChange(row.id, fullscreen)}
       />
     </div>
-  );
-}
-
-/** Subscribes directly to the UI state store for expand/collapse state,
- *  so toggling re-renders only this component — not the entire list. */
-const AssistantChangedFilesSection = memo(function AssistantChangedFilesSection({
-  turnSummary,
-  routeThreadKey,
-  resolvedTheme,
-  onOpenTurnDiff,
-}: {
-  turnSummary: TurnDiffSummary | undefined;
-  routeThreadKey: string;
-  resolvedTheme: "light" | "dark";
-  displayThreadKey?: string;
-  onOpenTurnDiff: (runId: RunId, filePath?: string) => void;
-}) {
-  if (!turnSummary) return null;
-  const checkpointFiles = turnSummary.files;
-  if (checkpointFiles.length === 0) return null;
-
-  return (
-    <AssistantChangedFilesSectionInner
-      turnSummary={turnSummary}
-      checkpointFiles={checkpointFiles}
-      routeThreadKey={routeThreadKey}
-      resolvedTheme={resolvedTheme}
-      onOpenTurnDiff={onOpenTurnDiff}
-    />
-  );
-});
-
-function AssistantChangedFilesSectionInner({
-  turnSummary,
-  checkpointFiles,
-  routeThreadKey,
-  resolvedTheme,
-  onOpenTurnDiff,
-}: {
-  turnSummary: TurnDiffSummary;
-  checkpointFiles: TurnDiffSummary["files"];
-  routeThreadKey: string;
-  resolvedTheme: "light" | "dark";
-  displayThreadKey?: string;
-  onOpenTurnDiff: (runId: RunId, filePath?: string) => void;
-}) {
-  const ctx = use(TimelineRowCtx);
-  const persistedExpanded = useUiStateStore(
-    (store) => store.threadChangedFilesExpandedById[routeThreadKey]?.[turnSummary.runId],
-  );
-  const setExpanded = useUiStateStore((store) => store.setThreadChangedFilesExpanded);
-  const allDirectoriesExpanded = persistedExpanded ?? false;
-
-  const thread = useThreadShell(ctx.threadRef);
-  const activeProject = useProject(
-    thread && thread.projectId
-      ? { environmentId: thread.environmentId, projectId: thread.projectId }
-      : null,
-  );
-  const onFileContextMenu = useFileContextMenuHandler(ctx.activeThreadEnvironmentId);
-
-  return (
-    <ChangedFilesCard
-      runId={turnSummary.runId}
-      files={checkpointFiles}
-      allDirectoriesExpanded={allDirectoriesExpanded}
-      resolvedTheme={resolvedTheme}
-      onToggleAllDirectories={() =>
-        setExpanded(routeThreadKey, turnSummary.runId, !allDirectoriesExpanded)
-      }
-      onOpenTurnDiff={onOpenTurnDiff}
-      onFileContextMenu={(filePath, event) =>
-        onFileContextMenu(
-          {
-            environmentId: ctx.activeThreadEnvironmentId,
-            filePath,
-            workspaceRoot: ctx.workspaceRoot,
-            repositoryRoot:
-              thread?.worktreePath == null
-                ? activeProject?.repositoryIdentity?.rootPath
-                : undefined,
-          },
-          event,
-        )
-      }
-    />
   );
 }

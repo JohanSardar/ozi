@@ -1,14 +1,10 @@
 import {
-  OrchestrationV2CheckpointFileSummary,
-  type CheckpointId,
   type MessageId,
   type NodeId,
-  type OrchestrationV2Checkpoint,
   type OrchestrationV2Subagent,
   type OrchestrationV2ThreadProjection,
   type OrchestrationV2TurnItem,
 } from "@t3tools/contracts";
-import * as Schema from "effect/Schema";
 
 /**
  * For clients that opt in, the server blanks a turn item's body that its record already carries
@@ -18,7 +14,6 @@ import * as Schema from "effect/Schema";
  */
 export interface DedupedBodySource {
   readonly messageText: (id: MessageId) => string | undefined;
-  readonly checkpointFiles: (id: CheckpointId) => OrchestrationV2Checkpoint["files"] | undefined;
   readonly subagent: (id: NodeId) => WithSubagentBodies | undefined;
 }
 
@@ -27,10 +22,6 @@ type WithSubagentBodies = SubagentBodies & {
   readonly promptOmitted?: true;
   readonly resultOmitted?: true;
 };
-
-const sameCheckpointFiles = Schema.toEquivalence(
-  Schema.Array(OrchestrationV2CheckpointFileSummary),
-);
 
 /** For subagent items and for a repeated `subagent.updated`, whose `previous` was sent earlier. */
 export function dedupeSubagentBodies<T extends WithSubagentBodies>(
@@ -78,12 +69,6 @@ export function dedupeTurnItemBodies(
       return item.text !== "" && source.messageText(item.messageId) === item.text
         ? { ...item, text: "", textOmitted: true }
         : item;
-    case "checkpoint": {
-      const files = source.checkpointFiles(item.checkpointId);
-      return item.files.length > 0 && files !== undefined && sameCheckpointFiles(files, item.files)
-        ? { ...item, files: [], filesOmitted: true }
-        : item;
-    }
     case "subagent":
       return dedupeSubagentBodies(item, source.subagent(item.subagentId));
     default:
@@ -103,13 +88,6 @@ export function restoreTurnItemBodies(
       const { textOmitted: _textOmitted, ...rest } = item;
       return { ...rest, text };
     }
-    case "checkpoint": {
-      const files =
-        item.filesOmitted === true ? source.checkpointFiles(item.checkpointId) : undefined;
-      if (files === undefined) return item;
-      const { filesOmitted: _filesOmitted, ...rest } = item;
-      return { ...rest, files };
-    }
     case "subagent":
       return item.promptOmitted === true || item.resultOmitted === true
         ? restoreSubagentBodies(item, source.subagent(item.subagentId))
@@ -122,17 +100,12 @@ export function restoreTurnItemBodies(
 /** Builds each index on first lookup, so a snapshot without marked items builds none. */
 function snapshotBodySource(projection: OrchestrationV2ThreadProjection): DedupedBodySource {
   let messages: Map<MessageId, string> | undefined;
-  let checkpoints: Map<CheckpointId, OrchestrationV2Checkpoint["files"]> | undefined;
   let subagents: Map<NodeId, OrchestrationV2Subagent> | undefined;
   return {
     messageText: (id) =>
       (messages ??= new Map(projection.messages.map((message) => [message.id, message.text]))).get(
         id,
       ),
-    checkpointFiles: (id) =>
-      (checkpoints ??= new Map(
-        projection.checkpoints.map((checkpoint) => [checkpoint.id, checkpoint.files]),
-      )).get(id),
     subagent: (id) =>
       (subagents ??= new Map(projection.subagents.map((subagent) => [subagent.id, subagent]))).get(
         id,

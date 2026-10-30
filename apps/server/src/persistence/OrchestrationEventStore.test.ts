@@ -342,8 +342,7 @@ layer("OrchestrationEventStore", (it) => {
               modelSelection: { instanceId: providerInstanceId, model: "gpt-5.4" },
               runtimeMode: "full-access",
               interactionMode: "default",
-              branch: null,
-              worktreePath: null,
+              workingDirectory: null,
               activeProviderThreadId: null,
               lineage: {
                 rootThreadId: threadId,

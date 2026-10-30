@@ -19,7 +19,6 @@ import { startMainAppLocationTracking } from "./components/sidebar/mainAppLocati
 import { startDesktopUpdateLaunchNotice } from "./components/sidebar/updateEverythingRun";
 import { startSlowRpcRequestToasts } from "./components/SlowRpcRequestToastCoordinator";
 import { startThreadNotifications } from "./components/ThreadNotificationCoordinator";
-import { startGuideRunNotifications } from "./components/pullRequest/guide/PullRequestGuideRunCoordinator";
 import { APP_BASE_NAME, APP_DISPLAY_NAME, APP_STAGE_LABEL } from "./branding";
 import { resolveServerBackedAppDisplayName } from "./branding.logic";
 import { isElectron } from "./env";
@@ -62,9 +61,6 @@ function startClientAppearance(): void {
     const settings = getClientSettings();
     const previous = applied;
     applied = settings;
-    if (previous?.diffColorScheme !== settings.diffColorScheme) {
-      root.dataset.diffColorScheme = settings.diffColorScheme;
-    }
     if (previous?.chatWidth !== settings.chatWidth) {
       root.dataset.chatWidth = settings.chatWidth;
     }
@@ -192,7 +188,7 @@ export function startAppServices(): AppRouter {
     shellStateAtom: environmentShell.stateAtom,
   });
   startMainAppLocationTracking(router);
-  startWorkspaceFocus(router);
+  startWorkspaceFocus();
   startBackgroundThreadAnnouncements(appAtomRegistry, router);
   startThreadVisitedMigration(appAtomRegistry);
   startSshPasswordPromptQueue();
@@ -203,7 +199,7 @@ export function startAppServices(): AppRouter {
   startLegacyThreadMigrationToast();
   startPermissionUpdateNotices(router);
   startThreadNotifications(appAtomRegistry, router);
-  startGuideRunNotifications(appAtomRegistry, router);
+
   if (isElectron) startDesktopUpdateLaunchNotice();
 
   return router;

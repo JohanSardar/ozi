@@ -65,8 +65,7 @@ export function getSidebarProjectSettingsKey(
     ) ?? group.projectKey
   );
 }
-
-export function resolveSidebarProjectScopeKey(input: {
+function resolveSidebarProjectScopeKey(input: {
   readonly groups: ReadonlyArray<SidebarProjectSnapshot>;
   readonly key: string | null;
   readonly settings?: ProjectGroupingSettings;

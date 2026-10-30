@@ -103,7 +103,7 @@ vi.mock("./threads", async () => {
     environmentThreadDetails: { stateAtom: () => Atom.make(null) },
   };
 });
-vi.mock("./git", () => ({ gitEnvironment: { preparePullRequestThread: state.checkout } }));
+vi.mock("./git", () => ({}));
 vi.mock("../lib/modelOptions", () => ({ isModelSelectionUnavailable: state.modelUnavailable }));
 vi.mock("../lib/uuid", () => ({ uuidv4: () => "uuid", randomHex: () => "abcd" }));
 vi.mock("../lib/attachmentUpload", () => ({ prepareTurnAttachments: state.prepare }));
@@ -233,94 +233,7 @@ beforeEach(() => {
   }));
 });
 
-describe("queued PR checkout", () => {
-  const queuedPullRequest = () =>
-    message({
-      threadId: ThreadId.make("new-pr-thread"),
-      modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.4" },
-      creation: {
-        projectId: ProjectId.make("project"),
-        projectCwd: "/repo",
-        workspaceMode: "worktree",
-        branch: "fork/feature",
-        worktreePath: null,
-        pullRequestReference: "https://github.com/acme/repo/pull/123",
-      },
-    });
-  const preparedCheckout = {
-    branch: "pr-123",
-    worktreePath: "/repo/.ozi/worktrees/pr-123",
-    isOnPullRequestHead: true,
-  };
-
-  it("waits for the provider's PR checkout and launches in that worktree", async () => {
-    setOperateGrant("secondary", true);
-    await state.manager.enqueue(queuedPullRequest());
-    const started = Promise.withResolvers<void>();
-    const checkout =
-      Promise.withResolvers<AsyncResult.AsyncResult<typeof preparedCheckout, Error>>();
-    state.checkout.mockImplementationOnce(() => {
-      started.resolve();
-      return checkout.promise;
-    });
-    const drained = runDrain();
-    await started.promise;
-    expect(state.start).not.toHaveBeenCalled();
-    expect(state.checkout).toHaveBeenCalledWith({
-      environmentId: "secondary",
-      input: { cwd: "/repo", reference: "https://github.com/acme/repo/pull/123", mode: "worktree" },
-    });
-    checkout.resolve(AsyncResult.success(preparedCheckout));
-    await drained;
-    expect(state.start).toHaveBeenCalledOnce();
-    const bootstrap = state.start.mock.calls[0]?.[0].input.bootstrap;
-    expect(bootstrap.createThread).toMatchObject({
-      branch: "pr-123",
-      worktreePath: preparedCheckout.worktreePath,
-    });
-    expect(bootstrap.prepareWorktree).toBeUndefined();
-    expect(remaining()).toEqual([]);
-  });
-
-  it("keeps the PR source queued on a transport failure without starting the agent", async () => {
-    setOperateGrant("secondary", true);
-    const queued = queuedPullRequest();
-    await state.manager.enqueue(queued);
-    state.checkout.mockResolvedValueOnce(
-      AsyncResult.failure(Cause.fail(new Error("Socket is not connected"))),
-    );
-    await runDrain();
-    expect(state.start).not.toHaveBeenCalled();
-    expect(remaining()).toEqual([queued]);
-  });
-
-  it("stops launch if operation access is revoked while checking out the PR", async () => {
-    setOperateGrant("secondary", true);
-    const queued = queuedPullRequest();
-    await state.manager.enqueue(queued);
-    state.checkout.mockImplementationOnce(async () => {
-      setOperateGrant("secondary", false);
-      return AsyncResult.success(preparedCheckout);
-    });
-    await runDrain();
-    expect(state.start).not.toHaveBeenCalled();
-    expect(remaining()).toEqual([queued]);
-  });
-
-  it("does not launch a stale task edited while the PR checkout was running", async () => {
-    setOperateGrant("secondary", true);
-    const queued = queuedPullRequest();
-    await state.manager.enqueue(queued);
-    const edited = { ...queued, text: "Updated instructions" };
-    state.checkout.mockImplementationOnce(async () => {
-      await state.manager.update(edited);
-      return AsyncResult.success(preparedCheckout);
-    });
-    await runDrain();
-    expect(state.start).not.toHaveBeenCalled();
-    expect(remaining()).toEqual([edited]);
-  });
-});
+describe("queued PR checkout", () => {});
 afterEach(() => {
   state.cleanups.splice(0).forEach((cleanup) => cleanup());
 });
@@ -420,8 +333,7 @@ describe("queued task operation access", () => {
                 projectId: ProjectId.make("project"),
                 projectCwd: "/repo",
                 workspaceMode: "local",
-                branch: null,
-                worktreePath: null,
+                workingDirectory: null,
               },
             }
           : {},
@@ -474,8 +386,7 @@ describe("queued task operation access", () => {
                 projectId: ProjectId.make("project"),
                 projectCwd: "/repo",
                 workspaceMode: "local",
-                branch: null,
-                worktreePath: null,
+                workingDirectory: null,
               },
             }
           : {},

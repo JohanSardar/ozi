@@ -1,6 +1,6 @@
+import { tryOpenExternalUrl } from "../../lib/openExternalUrl";
 import { Button } from "../../components/ui/Button";
 import * as Dialog from "../../components/ui/Dialog";
-import { useOpenPullRequest } from "../../native/useOpenPullRequest";
 import { useWorkspaceSettledContentWidth } from "../layout/workspace-content-width";
 import { ThreadMarkdownVideo, ThreadMediaVisibleContext } from "./ThreadMarkdownVideo";
 import { useMarkdownImageSource } from "../../native/useMarkdownImageSource";
@@ -21,11 +21,6 @@ import { ThreadGuestPendingMessage, useThreadGuestShare } from "./ThreadGuestSha
 import { LinkRequestCard } from "./LinkRequestCard";
 import { SecretRequestCard } from "./SecretRequestCard";
 import { AppActivityIndicator } from "../../components/ui/AppActivityIndicator";
-import {
-  WorktreeWorkingHeader,
-  WorktreeSetupCard,
-  type WorktreeSetupCardProps,
-} from "./worktree-setup-card";
 import * as Haptics from "expo-haptics";
 import { KeyboardAwareLegendList } from "@legendapp/list/keyboard";
 import { useViewabilityAmount, type LegendListRef } from "@legendapp/list/react-native";
@@ -36,8 +31,6 @@ import {
   resolveUserMessagePresentation,
 } from "@t3tools/client-runtime/user-message";
 import { canForkProjectedAssistantItem } from "@t3tools/client-runtime/state/thread-workflows";
-import type { ThreadCheckpointSummary } from "@t3tools/client-runtime/state/thread-checkpoints";
-import { formatDiffCount } from "@t3tools/client-runtime/diff-count";
 import type { WorkflowOpening } from "@t3tools/client-runtime/state/subagentRuntime";
 import {
   AuthFilesystemReadScope,
@@ -119,7 +112,6 @@ import {
   type NativeScrollEvent,
   type NativeSyntheticEvent,
   Pressable,
-  StyleSheet,
   type ColorValue,
   useWindowDimensions,
   View,
@@ -160,16 +152,8 @@ import { VideoPreviewModal, type VideoPreviewSource } from "../../components/Vid
 import { markdownFileEmbedLabel, resolveMarkdownMediaPreview } from "../../lib/markdownMedia";
 import { attachmentVideoPreviewSource } from "../../lib/videoPreviewSource";
 import { CopyTextButton } from "./CopyTextButton";
-import { getReviewSectionIdForCheckpoint } from "../review/reviewModel";
-import { setReviewSelectedSectionId } from "../review/reviewState";
 import { Menu } from "../../components/ui/Menu";
 import { copyPromptLink } from "../prompt-links/prompt-link-actions";
-import { parseReviewCommentMessageSegments } from "../review/reviewCommentSelection";
-import {
-  ReviewCommentCard,
-  useReviewCommentColors,
-  type ReviewCommentColors,
-} from "../review/ReviewCommentCard";
 import { cn } from "../../lib/cn";
 import {
   deriveCenteredContentHorizontalPadding,
@@ -329,7 +313,6 @@ export interface ThreadFeedHandle {
 }
 
 export interface ThreadFeedProps {
-  readonly worktreeSetup?: WorktreeSetupCardProps | null;
   readonly setupWorkingStartedAt?: string | null;
   readonly queuedMessages: ReadonlyArray<QueuedThreadMessage>;
   readonly dispatchingMessageId: MessageId | null;
@@ -475,7 +458,7 @@ function AssistantForkButton(props: {
         <AppActivityIndicator size="small" />
       ) : (
         <SymbolView
-          name="arrow.triangle.branch"
+          name="bubble.left.and.bubble.right"
           size={13}
           tintColor={props.iconColor}
           type="monochrome"
@@ -1101,7 +1084,6 @@ function ThreadAutomationMessageRow(props: {
   readonly contentMaxWidth: number;
   readonly iconSubtleColor: ColorValue;
   readonly markdownStyles: MarkdownStyleSet;
-  readonly reviewCommentColors: ReviewCommentColors;
   readonly skills?: ReadonlyArray<SelectableMarkdownSkill>;
   readonly linkHandlers: MarkdownLinkHandlers;
   readonly renderImage: MarkdownImageRenderer;
@@ -1165,7 +1147,6 @@ function ThreadAutomationMessageRow(props: {
                 environmentId={props.environmentId}
                 context={props.context}
                 markdownStyles={props.markdownStyles}
-                reviewCommentColors={props.reviewCommentColors}
                 skills={props.skills}
                 linkHandlers={props.linkHandlers}
                 renderImage={props.renderImage}
@@ -1318,7 +1299,6 @@ function renderFeedEntry(
     readonly onToggleWorkGroup: (groupId: string, anchorKey?: string) => void;
     readonly onToggleWorkRow: (rowId: string, anchorKey?: string, groupId?: string) => void;
     readonly onToggleTurnFold: (runId: RunId) => void;
-    readonly onOpenTurnDiff: (checkpoint: ThreadCheckpointSummary) => void;
     readonly onPressPreview: (source: FilePreviewSource) => void;
     readonly onPlaybackStart: () => void;
     readonly markdownLinkHandlers: MarkdownLinkHandlers;
@@ -1329,7 +1309,6 @@ function renderFeedEntry(
     readonly screenColor: string;
     readonly userBubbleColor: string | import("react-native").ColorValue;
     readonly markdownStyles: MarkdownStyleSets;
-    readonly reviewCommentColors: ReviewCommentColors;
     readonly reviewCommentBubbleWidth: number;
     readonly themeAppearance: "light" | "dark";
     readonly duoColumns: boolean;
@@ -1374,12 +1353,6 @@ function renderFeedEntry(
           rowSizing={props.workRowSizing}
           iconColor={iconSubtleColor}
         />
-        {entry.checkpointSummary ? (
-          <TurnDiffStat
-            checkpoint={entry.checkpointSummary}
-            onOpenTurnDiff={props.onOpenTurnDiff}
-          />
-        ) : null}
       </View>
     );
   }
@@ -1432,14 +1405,7 @@ function renderFeedEntry(
         hasFailure={entry.hasFailure}
         shimmer={entry.shimmer}
         thought={entry.thought}
-        trailing={
-          entry.checkpointSummary ? (
-            <TurnDiffStat
-              checkpoint={entry.checkpointSummary}
-              onOpenTurnDiff={props.onOpenTurnDiff}
-            />
-          ) : null
-        }
+        trailing={null}
         onToggle={() => props.onToggleWorkGroup(entry.groupId, entry.id)}
       />
     );
@@ -1570,7 +1536,6 @@ function renderFeedEntry(
           contentMaxWidth={props.userBubbleMaxWidth - USER_BUBBLE_HORIZONTAL_PADDING * 2}
           iconSubtleColor={iconSubtleColor}
           markdownStyles={markdownStyles.user}
-          reviewCommentColors={props.reviewCommentColors}
           skills={props.skills}
           linkHandlers={props.markdownLinkHandlers}
           renderImage={props.renderMarkdownImage}
@@ -1716,7 +1681,6 @@ function renderFeedEntry(
                       environmentId={props.environmentId}
                       context={message.context}
                       markdownStyles={styles}
-                      reviewCommentColors={props.reviewCommentColors}
                       skills={props.skills}
                       linkHandlers={props.markdownLinkHandlers}
                       renderImage={props.renderMarkdownImage}
@@ -1834,12 +1798,7 @@ function renderFeedEntry(
           onPressPreview={props.onPressPreview}
           onPlaybackStart={props.onPlaybackStart}
         />
-        {showAssistantMeta && message.checkpointSummary ? (
-          <TurnDiffStat
-            checkpoint={message.checkpointSummary}
-            onOpenTurnDiff={props.onOpenTurnDiff}
-          />
-        ) : null}
+
         {showAssistantMeta ? (
           <View className="mt-1 flex-row items-center gap-1">
             <CopyTextButton
@@ -1890,38 +1849,11 @@ function renderFeedEntry(
   );
 }
 
-function TurnDiffStat(props: {
-  readonly checkpoint: ThreadCheckpointSummary;
-  readonly onOpenTurnDiff: (checkpoint: ThreadCheckpointSummary) => void;
-}) {
-  const { files } = props.checkpoint;
-  const additions = files.reduce((total, file) => total + file.additions, 0);
-  const deletions = files.reduce((total, file) => total + file.deletions, 0);
-  const fileCountLabel = `${files.length} file${files.length === 1 ? "" : "s"} changed`;
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityLabel={`Review ${fileCountLabel}, ${additions} additions, ${deletions} deletions`}
-      onPress={() => props.onOpenTurnDiff(props.checkpoint)}
-      className="min-h-11 shrink-0 flex-row items-center gap-2 px-2 active:bg-subtle"
-    >
-      <Text className="font-t3-medium text-xs tabular-nums text-adaptive-emerald-700-300">
-        +{formatDiffCount(additions)}
-      </Text>
-      <Text className="font-t3-medium text-xs tabular-nums text-adaptive-rose-700-300">
-        −{formatDiffCount(deletions)}
-      </Text>
-      <SymbolView name="chevron.right" size={12} tintColorClassName="accent-foreground-muted" />
-    </Pressable>
-  );
-}
-
 type UserMessageContentProps = {
   readonly text: string;
   readonly environmentId: EnvironmentId;
   readonly context?: OrchestrationMessageContext;
   readonly markdownStyles: MarkdownStyleSet;
-  readonly reviewCommentColors: ReviewCommentColors;
   readonly skills?: ReadonlyArray<SelectableMarkdownSkill>;
   readonly linkHandlers: MarkdownLinkHandlers;
   readonly renderImage: MarkdownImageRenderer;
@@ -2039,8 +1971,6 @@ function UserMessageContent(props: UserMessageContentProps) {
 
 function UserMessageMarkdownContent(props: UserMessageContentProps) {
   const text = props.text;
-  const segments = parseReviewCommentMessageSegments(text);
-  const hasReviewComment = segments.some((segment) => segment.kind === "review-comment");
   const contextClipboardFragment = props.context
     ? (encodeComposerContextFragment({
         version: 1,
@@ -2048,52 +1978,16 @@ function UserMessageMarkdownContent(props: UserMessageContentProps) {
         records: props.context.records,
       }) ?? undefined)
     : undefined;
-  if (!hasReviewComment) {
-    return (
-      <SelectableMarkdownText
-        markdown={text}
-        contextClipboardFragment={contextClipboardFragment}
-        skills={props.skills}
-        textStyle={props.markdownStyles.nativeTextStyle}
-        preserveSoftBreaks
-        {...props.linkHandlers}
-        renderImage={props.renderImage}
-      />
-    );
-  }
-
   return (
-    <View className="w-full gap-2">
-      {segments.map((segment) => {
-        if (segment.kind === "review-comment") {
-          return (
-            <ReviewCommentCard
-              key={segment.comment.id}
-              comment={segment.comment}
-              colors={props.reviewCommentColors}
-            />
-          );
-        }
-
-        const text = segment.text.trim();
-        if (text.length === 0) {
-          return null;
-        }
-
-        return (
-          <SelectableMarkdownText
-            key={segment.id}
-            markdown={text}
-            contextClipboardFragment={contextClipboardFragment}
-            skills={props.skills}
-            textStyle={props.markdownStyles.nativeTextStyle}
-            preserveSoftBreaks
-            {...props.linkHandlers}
-            renderImage={props.renderImage}
-          />
-        );
-      })}
-    </View>
+    <SelectableMarkdownText
+      markdown={text}
+      contextClipboardFragment={contextClipboardFragment}
+      skills={props.skills}
+      textStyle={props.markdownStyles.nativeTextStyle}
+      preserveSoftBreaks
+      {...props.linkHandlers}
+      renderImage={props.renderImage}
+    />
   );
 }
 
@@ -2162,22 +2056,8 @@ export const ThreadFeed = memo(function ThreadFeed({
   const guestShare = useThreadGuestShare(props.detailRef);
   const deviceType = useDeviceType();
   const duoColumns = useNativeWorkspaceColumnsSupported() && isDuoDevice(deviceType);
-  const openPullRequest = useOpenPullRequest();
   const navigation = useNavigation();
   const openLinkedThread = useOpenLinkedThread();
-  const onOpenTurnDiff = useCallback(
-    (checkpoint: ThreadCheckpointSummary) => {
-      setReviewSelectedSectionId(
-        scopedThreadKey(props.environmentId, props.threadId),
-        getReviewSectionIdForCheckpoint(checkpoint),
-      );
-      navigation.navigate("ThreadReview", {
-        environmentId: props.environmentId,
-        threadId: props.threadId,
-      });
-    },
-    [navigation, props.environmentId, props.threadId],
-  );
   const { themeAppearance } = useAppearancePreferences();
   const copyFeedbackTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const disclosureSettleFrameRef = useRef<number | null>(null);
@@ -2477,7 +2357,7 @@ export const ThreadFeed = memo(function ThreadFeed({
         });
         return;
       }
-      void openPullRequest(presentation.href);
+      void tryOpenExternalUrl(presentation.href, "markdown-link");
     }
   };
   const resolveImageSource = useMarkdownImageSource({
@@ -2684,17 +2564,12 @@ export const ThreadFeed = memo(function ThreadFeed({
       skills={props.skills}
     />
   );
-  const reviewCommentColors = useReviewCommentColors();
   const unsettledTurnId = threadFeedRunIsUnsettled(props.latestRun) ? props.latestRun.runId : null;
-  const compactionLabelsByEntryId = useMemo(
-    () => threadFeedCompactionLabels(props.feed),
-    [props.feed],
-  );
+  const compactionLabelsByEntryId = threadFeedCompactionLabels(props.feed);
   // LegendList does not invalidate visible rows when only the renderItem closure changes.
   // Include turn completion so unchanged message rows reveal their footer and spacing
   // even when the final message update arrives before the turn settles.
   const listAppearanceData = {
-    worktreeSetup: props.worktreeSetup,
     setupWorkingStartedAt: props.setupWorkingStartedAt,
     dispatchingMessageId: props.dispatchingMessageId,
     unsettledTurnId,
@@ -2704,7 +2579,6 @@ export const ThreadFeed = memo(function ThreadFeed({
     workRowSizing,
     iconSubtleColor,
     markdownStyles,
-    reviewCommentColors,
     themeAppearance,
     userBubbleColor,
     viewportWidth,
@@ -2804,9 +2678,6 @@ export const ThreadFeed = memo(function ThreadFeed({
       expandedTurnIds: new Set(current.expandedTurnIds).add(jumpRunId),
     }));
   }
-  const setupAnchorIndex = presentedFeed.findIndex(
-    (entry) => entry.type === "message" && entry.message.role === "user",
-  );
   // The empty↔filled key below remounts the list and resets its imperative
   // content-inset override. Seed each fresh instance as it attaches with the
   // current overlay height before the scroll integration's next reaction;
@@ -2951,7 +2822,7 @@ export const ThreadFeed = memo(function ThreadFeed({
         cancelAnimationFrame(disclosureSettleSecondFrameRef.current);
       }
     },
-    [],
+    [userScrollSettleTimerRef],
   );
 
   const settleDisclosureAfterLayout = () => {
@@ -3156,7 +3027,6 @@ export const ThreadFeed = memo(function ThreadFeed({
             onToggleWorkGroup,
             onToggleWorkRow,
             onToggleTurnFold,
-            onOpenTurnDiff,
             onPressPreview,
             onPlaybackStart: onInlinePlaybackStart,
             markdownLinkHandlers,
@@ -3167,7 +3037,6 @@ export const ThreadFeed = memo(function ThreadFeed({
             screenColor,
             userBubbleColor,
             markdownStyles,
-            reviewCommentColors,
             reviewCommentBubbleWidth,
             themeAppearance,
             duoColumns,
@@ -3179,11 +3048,6 @@ export const ThreadFeed = memo(function ThreadFeed({
             workspaceRoot: props.workspaceRoot,
             workflowOpening,
           })}
-          {props.worktreeSetup && info.index === setupAnchorIndex ? (
-            <WorktreeSetupCard key={props.threadId} {...props.worktreeSetup} />
-          ) : props.setupWorkingStartedAt && info.index === setupAnchorIndex ? (
-            <WorktreeWorkingHeader startedAt={props.setupWorkingStartedAt} />
-          ) : null}
         </ThreadMediaVisibility>
       </MessageImageGalleryScope>
     </Animated.View>
@@ -3307,9 +3171,7 @@ export const ThreadFeed = memo(function ThreadFeed({
             ListHeaderComponent={
               <>
                 {usesNativeAutomaticInsets ? null : <View style={{ height: topContentInset }} />}
-                {setupAnchorIndex < 0 && props.worktreeSetup ? (
-                  <WorktreeSetupCard key={props.threadId} {...props.worktreeSetup} />
-                ) : null}
+
                 {props.historyControls ? (
                   <ThreadFeedLoadEarlierControl {...props.historyControls} />
                 ) : null}
@@ -3333,23 +3195,7 @@ export const ThreadFeed = memo(function ThreadFeed({
             }}
           />
         </View>
-        {presentedFeed.length === 0 &&
-        !props.worktreeSetup &&
-        props.activeWorkStartedAt === null &&
-        props.contentPresentation.kind === "ready" ? (
-          <View
-            pointerEvents="none"
-            style={[StyleSheet.absoluteFill, { left: contentLeftInset, right: contentRightInset }]}
-          >
-            <ThreadFeedPlaceholder
-              title="No conversation yet"
-              detail="Ask the agent to inspect the repo, run a command, or continue the active thread."
-              topInset={topContentInset}
-              bottomInset={bottomContentInset}
-              horizontalPadding={horizontalPadding}
-            />
-          </View>
-        ) : null}
+
         <VideoPreviewModal source={expandedVideo} onRequestClose={closeVideoPreview} />
         <FilePreviewModal source={expandedFile} onRequestClose={closeFilePreview} />
       </View>

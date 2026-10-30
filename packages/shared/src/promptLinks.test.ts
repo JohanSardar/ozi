@@ -36,39 +36,6 @@ describe("sanitizeLinkedPrompt", () => {
 });
 
 describe("parseNewThreadLink", () => {
-  it("reads a shared prompt with its optional repository and model", () => {
-    const result = parseNewThreadLink(
-      "?prompt=Rate+me&repo=https://github.com/JohanSardar/ozi.git&provider=Codex&model=gpt-5",
-    );
-    expect(result).toEqual({
-      ok: true,
-      value: {
-        kind: "new",
-        prompt: { text: "Rate me", hiddenCharacters: 0 },
-        repository: { owner: "pingdotgg", name: "ozi" },
-        provider: "codex",
-        model: "gpt-5",
-      },
-    });
-  });
-
-  it("reads a pull request link, whose prompt is optional", () => {
-    for (const pr of [
-      "JohanSardar/ozi/42",
-      "JohanSardar/ozi%2342",
-      "https://github.com/JohanSardar/ozi/pull/42/files",
-    ]) {
-      expect(parseNewThreadLink(`?pr=${pr}`)).toEqual({
-        ok: true,
-        value: {
-          kind: "pull-request",
-          pullRequest: { owner: "pingdotgg", name: "ozi", number: 42 },
-          prompt: null,
-        },
-      });
-    }
-  });
-
   it("refuses links it cannot open safely", () => {
     expect(parseNewThreadLink("?repo=a/b").ok).toBe(false);
     expect(parseNewThreadLink("?prompt=%E2%80%8B").ok).toBe(false);
@@ -93,7 +60,6 @@ describe("link round trips", () => {
   it("builds a link that parses back to the same prompt", () => {
     const link = buildNewThreadLink({
       prompt: "Swear count & rating?",
-      repository: { owner: "pingdotgg", name: "ozi" },
       provider: "claudeAgent",
       model: "opus",
     });

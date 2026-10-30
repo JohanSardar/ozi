@@ -38,11 +38,8 @@ const QueuedThreadCreationSchema = Schema.Struct({
   projectId: ProjectId,
   projectTitle: Schema.optional(Schema.String),
   projectCwd: Schema.optional(Schema.String),
-  workspaceMode: Schema.Literals(["local", "worktree"]),
-  branch: Schema.NullOr(Schema.String),
-  worktreePath: Schema.NullOr(Schema.String),
-  startFromOrigin: Schema.optional(Schema.Boolean),
-  pullRequestReference: Schema.optional(Schema.String),
+  workspaceMode: Schema.Literals(["local"]),
+  workingDirectory: Schema.NullOr(Schema.String),
 });
 
 export const QueuedThreadMessageSchema = Schema.Struct({
@@ -69,11 +66,8 @@ export interface QueuedThreadCreation {
   readonly projectId: ProjectIdType;
   readonly projectTitle?: string;
   readonly projectCwd?: string;
-  readonly workspaceMode: "local" | "worktree";
-  readonly branch: string | null;
-  readonly worktreePath: string | null;
-  readonly startFromOrigin?: boolean;
-  readonly pullRequestReference?: string;
+  readonly workspaceMode: "local";
+  readonly workingDirectory: string | null;
 }
 
 export interface QueuedThreadMessage {
@@ -238,7 +232,7 @@ export function isQueuedThreadCreationSendable(message: QueuedThreadMessage): bo
   if (!hasContent || message.modelSelection === undefined) {
     return false;
   }
-  return message.creation.workspaceMode !== "worktree" || Boolean(message.creation.branch);
+  return true;
 }
 
 function errorMessage(error: unknown): string | null {

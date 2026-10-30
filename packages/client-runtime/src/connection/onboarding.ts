@@ -91,13 +91,6 @@ function bearerConnectionId(environmentId: EnvironmentId, httpBaseUrl: string): 
   return `bearer:${environmentId}:${new URL(httpBaseUrl).origin}`;
 }
 
-function differentMachineError(label: string) {
-  return new ConnectionBlockedError({
-    reason: "configuration",
-    detail: `That address reaches ${label}, a different machine. Add it as its own environment instead.`,
-  });
-}
-
 export const preparePairingRegistration = Effect.fn(
   "clientRuntime.connection.onboarding.preparePairingRegistration",
 )(function* (input: PairingConnectionInput) {
@@ -333,3 +326,10 @@ export const make = Effect.gen(function* () {
 });
 
 export const layer = Layer.effect(ConnectionOnboarding, make);
+
+function differentMachineError(label: string) {
+  return new ConnectionBlockedError({
+    reason: "configuration",
+    detail: `That address reaches ${label}, a different machine. Add it as its own environment instead.`,
+  });
+}

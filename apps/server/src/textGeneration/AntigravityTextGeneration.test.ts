@@ -279,63 +279,6 @@ const makeFixture = Effect.fn("makeAntigravityTextGenerationFixture")(function* 
 });
 
 it.layer(NodeServices.layer)("AntigravityTextGeneration", (it) => {
-  it.effect(
-    "generates all helper types in empty workspaces and removes only owned session files",
-    () =>
-      Effect.gen(function* () {
-        const fixture = yield* makeFixture({
-          outputs: [
-            '{"subject":"  Repair Google login.\\nExtra line","body":"  Keep the remote callback.  ","branch":"Repair Login"}',
-            '```json\n{"title":" Repair Google login\\nExtra line","body":"  ## Summary\\nSupport remote callbacks.  "}\n```',
-            '{"branch":" Repair Google Login "}',
-            '{"title":"  \\"Repair Google login\\"  "}',
-          ],
-        });
-        const common = { cwd: fixture.projectDirectory, modelSelection };
-        expect(
-          yield* fixture.textGeneration.generateCommitMessage({
-            ...common,
-            branch: "feature/login",
-            stagedSummary: "M login.ts",
-            stagedPatch: "+handleRemoteCallback()",
-            includeBranch: true,
-          }),
-        ).toEqual({
-          subject: "Repair Google login",
-          body: "Keep the remote callback.",
-          branch: "feature/repair-login",
-        });
-        expect(
-          yield* fixture.textGeneration.generatePrContent({
-            ...common,
-            baseBranch: "main",
-            headBranch: "feature/login",
-            commitSummary: "Repair login",
-            diffSummary: "M login.ts",
-            diffPatch: "+handleRemoteCallback()",
-          }),
-        ).toEqual({ title: "Repair Google login", body: "## Summary\nSupport remote callbacks." });
-        expect(
-          yield* fixture.textGeneration.generateBranchName({
-            ...common,
-            message: "Repair Google login",
-          }),
-        ).toEqual({ branch: "repair-google-login" });
-        expect(yield* fixture.textGeneration.generateThreadTitle(fixture.titleInput)).toEqual({
-          title: "Repair Google login",
-        });
-        expect(new Set(fixture.state.workspaces).size).toBe(4);
-        expect(fixture.state.workspaces).not.toContain(fixture.projectDirectory);
-        expect(fixture.state.nativeFilesAtClose).toEqual([true, true, true, true]);
-        expect(fixture.state.selectedModes).toEqual(["default", "default", "default", "default"]);
-        expect(fixture.state.selectedModels).toEqual(Array(4).fill(modelSelection.model));
-        expect(fixture.state.prompts[0]?.prompt).toEqual([
-          { type: "text", text: expect.stringContaining("+handleRemoteCallback()") },
-        ]);
-        yield* fixture.assertCleaned;
-      }).pipe(Effect.scoped),
-  );
-
   it.effect.each(["tool_call", "tool_call_update"] as const)(
     "aborts on %s even without a permission request",
     (sessionUpdate) =>

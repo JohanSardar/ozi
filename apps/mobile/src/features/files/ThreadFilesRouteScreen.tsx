@@ -1,3 +1,4 @@
+import { useSelectedThreadDirectory } from "../../state/use-thread-directory";
 import { formatFilePathForClipboard } from "@t3tools/client-runtime/media-actions";
 import { resolvePathLinkTarget } from "@t3tools/shared/fileLinks";
 import { resolveFilesystemReadAccess } from "@t3tools/client-runtime/state/filesystem";
@@ -32,7 +33,6 @@ import type { MediaVideoPreviewSource } from "../../lib/videoPreviewSource";
 import { useMediaActions } from "../../state/mediaActions";
 import { type MediaActionsSource } from "../../lib/mediaActionsSource";
 import { useThreadSelection } from "../../state/use-thread-selection";
-import { useSelectedThreadWorktree } from "../../state/use-selected-thread-worktree";
 import { useEnvironmentQuery } from "../../state/query";
 import { useEnvironmentPresentation } from "../../state/presentation";
 import { projectEnvironment } from "../../state/projects";
@@ -367,7 +367,7 @@ function useThreadFilesWorkspace(params: {
   const routeCwd = firstRouteParam(params.cwd);
   const routeProjectName = firstRouteParam(params.projectName);
   const { selectedThread, selectedThreadProject } = useThreadSelection();
-  const { selectedThreadCwd } = useSelectedThreadWorktree();
+  const { selectedThreadCwd } = useSelectedThreadDirectory();
   const environmentId =
     routeEnvironmentId !== null
       ? EnvironmentId.make(routeEnvironmentId)

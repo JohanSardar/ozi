@@ -150,8 +150,7 @@ const layerWakeups = Wakeups.layer({
     { concurrency: "unbounded" },
   ),
 });
-
-export function currentClientMetadata() {
+function currentClientMetadata() {
   return clientPresentationMetadata({
     appVersion: APP_VERSION,
     hosted: isHostedStaticApp(),

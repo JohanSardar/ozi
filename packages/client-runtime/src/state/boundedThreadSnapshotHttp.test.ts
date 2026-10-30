@@ -41,8 +41,7 @@ const FULL_SNAPSHOT_BODY = {
       modelSelection: { instanceId: "codex", model: "gpt-5" },
       runtimeMode: "full-access",
       interactionMode: "default",
-      branch: null,
-      worktreePath: null,
+      workingDirectory: null,
       activeProviderThreadId: null,
       lineage: {
         parentThreadId: null,

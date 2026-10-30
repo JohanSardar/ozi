@@ -5,15 +5,10 @@ import {
   type DesktopSnapShotState,
 } from "@t3tools/contracts";
 import { parseKeybindingShortcut } from "@t3tools/shared/keybindings";
-import { FileDiff } from "@pierre/diffs/react";
-import { parseDiffFromFile } from "@pierre/diffs";
 import { settlePromise } from "@t3tools/client-runtime/state/runtime";
 import * as Cause from "effect/Cause";
 import { useState } from "react";
 import { getDesktopSnapShotBridge } from "../../lib/desktopSnapShot";
-import { resolveDiffThemeName } from "../../lib/diffRendering";
-import { PREFERRED_HIGHLIGHTER } from "../../lib/syntaxHighlighting";
-import { useRenderedAppearance } from "../../hooks/useTheme";
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
 import { Button } from "../ui/button";
 import { toastManager } from "../ui/toast";
@@ -36,7 +31,6 @@ export function CaptureShortcutConfig({
   onComplete?: () => Promise<void>;
 }) {
   const bridge = getDesktopSnapShotBridge();
-  const resolvedTheme = useRenderedAppearance();
   const { copyToClipboard, isCopied } = useCopyToClipboard();
   const [preview, setPreview] = useState<DesktopCaptureConfigPreview | null>(null);
   const [result, setResult] = useState<DesktopCaptureConfigApplied | null>(null);
@@ -71,13 +65,6 @@ export function CaptureShortcutConfig({
     },
   });
   const actionBusy = busy || recorder.recording;
-  const diff =
-    preview && changed
-      ? parseDiffFromFile(
-          { name: preview.path, contents: preview.before },
-          { name: preview.path, contents: preview.after },
-        )
-      : null;
   const begin = (phase: "reading" | "writing") => {
     setWorking(phase);
     onBusyChange?.(true);
@@ -170,20 +157,12 @@ export function CaptureShortcutConfig({
                 ? "There's no capture shortcut to remove."
                 : "This shortcut is already set up."}
           </p>
-          {diff ? (
+          {preview && changed ? (
             <div
               className="max-h-80 overflow-auto rounded-lg border text-xs"
-              aria-label="Shortcut changes"
+              aria-label="Shortcut contents"
             >
-              <FileDiff
-                fileDiff={diff}
-                options={{
-                  diffStyle: "unified",
-                  theme: resolveDiffThemeName(resolvedTheme),
-                  overflow: "wrap",
-                  preferredHighlighter: PREFERRED_HIGHLIGHTER,
-                }}
-              />
+              <pre className="whitespace-pre-wrap p-3">{preview.after}</pre>
             </div>
           ) : null}
           {changed ? (

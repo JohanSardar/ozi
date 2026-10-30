@@ -5,7 +5,6 @@ import {
 import type {
   EnvironmentId,
   EnvironmentMachineKind,
-  PullRequestContextMetadata,
   ScopedThreadRef,
   ServerProviderSkill,
   ServerProviderSlashCommand,
@@ -19,15 +18,7 @@ import { AppText as Text } from "../../components/ui/AppText";
 import { ENVIRONMENT_MACHINE_SYMBOLS } from "../../components/EnvironmentMachineSymbol";
 import { GlassSurface } from "../../components/ui/GlassSurface";
 import { PierreEntryIcon } from "../../components/PierreEntryIcon";
-import { pullRequestStatus } from "../pull-requests/pullRequestStatus";
 export type ComposerCommandItem =
-  | {
-      readonly id: string;
-      readonly type: "pull-request";
-      readonly pullRequest: PullRequestContextMetadata;
-      readonly label: string;
-      readonly description: string;
-    }
   | {
       readonly id: string;
       readonly type: "path";
@@ -110,8 +101,6 @@ const SKILL_SOURCE_SYMBOL_BY_KIND: Record<ProviderSkillSourceKind, AppSymbolName
 
 function itemIcon(item: ComposerCommandItem): AppSymbolName | null {
   switch (item.type) {
-    case "pull-request":
-      return pullRequestStatus(item.pullRequest).icon;
     case "slash-command":
     case "provider-slash-command":
       return "terminal";
@@ -128,8 +117,6 @@ function itemIcon(item: ComposerCommandItem): AppSymbolName | null {
 
 function groupLabel(triggerKind: ComposerTriggerKind | null): string | null {
   switch (triggerKind) {
-    case "pull-request":
-      return "Pull requests";
     case "slash-command":
       return "Commands";
     case "skill":
@@ -146,8 +133,6 @@ function emptyText(triggerKind: ComposerTriggerKind | null, isLoading: boolean):
     return triggerKind === "path" ? "Searching files…" : "Loading…";
   }
   switch (triggerKind) {
-    case "pull-request":
-      return "No matching pull requests.";
     case "path":
       return "No matching files or folders.";
     case "skill":
@@ -180,11 +165,7 @@ const CommandRow = memo(function CommandRow(props: {
         <SymbolView
           name={iconName}
           size={14}
-          tintColorClassName={
-            props.item.type === "pull-request"
-              ? pullRequestStatus(props.item.pullRequest).tint
-              : "accent-icon-subtle"
-          }
+          tintColorClassName={"accent-icon-subtle"}
           type="monochrome"
         />
       ) : null}

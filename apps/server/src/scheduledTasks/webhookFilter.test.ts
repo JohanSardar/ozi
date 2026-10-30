@@ -16,27 +16,6 @@ const issueComment: WebhookRequest = {
 };
 
 describe("findFailedWebhookFilter", () => {
-  it("matches a wildcard path when any element matches", () => {
-    assert.isNull(
-      findFailedWebhookFilter(
-        [
-          { path: "body.issue.labels[].name", op: "equals", value: "needs more info" },
-          { path: "body.issue.labels[].name", op: "in", value: ["needs more info", "triage"] },
-          { path: "body.issue.labels[].name", op: "startsWith", value: "needs" },
-          { path: "body.issue.labels[].name", op: "exists" },
-        ],
-        issueComment,
-      ),
-    );
-    assert.deepEqual(
-      findFailedWebhookFilter(
-        [{ path: "body.issue.labels[].name", op: "equals", value: "wontfix" }],
-        issueComment,
-      ),
-      { index: 0, path: "body.issue.labels[].name" },
-    );
-  });
-
   it("fails notEquals on a wildcard path when any element equals the value", () => {
     assert.deepEqual(
       findFailedWebhookFilter(

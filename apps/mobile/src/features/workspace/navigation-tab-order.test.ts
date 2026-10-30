@@ -4,10 +4,6 @@ import {
   navigationCustomizationAvailable,
   moveNavigationTab,
   overflowNavigationTabs,
-  enabledNavigationTabs,
-  toggleNavigationTabVisibility,
-  resolveSelectedNavigationTab,
-  resolveNavigationTabOrder,
   selectedNavigationTab,
   visibleNavigationTabs,
 } from "./navigation-tab-order";
@@ -19,13 +15,6 @@ describe("navigation tab order", () => {
     expect(navigationCustomizationAvailable(4)).toBe(false);
     expect(navigationCustomizationAvailable(5)).toBe(true);
     expect(navigationCustomizationAvailable(6)).toBe(true);
-  });
-
-  it("fills missing sections and drops removed placeholders, duplicates, and Settings", () => {
-    expect(
-      resolveNavigationTabOrder(["usage", "home", "issues", "settings", "usage", null]),
-    ).toEqual(["usage", "threads", "pullRequests"]);
-    expect(resolveNavigationTabOrder()).toEqual(NAVIGATION_TAB_ORDER);
   });
 
   it("moves a section without changing the relative order of the others", () => {
@@ -46,24 +35,5 @@ describe("navigation tab order", () => {
     expect(selectedNavigationTab(undefined, "threads", true)).toBe("settings");
     expect(selectedNavigationTab(undefined, "usage", false)).toBe("usage");
     expect(selectedNavigationTab(undefined, "usage", false, [], 2)).toBe("settings");
-  });
-
-  it("removes hidden sections from navigation and restores their saved positions", () => {
-    const order = moveNavigationTab(undefined, "usage", 0);
-    const hidden = toggleNavigationTabVisibility([], "usage");
-    expect(enabledNavigationTabs(order, hidden)).toEqual(["threads", "pullRequests"]);
-    expect(toggleNavigationTabVisibility(hidden, "usage")).toEqual([]);
-    expect(visibleNavigationTabs(order, [], 5)).toEqual(order);
-    expect(enabledNavigationTabs(undefined, ["home", "issues", "settings"])).toEqual(
-      NAVIGATION_TAB_ORDER,
-    );
-  });
-
-  it("falls back when the selected section is hidden, including when all are hidden", () => {
-    expect(resolveSelectedNavigationTab(undefined, ["threads"], "threads")).toBe("pullRequests");
-    expect(resolveSelectedNavigationTab(undefined, ["threads"], "usage")).toBe("usage");
-    expect(
-      resolveSelectedNavigationTab(undefined, NAVIGATION_TAB_ORDER, "threads"),
-    ).toBeUndefined();
   });
 });

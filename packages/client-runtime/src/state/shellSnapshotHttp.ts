@@ -1,4 +1,4 @@
-import { EnvironmentHttpCommonError } from "@t3tools/contracts";
+import { EnvironmentHttpCommonError, OrchestrationV2ShellSnapshot } from "@t3tools/contracts";
 import * as Cause from "effect/Cause";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -14,10 +14,6 @@ import {
   executeAuthenticatedEnvironmentHttpRequest,
   withOrchestrationProtocolHeader,
 } from "./environmentHttpAuth.ts";
-import {
-  decodeShellSnapshotDeferringPullRequests,
-  type DeferredShellSnapshot,
-} from "./shellPullRequests.ts";
 
 // On timeout the socket asks the same server for the same full snapshot, so a
 // short deadline only throws the first build away. The socket fallback is for
@@ -66,11 +62,13 @@ const decodeEnvironmentHttpCommonError = Schema.decodeUnknownEffect(
 const decodeShellSnapshotResponse = (
   response: HttpClientResponse.HttpClientResponse,
 ): Effect.Effect<
-  DeferredShellSnapshot,
+  OrchestrationV2ShellSnapshot,
   HttpClientError.HttpClientError | Schema.SchemaError | EnvironmentHttpCommonError
 > => {
   if (response.status === 200) {
-    return response.json.pipe(Effect.flatMap(decodeShellSnapshotDeferringPullRequests));
+    return response.json.pipe(
+      Effect.flatMap(Schema.decodeUnknownEffect(OrchestrationV2ShellSnapshot)),
+    );
   }
   const statusError = new HttpClientError.HttpClientError({
     reason: new HttpClientError.StatusCodeError({ request: response.request, response }),
@@ -90,7 +88,7 @@ export class ShellSnapshotLoader extends Context.Service<
     readonly load: (
       prepared: PreparedConnection,
       options?: { readonly omitIdleSubagents?: boolean; readonly omitOlderSettled?: boolean },
-    ) => Effect.Effect<Option.Option<DeferredShellSnapshot>>;
+    ) => Effect.Effect<Option.Option<OrchestrationV2ShellSnapshot>>;
   }
 >()("@t3tools/client-runtime/state/shellSnapshotHttp/ShellSnapshotLoader") {}
 
@@ -113,14 +111,14 @@ export const layer: Layer.Layer<ShellSnapshotLoader, never, HttpClient.HttpClien
           ...(options?.omitIdleSubagents === true ? { omitIdleSubagents: true } : {}),
           ...(options?.omitOlderSettled === true ? { omitOlderSettled: true } : {}),
         }).pipe(
-          Effect.map(Option.some<DeferredShellSnapshot>),
+          Effect.map(Option.some<OrchestrationV2ShellSnapshot>),
           Effect.provideService(HttpClient.HttpClient, httpClient),
           Effect.catchCause((cause) =>
             Effect.logWarning(
               "Could not load the environment shell snapshot over HTTP; using the socket snapshot instead.",
             ).pipe(
               Effect.annotateLogs({ cause: Cause.pretty(cause) }),
-              Effect.as(Option.none<DeferredShellSnapshot>()),
+              Effect.as(Option.none<OrchestrationV2ShellSnapshot>()),
             ),
           ),
         );

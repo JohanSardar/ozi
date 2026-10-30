@@ -1,6 +1,5 @@
+import { CODE_MONO_FONT_FAMILY } from "../features/files/sourceRendering";
 import { Button } from "./ui/Button";
-import * as Dialog from "./ui/Dialog";
-import { useOpenPullRequest } from "../native/useOpenPullRequest";
 import { SourceFileSurface } from "../features/files/SourceFileSurface";
 import { filePreviewKind } from "@t3tools/shared/filePreview";
 import type {
@@ -11,12 +10,9 @@ import type {
   ScopedThreadRef,
 } from "@t3tools/contracts";
 import { formatAttachmentSize } from "@t3tools/client-runtime/state/attachments";
-import { sourceControlClients } from "@t3tools/client-runtime/source-control-clients";
 import { videoMimeType } from "@t3tools/shared/video";
-import { Platform, Pressable, ScrollView, View } from "react-native";
+import { Platform, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { REVIEW_MONO_FONT_FAMILY } from "../features/review/reviewDiffRendering";
-import { ReviewCommentCard, useReviewCommentColors } from "../features/review/ReviewCommentCard";
 import {
   composerAttachmentInlineUri,
   isFileBackedComposerAttachment,
@@ -51,7 +47,7 @@ function ContextField(props: { label: string; value: string | null | undefined; 
         <Text
           selectable
           className={props.code ? "text-sm text-foreground" : "text-base text-foreground"}
-          style={props.code ? { fontFamily: REVIEW_MONO_FONT_FAMILY } : undefined}
+          style={props.code ? { fontFamily: CODE_MONO_FONT_FAMILY } : undefined}
         >
           {props.value}
         </Text>
@@ -81,7 +77,6 @@ export function ComposerContextSheet(props: {
   readonly onClose: () => void;
   readonly onRemove?: () => void;
   readonly onOpenAttachment?: () => void;
-  readonly onOpenPullRequest?: () => void;
   readonly skillDescription?: string;
   readonly onOpenSkill?: () => void;
   readonly onOpenThread?: (thread: ScopedThreadRef) => void;
@@ -90,13 +85,6 @@ export function ComposerContextSheet(props: {
   readonly records?: ReadonlyArray<ComposerContextRecord>;
   readonly attachments?: ReadonlyArray<DraftComposerAttachment>;
 }) {
-  const openPullRequest = useOpenPullRequest({
-    context:
-      props.environmentId && props.projectId
-        ? { environmentId: props.environmentId, projectId: props.projectId }
-        : undefined,
-  });
-  const reviewColors = useReviewCommentColors();
   const insets = useSafeAreaInsets();
   const { themeId, themeAppearance } = useAppearancePreferences();
   const terminalTheme = getMobileTerminalTheme(themeId, themeAppearance);
@@ -179,14 +167,6 @@ export function ComposerContextSheet(props: {
             (entry) => entry.contextId === record.screenshotContextId && "attachmentId" in entry,
           )
         : undefined;
-  const pullRequestUrl =
-    record?.kind === "review-comment" && "pullRequest" in record
-      ? record.pullRequest?.url
-      : undefined;
-  const changeRequestTerm = (
-    (pullRequestUrl ? sourceControlClients.findByChangeRequestUrl(pullRequestUrl) : undefined) ??
-    sourceControlClients.get(undefined)
-  ).changeRequest.singular;
   const terminal = record?.kind === "terminal" && !("payload" in record) ? record : null;
   return (
     <Sheet title={terminal?.terminalLabel ?? props.label} onClose={props.onClose}>
@@ -232,7 +212,7 @@ export function ComposerContextSheet(props: {
                     selectable
                     className="text-sm text-foreground"
                     style={{
-                      fontFamily: REVIEW_MONO_FONT_FAMILY,
+                      fontFamily: CODE_MONO_FONT_FAMILY,
                       fontSize: 13,
                       lineHeight: 20,
                       color: terminalTheme.foreground,
@@ -243,24 +223,7 @@ export function ComposerContextSheet(props: {
                 </ScrollView>
               </View>
             ) : null}
-            {record.kind === "review-comment" ? (
-              <>
-                {record.pullRequest ? (
-                  <ContextField
-                    label={`#${record.pullRequest.number} · ${record.pullRequest.isDraft ? "draft" : record.pullRequest.state}`}
-                    value={`${record.pullRequest.title}\n${record.pullRequest.headBranch} → ${record.pullRequest.baseBranch}`}
-                  />
-                ) : null}
-                {!record.sectionId.startsWith("pull-request:") ? (
-                  <>
-                    <ReviewCommentCard
-                      comment={{ ...record, id: record.contextId }}
-                      colors={reviewColors}
-                    />
-                  </>
-                ) : null}
-              </>
-            ) : null}
+
             {record.kind === "preview-annotation" ? (
               <>
                 <ContextField label="Page" value={record.pageTitle ?? record.pageUrl} />
@@ -361,20 +324,7 @@ export function ComposerContextSheet(props: {
             )}
           />
         ) : null}
-        {pullRequestUrl && /^https?:\/\//i.test(pullRequestUrl) ? (
-          <Pressable
-            accessibilityRole="link"
-            onPress={() => {
-              props.onClose();
-              void openPullRequest(pullRequestUrl).catch(() =>
-                Dialog.alert(`Could not open ${changeRequestTerm}`, "Try again when connected."),
-              );
-            }}
-            className="rounded-xl bg-subtle p-4"
-          >
-            <Text className="text-foreground">Open {changeRequestTerm}</Text>
-          </Pressable>
-        ) : null}
+
         {props.onOpenAttachment ? (
           <Button
             label="Open attachment"
@@ -383,14 +333,7 @@ export function ComposerContextSheet(props: {
             fullWidth
           />
         ) : null}
-        {props.onOpenPullRequest && !pullRequestUrl ? (
-          <Button
-            label={`Open ${changeRequestTerm}`}
-            tone="secondary"
-            onPress={props.onOpenPullRequest}
-            fullWidth
-          />
-        ) : null}
+
         {props.onRemove ? (
           <Button label="Remove from draft" tone="secondary" onPress={props.onRemove} fullWidth />
         ) : null}

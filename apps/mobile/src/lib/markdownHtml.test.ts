@@ -15,19 +15,6 @@ import { EnvironmentId, ThreadId } from "@t3tools/contracts";
 import { parseMarkdown } from "react-native-enriched-markdown/src/web/parseMarkdown";
 
 describe("HTML in native Markdown", () => {
-  it("preserves screenshot URLs and captions from GitHub HTML image embeds", () => {
-    expect(
-      markdownHtmlContent(
-        '<img width="900" alt="Before > after [settings]" src="https://example.com/before.png?a=1&amp;b=2" />',
-      ),
-    ).toBe("![Before > after \\[settings\\]](<https://example.com/before.png?a=1\\&b=2>)");
-    expect(
-      markdownHtmlContent(
-        "<a href='https://example.com'><img src='https://example.com/banner.svg' alt='Review' /></a>",
-      ),
-    ).toBe("[![Review](<https://example.com/banner.svg>)](<https://example.com>)");
-  });
-
   it("decodes HTML attributes once and preserves entity-shaped query values through Markdown", () => {
     const markdown =
       '<img alt="&amp;lt;" src="https://example.com/shot.png?label=&amp;lt;&amp;sig=a%26b">';

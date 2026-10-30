@@ -132,9 +132,7 @@ const layerEnrichment = Layer.unwrap(
     return Layer.mock(ProjectEnrichmentService.ProjectEnrichmentService)({
       getAvailable: () =>
         Effect.succeed({
-          repositoryIdentity: null,
           faviconPath: null,
-          repositoryIdentityResolved: true,
         }),
       subscribeChanges: PubSub.subscribe(changes),
     });

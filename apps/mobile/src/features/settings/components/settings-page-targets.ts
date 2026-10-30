@@ -9,8 +9,6 @@ export const SETTINGS_PAGE_TARGETS = [
   "SettingsNavigation",
   "SettingsOrganization",
   "SettingsProjectOverview",
-  "SettingsEnvironmentSourceControl",
-  "SettingsWorktrees",
   "SettingsLabs",
   "SettingsEnvironmentMaintenance",
   "SettingsProviderAccounts",

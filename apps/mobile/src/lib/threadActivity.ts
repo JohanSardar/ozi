@@ -215,7 +215,7 @@ type ThreadFeedEntryContent =
       readonly summaryKind: ToolGroupSummaryKind;
       readonly toolSurface?: WorkLogPresentationEntry["toolSurface"];
       readonly toolIcon?: WorkLogPresentationEntry["toolIcon"];
-      readonly summaryToolIcon?: "browser" | "device" | "t3-code" | "pull-request";
+      readonly summaryToolIcon?: "browser" | "device" | "t3-code";
       readonly hasFailure: boolean;
       readonly live: boolean;
       readonly shimmer: boolean;
@@ -548,6 +548,7 @@ function itemIcon(item: OrchestrationV2TurnItem): ThreadFeedActivity["icon"] {
           : "warning"
         : "alert";
     case "checkpoint":
+      return "check";
     case "proposed_plan":
     case "todo_list":
       return "check";
@@ -604,7 +605,7 @@ function itemSummary(
     case "user_input_request":
       return "Input requested";
     case "checkpoint":
-      return "Checkpoint captured";
+      return "Checkpoint";
     case "run_interrupt_request":
       return "Interrupt requested";
     case "run_interrupt_result":
@@ -663,9 +664,7 @@ function itemPreview(item: OrchestrationV2TurnItem): string | null {
     case "user_input_request":
       return item.questions.map((question) => question.question).join(" · ") || null;
     case "checkpoint":
-      return item.files.length === 1
-        ? (item.files[0]?.path ?? null)
-        : `${item.files.length} changed files`;
+      return null;
     case "run_interrupt_request":
     case "run_interrupt_result":
     case "system_notice":
@@ -751,7 +750,7 @@ function toWorkLogEntry(
         toolData: item,
       };
     case "checkpoint":
-      return { ...common, changedFiles: item.files.map((file) => file.path), toolData: item };
+      return { ...common, toolData: item };
     case "approval_request":
       return {
         ...common,
@@ -1948,7 +1947,6 @@ function checkpointSummariesEqual(
       summary.checkpointRef === other.checkpointRef &&
       summary.completedAt === other.completedAt &&
       summary.status === other.status &&
-      summary.files === other.files &&
       summary.assistantMessageId === other.assistantMessageId
     );
   });
@@ -2209,7 +2207,7 @@ export function buildThreadFeed(
   }
   const checkpointByMessageId = new Map(
     (options?.checkpointSummaries ?? [])
-      .filter((checkpoint) => checkpoint.status === "ready" && checkpoint.files.length > 0)
+      .filter((checkpoint) => checkpoint.status === "ready")
       .map((checkpoint) => [checkpoint.assistantMessageId, checkpoint]),
   );
   const grouped = groupAdjacentActivities(

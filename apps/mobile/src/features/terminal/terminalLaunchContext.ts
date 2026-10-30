@@ -3,7 +3,7 @@ import { useState } from "react";
 
 interface TerminalLocationLike {
   readonly cwd: string;
-  readonly worktreePath: string | null;
+  readonly workingDirectory: string | null;
 }
 
 interface PendingTerminalLaunchTarget {
@@ -14,7 +14,7 @@ interface PendingTerminalLaunchTarget {
 
 export interface PendingTerminalLaunch {
   readonly cwd: string;
-  readonly worktreePath: string | null;
+  readonly workingDirectory: string | null;
   readonly env?: Record<string, string>;
   readonly initialInput?: string;
 }
@@ -31,7 +31,7 @@ export function stagePendingTerminalLaunch(input: {
 }) {
   pendingTerminalLaunches.set(pendingTerminalLaunchKey(input.target), {
     cwd: input.launch.cwd,
-    worktreePath: input.launch.worktreePath,
+    workingDirectory: input.launch.workingDirectory,
     env: input.launch.env ? { ...input.launch.env } : undefined,
     initialInput: input.launch.initialInput,
   });
@@ -49,36 +49,24 @@ export function takePendingTerminalLaunch(
   return launch;
 }
 
-export function resolvePreferredThreadWorktreePath(input: {
-  readonly threadShellWorktreePath: string | null;
-  readonly threadDetailWorktreePath: string | null;
-}): string | null {
-  return input.threadDetailWorktreePath ?? input.threadShellWorktreePath ?? null;
-}
-
 export function resolveTerminalOpenLocation(input: {
   readonly terminalLocation: TerminalLocationLike | null;
   readonly activeSessionLocation: TerminalLocationLike | null;
   readonly workspaceRoot: string;
-  readonly threadShellWorktreePath: string | null;
-  readonly threadDetailWorktreePath: string | null;
+  readonly workingDirectory: string | null;
 }): {
   readonly cwd: string;
-  readonly worktreePath: string | null;
+  readonly workingDirectory: string | null;
 } {
   const sessionLocation = input.terminalLocation ?? input.activeSessionLocation;
 
   // Keep cwd paired with its identity; null identifies the project checkout.
   if (sessionLocation !== null) {
-    return { cwd: sessionLocation.cwd, worktreePath: sessionLocation.worktreePath };
+    return { cwd: sessionLocation.cwd, workingDirectory: sessionLocation.workingDirectory };
   }
-  const preferredThreadWorktreePath = resolvePreferredThreadWorktreePath({
-    threadShellWorktreePath: input.threadShellWorktreePath,
-    threadDetailWorktreePath: input.threadDetailWorktreePath,
-  });
   return {
-    cwd: preferredThreadWorktreePath ?? input.workspaceRoot,
-    worktreePath: preferredThreadWorktreePath,
+    cwd: input.workingDirectory ?? input.workspaceRoot,
+    workingDirectory: input.workingDirectory,
   };
 }
 
@@ -97,7 +85,7 @@ export function useInitialTerminalLaunchLocation(input: {
     if (input.pendingLaunch !== null) {
       candidate = {
         cwd: input.pendingLaunch.cwd,
-        worktreePath: input.pendingLaunch.worktreePath,
+        workingDirectory: input.pendingLaunch.workingDirectory,
       };
     } else if (!input.canRead || input.hasLoadedSessions) {
       // Metadata must establish whether this target has a location before we retain a fallback.

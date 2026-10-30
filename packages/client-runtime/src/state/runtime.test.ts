@@ -342,7 +342,7 @@ describe("environment query lifecycle", () => {
           threadId: "thread-1",
           terminalId: "terminal-1",
           cwd: "/repo/root/packages/app",
-          worktreePath: null,
+          workingDirectory: null,
           status: "running",
           pid: 123,
           exitCode: null,

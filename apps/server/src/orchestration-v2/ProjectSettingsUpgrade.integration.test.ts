@@ -9,10 +9,7 @@ import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import * as SqlClient from "effect/sql/SqlClient";
-
-import * as CheckpointStore from "../checkpointing/CheckpointStore.ts";
 import * as ServerConfig from "../config.ts";
-import * as GitWorkflow from "../git/GitWorkflowService.ts";
 import * as NodeSqliteClient from "@t3tools/shared/nodeSqliteClient";
 
 import * as McpSessionRegistryTestkit from "../mcp/McpSessionRegistry.testkit.ts";
@@ -22,9 +19,6 @@ import * as ProjectEnrichmentService from "../project/ProjectEnrichmentService.t
 import * as ProjectService from "../project/ProjectService.ts";
 import * as ProviderInstanceRegistry from "../provider/ProviderInstanceRegistry.ts";
 import * as ServerSettings from "../serverSettings.ts";
-import * as SourceControlProviderRegistry from "../sourceControl/SourceControlProviderRegistry.ts";
-import * as VcsDriverRegistry from "../vcs/VcsDriverRegistry.ts";
-import * as VcsProcess from "../vcs/VcsProcess.ts";
 import * as WorkspacePaths from "../workspace/WorkspacePaths.ts";
 import * as LegacyV1ThreadImporter from "./legacy/LegacyV1ThreadImporter.ts";
 import * as RuntimeLayer from "./runtimeLayer.ts";
@@ -34,7 +28,6 @@ const icon = { kind: "emoji", emoji: "🦊" } as const;
 const encodeJson = Schema.encodeSync(Schema.fromJsonString(Schema.Unknown));
 
 const expectedSettings = {
-  default_thread_env_mode: "worktree",
   auto_pull: 1,
   favicon_path: "brand/icon.svg",
   project_icon_json: encodeJson(icon),
@@ -72,8 +65,6 @@ const seedV1Database = Effect.gen(function* () {
       type: "project.meta-updated",
       payload: {
         projectId,
-        defaultThreadEnvMode: "worktree",
-        autoPull: true,
         faviconPath: "brand/icon.svg",
         projectIcon: icon,
         updatedAt: "2026-01-02T00:00:00.000Z",
@@ -97,7 +88,7 @@ const seedV1Database = Effect.gen(function* () {
       project_id, title, workspace_root, default_model_selection_json, default_thread_env_mode,
       auto_pull, favicon_path, project_icon_json, scripts_json, created_at, updated_at, deleted_at
     ) VALUES (
-      ${projectId}, 'Upgrade', '/work/upgrade', NULL, ${expectedSettings.default_thread_env_mode},
+      ${projectId}, 'Upgrade', '/work/upgrade', NULL, NULL,
       1, ${expectedSettings.favicon_path}, ${expectedSettings.project_icon_json}, '[]',
       '2026-01-01T00:00:00.000Z', '2026-01-02T00:00:00.000Z', NULL
     )
@@ -109,30 +100,14 @@ const seedV1Database = Effect.gen(function* () {
 });
 
 const unusedEnrichment = {
-  repositoryIdentity: null,
   faviconPath: null,
-  repositoryIdentityResolved: false,
 };
 
 const layerRuntime = (dbPath: string) => {
-  const layerPlatform = Layer.merge(
-    NodeServices.layer,
-    Layer.mock(SourceControlProviderRegistry.SourceControlProviderRegistry)({
-      resolveLink: () => Effect.die("unused"),
-    }),
-  );
+  const layerPlatform = NodeServices.layer;
   const layerServerConfig = ServerConfig.layerTest(process.cwd(), {
     prefix: "t3-project-upgrade-",
   });
-  const layerCheckpointStore = CheckpointStore.layer.pipe(
-    Layer.provide(
-      VcsDriverRegistry.layer.pipe(
-        Layer.provide(VcsProcess.layer),
-        Layer.provide(layerServerConfig),
-        Layer.provide(layerPlatform),
-      ),
-    ),
-  );
   return Layer.mergeAll(
     RuntimeLayer.layer.pipe(Layer.provide(RuntimeLayer.layerProjectService)),
     RuntimeLayer.layerProjectService,
@@ -152,7 +127,6 @@ const layerRuntime = (dbPath: string) => {
     Layer.provide(McpSessionRegistryTestkit.layer),
     Layer.provide(McpProviderSessions.layer),
     Layer.provideMerge(SqlitePersistence.layerFromPath(dbPath)),
-    Layer.provide(layerCheckpointStore),
     Layer.provide(layerServerConfig),
     Layer.provide(ServerSettings.layerTest()),
     Layer.provide(
@@ -163,11 +137,6 @@ const layerRuntime = (dbPath: string) => {
         listUnavailable: Effect.succeed([]),
         streamChanges: Stream.empty,
         subscribeChanges: Effect.never,
-      }),
-    ),
-    Layer.provide(
-      Layer.mock(GitWorkflow.GitWorkflowService)({
-        pruneWorktrees: () => Effect.void,
       }),
     ),
     Layer.provide(layerPlatform),

@@ -51,8 +51,6 @@ export const BackgroundScope = Schema.Union([
     type: Schema.Literal("provider-status"),
     instanceId: Schema.optionalKey(ProviderInstanceId),
   }),
-  Schema.Struct({ type: Schema.Literal("vcs-status"), cwd: Schema.String }),
-  Schema.Struct({ type: Schema.Literal("git-refs"), cwd: Schema.String }),
   Schema.Struct({ type: Schema.Literal("diagnostics") }),
   Schema.Struct({ type: Schema.Literal("thread"), threadId: ThreadId }),
 ]);

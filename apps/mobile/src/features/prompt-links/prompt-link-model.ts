@@ -1,6 +1,4 @@
-import type { PromptLinkRepository } from "@t3tools/shared/promptLinks";
-
-const PROMPT_LINK_PARAM_KEYS = ["prompt", "repo", "pr", "provider", "model"] as const;
+const PROMPT_LINK_PARAM_KEYS = ["prompt", "provider", "model"] as const;
 
 type RouteParams = Readonly<Record<string, unknown>> | undefined;
 
@@ -28,7 +26,6 @@ export function withoutPromptLinkParams(params: object | undefined): Record<stri
 export function promptLinkNotice(input: {
   readonly hiddenCharacters: number;
   readonly modelUnavailable?: boolean;
-  readonly pullRequestUnavailable?: number | null;
 }): string {
   return [
     input.hiddenCharacters > 0
@@ -36,9 +33,6 @@ export function promptLinkNotice(input: {
       : "This prompt came from a link. Read it before you send.",
     input.modelUnavailable
       ? "The requested model is not available, so your default is used."
-      : null,
-    input.pullRequestUnavailable != null
-      ? `Pull request #${input.pullRequestUnavailable} could not be loaded, so this task starts from your default branch.`
       : null,
   ]
     .filter((line) => line !== null)
@@ -74,9 +68,6 @@ export function latestThreadEnvironmentIds<Id extends string>(
     (latest.get(right) ?? "").localeCompare(latest.get(left) ?? ""),
   );
 }
-
-export const promptLinkRepositoryName = (repository: PromptLinkRepository) =>
-  `${repository.owner}/${repository.name}`;
 
 /**
  * Advances a parsed link at each navigation state; `resolve` is the link to apply. The first

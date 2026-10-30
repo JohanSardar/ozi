@@ -7,8 +7,6 @@ const testState = vi.hoisted(() => {
   let projectRemoved = false;
   let connectedEnvironmentIds = ["environment-primary", "environment-ssh"];
   let targetSettings = {
-    defaultThreadEnvMode: "local" as "local" | "worktree" | null,
-    newWorktreesStartFromOrigin: false,
     defaultModelSelection: null,
     defaultRuntimeMode: "full-access" as RuntimeMode,
   };
@@ -84,21 +82,13 @@ const testState = vi.hoisted(() => {
     get targetSettings() {
       return targetSettings;
     },
-    reset(
-      nextStoredDraft: typeof storedDraft,
-      workspaceDefaults = {
-        envMode: "local" as "local" | "worktree" | null,
-        startFromOrigin: false,
-      },
-    ) {
+    reset(nextStoredDraft: typeof storedDraft) {
       storedDraft = nextStoredDraft;
       openDraftRoute = null;
       draftsWithUserText = new Set();
       projectRemoved = false;
       connectedEnvironmentIds = ["environment-primary", "environment-ssh"];
       targetSettings = {
-        defaultThreadEnvMode: workspaceDefaults.envMode,
-        newWorktreesStartFromOrigin: workspaceDefaults.startFromOrigin,
         defaultModelSelection: null,
         defaultRuntimeMode: "full-access",
       };
@@ -122,7 +112,6 @@ const testServerConfigs = () =>
       {
         settings: {
           ...testState.targetSettings,
-          newWorktreesStartFromOrigin: !testState.targetSettings.newWorktreesStartFromOrigin,
         },
       },
     ],
@@ -139,10 +128,7 @@ vi.mock("../rpc/atomRegistry", () => ({
 }));
 
 vi.mock("@effect/atom-react", () => ({
-  useAtomValue: (atom: unknown) =>
-    atom === "primary-settings"
-      ? { newWorktreesStartFromOrigin: !testState.targetSettings.newWorktreesStartFromOrigin }
-      : testServerConfigs(),
+  useAtomValue: (atom: unknown) => (atom === "primary-settings" ? {} : testServerConfigs()),
 }));
 vi.mock("@t3tools/client-runtime/environment", () => ({
   scopedProjectKey: () => "remote-project",
@@ -158,22 +144,17 @@ vi.mock("@t3tools/shared/projectSettings", () => ({
     settings: Record<string, unknown>,
     _projectId: unknown,
     _project: unknown,
-    projectFile?: { defaultThreadEnvMode?: "local" | "worktree" } | null,
+    projectFile?: {} | null,
   ) => ({
     settings:
       projectFile === undefined
         ? settings
         : {
             ...settings,
-            defaultThreadEnvMode:
-              settings.defaultThreadEnvMode ?? projectFile?.defaultThreadEnvMode ?? "local",
           },
-    sources: { defaultModelSelection: "environment", defaultThreadEnvMode: "environment" },
+    sources: { defaultModelSelection: "environment" },
     overrides: {},
   }),
-  resolveNewThreadEnvMode: (input: {
-    projectSettings: { settings: { defaultThreadEnvMode: "local" | "worktree" } };
-  }) => input.projectSettings.settings.defaultThreadEnvMode,
 }));
 vi.mock("@tanstack/react-router", () => ({
   useParams: () => null,
@@ -218,7 +199,6 @@ vi.mock("../state/entities", () => {
     id: "project-remote",
     environmentId: "environment-ssh",
     workspaceRoot: "/remote/project",
-    defaultThreadEnvMode: null,
     defaultModelSelection: null,
   };
   return {
@@ -353,7 +333,7 @@ describe("useNewThreadHandler", () => {
   });
 
   it("opens the draft without waiting on a project file from an offline machine", async () => {
-    testState.reset(null, { envMode: null, startFromOrigin: false });
+    testState.reset(null);
     testState.disconnect("environment-ssh");
 
     const opened = await useNewThreadHandler()({

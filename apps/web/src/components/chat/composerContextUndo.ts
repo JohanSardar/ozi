@@ -8,7 +8,6 @@ import { useEffect, useState } from "react";
 import type { ComposerFileAttachment, ComposerImageAttachment } from "../../composerDraftStore";
 import { fileContextReference, previewAnnotationContextId } from "../../lib/composerContextRecords";
 import type { TerminalContextDraft } from "../../lib/terminalContext";
-import type { ReviewCommentContext } from "../../reviewCommentContext";
 
 interface RetainedPreviewAnnotation {
   annotation: PreviewAnnotationPayload;
@@ -22,7 +21,6 @@ export interface RetainedAttachmentContextPayloads {
 
 export interface RetainedContextPayloads extends RetainedAttachmentContextPayloads {
   terminals: Map<string, TerminalContextDraft>;
-  reviewComments: Map<string, ReviewCommentContext>;
   threads: Map<string, ThreadContextRecord>;
   environments: Map<string, EnvironmentContextRecord>;
 }
@@ -30,7 +28,6 @@ export interface RetainedContextPayloads extends RetainedAttachmentContextPayloa
 function createRetainedContextPayloads(): RetainedContextPayloads {
   return {
     terminals: new Map(),
-    reviewComments: new Map(),
     threads: new Map(),
     environments: new Map(),
     files: new Map(),

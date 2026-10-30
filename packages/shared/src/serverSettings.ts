@@ -6,18 +6,13 @@ import {
   defaultInstanceIdForDriver,
   globalIdleCompaction,
   type IdleCompactionMode,
-  isProviderAvailable,
   isUnconfiguredDefaultInstanceEnabled,
-  resolveProjectProviderInstanceEnabled,
   resolveProviderInstanceEnabled,
-  isProviderTextGenerationCapable,
   type ModelSelection,
-  type ProjectId,
   type ProjectScopedServerSettingKey,
   type ProjectSettingsOverrides,
   ProviderDriverKind,
   ProviderInstanceId,
-  type ServerProvider,
   ServerSettings,
   type ServerSettingsPatch,
   withIdleCompaction,
@@ -101,53 +96,6 @@ export function defaultTextGenerationModel(driver: ProviderDriverKind): string {
     DEFAULT_MODEL_BY_PROVIDER[driver] ??
     DEFAULT_TEXT_GENERATION_MODEL
   );
-}
-
-export function resolveSourceControlWriterModelSelection(
-  settings: ServerSettings,
-  providers: ReadonlyArray<ServerProvider> | undefined,
-  projectId: ProjectId | null,
-): ModelSelection {
-  const selection = settings.sourceControlWriterModelSelection;
-  if (
-    !selection ||
-    !resolveProjectProviderInstanceEnabled(settings, projectId, selection.instanceId)
-  ) {
-    return settings.textGenerationModelSelection;
-  }
-  if (providers === undefined) {
-    return selection;
-  }
-
-  const provider = providers.find((candidate) => candidate.instanceId === selection.instanceId);
-  return provider?.enabled === true &&
-    isProviderAvailable(provider) &&
-    isProviderTextGenerationCapable(provider)
-    ? selection
-    : settings.textGenerationModelSelection;
-}
-
-export function resolveReviewGuideModelSelection(
-  settings: ServerSettings,
-  providers: ReadonlyArray<ServerProvider> | undefined,
-  projectId: ProjectId | null,
-): ModelSelection {
-  const selection = settings.reviewGuideModelSelection;
-  if (
-    selection &&
-    resolveProjectProviderInstanceEnabled(settings, projectId, selection.instanceId)
-  ) {
-    const provider = providers?.find((candidate) => candidate.instanceId === selection.instanceId);
-    if (
-      providers === undefined ||
-      (provider?.enabled === true &&
-        isProviderAvailable(provider) &&
-        isProviderTextGenerationCapable(provider))
-    ) {
-      return selection;
-    }
-  }
-  return resolveSourceControlWriterModelSelection(settings, providers, projectId);
 }
 
 export interface PersistedServerObservabilitySettings {
@@ -250,42 +198,26 @@ function mergeProjectSettingsOverridesPatch(
 
 export function deriveLegacyProjectOverrides(
   settings: Pick<ServerSettings, "projectSettingsOverrides">,
-): Pick<
-  ServerSettings,
-  "projectAgentBrowserAccessOverrides" | "projectAutoPullOverrides" | "projectScriptOverrides"
-> {
+): Pick<ServerSettings, "projectAgentBrowserAccessOverrides" | "projectScriptOverrides"> {
   const projectAgentBrowserAccessOverrides: Record<string, boolean> = {};
-  const projectAutoPullOverrides: Record<string, boolean> = {};
   const projectScriptOverrides: Record<string, ServerSettings["defaultProjectScripts"] | null> = {};
   for (const [projectId, entry] of Object.entries(settings.projectSettingsOverrides)) {
     if (entry.enableAgentBrowserAccess !== undefined) {
       projectAgentBrowserAccessOverrides[projectId] = entry.enableAgentBrowserAccess;
     }
-    if (entry.defaultAutoPull !== undefined) {
-      projectAutoPullOverrides[projectId] = entry.defaultAutoPull;
-    }
     if (entry.defaultProjectScripts !== undefined) {
       projectScriptOverrides[projectId] = entry.defaultProjectScripts;
     }
   }
-  return { projectAgentBrowserAccessOverrides, projectAutoPullOverrides, projectScriptOverrides };
+  return { projectAgentBrowserAccessOverrides, projectScriptOverrides };
 }
 
 function translateLegacyProjectOverridePatch(
   current: Pick<ServerSettings, "projectSettingsOverrides">,
   patch: ServerSettingsPatch,
 ): ServerSettingsPatch {
-  const {
-    projectAgentBrowserAccessOverrides,
-    projectAutoPullOverrides,
-    projectScriptOverrides,
-    ...rest
-  } = patch;
-  if (
-    projectAgentBrowserAccessOverrides === undefined &&
-    projectAutoPullOverrides === undefined &&
-    projectScriptOverrides === undefined
-  ) {
+  const { projectAgentBrowserAccessOverrides, projectScriptOverrides, ...rest } = patch;
+  if (projectAgentBrowserAccessOverrides === undefined && projectScriptOverrides === undefined) {
     return patch;
   }
   const currentEntries: Readonly<Record<string, ProjectSettingsOverrides>> =
@@ -314,7 +246,6 @@ function translateLegacyProjectOverridePatch(
     }
   };
   applyKey(projectAgentBrowserAccessOverrides, "enableAgentBrowserAccess");
-  applyKey(projectAutoPullOverrides, "defaultAutoPull");
   applyKey(projectScriptOverrides, "defaultProjectScripts");
   return {
     ...rest,
@@ -350,20 +281,16 @@ export function applyServerSettingsPatch(
     setModelsHidden,
     setProviderModelOrder,
     providerModelPreferences,
-    automaticGitFetchInterval,
     providerHealthRefreshInterval,
     backgroundActivityProfile,
     backgroundActivity,
-    worktreeCleanup: worktreeCleanupPatch,
     // Merged per entry below; its `null` removals must not reach deepMerge.
     usageLimitSources: usageLimitSourcesPatch,
-    sourceControlHosts: sourceControlHostsPatch,
     usagePriceOverrides: usagePriceOverridesPatch,
     usageModelAliases: usageModelAliasesPatch,
     // Entry replacement: deepMerge would keep keys the client meant to clear.
     projectSettingsOverrides: projectSettingsOverridesPatch,
     projectAgentBrowserAccessOverrides: _legacyBrowserAccess,
-    projectAutoPullOverrides: _legacyAutoPull,
     projectScriptOverrides: _legacyScripts,
     ...patchForMerge
   } = patch;
@@ -373,20 +300,16 @@ export function applyServerSettingsPatch(
       ? {
           schemaVersion: 1 as const,
           profile:
-            automaticGitFetchInterval !== undefined || providerHealthRefreshInterval !== undefined
+            providerHealthRefreshInterval !== undefined
               ? ("custom" as const)
               : backgroundActivityProfile,
-          ...(automaticGitFetchInterval !== undefined || providerHealthRefreshInterval !== undefined
+          ...(providerHealthRefreshInterval !== undefined
             ? { baseProfile: backgroundActivityProfile }
             : {}),
-          overrides: {
-            ...(automaticGitFetchInterval !== undefined ? { automaticGitFetchInterval } : {}),
-            ...(providerHealthRefreshInterval !== undefined
-              ? { providerHealthRefreshInterval }
-              : {}),
-          },
+          overrides:
+            providerHealthRefreshInterval !== undefined ? { providerHealthRefreshInterval } : {},
         }
-      : automaticGitFetchInterval !== undefined || providerHealthRefreshInterval !== undefined
+      : providerHealthRefreshInterval !== undefined
         ? {
             schemaVersion: 1 as const,
             profile: "custom" as const,
@@ -395,7 +318,6 @@ export function applyServerSettingsPatch(
               ...(currentBackgroundActivity.profile === "custom"
                 ? currentBackgroundActivity.overrides
                 : {}),
-              ...(automaticGitFetchInterval !== undefined ? { automaticGitFetchInterval } : {}),
               ...(providerHealthRefreshInterval !== undefined
                 ? { providerHealthRefreshInterval }
                 : {}),
@@ -459,28 +381,6 @@ export function applyServerSettingsPatch(
     ...next,
     favorites,
     providerModelPreferences: nextModelPreferences,
-    ...(worktreeCleanupPatch === undefined
-      ? {}
-      : {
-          worktreeCleanup:
-            worktreeCleanupPatch?.mode === "custom"
-              ? {
-                  mode: "custom" as const,
-                  rules: {
-                    worktreeKeepWhen: next.storageCleanup.worktreeKeepWhen,
-                    worktreeAfterDays: next.storageCleanup.worktreeAfterDays,
-                    worktreeSettledAfterDays: next.storageCleanup.worktreeSettledAfterDays,
-                    worktreeOnMerge: next.storageCleanup.worktreeOnMerge,
-                    worktreeOnDelete: next.storageCleanup.worktreeOnDelete,
-                    worktreeUnchanged: next.storageCleanup.worktreeUnchanged,
-                    ...(current.worktreeCleanup?.mode === "custom"
-                      ? current.worktreeCleanup.rules
-                      : {}),
-                    ...worktreeCleanupPatch.rules,
-                  },
-                }
-              : worktreeCleanupPatch,
-        }),
     ...(backgroundActivity !== undefined
       ? {
           backgroundActivity: {
@@ -496,34 +396,6 @@ export function applyServerSettingsPatch(
       : {}),
     ...(patch.providerInstances !== undefined
       ? { providerInstances: patch.providerInstances }
-      : {}),
-    ...(patch.worktreesDirectory !== undefined &&
-    patch.worktreesDirectory !== current.worktreesDirectory
-      ? {
-          previousWorktreesDirectories: [
-            ...current.previousWorktreesDirectories.filter(
-              (directory) => directory !== patch.worktreesDirectory,
-            ),
-            ...(current.worktreesDirectory !== "" &&
-            !current.previousWorktreesDirectories.includes(current.worktreesDirectory)
-              ? [current.worktreesDirectory]
-              : []),
-          ],
-        }
-      : {}),
-    // Per host, a patched field replaces the saved one: deepMerge would keep a cleared account pin.
-    ...(sourceControlHostsPatch !== undefined
-      ? {
-          sourceControlHosts: {
-            ...current.sourceControlHosts,
-            ...Object.fromEntries(
-              Object.entries(sourceControlHostsPatch).map(([kind, fields]) => [
-                kind,
-                { ...current.sourceControlHosts[kind], ...fields },
-              ]),
-            ),
-          },
-        }
       : {}),
     ...(projectSettingsOverridesPatch !== undefined
       ? {
@@ -570,13 +442,6 @@ export function applyServerSettingsPatch(
           ),
         }
       : {}),
-    ...(patch.sourceControlWriterModelSelection !== undefined
-      ? { sourceControlWriterModelSelection: patch.sourceControlWriterModelSelection }
-      : {}),
-    ...(patch.reviewGuideModelSelection !== undefined
-      ? { reviewGuideModelSelection: patch.reviewGuideModelSelection }
-      : {}),
-    ...(automaticGitFetchInterval !== undefined ? { automaticGitFetchInterval } : {}),
     ...(providerHealthRefreshInterval !== undefined ? { providerHealthRefreshInterval } : {}),
   };
   const normalizedBackgroundActivity = normalizeBackgroundActivitySettings(
@@ -589,7 +454,6 @@ export function applyServerSettingsPatch(
     ...withIdleCompaction(nextWithReplacementsBase, patchedIdleCompaction(current, patch)),
     ...deriveLegacyProjectOverrides(nextWithReplacementsBase),
     backgroundActivity: normalizedBackgroundActivity,
-    automaticGitFetchInterval: resolvedBackgroundActivity.automaticGitFetchInterval,
     providerHealthRefreshInterval: resolvedBackgroundActivity.providerHealthRefreshInterval,
     backgroundActivityProfile: resolvedBackgroundActivity.profile,
   };

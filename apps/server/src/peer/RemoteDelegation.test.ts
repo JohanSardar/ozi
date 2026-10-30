@@ -13,7 +13,6 @@ import {
   ProviderInstanceId,
   ProviderThreadId,
   type Project,
-  type RepositoryIdentity,
   RunId,
   ThreadId,
   TurnItemId,
@@ -50,14 +49,11 @@ import * as ProviderReplayHarness from "../orchestration-v2/testkit/ProviderRepl
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import * as ManagedProjectFolders from "../project/ManagedProjectFolders.ts";
 import * as ProjectService from "../project/ProjectService.ts";
-import * as RepositoryIdentityResolver from "../project/RepositoryIdentityResolver.ts";
 import * as ProviderRegistry from "../provider/ProviderRegistry.ts";
 import * as ScheduledTaskService from "../scheduledTasks/ScheduledTaskService.ts";
 import * as SecretRequests from "../secrets/SecretRequests.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as CommandReceiptStore from "../orchestration-v2/CommandReceiptStore.ts";
-import * as SourceControlRepositoryService from "../sourceControl/SourceControlRepositoryService.ts";
-import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
 import * as PeerForwarding from "./PeerForwarding.ts";
 import * as PeerLinks from "./PeerLinks.ts";
 import { descriptorOf, layerLinkingEnvironment, linkTo, servePeer } from "./PeerLinks.testkit.ts";
@@ -170,7 +166,6 @@ const boxProjects: ReadonlyArray<Project> = [
     id: ProjectId.make(`project:box-other-${index}`),
     title: `other ${index}`,
     workspaceRoot: `/srv/other-${index}`,
-    repositoryIdentity: null,
     defaultModelSelection: null,
     scripts: [],
     createdAt: "2026-10-01T00:00:00.000Z",
@@ -181,14 +176,6 @@ const boxProjects: ReadonlyArray<Project> = [
     id: boxProject,
     title: "app",
     workspaceRoot: "/srv/app",
-    repositoryIdentity: {
-      canonicalKey: "github.com/acme/app",
-      locator: {
-        source: "git-remote",
-        remoteName: "origin",
-        remoteUrl: "git@github.com:acme/app.git",
-      },
-    },
     defaultModelSelection: null,
     scripts: [],
     createdAt: "2026-10-01T00:00:00.000Z",
@@ -474,8 +461,6 @@ const boxToolkitLayer = (thread: BoxThread) => {
     Layer.provide(
       Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({ namedProjectsRoot: "/p" }),
     ),
-    Layer.provide(Layer.mock(GitVcsDriver.GitVcsDriver)({})),
-    Layer.provide(Layer.mock(SourceControlRepositoryService.SourceControlRepositoryService)({})),
     Layer.provide(
       ServerConfig.layerTest(process.cwd(), { prefix: "t3-remote-delegation-box-" }).pipe(
         Layer.provide(NodeServices.layer),
@@ -560,32 +545,8 @@ const makeLaptop = (
       Layer.provideMerge(Layer.merge(layerOrchestrator, ServerSettings.layerTest())),
     );
     const layerHere = McpHttpServer.layerOrchestratorToolkit.pipe(
+      Layer.provideMerge(RemoteDelegation.layer.pipe(Layer.provideMerge(PeerForwarding.layer))),
       Layer.provideMerge(McpServer.McpServer.layer),
-      Layer.provideMerge(
-        RemoteDelegation.layer.pipe(
-          Layer.provideMerge(PeerForwarding.layer),
-          Layer.provide(
-            Layer.mock(ProjectService.ProjectService)({
-              // A cold enrichment cache: the project itself reports no identity yet.
-              getById: () =>
-                Effect.succeedSome({
-                  workspaceRoot: "/home/me/app",
-                  repositoryIdentity: null,
-                } as never),
-            }),
-          ),
-          Layer.provide(
-            Layer.mock(RepositoryIdentityResolver.RepositoryIdentityResolver)({
-              resolve: (cwd) =>
-                Effect.succeed(
-                  cwd === "/home/me/app"
-                    ? ({ canonicalKey: "github.com/acme/app" } as RepositoryIdentity)
-                    : null,
-                ),
-            }),
-          ),
-        ),
-      ),
       Layer.provide(Layer.succeedContext(linking)),
       Layer.provide(Layer.mock(PeerLinkRequests.PeerLinkRequests)({})),
       Layer.provide(NodeCrypto.layer),
@@ -596,7 +557,6 @@ const makeLaptop = (
       Layer.provide(Layer.mock(ProjectService.ProjectService)({})),
       Layer.provide(Layer.mock(SecretRequests.SecretRequests)({})),
       Layer.provide(Layer.mock(ThreadLaunch.ThreadLaunchService)({})),
-      Layer.provide(Layer.mock(GitVcsDriver.GitVcsDriver)({})),
       Layer.fresh,
     );
     const here = yield* Layer.build(layerHere);
@@ -651,8 +611,7 @@ const seedParent = (laptopEnv: Effect.Success<ReturnType<typeof makeLaptop>>) =>
       modelSelection,
       runtimeMode: "full-access",
       interactionMode: "default",
-      branch: null,
-      worktreePath: null,
+      workingDirectory: null,
     });
     yield* laptopEnv.sink.write({
       commandId: CommandId.make("command:seed:laptop-parent"),
@@ -929,31 +888,6 @@ it.effect("a task named only by environment inherits the parent's model, within 
         clientRequestId: "broader",
       });
       expect(broader.isError).toBe(true);
-    }),
-  ).pipe(Effect.provide(NodeHttpServer.layerTest)),
-);
-
-it.effect("refuses worktree isolation for a task there before launching anything", () =>
-  Effect.scoped(
-    Effect.gen(function* () {
-      const thread = yield* makeBoxThread;
-      const b = yield* serveBox(thread);
-      const offers = yield* SubscriptionRef.make<
-        ReadonlyArray<ProviderContinuationRequests.ProviderContinuationRequest>
-      >([]);
-      const database = yield* SqlitePersistence.layerMemory.pipe(Layer.build);
-      const a = yield* makeLaptop(database, offers);
-      yield* linkTo(a.links, b, "auto");
-      yield* seedParent(a);
-
-      const result = yield* a.call("delegate_task", {
-        task: "Run the suite on the box.",
-        target: { environmentId: box.environmentId },
-        isolation: "worktree",
-      });
-      expect(result.isError).toBe(true);
-      expect(JSON.stringify(result.content)).toContain("isolation");
-      expect(yield* Ref.get(thread.launched)).toBeNull();
     }),
   ).pipe(Effect.provide(NodeHttpServer.layerTest)),
 );

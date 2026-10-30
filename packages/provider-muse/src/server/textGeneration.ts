@@ -6,7 +6,6 @@ import {
   TextGenerationError,
 } from "@t3tools/contracts";
 import type { MuseSettings } from "../settings.ts";
-import { sanitizeBranchFragment, sanitizeFeatureBranchName } from "@t3tools/shared/git";
 import { getModelSelectionStringOptionValue } from "@t3tools/shared/model";
 import { extractJsonObject } from "@t3tools/shared/schemaJson";
 import * as Effect from "effect/Effect";
@@ -17,16 +16,8 @@ import * as Schema from "effect/Schema";
 import { createMuseSdkHost, createMuseSdkHostEffect, type MuseSdkHost } from "./sdk.ts";
 import { museModelCapabilities, resolveMuseReasoningEffort } from "./modelCatalog.ts";
 import type { ProviderTextGeneration } from "@t3tools/provider-core/server/textGeneration";
-import { investigationUnsupported } from "@t3tools/provider-core/server/textGenerationOperations";
+import { buildThreadTitlePrompt } from "@t3tools/provider-core/server/textGenerationPrompts";
 import {
-  buildBranchNamePrompt,
-  buildCommitMessagePrompt,
-  buildPrContentPrompt,
-  buildThreadTitlePrompt,
-} from "@t3tools/provider-core/server/textGenerationPrompts";
-import {
-  sanitizeCommitSubject,
-  sanitizePrTitle,
   sanitizeThreadTitle,
   toJsonSchemaObject,
 } from "@t3tools/provider-core/server/textGenerationUtils";
@@ -293,43 +284,6 @@ export const makeMuseTextGeneration = Effect.fn("makeMuseTextGeneration")(functi
       ),
     );
   });
-
-  const generateCommitMessage: ProviderTextGeneration["generateCommitMessage"] = Effect.fn(
-    "MuseTextGeneration.generateCommitMessage",
-  )(function* (input) {
-    const generated = yield* runMuseJson({
-      operation: "generateCommitMessage",
-      ...buildCommitMessagePrompt({ ...input, includeBranch: input.includeBranch === true }),
-      modelSelection: input.modelSelection,
-    });
-    return {
-      subject: sanitizeCommitSubject(generated.subject),
-      body: generated.body.trim(),
-      ...("branch" in generated && typeof generated.branch === "string"
-        ? { branch: sanitizeFeatureBranchName(generated.branch) }
-        : {}),
-    };
-  });
-  const generatePrContent: ProviderTextGeneration["generatePrContent"] = Effect.fn(
-    "MuseTextGeneration.generatePrContent",
-  )(function* (input) {
-    const generated = yield* runMuseJson({
-      operation: "generatePrContent",
-      ...buildPrContentPrompt(input),
-      modelSelection: input.modelSelection,
-    });
-    return { title: sanitizePrTitle(generated.title), body: generated.body.trim() };
-  });
-  const generateBranchName: ProviderTextGeneration["generateBranchName"] = Effect.fn(
-    "MuseTextGeneration.generateBranchName",
-  )(function* (input) {
-    const generated = yield* runMuseJson({
-      operation: "generateBranchName",
-      ...buildBranchNamePrompt(input),
-      modelSelection: input.modelSelection,
-    });
-    return { branch: sanitizeBranchFragment(generated.branch) };
-  });
   const generateThreadTitle: ProviderTextGeneration["generateThreadTitle"] = Effect.fn(
     "MuseTextGeneration.generateThreadTitle",
   )(function* (input) {
@@ -340,13 +294,7 @@ export const makeMuseTextGeneration = Effect.fn("makeMuseTextGeneration")(functi
     });
     return { title: sanitizeThreadTitle(generated.title) };
   });
-  const generateReviewGuide: ProviderTextGeneration["generateReviewGuide"] = () =>
-    Effect.fail(investigationUnsupported("generateReviewGuide", "Muse Code"));
   return {
-    generateCommitMessage,
-    generatePrContent,
-    generateBranchName,
     generateThreadTitle,
-    generateReviewGuide,
   } satisfies ProviderTextGeneration;
 });

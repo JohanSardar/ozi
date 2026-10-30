@@ -1,11 +1,3 @@
-import {
-  capitalizeTerm,
-  sourceControlClients,
-} from "@t3tools/client-runtime/source-control-clients";
-import {
-  COMPOSER_CONTEXT_REVIEW_DIFF_MAX_CHARS,
-  COMPOSER_CONTEXT_REVIEW_TEXT_MAX_CHARS,
-} from "@t3tools/contracts";
 import type {
   ComposerContextId,
   ComposerContextRecord,
@@ -18,7 +10,6 @@ import type {
   OrchestrationMessageContext,
   PreviewAnnotationContextRecord,
   PreviewAnnotationPayload,
-  ReviewCommentContextRecord,
   TerminalContextRecord,
   ThreadContextRecord,
   ThreadId,
@@ -43,69 +34,8 @@ import {
   normalizeTerminalContextText,
   type TerminalContextDraft,
 } from "./terminalContext";
-import type { ReviewCommentContext } from "~/reviewCommentContext";
 
 const PREVIEW_LABEL_MAX_CHARS = 48;
-
-// Truncate selections to wire bounds before persistence to avoid send-time encoding failures.
-const TRUNCATION_MARKER = "\n… truncated …";
-
-function clampContextText(value: string, max: number): string {
-  if (value.length <= max) return value;
-  return `${value.slice(0, Math.max(0, max - TRUNCATION_MARKER.length))}${TRUNCATION_MARKER}`;
-}
-
-type ReviewCommentPresentation = ReviewCommentContext | ReviewCommentContextRecord;
-
-function basename(filePath: string): string {
-  return filePath.split(/[\\/]/).at(-1) ?? filePath;
-}
-
-export function reviewCommentContextLabel(comment: ReviewCommentPresentation): string {
-  const pullRequestNumber = pullRequestContextNumber(comment);
-  if (isPullRequestSummaryContext(comment) && pullRequestNumber !== null) {
-    return `#${pullRequestNumber}`;
-  }
-  const diffRange = /^([+-])(\d+)(?: to \1(\d+))?$/u.exec(comment.rangeLabel);
-  const rangeLabel = diffRange
-    ? `L${diffRange[2]}${diffRange[3] ? ` to L${diffRange[3]}` : ""}${diffRange[1] === "-" ? " (before)" : ""}`
-    : comment.rangeLabel;
-  return `${basename(comment.filePath)} ${rangeLabel}`;
-}
-
-export function isPullRequestSummaryContext(comment: ReviewCommentPresentation): boolean {
-  if (comment.pullRequest !== undefined) return true;
-  return (
-    comment.sectionId.startsWith("pull-request:") &&
-    comment.diff.trim().length === 0 &&
-    /^PR #\d+$/u.test(comment.filePath)
-  );
-}
-
-function pullRequestContextNumber(comment: ReviewCommentPresentation): number | null {
-  if (comment.pullRequest !== undefined) return comment.pullRequest.number;
-  const legacyNumber = /^PR #(\d+)$/u.exec(comment.filePath)?.[1];
-  return legacyNumber === undefined ? null : Number(legacyNumber);
-}
-
-export type PullRequestContextDisplayState = "open" | "draft" | "merged" | "closed";
-
-export function pullRequestContextDisplayState(
-  comment: ReviewCommentPresentation,
-): PullRequestContextDisplayState | null {
-  const pullRequest = comment.pullRequest;
-  if (pullRequest === undefined) return null;
-  return pullRequest.state === "open" && pullRequest.isDraft ? "draft" : pullRequest.state;
-}
-
-export function pullRequestContextKindLabel(comment: ReviewCommentPresentation): string {
-  const url = comment.pullRequest?.url;
-  const host = url === undefined ? null : sourceControlClients.findByChangeRequestUrl(url);
-  const term = (host ?? sourceControlClients.get(undefined)).changeRequest.singular;
-  const state = pullRequestContextDisplayState(comment);
-  if (state === null) return capitalizeTerm(term);
-  return `${capitalizeTerm(state)} ${term}`;
-}
 
 export function previewAnnotationContextLabel(annotation: PreviewAnnotationPayload): string {
   const comment = annotation.comment.trim().replace(/\s+/g, " ");
@@ -125,22 +55,8 @@ export function terminalContextReference(context: TerminalContextDraft): Compose
   };
 }
 
-export function reviewCommentContextId(commentId: string): ComposerContextId {
-  return toKindScopedComposerContextId("review-comment", commentId);
-}
-
 export function previewAnnotationContextId(annotationId: string): ComposerContextId {
   return toKindScopedComposerContextId("preview-annotation", annotationId);
-}
-
-export function reviewCommentContextReference(
-  comment: ReviewCommentContext,
-): ComposerContextReference {
-  return {
-    kind: "review-comment",
-    contextId: reviewCommentContextId(comment.id),
-    label: reviewCommentContextLabel(comment),
-  };
 }
 
 export function previewAnnotationContextReference(
@@ -188,27 +104,6 @@ export function terminalContextRecord(context: TerminalContextDraft): TerminalCo
     lineStart: context.lineStart,
     lineEnd: context.lineEnd,
     text: normalizeTerminalContextText(context.text),
-  };
-}
-
-export function reviewCommentContextRecord(
-  comment: ReviewCommentContext,
-): ReviewCommentContextRecord {
-  return {
-    version: 1,
-    contextId: reviewCommentContextId(comment.id),
-    kind: "review-comment",
-    label: sanitizeComposerContextLabel(reviewCommentContextLabel(comment), "review-comment"),
-    sectionId: comment.sectionId,
-    sectionTitle: comment.sectionTitle,
-    filePath: comment.filePath,
-    startIndex: comment.startIndex,
-    endIndex: comment.endIndex,
-    rangeLabel: comment.rangeLabel,
-    text: clampContextText(comment.text, COMPOSER_CONTEXT_REVIEW_TEXT_MAX_CHARS),
-    diff: clampContextText(comment.diff, COMPOSER_CONTEXT_REVIEW_DIFF_MAX_CHARS),
-    ...(comment.fenceLanguage !== undefined ? { fenceLanguage: comment.fenceLanguage } : {}),
-    ...(comment.pullRequest !== undefined ? { pullRequest: comment.pullRequest } : {}),
   };
 }
 
@@ -314,7 +209,6 @@ export function attachmentContextRecord(
 
 export function buildMessageContext(input: {
   terminalContexts: ReadonlyArray<TerminalContextDraft>;
-  reviewComments: ReadonlyArray<ReviewCommentContext>;
   previewAnnotations: ReadonlyArray<PreviewAnnotationPayload>;
   threadContexts?: ReadonlyArray<ThreadContextRecord>;
   environmentContexts?: ReadonlyArray<EnvironmentContextRecord>;
@@ -327,7 +221,6 @@ export function buildMessageContext(input: {
   );
   const records: ComposerContextRecord[] = [
     ...input.terminalContexts.map(terminalContextRecord),
-    ...input.reviewComments.map(reviewCommentContextRecord),
     ...(input.threadContexts ?? []),
     ...(input.environmentContexts ?? []),
     ...input.previewAnnotations.map((annotation) =>
@@ -415,22 +308,6 @@ export function terminalContextDraftFromRecord(
     lineStart: record.lineStart,
     lineEnd: record.lineEnd,
     text: record.text,
-  };
-}
-
-export function reviewCommentFromRecord(record: ReviewCommentContextRecord): ReviewCommentContext {
-  return {
-    id: producerIdFromComposerContextId("review-comment", record.contextId),
-    sectionId: record.sectionId,
-    sectionTitle: record.sectionTitle,
-    filePath: record.filePath,
-    startIndex: record.startIndex,
-    endIndex: record.endIndex,
-    rangeLabel: record.rangeLabel,
-    text: record.text,
-    diff: record.diff,
-    ...(record.fenceLanguage !== undefined ? { fenceLanguage: record.fenceLanguage } : {}),
-    ...(record.pullRequest !== undefined ? { pullRequest: record.pullRequest } : {}),
   };
 }
 

@@ -16,7 +16,6 @@ import {
   CommandId,
   DEFAULT_PROVIDER_INTERACTION_MODE,
   MessageId,
-  repositoryGroupingKeyOf,
   ThreadId,
 } from "@t3tools/contracts";
 import { threadContextsOutsideEnvironment } from "@t3tools/shared/composerContextReferences";
@@ -39,7 +38,6 @@ import { useAtomValue } from "@effect/atom-react";
 import { appAtomRegistry } from "../../state/atom-registry";
 import { projectEnvironment } from "../../state/projects";
 import { useLinkedEnvironments } from "../../state/peerLinks";
-import { useEnvironmentQuery } from "../../state/query";
 import { useAtomCommand } from "../../state/use-atom-command";
 import {
   appendComposerDraftAttachments,
@@ -62,11 +60,8 @@ import {
   rememberModelOptions,
   withRememberedModelOptions,
 } from "../../state/use-model-option-memory";
-import { useBranches, usePaginatedBranches } from "../../state/queries";
-import { vcsEnvironment } from "../../state/vcs";
 import { type QueuedThreadMessage } from "../../state/thread-outbox";
 import {
-  setPendingConnectionError,
   useRemoteConnectionStatus,
   useSavedRemoteConnections,
 } from "../../state/use-remote-environment-registry";
@@ -76,7 +71,6 @@ import {
   squashAtomCommandFailure,
 } from "@t3tools/client-runtime/state/runtime";
 import { EnvironmentProject } from "@t3tools/client-runtime/state/shell";
-import { type VcsRef } from "@t3tools/client-runtime/state/vcs";
 import {
   buildHomeProjectScopes,
   sortHomeProjectScopes,
@@ -90,12 +84,10 @@ import {
 import { useLegacyPlanModeState } from "./use-legacy-plan-mode-enabled";
 import {
   resolveNewTaskDraftWorkspace,
-  resolveNewTaskBranchWorktreePath,
   resolveNewTaskLocalWorkspaceSelection,
 } from "./new-task-context-presentation";
 import { resolveEnvironmentProjectMatch } from "./new-task-project-selection";
 import { useNewTaskProjectDefaults } from "./use-new-task-project-defaults";
-import { resolveProjectThreadCreationBranch } from "./projectThreadCreationValidation";
 import {
   INACTIVE_FLOW_KEY,
   type NewTaskFlowState,
@@ -109,26 +101,7 @@ import {
 import { useEnvironmentShellReadiness } from "../../state/shell";
 import { useConnectionsReady, useWorkspaceEnvironments } from "../../state/workspace";
 
-type WorkspaceMode = "local" | "worktree";
-
-export function branchBadgeLabel(input: {
-  readonly branch: VcsRef;
-  readonly project: EnvironmentProject | null;
-}): string | null {
-  if (input.branch.current) {
-    return "current";
-  }
-  if (input.branch.worktreePath && input.branch.worktreePath !== input.project?.workspaceRoot) {
-    return "worktree";
-  }
-  if (input.branch.isRemote) {
-    return "remote";
-  }
-  if (input.branch.isDefault) {
-    return "default";
-  }
-  return null;
-}
+type WorkspaceMode = "local";
 
 type NewTaskFlowContextValue = {
   readonly activeNewTask: { readonly pendingKey: string | null } | null;
@@ -137,23 +110,14 @@ type NewTaskFlowContextValue = {
   readonly selectedProjectKey: string | null;
   readonly selectedModelKey: string | null;
   readonly workspaceMode: WorkspaceMode;
-  readonly isGitRepo: boolean;
-  readonly isGitRepoKnown: boolean;
   readonly canChooseWorkspace: boolean;
-  readonly selectedBranchName: string | null;
-  readonly selectedWorktreePath: string | null;
   readonly resolveWorkspaceSelection: (
     selection: ComposerDraftWorkspaceSelection | undefined,
   ) => ComposerDraftWorkspaceSelection;
-  readonly startFromOrigin: boolean;
-  readonly pullRequestReference: string | undefined;
   readonly draftKey: string | null;
   readonly prompt: string;
   readonly attachments: ReadonlyArray<DraftComposerAttachment>;
   readonly submitting: boolean;
-  readonly branchesLoading: boolean;
-  readonly availableBranches: ReadonlyArray<VcsRef>;
-  readonly currentCheckoutBranchName: string | null;
   readonly runtimeMode: RuntimeMode;
   readonly interactionMode: ProviderInteractionMode;
   readonly planModeEnabled: boolean;
@@ -188,13 +152,9 @@ type NewTaskFlowContextValue = {
     options?: ReadonlyArray<ProviderOptionSelection>,
   ) => void;
   readonly setWorkspaceMode: (mode: WorkspaceMode) => void;
-  readonly selectBranch: (branch: VcsRef) => void;
-  readonly setStartFromOrigin: (value: boolean) => void;
   readonly buildPendingTaskMessage: (
     metadata: TurnCommandMetadata,
-    options?: {
-      readonly currentCheckoutBranch?: string | null;
-    },
+    options?: {},
   ) => QueuedThreadMessage | null;
   readonly setPrompt: (value: string) => void;
   readonly replaceAttachments: (attachments: ReadonlyArray<DraftComposerAttachment>) => void;
@@ -206,7 +166,6 @@ type NewTaskFlowContextValue = {
   readonly removeAttachment: (imageId: string) => void;
   readonly clearAttachments: () => void;
   readonly setSubmitting: (value: boolean) => void;
-  readonly loadBranches: () => void;
   readonly setRuntimeMode: (value: RuntimeMode) => void;
   readonly setInteractionMode: (value: ProviderInteractionMode) => void;
   readonly setSelectedModelOptions: (
@@ -340,9 +299,6 @@ export function NewTaskFlowProvider(
       ) !== null,
   );
 
-  const selectedRepositoryKey = selectedProject?.repositoryIdentity
-    ? repositoryGroupingKeyOf(selectedProject.repositoryIdentity)
-    : null;
   // Use || null: placeholder workspaceRoot can be empty, and an empty basename rejects real hosts.
   const selectedWorkspaceBasename = selectedProject?.workspaceRoot.split("/").at(-1) || null;
   const selectedProjectTitle = selectedProject?.title ?? null;
@@ -359,14 +315,8 @@ export function NewTaskFlowProvider(
       readonly environmentLabel: string;
     }> = [];
     const hostsSelectedRepository = (project: EnvironmentProject) => {
-      if (selectedRepositoryKey === null && selectedWorkspaceBasename === null) {
+      if (selectedWorkspaceBasename === null) {
         return true;
-      }
-      const projectKey = project.repositoryIdentity
-        ? repositoryGroupingKeyOf(project.repositoryIdentity)
-        : null;
-      if (selectedRepositoryKey !== null && projectKey !== null) {
-        return projectKey === selectedRepositoryKey;
       }
       return (
         project.workspaceRoot.split("/").at(-1) === selectedWorkspaceBasename ||
@@ -425,35 +375,9 @@ export function NewTaskFlowProvider(
   const selectedProjectDraft = useComposerDraft(selectedProjectDraftKey);
   const prompt = selectedProjectDraft.text;
   const attachments = selectedProjectDraft.attachments;
-  const projectGitStatus = useEnvironmentQuery(
-    selectedProject !== null && selectedProject.workspaceRoot !== ""
-      ? vcsEnvironment.status({
-          environmentId: selectedProject.environmentId,
-          input: { cwd: selectedProject.workspaceRoot },
-        })
-      : null,
-  );
-  const currentCheckoutBranchName = projectGitStatus.data?.refName ?? null;
-  // The unfiltered ref list also provides repository capability while offline.
-  const projectBranches = useBranches({
-    environmentId: selectedProject?.environmentId ?? null,
-    cwd: selectedProject?.workspaceRoot || null,
-  });
-  const knownIsGitRepo = projectGitStatus.data?.isRepo ?? projectBranches.data?.isRepo ?? null;
-  const isGitRepo = knownIsGitRepo ?? true;
   const projectSettings = projectDefaults.projectSettings;
   const canChooseWorkspace = !isScratchDraft;
   const defaultWorkspaceMode: WorkspaceMode = projectDefaults.defaultWorkspaceMode;
-  const branchState = usePaginatedBranches({
-    environmentId: selectedProject?.environmentId ?? null,
-    cwd: selectedProject?.workspaceRoot || null,
-  });
-  const branchesLoading = branchState.isPending && branchState.data === null;
-  const allBranchRefs = branchState.refs;
-  const availableBranches = pipe(
-    allBranchRefs,
-    Arr.filter((branch) => !branch.isRemote),
-  );
 
   const resolveWorkspaceSelection = (selection: ComposerDraftWorkspaceSelection | undefined) =>
     resolveNewTaskDraftWorkspace({
@@ -461,20 +385,13 @@ export function NewTaskFlowProvider(
       canChooseWorkspace,
       defaultMode: defaultWorkspaceMode,
       defaultModeSettled: projectDefaults.defaultWorkspaceModeSettled,
-      isGitRepo,
-      branches: allBranchRefs,
       projectCwd: selectedProject?.workspaceRoot ?? null,
     });
   const workspaceSelection = resolveWorkspaceSelection(selectedProjectDraft.workspaceSelection);
   const workspaceMode = workspaceSelection.mode;
-  const selectedBranchName = workspaceSelection.branch;
-  const selectedWorktreePath = workspaceSelection.worktreePath;
   // Keep the user's explicit choice separate from the resolved display value:
   // only the explicit flag is ever written back to the draft, so the resolved
   // value keeps tracking the server setting when the config loads late.
-  const draftStartFromOrigin = selectedProjectDraft.workspaceSelection?.startFromOrigin;
-  const startFromOrigin =
-    isGitRepo && (draftStartFromOrigin ?? projectSettings.settings.newWorktreesStartFromOrigin);
   const defaultRuntimeMode = projectSettings.settings.defaultRuntimeMode;
   const runtimeMode = selectedProjectDraft.runtimeMode ?? defaultRuntimeMode;
 
@@ -698,65 +615,15 @@ export function NewTaskFlowProvider(
       return;
     }
     const localSelection = resolveNewTaskLocalWorkspaceSelection({
-      branches: availableBranches,
       projectCwd: selectedProject.workspaceRoot,
     });
     updateComposerDraftSettings(selectedProjectDraftKey, {
       workspaceSelection: {
         mode,
-        branch: mode === "local" ? localSelection.branch : selectedBranchName,
-        worktreePath: mode === "local" ? localSelection.worktreePath : selectedWorktreePath,
-        ...(draftStartFromOrigin !== undefined ? { startFromOrigin: draftStartFromOrigin } : {}),
+        workingDirectory: localSelection.workingDirectory,
         // Refs have not named the current branch yet; the selection follows it.
-        ...(mode === "local" && localSelection.awaitsCurrentBranch
-          ? { followsCurrentCheckout: true }
-          : {}),
       },
     });
-  };
-
-  const selectBranch = (branch: VcsRef) => {
-    if (!selectedProject || !selectedProjectDraftKey) {
-      return;
-    }
-    updateComposerDraftSettings(selectedProjectDraftKey, {
-      workspaceSelection: {
-        mode: workspaceMode,
-        branch: branch.name,
-        worktreePath: resolveNewTaskBranchWorktreePath({
-          workspaceMode,
-          projectCwd: selectedProject.workspaceRoot,
-          branchWorktreePath: branch.worktreePath,
-        }),
-        ...(draftStartFromOrigin !== undefined ? { startFromOrigin: draftStartFromOrigin } : {}),
-      },
-    });
-  };
-
-  const setStartFromOrigin = (value: boolean) => {
-    if (!selectedProjectDraftKey) {
-      return;
-    }
-    updateComposerDraftSettings(selectedProjectDraftKey, {
-      workspaceSelection: {
-        mode: workspaceMode,
-        branch: selectedBranchName,
-        worktreePath: selectedWorktreePath,
-        startFromOrigin: value,
-        ...(selectedBranchName === null && workspaceSelection.followsCurrentCheckout
-          ? { followsCurrentCheckout: true }
-          : {}),
-      },
-    });
-  };
-
-  const refreshBranches = branchState.refresh;
-  const loadBranches = () => {
-    if (!selectedProject) {
-      return;
-    }
-    setPendingConnectionError(null);
-    refreshBranches();
   };
 
   const setRuntimeMode = (value: RuntimeMode) => {
@@ -772,10 +639,7 @@ export function NewTaskFlowProvider(
     }
   };
 
-  const buildPendingTaskMessage = (
-    metadata: TurnCommandMetadata,
-    options?: { readonly currentCheckoutBranch?: string | null },
-  ): QueuedThreadMessage | null => {
+  const buildPendingTaskMessage = (metadata: TurnCommandMetadata): QueuedThreadMessage | null => {
     if (!selectedProject || !selectedProjectDraftKey) {
       return null;
     }
@@ -824,19 +688,7 @@ export function NewTaskFlowProvider(
         projectTitle: selectedProject.title,
         projectCwd: selectedProject.workspaceRoot,
         workspaceMode: mode,
-        ...(mode === "worktree" && workspaceSelection?.pullRequestReference
-          ? { pullRequestReference: workspaceSelection.pullRequestReference }
-          : {}),
-        // Queued local tasks use drain-time checkout; snapshot branches only for immediate sends or explicit choices.
-        branch: resolveProjectThreadCreationBranch({
-          workspaceMode: mode,
-          selectedBranch: workspaceSelection?.branch ?? null,
-          currentCheckoutBranch: options?.currentCheckoutBranch ?? null,
-        }),
-        worktreePath: mode === "worktree" ? null : (workspaceSelection?.worktreePath ?? null),
-        ...((workspaceSelection?.startFromOrigin ?? startFromOrigin)
-          ? { startFromOrigin: true }
-          : {}),
+        workingDirectory: workspaceSelection?.workingDirectory ?? null,
       },
       createdAt: metadata.createdAt,
     };
@@ -849,21 +701,12 @@ export function NewTaskFlowProvider(
     selectedProjectKey,
     selectedModelKey,
     workspaceMode,
-    isGitRepo,
-    isGitRepoKnown: knownIsGitRepo !== null,
     canChooseWorkspace,
-    selectedBranchName,
-    selectedWorktreePath,
     resolveWorkspaceSelection,
-    startFromOrigin,
     draftKey: selectedProjectDraftKey,
-    pullRequestReference: selectedProjectDraft.workspaceSelection?.pullRequestReference,
     prompt,
     attachments,
     submitting,
-    branchesLoading,
-    availableBranches,
-    currentCheckoutBranchName,
     runtimeMode,
     interactionMode,
     planModeEnabled,
@@ -886,8 +729,6 @@ export function NewTaskFlowProvider(
     switchingToEnvironmentId,
     setSelectedModelKey,
     setWorkspaceMode,
-    selectBranch,
-    setStartFromOrigin,
     buildPendingTaskMessage,
     setPrompt,
     replaceAttachments,
@@ -895,7 +736,6 @@ export function NewTaskFlowProvider(
     removeAttachment,
     clearAttachments,
     setSubmitting: (value: boolean) => updateFlow({ submitting: value }),
-    loadBranches,
     setRuntimeMode,
     setInteractionMode,
     setSelectedModelOptions,

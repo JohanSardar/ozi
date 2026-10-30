@@ -42,10 +42,6 @@ function makeTestWindow(
       }
       return minimized;
     },
-    restore: () => {
-      restored = true;
-      minimized = false;
-    },
     focus: () => {
       focused = true;
     },

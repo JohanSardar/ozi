@@ -30,7 +30,6 @@ const SHELL_SNAPSHOT: OrchestrationV2ShellSnapshot = {
       id: PROJECT_ID,
       title: "Project",
       workspaceRoot: "/repo",
-      repositoryIdentity: null,
       defaultModelSelection: null,
       scripts: [],
       createdAt: "2026-07-29T12:00:00.000Z",
@@ -49,8 +48,7 @@ const SHELL_SNAPSHOT: OrchestrationV2ShellSnapshot = {
       },
       runtimeMode: "full-access",
       interactionMode: "default",
-      branch: null,
-      worktreePath: null,
+      workingDirectory: null,
       activeProviderThreadId: null,
       lineage: {
         rootThreadId: THREAD_ID,
@@ -108,7 +106,6 @@ describe("cooperative shell cache encoding", () => {
       threads: Array.from({ length: 64 }, (_, index) => ({
         ...SHELL_SNAPSHOT.threads[0]!,
         id: ThreadId.make(`thread-${index}`),
-        branch: "  main  ",
         activityRunStartedAt: index % 2 === 0 ? NOW : null,
         unsettledAt: index % 2 === 0 ? NOW : null,
         modelSelection: {
@@ -217,7 +214,7 @@ describe("cooperative shell cache encoding", () => {
           threads: [
             { ...first!, title: "Renamed", itemCount: 9 },
             ...rest,
-            { ...first!, id: ThreadId.make("thread-new"), branch: "  feature  " },
+            { ...first!, id: ThreadId.make("thread-new") },
           ],
           archivedThreads: [
             ...stored.snapshot.archivedThreads,

@@ -6,7 +6,6 @@ import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Schema from "effect/Schema";
-import { createModelSelection } from "@t3tools/shared/model";
 import { beforeEach, vi } from "vite-plus/test";
 
 import { makeCursorTextGeneration } from "./textGeneration.ts";
@@ -76,98 +75,6 @@ beforeEach(() => {
 });
 
 describe("CursorTextGeneration", () => {
-  it.effect("resolves the browser credential for every request after an account change", () =>
-    Effect.gen(function* () {
-      let apiKey = "first-browser-key";
-      const generation = yield* makeCursorTextGeneration(
-        cursorSettings,
-        {},
-        Effect.sync(() => apiKey),
-      );
-      const input = {
-        cwd: process.cwd(),
-        branch: "feature/cursor",
-        stagedSummary: "M file.ts",
-        stagedPatch: "diff",
-        modelSelection: createModelSelection(ProviderInstanceId.make("cursor"), "auto"),
-      };
-      yield* generation.generateCommitMessage(input);
-      expect(cursorSdkMock.create).toHaveBeenLastCalledWith(
-        expect.objectContaining({ apiKey: "first-browser-key" }),
-      );
-      apiKey = "second-browser-key";
-      yield* generation.generateCommitMessage(input);
-      expect(cursorSdkMock.create).toHaveBeenLastCalledWith(
-        expect.objectContaining({ apiKey: "second-browser-key" }),
-      );
-    }).pipe(Effect.provide(layerTest)),
-  );
-
-  it.effect("continues in the temp directory when the SDK cannot sandbox", () =>
-    Effect.gen(function* () {
-      cursorSdkMock.create.mockImplementationOnce(async () => {
-        throw new Error(
-          "Local SDK sandboxing was requested, but sandboxing is not supported in this environment. Disable local.sandboxOptions.enabled or remove ~/.cursor/sandbox.json to run without sandboxing.",
-        );
-      });
-      const textGeneration = yield* makeCursorTextGeneration(cursorSettings, {
-        CURSOR_API_KEY: "test-cursor-key",
-      });
-
-      const generated = yield* textGeneration.generateCommitMessage({
-        cwd: process.cwd(),
-        branch: "feature/cursor-text-generation",
-        stagedSummary: "M apps/server/src/textGeneration/CursorTextGeneration.ts",
-        stagedPatch: "diff --git a/apps/server/src/textGeneration/CursorTextGeneration.ts",
-        modelSelection: createModelSelection(ProviderInstanceId.make("cursor"), "composer-2"),
-      });
-
-      expect(generated.subject).toBe("Add generated commit message");
-      expect(cursorSdkMock.create).toHaveBeenCalledTimes(2);
-      expect(cursorSdkMock.create.mock.calls[0]?.[0]).toMatchObject({
-        local: { sandboxOptions: { enabled: true } },
-      });
-      expect(cursorSdkMock.create.mock.calls[1]?.[0]).toMatchObject({
-        local: {
-          cwd: "/isolated-text-generation",
-          store: { dispose: cursorSdkMock.storeDispose },
-          autoReview: false,
-          sandboxOptions: { enabled: false },
-          settingSources: [],
-          enableAgentRetries: true,
-        },
-      });
-    }).pipe(Effect.provide(layerTest)),
-  );
-
-  it.effect("accepts json objects with extra assistant text around them", () =>
-    Effect.gen(function* () {
-      cursorSdkMock.prompt.mockResolvedValueOnce({
-        id: "run-cursor-text-generation-test",
-        status: "finished",
-        result:
-          'Sure, here is the JSON:\n```json\n{\n  "subject": "Update README dummy comment with attribution and date",\n  "body": ""\n}\n```\nDone.',
-      });
-      const textGeneration = yield* makeCursorTextGeneration(cursorSettings, {
-        CURSOR_API_KEY: "test-cursor-key",
-      });
-
-      const generated = yield* textGeneration.generateCommitMessage({
-        cwd: process.cwd(),
-        branch: "feature/cursor-noisy-json",
-        stagedSummary: "M README.md",
-        stagedPatch: "diff --git a/README.md b/README.md",
-        modelSelection: {
-          instanceId: ProviderInstanceId.make("cursor"),
-          model: "composer-2",
-        },
-      });
-
-      expect(generated.subject).toBe("Update README dummy comment with attribution and date");
-      expect(generated.body).toBe("");
-    }).pipe(Effect.provide(layerTest)),
-  );
-
   it.effect("generates thread titles through Cursor SDK text generation", () =>
     Effect.gen(function* () {
       cursorSdkMock.prompt.mockResolvedValueOnce({
@@ -238,28 +145,6 @@ describe("CursorTextGeneration", () => {
         }),
       );
       expect(failure.detail).toContain("custom ~/.cursor/sandbox.json");
-      expect(cursorSdkMock.prompt).not.toHaveBeenCalled();
-    }).pipe(Effect.provide(layerTest)),
-  );
-
-  it.effect("requires CURSOR_API_KEY before calling the SDK", () =>
-    Effect.gen(function* () {
-      const textGeneration = yield* makeCursorTextGeneration(cursorSettings, {});
-
-      const error = yield* Effect.flip(
-        textGeneration.generateCommitMessage({
-          cwd: process.cwd(),
-          branch: "feature/cursor-api-key",
-          stagedSummary: "M README.md",
-          stagedPatch: "diff --git a/README.md b/README.md",
-          modelSelection: {
-            instanceId: ProviderInstanceId.make("cursor"),
-            model: "composer-2",
-          },
-        }),
-      );
-
-      expect(error.detail).toBe("Sign in with Cursor or add CURSOR_API_KEY in provider settings.");
       expect(cursorSdkMock.prompt).not.toHaveBeenCalled();
     }).pipe(Effect.provide(layerTest)),
   );

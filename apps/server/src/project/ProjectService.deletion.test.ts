@@ -1,3 +1,5 @@
+import * as ProjectEnrichmentService from "./ProjectEnrichmentService.ts";
+import * as ProjectFaviconResolver from "./ProjectFaviconResolver.ts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it } from "@effect/vitest";
 import {
@@ -30,10 +32,7 @@ import { planThreadDeletion } from "../orchestration-v2/ThreadDeletion.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as WorkspacePaths from "../workspace/WorkspacePaths.ts";
-import * as ProjectEnrichmentService from "./ProjectEnrichmentService.ts";
-import * as ProjectFaviconResolver from "./ProjectFaviconResolver.ts";
 import * as ProjectService from "./ProjectService.ts";
-import * as RepositoryIdentityResolver from "./RepositoryIdentityResolver.ts";
 
 const layerEventPersistence = EventSink.layer.pipe(
   Layer.provideMerge(Layer.merge(EventStore.layer, ProjectionStore.layer)),
@@ -53,15 +52,10 @@ const layerServices = Layer.mergeAll(
   Layer.provideMerge(
     ProjectEnrichmentService.layer.pipe(
       Layer.provide(
-        Layer.merge(
-          Layer.succeed(RepositoryIdentityResolver.RepositoryIdentityResolver, {
-            resolve: () => Effect.succeed(null),
-          }),
-          Layer.succeed(ProjectFaviconResolver.ProjectFaviconResolver, {
-            invalidate: () => Effect.void,
-            resolvePath: () => Effect.succeed(null),
-          }),
-        ),
+        Layer.mock(ProjectFaviconResolver.ProjectFaviconResolver)({
+          resolvePath: () => Effect.succeed(null),
+          invalidate: () => Effect.void,
+        }),
       ),
     ),
   ),
@@ -101,8 +95,7 @@ function nativeThreadCreated(projectId: ProjectId, threadId: ThreadId) {
     modelSelection: { instanceId: providerInstanceId, model: "gpt-5" },
     runtimeMode: "full-access",
     interactionMode: "default",
-    branch: null,
-    worktreePath: null,
+    workingDirectory: null,
     activeProviderThreadId: null,
     lineage: { parentThreadId: null, relationshipToParent: null, rootThreadId: threadId },
     forkedFrom: null,
@@ -275,7 +268,7 @@ it.effect(
       yield* sql`
       INSERT INTO projection_threads (
         thread_id, project_id, title, model_selection_json,
-        runtime_mode, interaction_mode, branch, worktree_path, latest_turn_id,
+        runtime_mode, interaction_mode, branch, working_directory, latest_turn_id,
         created_at, updated_at, archived_at, deleted_at
       ) VALUES (
         ${threadId}, ${projectId}, 'Legacy thread', '{"instanceId":"codex","model":"gpt-5.4"}',
@@ -435,7 +428,7 @@ it.effect("deletes a project without force once its imported threads were delete
     yield* sql`
       INSERT INTO projection_threads (
         thread_id, project_id, title, model_selection_json,
-        runtime_mode, interaction_mode, branch, worktree_path, latest_turn_id,
+        runtime_mode, interaction_mode, branch, working_directory, latest_turn_id,
         created_at, updated_at, archived_at, deleted_at
       ) VALUES (
         ${threadId}, ${projectId}, 'Imported thread', '{"instanceId":"codex","model":"gpt-5.4"}',

@@ -173,7 +173,6 @@ const MuseProviderCapabilitiesV2 = {
     maxRecommendedHandoffChars: null,
   },
   checkpointing: {
-    appCanCheckpointFilesystem: true,
     supportsNestedCheckpointScopes: false,
     providerCanRollbackConversation: false,
     providerRollbackReturnsSnapshot: false,

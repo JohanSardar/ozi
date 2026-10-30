@@ -1,3 +1,4 @@
+import { tryOpenExternalUrl } from "../../lib/openExternalUrl";
 import { Button } from "../../components/ui/Button";
 import { QuestionAttachments } from "./QuestionAttachments";
 import type { EnvironmentId, RuntimeRequestId } from "@t3tools/contracts";
@@ -21,7 +22,6 @@ import { AppText as Text } from "../../components/ui/AppText";
 import { ControlPill } from "../../components/ui/ControlPill";
 import { cn } from "../../lib/cn";
 import { SelectableMarkdownText } from "../../native/SelectableMarkdownText";
-import { useOpenPullRequest } from "../../native/useOpenPullRequest";
 import { useMarkdownPreviewStyles } from "../files/FileMarkdownPreview";
 import { useLiveThreadLinkLabels } from "../../state/entities";
 import {
@@ -64,12 +64,11 @@ const EXPANDED_CARD_IS_OVERLAY = Platform.OS === "ios";
 function QuestionText(props: { readonly markdown: string; readonly environmentId: EnvironmentId }) {
   const styles = useMarkdownPreviewStyles();
   const markdown = useLiveThreadLinkLabels(props.markdown, props.environmentId);
-  const openLink = useOpenPullRequest();
   return (
     <SelectableMarkdownText
       markdown={markdown}
       textStyle={styles.nativeTextStyle}
-      onLinkPress={(href) => void openLink(href)}
+      onLinkPress={(href) => void tryOpenExternalUrl(href, "markdown-link")}
     />
   );
 }

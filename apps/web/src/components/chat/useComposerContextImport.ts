@@ -29,9 +29,6 @@ import {
   previewAnnotationContextId,
   previewAnnotationContextRecord,
   previewAnnotationFromRecord,
-  reviewCommentContextId,
-  reviewCommentContextRecord,
-  reviewCommentFromRecord,
   terminalContextDraftFromRecord,
   terminalContextRecord,
   terminalContextReference,
@@ -112,7 +109,6 @@ export function useComposerContextImport(input: {
   const addComposerDraftTerminalContexts = useComposerDraftStore(
     (store) => store.addTerminalContexts,
   );
-  const addComposerDraftReviewComment = useComposerDraftStore((store) => store.addReviewComment);
   const addComposerDraftPreviewAnnotation = useComposerDraftStore(
     (store) => store.addPreviewAnnotation,
   );
@@ -310,21 +306,17 @@ export function useComposerContextImport(input: {
       const existingRecord =
         existing?.kind === "terminal"
           ? terminalContextRecord(existing.record)
-          : existing?.kind === "review-comment"
-            ? reviewCommentContextRecord(existing.record)
-            : existing?.kind === "preview-annotation"
-              ? previewAnnotationContextRecord(existing.record, {
-                  screenshotContextId: composerImages.some(
-                    (image) => image.id === existing.record.id,
-                  )
-                    ? existing.record.id
-                    : undefined,
-                })
-              : existing?.kind === "thread" || existing?.kind === "environment"
-                ? existing.record
-                : existing
-                  ? (uploadedContextRecordFromDraft(existing) ?? undefined)
-                  : undefined;
+          : existing?.kind === "preview-annotation"
+            ? previewAnnotationContextRecord(existing.record, {
+                screenshotContextId: composerImages.some((image) => image.id === existing.record.id)
+                  ? existing.record.id
+                  : undefined,
+              })
+            : existing?.kind === "thread" || existing?.kind === "environment"
+              ? existing.record
+              : existing
+                ? (uploadedContextRecordFromDraft(existing) ?? undefined)
+                : undefined;
       if (
         existingRecord &&
         isSameComposerContextPayload(existingRecord, record) &&
@@ -346,15 +338,6 @@ export function useComposerContextImport(input: {
             appendReference: false,
           });
           rewritten.set(record.contextId, terminalContextReference(draft).contextId);
-          break;
-        }
-        case "review-comment": {
-          const imported = reviewCommentFromRecord(record);
-          const comment = conflicts ? { ...imported, id: randomUUID() } : imported;
-          addComposerDraftReviewComment(composerDraftTarget, comment, {
-            appendReference: false,
-          });
-          rewritten.set(record.contextId, reviewCommentContextId(comment.id));
           break;
         }
         case "element":

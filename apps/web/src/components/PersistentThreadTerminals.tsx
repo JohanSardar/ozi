@@ -1,3 +1,4 @@
+import { resolveTerminalWorkingDirectory } from "./ChatView.logic";
 import {
   AuthTerminalOperateScope,
   type EnvironmentId,
@@ -25,12 +26,11 @@ import { useKnownTerminalSessions } from "../state/terminalSessions";
 import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../terminalUiStateStore";
 import { useThreadTerminalActions } from "./terminal/useThreadTerminalActions";
 import ThreadTerminalDrawer from "./ThreadTerminalDrawer";
-import { resolveTerminalWorktreePath } from "./ChatView.logic";
 
 /** Where a drawer or panel opens new terminals when a script run overrides the thread's own. */
 export type PersistentTerminalLaunchContext = {
   readonly cwd: string;
-  readonly worktreePath: string | null;
+  readonly workingDirectory: string | null;
 };
 
 function terminalIdListsEqual(left: readonly string[], right: readonly string[]): boolean {
@@ -69,7 +69,7 @@ function serverTerminalIdsStrictSubsetOfClient(
 
 interface TerminalLaunchLocationWithEnv {
   readonly cwd: string;
-  readonly worktreePath: string | null;
+  readonly workingDirectory: string | null;
   readonly runtimeEnv: Record<string, string>;
 }
 
@@ -138,14 +138,14 @@ export const PersistentThreadTerminalDrawer = memo(function PersistentThreadTerm
   for (const session of drawerTerminalSessions) {
     const summary = session.state.summary;
     if (!project || !summary) continue;
-    const worktreePathForLaunch =
-      launchContext !== null ? launchContext.worktreePath : summary.worktreePath;
+    const workingDirectoryForLaunch =
+      launchContext !== null ? launchContext.workingDirectory : summary.workingDirectory;
     terminalLaunchLocationsById.set(session.target.terminalId, {
       cwd: launchContext?.cwd ?? summary.cwd,
-      worktreePath: worktreePathForLaunch,
+      workingDirectory: workingDirectoryForLaunch,
       runtimeEnv: projectScriptRuntimeEnv({
         project: { cwd: project.workspaceRoot },
-        worktreePath: worktreePathForLaunch,
+        workingDirectory: workingDirectoryForLaunch,
       }),
     });
   }
@@ -174,20 +174,19 @@ export const PersistentThreadTerminalDrawer = memo(function PersistentThreadTerm
     }
     reconcileTerminalIds(threadRef, serverOrderedTerminalIds);
   }, [reconcileTerminalIds, serverOrderedTerminalIds, terminalUiState.terminalIds, threadRef]);
-  const worktreePath = serverThread?.worktreePath ?? draftThread?.worktreePath ?? null;
-  const effectiveWorktreePath = launchContext !== null ? launchContext.worktreePath : worktreePath;
+  const workingDirectory = serverThread?.workingDirectory ?? draftThread?.workingDirectory ?? null;
   const cwd =
     launchContext?.cwd ??
     (project
       ? projectScriptCwd({
           project: { cwd: project.workspaceRoot },
-          worktreePath: effectiveWorktreePath,
+          workingDirectory: workingDirectory,
         })
       : null);
   const runtimeEnv = project
     ? projectScriptRuntimeEnv({
         project: { cwd: project.workspaceRoot },
-        worktreePath: effectiveWorktreePath,
+        workingDirectory: workingDirectory,
       })
     : {};
 
@@ -199,7 +198,7 @@ export const PersistentThreadTerminalDrawer = memo(function PersistentThreadTerm
     if (!cwd) return;
     const launched = terminalActions.launchTerminal({
       place,
-      location: { cwd, worktreePath: effectiveWorktreePath },
+      location: { cwd, workingDirectory: workingDirectory },
     });
     if (!launched) return;
     if (visible) focusTerminal(threadRef, launched.terminalId);
@@ -253,7 +252,7 @@ export const PersistentThreadTerminalDrawer = memo(function PersistentThreadTerm
           threadRef={threadRef}
           threadId={threadId}
           cwd={cwd}
-          worktreePath={effectiveWorktreePath}
+          workingDirectory={workingDirectory}
           runtimeEnv={runtimeEnv}
           visible={visible}
           height={terminalUiState.terminalHeight}
@@ -330,21 +329,21 @@ export const PersistentThreadTerminalPanel = memo(function PersistentThreadTermi
     environmentId: threadRef.environmentId,
     threadId: threadRef.threadId,
   });
-  const threadWorktreePath = serverThread?.worktreePath ?? draftThread?.worktreePath ?? null;
   const activeSummary =
     knownTerminalSessions?.find((session) => session.target.terminalId === surface.activeTerminalId)
       ?.state.summary ?? null;
-  const worktreePath = resolveTerminalWorktreePath({
+  const workingDirectory = resolveTerminalWorkingDirectory({
     launchContext,
     summary: activeSummary,
-    threadWorktreePath,
   });
   const cwd =
     launchContext?.cwd ??
     activeSummary?.cwd ??
-    (project ? projectScriptCwd({ project: { cwd: project.workspaceRoot }, worktreePath }) : null);
+    (project
+      ? projectScriptCwd({ project: { cwd: project.workspaceRoot }, workingDirectory })
+      : null);
   const runtimeEnv = project
-    ? projectScriptRuntimeEnv({ project: { cwd: project.workspaceRoot }, worktreePath })
+    ? projectScriptRuntimeEnv({ project: { cwd: project.workspaceRoot }, workingDirectory })
     : {};
   const terminalLabelsById = new Map<string, string>();
   const terminalLaunchLocationsById = new Map<string, TerminalLaunchLocationWithEnv>();
@@ -354,23 +353,18 @@ export const PersistentThreadTerminalPanel = memo(function PersistentThreadTermi
         .summary ?? null;
     terminalLabelsById.set(terminalId, resolveTerminalSessionLabel(terminalId, summary));
     if (!project) continue;
-    const terminalWorktreePath = resolveTerminalWorktreePath({
-      launchContext,
-      summary,
-      threadWorktreePath,
-    });
     terminalLaunchLocationsById.set(terminalId, {
       cwd:
         launchContext?.cwd ??
         summary?.cwd ??
         projectScriptCwd({
           project: { cwd: project.workspaceRoot },
-          worktreePath: terminalWorktreePath,
+          workingDirectory: workingDirectory,
         }),
-      worktreePath: terminalWorktreePath,
+      workingDirectory: workingDirectory,
       runtimeEnv: projectScriptRuntimeEnv({
         project: { cwd: project.workspaceRoot },
-        worktreePath: terminalWorktreePath,
+        workingDirectory: workingDirectory,
       }),
     });
   }
@@ -384,7 +378,7 @@ export const PersistentThreadTerminalPanel = memo(function PersistentThreadTermi
       threadRef={threadRef}
       threadId={threadRef.threadId}
       cwd={cwd}
-      worktreePath={worktreePath}
+      workingDirectory={workingDirectory}
       runtimeEnv={runtimeEnv}
       height={0}
       terminalIds={surface.terminalIds}

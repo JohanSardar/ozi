@@ -8,12 +8,12 @@ describe("thread dismissal", () => {
     const sidebar = Promise.withResolvers<void>();
     const restore = vi.fn();
     const unregisterHome = registerThreadDismissal("env:thread", () => ({
-      finished: home.promise,
       restore,
+      finished: home.promise,
     }));
     const unregisterSidebar = registerThreadDismissal("env:thread", () => ({
-      finished: sidebar.promise,
       restore,
+      finished: sidebar.promise,
     }));
     const command = vi.fn(async () => true);
     try {
@@ -37,8 +37,8 @@ describe("thread dismissal", () => {
     async (outcome) => {
       const restore = vi.fn();
       const unregister = registerThreadDismissal("env:thread", () => ({
-        finished: Promise.resolve(),
         restore,
+        finished: Promise.resolve(),
       }));
       try {
         const result = withThreadDismissal(

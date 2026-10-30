@@ -21,7 +21,6 @@ import {
   CircleDashedIcon,
   CircleXIcon,
   FolderIcon,
-  GitBranchIcon,
   TerminalIcon,
 } from "lucide-react";
 import { ThreadHoverCard } from "../ThreadHoverCard";
@@ -40,10 +39,8 @@ export function SubagentTooltipContent(props: {
   providers?: ReadonlyArray<ServerProvider> | undefined;
   driver?: ProviderDriverKind | undefined;
   elapsed?: ReactNode;
-  parentThread?: Pick<OrchestrationV2ThreadShell, "projectId" | "worktreePath"> | undefined;
-  childThread?:
-    | Pick<OrchestrationV2ThreadShell, "branch" | "worktreePath" | "modelSelection">
-    | undefined;
+  parentThread?: Pick<OrchestrationV2ThreadShell, "projectId" | "workingDirectory"> | undefined;
+  childThread?: Pick<OrchestrationV2ThreadShell, "workingDirectory" | "modelSelection"> | undefined;
   parentProject?: Pick<OrchestrationProjectShell, "workspaceRoot"> | undefined;
   childProject?: Pick<OrchestrationProjectShell, "id" | "title" | "workspaceRoot"> | undefined;
   status: OrchestrationV2TurnItemStatus;
@@ -169,7 +166,7 @@ export function SubagentTooltipContent(props: {
         {props.elapsed}
       </div>
       {metadata.map(({ label, value }) => {
-        const Icon = label === "Branch" ? GitBranchIcon : FolderIcon;
+        const Icon = label === "Branch" ? FolderIcon : FolderIcon;
         return (
           <div key={label} className="flex min-w-0 items-center gap-2">
             <Icon aria-hidden className="size-3 shrink-0" />

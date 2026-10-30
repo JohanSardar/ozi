@@ -67,10 +67,7 @@ import IconFolder from "@tabler/icons-react-native/IconFolder";
 import IconFolderOpen from "@tabler/icons-react-native/IconFolderOpen";
 import IconHeadphones from "@tabler/icons-react-native/IconHeadphones";
 import IconFolderPlus from "@tabler/icons-react-native/IconFolderPlus";
-import IconGitPullRequestClosed from "@tabler/icons-react-native/IconGitPullRequestClosed";
-import IconGitPullRequestDraft from "@tabler/icons-react-native/IconGitPullRequestDraft";
 import IconGitCommit from "@tabler/icons-react-native/IconGitCommit";
-import IconGitBranch from "@tabler/icons-react-native/IconGitBranch";
 import IconGitMerge from "@tabler/icons-react-native/IconGitMerge";
 import IconGitPullRequest from "@tabler/icons-react-native/IconGitPullRequest";
 import IconHammer from "@tabler/icons-react-native/IconHammer";
@@ -139,10 +136,7 @@ import { withUniwind } from "uniwind";
 
 const ANDROID_ICON_BY_SF_SYMBOL = {
   plusminus: IconPlusMinus,
-  "git.pull-request.closed": IconGitPullRequestClosed,
-  "git.pull-request.draft": IconGitPullRequestDraft,
   "git.commit": IconGitCommit,
-  "arrow.branch": IconGitBranch,
   "arrow.left": IconArrowLeft,
   "arrow.right": IconArrowRight,
   "arrow.left.arrow.right": IconArrowsLeftRight,
@@ -150,7 +144,6 @@ const ANDROID_ICON_BY_SF_SYMBOL = {
   "arrow.down": IconArrowDown,
   "arrow.down.circle": IconArrowDownCircle,
   "arrow.right.circle": IconArrowRightCircle,
-  "arrow.triangle.branch": IconGitBranch,
   "arrow.triangle.merge": IconGitMerge,
   "arrow.triangle.pull": IconGitPullRequest,
   "square.3.layers.3d": IconStack2,
@@ -283,18 +276,9 @@ const ANDROID_ICON_BY_SF_SYMBOL = {
   "wifi.slash": IconWifiOff,
   xmark: IconX,
   "xmark.circle.fill": IconCircleXFilled,
-} satisfies Partial<
-  Record<
-    SFSymbol | "git.pull-request.closed" | "git.pull-request.draft" | "git.commit" | "file.diff",
-    Icon
-  >
->;
-const SF_ICON_LOOKUP: Partial<
-  Record<
-    SFSymbol | "git.pull-request.closed" | "git.pull-request.draft" | "git.commit" | "file.diff",
-    Icon
-  >
-> = ANDROID_ICON_BY_SF_SYMBOL;
+} satisfies Partial<Record<SFSymbol | "git.commit" | "file.diff", Icon>>;
+const SF_ICON_LOOKUP: Partial<Record<SFSymbol | "git.commit" | "file.diff", Icon>> =
+  ANDROID_ICON_BY_SF_SYMBOL;
 
 const ANDROID_ICON_BY_MATERIAL_NAME = {
   auto_awesome: IconSparkles,

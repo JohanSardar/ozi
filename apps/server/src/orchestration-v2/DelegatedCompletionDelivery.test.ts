@@ -1,4 +1,3 @@
-import * as SourceControlProviderRegistry from "../sourceControl/SourceControlProviderRegistry.ts";
 import * as McpProviderSessions from "@t3tools/provider-core/server/McpProviderSessions";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { assert, it, vi } from "@effect/vitest";
@@ -25,8 +24,6 @@ import * as Deferred from "effect/Deferred";
 import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Stream from "effect/Stream";
-
-import * as CheckpointStore from "../checkpointing/CheckpointStore.ts";
 import * as ServerConfig from "../config.ts";
 import * as McpSessionRegistryTestkit from "../mcp/McpSessionRegistry.testkit.ts";
 import * as SqlitePersistence from "../persistence/Sqlite.ts";
@@ -35,8 +32,6 @@ import * as ProjectService from "../project/ProjectService.ts";
 import type { ProviderInstance } from "@t3tools/provider-core/server/driver";
 import * as ProviderInstanceRegistry from "../provider/ProviderInstanceRegistry.ts";
 import * as ServerSettings from "../serverSettings.ts";
-import * as VcsDriverRegistry from "../vcs/VcsDriverRegistry.ts";
-import * as VcsProcess from "../vcs/VcsProcess.ts";
 import * as WorkspacePaths from "../workspace/WorkspacePaths.ts";
 import { CodexProviderCapabilitiesV2 } from "./Adapters/CodexAdapterV2.ts";
 import * as EventSink from "./EventSink.ts";
@@ -48,12 +43,7 @@ import * as ProviderTurnStartServiceTestkit from "./ProviderTurnStartService.tes
 import type * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAdapter";
 import * as ProviderContinuationRequests from "@t3tools/provider-core/server/ProviderContinuationRequests";
 
-const layerPlatformTest = Layer.merge(
-  NodeServices.layer,
-  Layer.mock(SourceControlProviderRegistry.SourceControlProviderRegistry)({
-    resolveLink: () => Effect.die("unused title link"),
-  }),
-);
+const layerPlatformTest = NodeServices.layer;
 
 const layerServerConfig = ServerConfig.layerTest(process.cwd(), {
   prefix: "t3-orchestration-v2-delegated-completion-",
@@ -63,16 +53,6 @@ const modelSelection = {
   instanceId: ProviderInstanceId.make("codex"),
   model: "gpt-5.4",
 } satisfies ModelSelection;
-
-const layerVcsDriverRegistryTest = VcsDriverRegistry.layer.pipe(
-  Layer.provide(VcsProcess.layer),
-  Layer.provide(layerServerConfig),
-  Layer.provide(layerPlatformTest),
-);
-
-const layerCheckpointStoreTest = CheckpointStore.layer.pipe(
-  Layer.provide(layerVcsDriverRegistryTest),
-);
 
 const driver = ProviderDriverKind.make("codex");
 const orchestrationAdapter = {
@@ -124,17 +104,12 @@ const layerTest = Layer.mergeAll(
     Layer.succeed(ProjectEnrichmentService.ProjectEnrichmentService, {
       peek: () =>
         Effect.succeed({
-          repositoryIdentity: null,
           faviconPath: null,
-          repositoryIdentityResolved: false,
         }),
       request: () => Effect.void,
-      readRepositoryIdentity: () => Effect.succeed(null),
       getAvailable: () =>
         Effect.succeed({
-          repositoryIdentity: null,
           faviconPath: null,
-          repositoryIdentityResolved: false,
         }),
       invalidate: () => Effect.void,
       subscribeChanges: Effect.never,
@@ -143,7 +118,6 @@ const layerTest = Layer.mergeAll(
   Layer.provide(McpSessionRegistryTestkit.layer),
   Layer.provide(McpProviderSessions.layer),
   Layer.provide(SqlitePersistence.layerMemory),
-  Layer.provide(layerCheckpointStoreTest),
   Layer.provide(layerServerConfig),
   Layer.provide(ServerSettings.layerTest()),
   Layer.provide(layerTestProviderInstanceRegistry),
@@ -187,8 +161,7 @@ const seedParentWithTerminalTask = (input: {
       modelSelection,
       runtimeMode: "full-access",
       interactionMode: "default",
-      branch: null,
-      worktreePath: null,
+      workingDirectory: null,
     });
 
     yield* eventSink.write({
@@ -1201,8 +1174,7 @@ const seedRestartCancelledChild = (input: {
             modelSelection,
             runtimeMode: "full-access",
             interactionMode: "default",
-            branch: null,
-            worktreePath: null,
+            workingDirectory: null,
             activeProviderThreadId: null,
             lineage: {
               parentThreadId: input.parentThreadId,
@@ -2958,8 +2930,7 @@ it.layer(layerTest)("delegated tasks across a server restart", (it) => {
                     modelSelection,
                     runtimeMode: "full-access",
                     interactionMode: "default",
-                    branch: null,
-                    worktreePath: null,
+                    workingDirectory: null,
                     activeProviderThreadId: null,
                     lineage: {
                       parentThreadId: threadId,

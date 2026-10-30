@@ -53,7 +53,7 @@ const SCRIPT_TERMINAL_ROWS = 30;
 export interface TerminalLaunchContext {
   threadId: ThreadId;
   cwd: string;
-  worktreePath: string | null;
+  workingDirectory: string | null;
 }
 
 interface ChatTerminalActionsInput {
@@ -70,7 +70,6 @@ interface ChatTerminalActionsInput {
   readonly activeTerminalLabelsById: ReadonlyMap<string, string>;
   readonly panelTerminalIds: ReadonlySet<string>;
   readonly canReuseTerminal: boolean;
-  readonly gitCwd: string | null;
   readonly setTerminalUiLaunchContext: Dispatch<SetStateAction<TerminalLaunchContext | null>>;
   readonly setThreadError: ReturnType<typeof makeThreadErrorSetter>;
 }
@@ -94,7 +93,6 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
     activeTerminalLabelsById,
     panelTerminalIds,
     canReuseTerminal,
-    gitCwd,
     setTerminalUiLaunchContext,
     setThreadError,
   } = input;
@@ -199,7 +197,7 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
     options?: {
       cwd?: string;
       env?: Record<string, string>;
-      worktreePath?: string | null;
+      workingDirectory?: string | null;
       preferNewTerminal?: boolean;
       rememberAsLastInvoked?: boolean;
       shellHistory?: "preserve" | "suppress";
@@ -212,7 +210,8 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
         return { ...current, [activeProject.id]: script.id };
       });
     }
-    const targetCwd = options?.cwd ?? gitCwd ?? activeProject.workspaceRoot;
+    const targetCwd = options?.cwd ?? activeThread.workingDirectory ?? activeProject.workspaceRoot;
+    const targetWorkingDirectory = activeThread.workingDirectory;
     const reusableTerminalId =
       options?.preferNewTerminal ||
       !canReuseTerminal ||
@@ -228,12 +227,11 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
             panelTerminalIds,
             runningTerminalIds,
           });
-    const targetWorktreePath = options?.worktreePath ?? activeThread.worktreePath ?? null;
 
     setTerminalUiLaunchContext({
       threadId: activeThreadId,
       cwd: targetCwd,
-      worktreePath: targetWorktreePath,
+      workingDirectory: targetWorkingDirectory,
     });
     if (!activeThreadRef) {
       return;
@@ -249,7 +247,7 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
       ...(reusableTerminalId === null
         ? { size: { cols: SCRIPT_TERMINAL_COLS, rows: SCRIPT_TERMINAL_ROWS } }
         : { terminalId: reusableTerminalId }),
-      location: { cwd: targetCwd, worktreePath: targetWorktreePath },
+      location: { cwd: targetCwd, workingDirectory: targetWorkingDirectory },
       ...(options?.env ? { extraEnv: options.env } : {}),
     });
     if (!launched) return;
@@ -311,7 +309,6 @@ export function useChatTerminalActions(input: ChatTerminalActionsInput) {
         name: "Chat code block",
         command,
         icon: "play",
-        runOnWorktreeCreate: false,
       },
       { rememberAsLastInvoked: false, shellHistory: "preserve" },
     );

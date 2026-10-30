@@ -3,31 +3,6 @@ import { describe, expect, it } from "vite-plus/test";
 import { rankModelPickerSearch, scoreModelPickerSearch } from "./modelPickerSearch";
 
 describe("scoreModelPickerSearch", () => {
-  it("ranks exact token matches ahead of fuzzier matches", () => {
-    const exactScore = scoreModelPickerSearch(
-      {
-        driverKind: "opencode",
-        providerDisplayName: "opencode",
-        name: "Claude Opus 4.7",
-        subProvider: "GitHub Copilot",
-      },
-      "copilot opus",
-    );
-    const fuzzyScore = scoreModelPickerSearch(
-      {
-        driverKind: "opencode",
-        providerDisplayName: "opencode",
-        name: "Claude Opus 4.7",
-        subProvider: "GitHub Copilot",
-      },
-      "coplt op",
-    );
-
-    expect(exactScore).not.toBeNull();
-    expect(fuzzyScore).not.toBeNull();
-    expect(exactScore!).toBeLessThan(fuzzyScore!);
-  });
-
   it("does not let the favorite boost outrank clearly better textual matches", () => {
     const favoriteScore = scoreModelPickerSearch(
       {

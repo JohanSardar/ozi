@@ -132,7 +132,7 @@ export const layer: Layer.Layer<
                           interactionMode: projection.thread.interactionMode,
                           workspace:
                             currentSession?.cwd ??
-                            projection.thread.worktreePath ??
+                            projection.thread.workingDirectory ??
                             "<unresolved-workspace>",
                         },
                   target: {
@@ -145,7 +145,7 @@ export const layer: Layer.Layer<
                     runtimeMode: projection.thread.runtimeMode,
                     interactionMode: projection.thread.interactionMode,
                     workspace:
-                      projection.thread.worktreePath ??
+                      projection.thread.workingDirectory ??
                       currentSession?.cwd ??
                       "<unresolved-workspace>",
                     available: targetInstance.value.enabled,

@@ -309,8 +309,7 @@ it.live("retries a failed selection restart session open before completing", () 
           modelSelection: initialSelection,
           runtimeMode: "full-access",
           interactionMode: "default",
-          branch: null,
-          worktreePath: cwd,
+          workingDirectory: cwd,
         });
         const running = yield* eventSink
           .stream({
@@ -499,8 +498,7 @@ it.live(
             modelSelection: seedSelection,
             runtimeMode: "full-access",
             interactionMode: "default",
-            branch: null,
-            worktreePath: cwd,
+            workingDirectory: cwd,
           });
           const first = yield* dispatch("first", seedSelection);
           const liveSession = first.providerSessions.find(
@@ -676,8 +674,7 @@ it.live.each(["active", "idle", "selection-command", "pooled", "separate-home"] 
             modelSelection: selection,
             runtimeMode: "full-access",
             interactionMode: "default",
-            branch: null,
-            worktreePath: cwd,
+            workingDirectory: cwd,
             createdBy: "user",
             creationSource: "web",
           });

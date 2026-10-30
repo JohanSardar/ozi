@@ -207,10 +207,10 @@ const KEYBINDING_GROUPS = [
     title: "Navigation",
     prefixes: ["sidebar", "rightPanel", "commandPalette", "filePicker", "projectSearch", "editor"],
   },
-  { id: "threads", title: "Threads", prefixes: ["thread", "chat", "pullRequest"] },
+  { id: "threads", title: "Threads", prefixes: ["thread", "chat"] },
   { id: "composer", title: "Composer", prefixes: ["composer", "modelPicker"] },
   { id: "terminal", title: "Terminal", prefixes: ["terminal"] },
-  { id: "preview", title: "Preview & diff", prefixes: ["preview", "diff"] },
+  { id: "preview", title: "Preview & diff", prefixes: ["preview"] },
   { id: "appearance", title: "Appearance", prefixes: ["theme", "appearance", "themeEditor"] },
   { id: "scripts", title: "Project scripts", prefixes: ["script"] },
 ] as const;

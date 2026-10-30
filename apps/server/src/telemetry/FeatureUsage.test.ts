@@ -1,8 +1,4 @@
-import {
-  ORCHESTRATION_V2_WS_METHODS,
-  OrchestrationV2Command,
-  WS_METHODS,
-} from "@t3tools/contracts";
+import { OrchestrationV2Command, WS_METHODS } from "@t3tools/contracts";
 import { expect, it } from "@effect/vitest";
 import * as Schema from "effect/Schema";
 
@@ -32,31 +28,6 @@ it("ignores messages, housekeeping commands, and untracked RPCs", () => {
     ),
   ).toBe(undefined);
   expect(featureUsage(WS_METHODS.terminalWrite, { data: "rm -rf" })).toBe(undefined);
-});
-
-it("leaves thread launches to client.thread.started", () => {
-  expect(
-    featureUsage(ORCHESTRATION_V2_WS_METHODS.launchThread, {
-      title: "Private title",
-      workspaceStrategy: { type: "worktree", baseRef: "main", branch: "secret-branch" },
-    }),
-  ).toBe(undefined);
-});
-
-it("tells watching a pull request apart from unwatching it", () => {
-  const watch = (watching: boolean) =>
-    commandFeatureUsage(
-      command({
-        ...ids,
-        type: "thread.pull-request.watch",
-        host: "github.com",
-        repository: "owner/private",
-        number: 7,
-        watching,
-      }),
-    );
-  expect(watch(true)).toEqual({ feature: "thread.pull_request.watch", variant: "on" });
-  expect(watch(false)).toEqual({ feature: "thread.pull_request.watch", variant: "off" });
 });
 
 it("reads RPC variants from enums, never from paths or text", () => {

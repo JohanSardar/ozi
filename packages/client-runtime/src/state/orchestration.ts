@@ -1,8 +1,4 @@
-import {
-  ORCHESTRATION_V2_WS_METHODS,
-  type ThreadId,
-  type OrchestrationGetTurnDiffResult,
-} from "@t3tools/contracts";
+import { ORCHESTRATION_V2_WS_METHODS, type ThreadId } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 import * as Option from "effect/Option";
 import * as Stream from "effect/Stream";
@@ -17,7 +13,6 @@ import {
   createEnvironmentRpcQueryAtomFamily,
   createEnvironmentRpcSubscriptionAtomFamily,
   createEnvironmentCommand,
-  type QueryAnswerHandler,
 } from "./runtime.ts";
 import type { EnvironmentRegistry } from "../connection/registry.ts";
 import * as EnvironmentSupervisor from "../connection/supervisor.ts";
@@ -28,18 +23,7 @@ import { fetchEnvironmentThreadTranscript } from "./threadTranscriptHttp.ts";
 
 export function createOrchestrationEnvironmentAtoms<R, E>(
   runtime: Atom.AtomRuntime<EnvironmentRegistry | HttpClient.HttpClient | R, E>,
-  options: {
-    /** Runs on each turn-range and full-thread diff the server answers. */
-    readonly onCheckpointDiffAnswer?: QueryAnswerHandler<
-      { readonly ignoreWhitespace?: boolean },
-      OrchestrationGetTurnDiffResult
-    >;
-  } = {},
 ) {
-  const onCheckpointDiffAnswer =
-    options.onCheckpointDiffAnswer === undefined
-      ? {}
-      : { onAnswer: options.onCheckpointDiffAnswer };
   return {
     threadTranscript: createEnvironmentCommand(runtime, {
       label: "environment-data:orchestration:thread-transcript",
@@ -92,11 +76,6 @@ export function createOrchestrationEnvironmentAtoms<R, E>(
           ),
       }),
     },
-    turnDiff: createEnvironmentRpcQueryAtomFamily(runtime, {
-      label: "environment-data:orchestration:turn-diff",
-      tag: ORCHESTRATION_V2_WS_METHODS.getTurnDiff,
-      ...onCheckpointDiffAnswer,
-    }),
     workflowScript: createEnvironmentRpcQueryAtomFamily(runtime, {
       label: "environment-data:orchestration:workflow-script",
       tag: ORCHESTRATION_V2_WS_METHODS.getWorkflowScript,
@@ -112,11 +91,6 @@ export function createOrchestrationEnvironmentAtoms<R, E>(
       tag: ORCHESTRATION_V2_WS_METHODS.getTurnItem,
       staleTimeMs: 60_000,
       idleTtlMs: 60_000,
-    }),
-    fullThreadDiff: createEnvironmentRpcQueryAtomFamily(runtime, {
-      label: "environment-data:orchestration:full-thread-diff",
-      tag: ORCHESTRATION_V2_WS_METHODS.getFullThreadDiff,
-      ...onCheckpointDiffAnswer,
     }),
     threadFind: createEnvironmentRpcQueryAtomFamily(runtime, {
       label: "environment-data:orchestration:thread-find",
@@ -139,13 +113,6 @@ export function createOrchestrationEnvironmentAtoms<R, E>(
     archivedShellSnapshot: createEnvironmentRpcQueryAtomFamily(runtime, {
       label: "environment-data:orchestration:archived-shell-snapshot",
       tag: ORCHESTRATION_V2_WS_METHODS.getArchivedShellSnapshot,
-    }),
-    // Read right before deleting a worktree, so never served from cache.
-    worktreeThreadIds: createEnvironmentRpcQueryAtomFamily(runtime, {
-      label: "environment-data:orchestration:worktree-thread-ids",
-      tag: ORCHESTRATION_V2_WS_METHODS.getWorktreeThreadIds,
-      staleTimeMs: 0,
-      idleTtlMs: 0,
     }),
   };
 }

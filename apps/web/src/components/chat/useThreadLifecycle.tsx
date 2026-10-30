@@ -3,20 +3,12 @@ import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/shell
 import type { Dispatch } from "react";
 import type { ComposerThreadTarget } from "../../composerDraftStore";
 import type { ComposerHandleRef } from "../../composerHandleContext";
-import {
-  isThreadWokeUnseen,
-  branchMismatchKey,
-  isBranchMismatchDismissedForSession,
-  shouldShowBranchMismatchBanner,
-  chatActionErrorMessage,
-  makeThreadErrorSetter,
-} from "../ChatView.logic";
+import { isThreadWokeUnseen, makeThreadErrorSetter } from "../ChatView.logic";
 import { useStableCallback } from "../../hooks/useStableCallback";
 import { useNowAfter } from "../../hooks/useDeadline";
 import type { usePendingThreadRequests } from "./usePendingThreadRequests";
 import {
   AuthOrchestrationOperateScope,
-  AuthSourceControlWriteScope,
   type EnvironmentId,
   type ScopedThreadRef,
   type ThreadId,
@@ -46,17 +38,13 @@ import { AlarmClockIcon, CheckCircle2Icon } from "lucide-react";
 import { stackedThreadToast, toastManager } from "../ui/toast";
 import { newMessageId } from "~/lib/utils";
 import { buildThreadRouteParams } from "../../threadRoutes";
-import { composerDraftHasUserContent, useComposerDraftStore } from "../../composerDraftStore";
-import { useEnvironmentScope } from "~/state/session";
 import { threadEnvironment } from "../../state/threads";
-import { vcsEnvironment } from "../../state/vcs";
 import { useChildThreadInputs, readThreadShell, waitForThreadShell } from "../../state/entities";
 import { environmentShell } from "../../state/shell";
 import { ThreadStatusLine } from "./ThreadStatusLine";
 import { formatRelativeTimeLabel } from "../../timestampFormat";
 import { appAtomRegistry } from "../../rpc/atomRegistry";
 import { readEnvironmentScope } from "../../state/session";
-import { useAtomCommand } from "../../state/use-atom-command";
 import { useOrchestrationCommand } from "../../state/use-orchestration-command";
 import { backgroundWorkNowItem, childInputNowItem, goalNowItem } from "./ThreadActivityBanners";
 import type { useLocalDispatchState } from "./useLocalDispatchState";
@@ -85,11 +73,6 @@ interface ThreadLifecycleInput {
   readonly turnItems: Parameters<typeof backgroundWorkNowItem>[0]["turnItems"];
   readonly activePendingApproval: PendingThreadRequests["activePendingApproval"];
   readonly activePendingUserInput: PendingThreadRequests["activePendingUserInput"];
-  readonly localCheckoutBranchMismatch: {
-    readonly threadBranch: string;
-    readonly currentBranch: string;
-  } | null;
-  readonly gitStatusQuery: { readonly refresh: () => void };
   readonly nowMinute: string;
   readonly composerRef: ComposerHandleRef;
   readonly composerDraftTarget: ComposerThreadTarget;
@@ -104,7 +87,6 @@ interface ThreadLifecycleInput {
   readonly persistThreadSettingsForNextTurn: (input: {
     threadId: ThreadId;
     createdAt: string;
-    branch?: string;
     runtimeMode: RuntimeMode;
     interactionMode: ProviderInteractionMode;
   }) => Promise<AtomCommandResult<void, unknown>>;
@@ -128,7 +110,6 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     activeThreadKey,
     activeThreadShell,
     activeLatestRun,
-    activeProjectCwd,
     serverConfig,
     runtimeMode,
     isWorking,
@@ -136,26 +117,20 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     turnItems,
     activePendingApproval,
     activePendingUserInput,
-    localCheckoutBranchMismatch,
-    gitStatusQuery,
     nowMinute,
     composerRef,
-    composerDraftTarget,
     sendInFlightRef,
     setOptimisticUserMessages,
     setThreadError,
     clearUsageLimitsFor,
     beginLocalDispatch,
     resetLocalDispatch,
-    scheduleComposerFocus,
     scrollToEnd,
     persistThreadSettingsForNextTurn,
   } = input;
   const navigate = useNavigate();
   const router = useRouter();
   const { settleThread, pinThread, confirmAndUnpinThread } = useThreadActions();
-  const canWriteSourceControl = useEnvironmentScope(environmentId, AuthSourceControlWriteScope);
-  const switchGitRef = useAtomCommand(vcsEnvironment.switchRef, { reportFailure: false });
   const updateThreadMetadata = useOrchestrationCommand(threadEnvironment.updateMetadata, {
     reportFailure: false,
   });
@@ -278,95 +253,6 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     setUnsnoozingThreadKey((current) => (current === threadKey ? null : current));
   };
   const handleUnsnoozeActiveThreadStable = useStableCallback(handleUnsnoozeActiveThread);
-  const [isRestoringThreadBranch, setIsRestoringThreadBranch] = useState(false);
-  const [revealedBranchMismatchKey, setRevealedBranchMismatchKey] = useState<string | null>(null);
-  const [, setBranchMismatchDismissTick] = useState(0);
-  const composerHasDraftContent = useComposerDraftStore((store) =>
-    composerDraftHasUserContent(store.getComposerDraft(composerDraftTarget)),
-  );
-  const activeBranchMismatchKey = branchMismatchKey(
-    activeThread?.id ?? null,
-    localCheckoutBranchMismatch,
-  );
-  const showBranchMismatchBanner = shouldShowBranchMismatchBanner({
-    hasMismatch: localCheckoutBranchMismatch !== null,
-    isDismissed: isBranchMismatchDismissedForSession(activeBranchMismatchKey),
-    composerHasContent: composerHasDraftContent,
-    wasShownForCurrentMismatch:
-      revealedBranchMismatchKey !== null && revealedBranchMismatchKey === activeBranchMismatchKey,
-  });
-  const nextRevealedBranchMismatchKey = showBranchMismatchBanner
-    ? activeBranchMismatchKey
-    : revealedBranchMismatchKey !== activeBranchMismatchKey
-      ? null
-      : revealedBranchMismatchKey;
-  if (nextRevealedBranchMismatchKey !== revealedBranchMismatchKey) {
-    setRevealedBranchMismatchKey(nextRevealedBranchMismatchKey);
-  }
-  const handleSwitchCheckoutToThread = async () => {
-    if (!canWriteSourceControl) return;
-    if (
-      !activeProjectCwd ||
-      !activeThread ||
-      !localCheckoutBranchMismatch ||
-      isRestoringThreadBranch
-    ) {
-      return;
-    }
-    setIsRestoringThreadBranch(true);
-    const checkoutResult = await switchGitRef({
-      environmentId,
-      input: {
-        cwd: activeProjectCwd,
-        refName: localCheckoutBranchMismatch.threadBranch,
-      },
-    });
-    if (checkoutResult._tag === "Failure") {
-      setIsRestoringThreadBranch(false);
-      if (!isAtomCommandInterrupted(checkoutResult)) {
-        toastManager.add(
-          stackedThreadToast({
-            type: "error",
-            title: "Failed to switch checkout",
-            description: chatActionErrorMessage(squashAtomCommandFailure(checkoutResult)),
-          }),
-        );
-      }
-      return;
-    }
-
-    if (!readEnvironmentScope(environmentId, AuthSourceControlWriteScope)) {
-      setIsRestoringThreadBranch(false);
-      return;
-    }
-    const nextBranch = checkoutResult.value.refName ?? localCheckoutBranchMismatch.threadBranch;
-    if (nextBranch !== activeThread.branch) {
-      const updateResult = await updateThreadMetadata({
-        environmentId,
-        input: { threadId: activeThread.id, branch: nextBranch, worktreePath: null },
-      });
-      if (updateResult._tag === "Failure") {
-        setIsRestoringThreadBranch(false);
-        if (!isAtomCommandInterrupted(updateResult)) {
-          toastManager.add(
-            stackedThreadToast({
-              type: "error",
-              title: "Checkout switched, but the thread could not be updated",
-              description: chatActionErrorMessage(squashAtomCommandFailure(updateResult)),
-            }),
-          );
-        }
-        gitStatusQuery.refresh();
-        return;
-      }
-    }
-    gitStatusQuery.refresh();
-    setIsRestoringThreadBranch(false);
-    scheduleComposerFocus();
-  };
-  const handleSwitchCheckoutToThreadStable = useStableCallback(() => {
-    void handleSwitchCheckoutToThread();
-  });
   // The interrupt path also accepts a completed run while its provider still
   // has background work.
   const activeBackgroundTasks = !isWorking && activeThread ? pendingBackgroundTasks : [];
@@ -465,7 +351,6 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
     const settingsResult = await persistThreadSettingsForNextTurn({
       threadId,
       createdAt,
-      ...(localCheckoutBranchMismatch ? { branch: localCheckoutBranchMismatch.currentBranch } : {}),
       runtimeMode,
       interactionMode: context.interactionMode,
     });
@@ -591,18 +476,12 @@ export function useThreadLifecycle(input: ThreadLifecycleInput) {
   return {
     shortcuts,
     acknowledgeActiveThreadWoke,
-    activeBranchMismatchKey,
     backgroundWorkNow,
     childInputNow,
     goalNow,
-    handleSwitchCheckoutToThread,
-    handleSwitchCheckoutToThreadStable,
-    isRestoringThreadBranch,
     onOpenRelatedThread,
     onOpenRelatedThreadStable,
     sendStandaloneCommand,
-    setBranchMismatchDismissTick,
-    showBranchMismatchBanner,
     threadStatusLine,
   };
 }

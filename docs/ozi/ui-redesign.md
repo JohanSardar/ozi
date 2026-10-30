@@ -112,7 +112,7 @@ Ozi keeps Pi state under `<OZI_HOME>/agents/ozi` and defaults its data root to `
 
 ## G1 progress
 
-Simulator and emulator support is removed across the server, contracts, providers, web and mobile clients. Browser streaming remains independent of devices. All providers, including ACP, remain available. Project-free chats and the project, git, worktree, diff and pull-request removals remain unimplemented.
+Simulator and emulator support is removed across the server, contracts, providers, web and mobile clients. Browser streaming remains independent of devices. All providers, including ACP, remain available. Diffs, pull requests, source control, Git and worktree management are removed across clients, server, tools, settings and packages. File viewing and editing, terminals and conversation rewind remain. Projects and folder-bound chats remain for the final G1 slice.
 
 ## I3 inbox panel
 

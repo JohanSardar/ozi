@@ -60,8 +60,7 @@ describe("pending timeline messages", () => {
       creation: {
         projectId: ProjectId.make("project"),
         workspaceMode: "local" as const,
-        branch: "main",
-        worktreePath: null,
+        workingDirectory: null,
       },
     };
     const prompt = appendPendingThreadMessages([], [], [queued])[0]!;

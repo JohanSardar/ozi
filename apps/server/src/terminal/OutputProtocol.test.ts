@@ -95,7 +95,7 @@ const snapshot = (history: string): TerminalAttachStreamEvent => ({
     threadId: "thread-1",
     terminalId: "default",
     cwd: "/repo",
-    worktreePath: null,
+    workingDirectory: null,
     status: "running",
     pid: 1,
     history,

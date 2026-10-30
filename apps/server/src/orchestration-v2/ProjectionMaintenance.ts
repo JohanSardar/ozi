@@ -210,7 +210,6 @@ export const layer: Layer.Layer<
       "thread.pin-reordered",
       "thread.active-reordered",
       "thread.metadata-updated",
-      "thread.pull-request-synced",
       "thread.runtime-mode-updated",
       "thread.interaction-mode-updated",
       "thread.model-selection-updated",
@@ -273,11 +272,6 @@ export const layer: Layer.Layer<
                 AND event.command_id IS NULL
                 AND json_extract(event.payload_json, '$.type') <> 'subagent'
               THEN json_extract(event.payload_json, '$.id')
-              WHEN event.application_event_version = 2
-                AND event.event_type = 'thread.pull-request-link-updated'
-              THEN json_array(json_extract(event.payload_json, '$.host'),
-                json_extract(event.payload_json, '$.repository'),
-                json_extract(event.payload_json, '$.number'))
               ELSE NULL
             END AS entity_id,
             CASE
@@ -317,13 +311,6 @@ export const layer: Layer.Layer<
                 obsolete.push(row.sequence);
               } else retainedReadStateThreadIds.add(row.stream_id);
             } else if (
-              row.event_type === "thread.pull-request-link-updated" &&
-              retainedThreadIds.has(row.stream_id)
-            ) {
-              // A newer whole-thread payload already carries this link's state.
-              obsolete.push(row.sequence);
-            } else if (
-              row.event_type === "thread.pull-request-link-updated" ||
               row.event_type === "message.updated" ||
               row.event_type === "node.updated" ||
               (row.event_type === "turn-item.updated" && row.entity_id !== null)

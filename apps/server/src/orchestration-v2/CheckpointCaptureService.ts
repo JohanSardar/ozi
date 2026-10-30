@@ -274,6 +274,5 @@ function makeCheckpointTurnItem(input: {
     type: "checkpoint",
     checkpointId: input.checkpoint.id,
     scopeId: input.checkpoint.scopeId,
-    files: input.checkpoint.files,
   };
 }

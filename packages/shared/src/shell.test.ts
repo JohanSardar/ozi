@@ -22,7 +22,6 @@ import {
   mergePathEntries,
   mergePathValues,
   npmShimExecutable,
-  preferGitForWindowsBinary,
   readEnvironmentFromLoginShell,
   readEnvironmentFromWindowsShell,
   resolveCommandPath,
@@ -32,7 +31,6 @@ import {
   WindowsShellEnvironment,
   withPathDirectoryListings,
   type WindowsShellEnvironmentReader,
-  XcodeGitLocation,
 } from "./shell.ts";
 
 const nativeProbe = vi.hoisted(() => ({
@@ -518,61 +516,6 @@ effectIt.layer(NodeServices.layer)("resolveCommandPath", (it) => {
   );
 });
 
-describe("preferGitForWindowsBinary", () => {
-  const files =
-    (...paths: Array<string>) =>
-    (filePath: string) =>
-      paths.includes(filePath);
-
-  it("runs the git.exe Git for Windows' launcher would start", () => {
-    expect(
-      preferGitForWindowsBinary(
-        "C:\\Program Files\\Git\\cmd\\git.EXE",
-        {},
-        files(
-          "C:\\Program Files\\Git\\ucrt64\\bin\\git.exe",
-          "C:\\Program Files\\Git\\mingw64\\bin\\git.exe",
-        ),
-      ),
-    ).toBe("C:\\Program Files\\Git\\ucrt64\\bin\\git.exe");
-    expect(
-      preferGitForWindowsBinary(
-        "D:\\PortableGit\\bin\\git.exe",
-        {},
-        files("D:\\PortableGit\\mingw64\\bin\\git.exe"),
-      ),
-    ).toBe("D:\\PortableGit\\mingw64\\bin\\git.exe");
-    expect(
-      preferGitForWindowsBinary(
-        "C:\\Program Files\\Git\\cmd\\git.exe",
-        {},
-        files("C:\\Program Files\\Git\\clangarm64\\bin\\git.exe"),
-      ),
-    ).toBe("C:\\Program Files\\Git\\clangarm64\\bin\\git.exe");
-  });
-
-  it("keeps the launcher when MSYSTEM is set", () => {
-    // git.exe adds hook dependencies to PATH only when MSYSTEM is unset.
-    expect(
-      preferGitForWindowsBinary(
-        "C:\\Program Files\\Git\\cmd\\git.exe",
-        { MSYSTEM: "MINGW64" },
-        files("C:\\Program Files\\Git\\mingw64\\bin\\git.exe"),
-      ),
-    ).toBe("C:\\Program Files\\Git\\cmd\\git.exe");
-  });
-
-  it("leaves other gits and other launchers alone", () => {
-    const everything = () => true;
-    expect(preferGitForWindowsBinary("C:\\Users\\me\\scoop\\shims\\git.exe", {}, everything)).toBe(
-      "C:\\Users\\me\\scoop\\shims\\git.exe",
-    );
-    expect(preferGitForWindowsBinary("C:\\Program Files\\Git\\cmd\\gitk.exe", {}, everything)).toBe(
-      "C:\\Program Files\\Git\\cmd\\gitk.exe",
-    );
-  });
-});
-
 // Byte for byte what `npm install -g opencode-ai` writes as `opencode.cmd`.
 const NPM_OPENCODE_SHIM = [
   "@ECHO off",
@@ -801,77 +744,6 @@ effectIt.layer(NodeServices.layer)("resolveSpawnCommand", (it) => {
       });
     }),
   );
-
-  describe("macOS git", () => {
-    // Files that exist, the git first on PATH, and what `xcrun --find git` prints.
-    const setup = (options: {
-      readonly platform?: NodeJS.Platform;
-      readonly gitOnPath: string;
-      readonly xcrunGit: string | undefined;
-    }) => {
-      const files = new Set([options.gitOnPath, ...(options.xcrunGit ? [options.xcrunGit] : [])]);
-      const host = { xcrunGit: options.xcrunGit, xcrunCalls: 0 };
-      const resolve = resolveSpawnCommand("git", ["status"], { env: { PATH: "/fake/bin" } }).pipe(
-        Effect.map((resolved) => resolved.command),
-        Effect.provideService(HostProcess.Platform, options.platform ?? "darwin"),
-        Effect.provideService(SpawnExecutableResolution, (command) =>
-          command === "git" ? options.gitOnPath : files.has(command) ? command : undefined,
-        ),
-        Effect.provideService(XcodeGitLocation, () => {
-          host.xcrunCalls += 1;
-          return host.xcrunGit;
-        }),
-      );
-      return { files, host, resolve };
-    };
-
-    const XCODE_GIT = "/Applications/Xcode.app/Contents/Developer/usr/bin/git";
-
-    it.effect("runs the git behind the xcrun shim and looks it up once", () =>
-      Effect.gen(function* () {
-        const { host, resolve } = setup({ gitOnPath: "/usr/bin/git", xcrunGit: XCODE_GIT });
-        expect(yield* resolve).toBe(XCODE_GIT);
-        expect(yield* resolve).toBe(XCODE_GIT);
-        expect(host.xcrunCalls).toBe(1);
-      }).pipe(Effect.provideService(CommandResolutionCache, new Map())),
-    );
-
-    it.effect("keeps git when PATH has another git or the host is not macOS", () =>
-      Effect.gen(function* () {
-        const homebrew = setup({ gitOnPath: "/opt/homebrew/bin/git", xcrunGit: XCODE_GIT });
-        expect(yield* homebrew.resolve).toBe("git");
-        expect(homebrew.host.xcrunCalls).toBe(0);
-
-        const linux = setup({ platform: "linux", gitOnPath: "/usr/bin/git", xcrunGit: XCODE_GIT });
-        expect(yield* linux.resolve).toBe("git");
-      }).pipe(Effect.provideService(CommandResolutionCache, new Map())),
-    );
-
-    it.effect("keeps git when xcrun fails or names a missing file", () =>
-      Effect.gen(function* () {
-        const failed = setup({ gitOnPath: "/usr/bin/git", xcrunGit: undefined });
-        expect(yield* failed.resolve).toBe("git");
-
-        const missing = setup({ gitOnPath: "/usr/bin/git", xcrunGit: XCODE_GIT });
-        missing.files.delete(XCODE_GIT);
-        expect(yield* missing.resolve).toBe("git");
-      }).pipe(Effect.provideService(CommandResolutionCache, new Map())),
-    );
-
-    it.effect("looks again when the resolved git disappears", () =>
-      Effect.gen(function* () {
-        const betaGit = "/Applications/Xcode-beta.app/Contents/Developer/usr/bin/git";
-        const { files, host, resolve } = setup({ gitOnPath: "/usr/bin/git", xcrunGit: XCODE_GIT });
-        expect(yield* resolve).toBe(XCODE_GIT);
-
-        files.delete(XCODE_GIT);
-        files.add(betaGit);
-        host.xcrunGit = betaGit;
-        expect(yield* resolve).toBe(betaGit);
-        expect(host.xcrunCalls).toBe(2);
-      }).pipe(Effect.provideService(CommandResolutionCache, new Map())),
-    );
-  });
 
   it.effect("does not fall back to a shell for unresolved Windows commands", () =>
     Effect.gen(function* () {

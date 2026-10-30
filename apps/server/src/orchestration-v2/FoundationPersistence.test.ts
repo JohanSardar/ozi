@@ -113,8 +113,7 @@ function makeThread(threadId: ThreadId, now: DateTime.Utc): OrchestrationV2AppTh
     modelSelection,
     runtimeMode: "full-access",
     interactionMode: "default",
-    branch: null,
-    worktreePath: null,
+    workingDirectory: null,
     activeProviderThreadId: null,
     lineage: {
       parentThreadId: null,
@@ -1236,7 +1235,6 @@ it.layer(layerTest)("orchestration V2 foundation persistence", (it) => {
           appRunOrdinal: null,
           ref: CheckpointRef.make(`checkpoint-ref:foundation-atomic-failure:${index}`),
           status: "ready" as const,
-          files: [],
           capturedAt: now,
         });
         const events = [1, 2].map(

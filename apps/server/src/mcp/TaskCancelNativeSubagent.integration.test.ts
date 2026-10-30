@@ -28,7 +28,6 @@ import * as Orchestrator from "../orchestration-v2/Orchestrator.ts";
 import * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAdapter";
 import * as ProviderAdapterRegistry from "../orchestration-v2/ProviderAdapterRegistry.ts";
 import * as ThreadLaunchService from "../orchestration-v2/ThreadLaunchService.ts";
-import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
 import * as ThreadManagementService from "../orchestration-v2/ThreadManagementService.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as ProviderReplayHarness from "../orchestration-v2/testkit/ProviderReplayHarness.ts";
@@ -44,7 +43,6 @@ import * as RemoteDelegation from "../peer/RemoteDelegation.ts";
 
 const layerOrchestratorService = OrchestratorMcpService.layer.pipe(
   Layer.provide(Layer.mock(ThreadLaunchService.ThreadLaunchService)({})),
-  Layer.provide(Layer.mock(GitVcsDriver.GitVcsDriver)({})),
 );
 
 const driver = ProviderDriverKind.make("claudeAgent");
@@ -189,8 +187,7 @@ it.effect("task_cancel ends a delegated child's background native subagent", () 
           modelSelection,
           runtimeMode: "full-access",
           interactionMode: "default",
-          branch: null,
-          worktreePath: cwd,
+          workingDirectory: cwd,
           createdBy: "user",
           creationSource: "web",
         });

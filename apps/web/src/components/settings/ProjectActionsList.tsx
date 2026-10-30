@@ -33,16 +33,7 @@ export function ProjectActionsList({
           <span className="flex min-w-0 items-center gap-2">
             <ScriptIcon icon={script.icon} className="size-4 shrink-0 text-muted-foreground" />
             <span className="min-w-0 truncate">{script.name}</span>
-            {script.runOnWorktreeCreate ? (
-              <span className="shrink-0 rounded-sm border border-border/60 px-1.5 py-px text-2xs font-normal text-muted-foreground">
-                setup
-              </span>
-            ) : null}
-            {script.runOnSettle ? (
-              <span className="shrink-0 rounded-sm border border-border/60 px-1.5 py-px text-2xs font-normal text-muted-foreground">
-                on settle
-              </span>
-            ) : null}
+
             {script.previewUrl ? (
               <span className="shrink-0 rounded-sm border border-border/60 px-1.5 py-px text-2xs font-normal text-muted-foreground max-sm:hidden">
                 preview · desktop only

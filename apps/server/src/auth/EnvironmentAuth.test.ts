@@ -247,7 +247,7 @@ it.layer(NodeServices.layer)("EnvironmentAuth.layer", (it) => {
       expect((yield* sessions.verify(token)).subject).toBe("reusable-dev-token");
       const before = yield* serverAuth.listClientSessions(firstSession.sessionId);
       const denied = yield* serverAuth
-        .exchangeBootstrapCredentialForAccessToken(token, ["review:write"], requestMetadata)
+        .exchangeBootstrapCredentialForAccessToken(token, ["filesystem:read"], requestMetadata)
         .pipe(Effect.flip);
       expect(denied._tag).toBe("ServerAuthScopeNotGrantedError");
       const empty = yield* serverAuth

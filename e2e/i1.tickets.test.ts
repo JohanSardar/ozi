@@ -162,8 +162,7 @@ describe("i1.tickets", () => {
           modelSelection: { instanceId: "codex", model: "gpt-5.4" },
           runtimeMode: "full-access",
           interactionMode: "default",
-          branch: null,
-          worktreePath: null,
+          workingDirectory: null,
         });
         await rpc("orchestration.dispatchCommand", {
           type: "message.dispatch",
@@ -193,7 +192,7 @@ describe("i1.tickets", () => {
         modelSelection: { instanceId: "codex", model: "gpt-5.4" },
         runtimeMode: "full-access",
         interactionMode: "default",
-        workspaceStrategy: { type: "worktree", baseRef: "missing" },
+        workspaceStrategy: { type: "root" },
       });
       const parent = (await rpc("orchestration.getThreadProjection", { threadId: "chat-i1" })) as {
         subagents: Array<{ id: string; childThreadId: string }>;

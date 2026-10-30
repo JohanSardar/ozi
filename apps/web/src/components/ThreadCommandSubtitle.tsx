@@ -1,15 +1,9 @@
 import type { ProviderDriverKind } from "@t3tools/contracts";
-import { FolderGit2Icon, FolderIcon, GitBranchIcon } from "lucide-react";
 import { ProjectFavicon, type ProjectFaviconProject } from "./ProjectFavicon";
 import { ProviderInstanceIcon } from "./chat/ProviderInstanceIcon";
 import { cn } from "~/lib/utils";
 
-import { MiddleTruncate } from "./ui/middle-truncate";
-
-export type ThreadCommandSubtitleVariant =
-  | "favicon-workspace-harness"
-  | "favicon-workspace"
-  | "favicon-branch-harness";
+export type ThreadCommandSubtitleVariant = "favicon-workspace-harness" | "favicon-workspace";
 
 const THREAD_COMMAND_SUBTITLE_VARIANT: ThreadCommandSubtitleVariant = "favicon-workspace-harness";
 
@@ -19,22 +13,11 @@ export function CommandPaletteMetaDot() {
   return <span className="shrink-0 text-muted-foreground/50">·</span>;
 }
 
-function WorkspaceIcon(props: { variant: ThreadCommandSubtitleVariant; isWorktree: boolean }) {
-  if (props.isWorktree) {
-    return <FolderGit2Icon className={COMMAND_PALETTE_META_ICON_CLASS} aria-hidden />;
-  }
-  if (props.variant === "favicon-branch-harness") {
-    return <GitBranchIcon className={COMMAND_PALETTE_META_ICON_CLASS} aria-hidden />;
-  }
-  return <FolderIcon className={COMMAND_PALETTE_META_ICON_CLASS} aria-hidden />;
-}
-
 export function ThreadCommandSubtitle(props: {
   project: ProjectFaviconProject | null;
   projectTitle: string | null;
   environmentLabel?: string | null;
-  branch: string | null;
-  worktreePath: string | null;
+  workingDirectory: string | null;
   isCurrent: boolean;
   driverKind?: ProviderDriverKind | null;
   providerDisplayName?: string | null;
@@ -44,14 +27,12 @@ export function ThreadCommandSubtitle(props: {
   className?: string;
 }) {
   const variant = props.variant ?? THREAD_COMMAND_SUBTITLE_VARIANT;
-  const isWorktree = props.worktreePath != null && props.worktreePath.trim().length > 0;
   const showHarness =
     variant !== "favicon-workspace" && props.driverKind != null && props.providerDisplayName;
 
   const projectLabel = props.projectTitle?.trim() || null;
-  const branchLabel = props.branch?.trim() || null;
 
-  if (!projectLabel && !branchLabel && !props.isCurrent && !showHarness) {
+  if (!projectLabel && !props.isCurrent && !showHarness) {
     return null;
   }
 
@@ -77,19 +58,9 @@ export function ThreadCommandSubtitle(props: {
         </span>
       ) : null}
 
-      {branchLabel ? (
-        <>
-          {projectLabel ? <CommandPaletteMetaDot /> : null}
-          <span className="inline-flex min-w-0 items-center gap-1">
-            <WorkspaceIcon variant={variant} isWorktree={isWorktree} />
-            <MiddleTruncate value={branchLabel} />
-          </span>
-        </>
-      ) : null}
-
       {showHarness && props.driverKind ? (
         <>
-          {projectLabel || branchLabel ? <CommandPaletteMetaDot /> : null}
+          {projectLabel ? <CommandPaletteMetaDot /> : null}
           <ProviderInstanceIcon
             driverKind={props.driverKind}
             displayName={props.providerDisplayName ?? props.driverKind}
@@ -102,7 +73,7 @@ export function ThreadCommandSubtitle(props: {
 
       {props.isCurrent ? (
         <>
-          {projectLabel || branchLabel || showHarness ? <CommandPaletteMetaDot /> : null}
+          {projectLabel || showHarness ? <CommandPaletteMetaDot /> : null}
           <span className="shrink-0">Current thread</span>
         </>
       ) : null}

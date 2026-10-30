@@ -1,3 +1,4 @@
+import { type CodeThemeName } from "~/lib/syntaxHighlighting";
 import { Check, Copy } from "lucide";
 import { PlayIcon, WrapTextIcon } from "lucide-react";
 import { toHtml } from "hast-util-to-html";
@@ -5,7 +6,6 @@ import React, { use, useEffect, useState, type ReactNode } from "react";
 
 import { useCopyToClipboard } from "../../hooks/useCopyToClipboard";
 import { getClientSettings } from "../../hooks/useSettings";
-import type { DiffThemeName } from "../../lib/diffRendering";
 import {
   createIncrementalHighlightedDocument,
   highlightCodeToHast,
@@ -270,7 +270,7 @@ export function MarkdownCodeBlock({
 interface SuspenseShikiCodeBlockProps {
   className: string | undefined;
   code: string;
-  themeName: DiffThemeName;
+  themeName: CodeThemeName;
   isStreaming: boolean;
 }
 
@@ -313,7 +313,7 @@ export function SuspenseShikiCodeBlock({
 interface UncachedShikiCodeBlockProps {
   code: string;
   language: string;
-  themeName: DiffThemeName;
+  themeName: CodeThemeName;
   cacheKey: string;
   isStreaming: boolean;
   preserveLines: boolean;

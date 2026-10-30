@@ -4,7 +4,6 @@ import { deriveThreadTitleFromPrompt } from "../lib/projectThreadStartTurn";
 import type { QueuedThreadCreation, QueuedThreadMessage } from "./thread-outbox-model";
 import { isNewTaskDraftKey } from "./new-task-draft-key";
 import type { ComposerDraft } from "./use-composer-drafts";
-import { resolveNewTaskDraftWorkspace } from "../features/threads/new-task-context-presentation";
 
 export type PendingNewTask = PendingQueuedTask | PendingDraftTask;
 
@@ -15,7 +14,6 @@ export interface PendingQueuedTask {
   readonly projectId: ProjectId;
   readonly projectTitle: string | undefined;
   readonly projectCwd: string | undefined;
-  readonly branch: string | null;
   readonly title: string;
   readonly createdAt: string;
   readonly message: QueuedThreadMessage;
@@ -50,39 +48,8 @@ function draftTitle(draft: ComposerDraft): string {
 /** A project's new-task defaults, as useNewTaskProjectDefaults resolves them. */
 export interface PendingDraftProjectDefaults {
   readonly canChooseWorkspace: boolean;
-  readonly defaultMode: "local" | "worktree";
+  readonly defaultMode: "local";
   readonly defaultModeSettled: boolean;
-}
-
-/**
- * True when the draft's branch is derived from refs rather than stored, so the list must load
- * refs to show it.
- */
-export function pendingDraftBranchNeedsRefs(
-  draft: ComposerDraft,
-  defaults: PendingDraftProjectDefaults,
-): boolean {
-  const selection = defaults.canChooseWorkspace ? draft.workspaceSelection : undefined;
-  return selection === undefined ? defaults.defaultMode === "worktree" : selection.branch === null;
-}
-
-/** The branch a draft will start on, derived the same way the new-task flow and send path do. */
-export function resolvePendingDraftBranch(input: {
-  readonly draft: ComposerDraft;
-  readonly defaults: PendingDraftProjectDefaults;
-  readonly isGitRepo: boolean;
-  readonly branches: Parameters<typeof resolveNewTaskDraftWorkspace>[0]["branches"];
-  readonly projectCwd: string | null;
-}): string | null {
-  return resolveNewTaskDraftWorkspace({
-    selection: input.draft.workspaceSelection,
-    canChooseWorkspace: input.defaults.canChooseWorkspace,
-    defaultMode: input.defaults.defaultMode,
-    defaultModeSettled: input.defaults.defaultModeSettled,
-    isGitRepo: input.isGitRepo,
-    branches: input.branches,
-    projectCwd: input.projectCwd,
-  }).branch;
 }
 
 export function buildPendingNewTasks(input: {
@@ -101,7 +68,6 @@ export function buildPendingNewTasks(input: {
       projectId: message.creation.projectId,
       projectTitle: message.creation.projectTitle,
       projectCwd: message.creation.projectCwd,
-      branch: message.creation.branch,
       title: deriveThreadTitleFromPrompt(message.text),
       createdAt: message.createdAt,
       message,

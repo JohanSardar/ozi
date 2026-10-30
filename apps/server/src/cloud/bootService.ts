@@ -44,7 +44,7 @@ const decodeUnitFile = Schema.decodeEffect(BootServiceUnitFile);
 export const BOOT_SERVICE_LAUNCHD_LABEL = "com.ozi.app.service";
 export const BOOT_SERVICE_PLIST_FILE = `${BOOT_SERVICE_LAUNCHD_LABEL}.plist`;
 const BOOT_SERVICE_UNIT_ENV = "OZI_BOOT_SERVICE_UNIT";
-export const BOOT_SERVICE_LOG_FILE = "boot-service.log";
+const BOOT_SERVICE_LOG_FILE = "boot-service.log";
 
 /** systemd expands `%` specifiers, including in unquoted append-log paths. */
 function escapeSystemdSpecifiers(value: string): string {

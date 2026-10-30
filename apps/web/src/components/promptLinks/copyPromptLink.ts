@@ -1,15 +1,6 @@
 import type { EnvironmentProject } from "@t3tools/client-runtime/state/shell";
-import {
-  type ModelSelection,
-  repositoryGroupingKeyOf,
-  type ServerProvider,
-} from "@t3tools/contracts";
-import {
-  buildNewThreadLink,
-  parsePromptLinkRepository,
-  PROMPT_LINK_MAX_PROMPT_LENGTH,
-  type PromptLinkRepository,
-} from "@t3tools/shared/promptLinks";
+import { type ModelSelection, type ServerProvider } from "@t3tools/contracts";
+import { buildNewThreadLink, PROMPT_LINK_MAX_PROMPT_LENGTH } from "@t3tools/shared/promptLinks";
 
 import { type ComposerThreadTarget, useComposerDraftStore } from "~/composerDraftStore";
 import { writeTextToClipboard } from "~/hooks/useCopyToClipboard";
@@ -21,7 +12,6 @@ import { stackedThreadToast, toastManager } from "../ui/toast";
 export function promptLinkFor(
   prompt: string,
   context?: {
-    readonly repository: PromptLinkRepository | null;
     readonly provider: string | null;
     readonly model: string | null;
   },
@@ -29,17 +19,6 @@ export function promptLinkFor(
   const trimmed = prompt.trim();
   if (trimmed.length === 0 || trimmed.length > PROMPT_LINK_MAX_PROMPT_LENGTH) return null;
   return buildNewThreadLink({ prompt: trimmed, ...context, origin: configuredHostedAppUrl() });
-}
-
-export function promptLinkRepositoryOf(
-  project: Pick<EnvironmentProject, "repositoryIdentity"> | undefined,
-): PromptLinkRepository | null {
-  const identity = project?.repositoryIdentity;
-  if (identity == null) return null;
-  const key = repositoryGroupingKeyOf(identity);
-  return key.startsWith("github.com/")
-    ? parsePromptLinkRepository(key.slice("github.com/".length))
-    : null;
 }
 
 export function composerPromptLink(input: {
@@ -60,7 +39,6 @@ export function composerPromptLink(input: {
       null)
     : null;
   return promptLinkFor(draft.prompt, {
-    repository: promptLinkRepositoryOf(input.project),
     provider,
     model: provider === null ? null : (selection?.model ?? null),
   });

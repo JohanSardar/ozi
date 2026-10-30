@@ -106,7 +106,7 @@ function summarizeDeltaItem(item: OrchestrationV2TurnItem): string | null {
     case "file_change":
       return `- File change: ${item.fileName}`;
     case "checkpoint":
-      return `- Checkpoint: ${item.files.length} files`;
+      return `- Checkpoint: ${item.checkpointId}`;
     case "handoff":
       return `- Handoff: ${compactText(item.summary ?? item.strategy)}`;
     default:

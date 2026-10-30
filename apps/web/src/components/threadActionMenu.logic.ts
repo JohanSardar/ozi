@@ -22,22 +22,15 @@ export type ThreadActionMenuId =
   | "share-guest"
   | "copy"
   | "copy-path"
-  | "copy-branch"
   | "copy-thread"
   | "copy-thread-id"
   | "archive"
   | "delete";
 
-export type DraftActionMenuId =
-  | "copy"
-  | "copy-path"
-  | "copy-branch"
-  | "project-settings"
-  | "discard";
+export type DraftActionMenuId = "copy" | "copy-path" | "project-settings" | "discard";
 
 export function buildDraftActionMenuItems(options: {
   readonly hasPath: boolean;
-  readonly hasBranch: boolean;
   readonly hasProject: boolean;
 }): ReadonlyArray<ContextMenuItem<DraftActionMenuId>> {
   return [
@@ -45,13 +38,10 @@ export function buildDraftActionMenuItems(options: {
       id: "copy",
       label: "Copy",
       icon: "copy",
-      disabled: !options.hasPath && !options.hasBranch,
-      children: [
-        ...(options.hasPath ? [{ id: "copy-path" as const, label: "Path", icon: "folder" }] : []),
-        ...(options.hasBranch
-          ? [{ id: "copy-branch" as const, label: "Branch", icon: "git-branch" }]
-          : []),
-      ],
+      disabled: !options.hasPath,
+      children: options.hasPath
+        ? [{ id: "copy-path" as const, label: "Path", icon: "folder" }]
+        : [],
     },
     ...(options.hasProject
       ? [{ id: "project-settings" as const, label: "Project settings", icon: "settings" }]
@@ -68,7 +58,6 @@ export function buildDraftActionMenuItems(options: {
 
 export interface ThreadActionMenuState {
   readonly canOperate: boolean;
-  readonly branch: string | null;
   readonly projectFilter: {
     readonly label: string;
     readonly isActive: boolean;
@@ -104,7 +93,6 @@ export function threadActionRequiresOperate(action: ThreadActionMenuId): boolean
     "share-guest",
     "copy",
     "copy-path",
-    "copy-branch",
     "copy-thread",
     "copy-thread-id",
   ].includes(action);
@@ -114,15 +102,6 @@ export function buildThreadActionMenuItems(
   state: ThreadActionMenuState,
 ): ReadonlyArray<ContextMenuItem<ThreadActionMenuId>> {
   const items: ReadonlyArray<ContextMenuItem<ThreadActionMenuId>> = [
-    ...(state.branch
-      ? [
-          {
-            id: "new-thread-on-branch" as const,
-            label: `New thread on ${state.branch}`,
-            icon: "message-square-plus",
-          },
-        ]
-      : []),
     ...(state.supports.pinning
       ? [
           state.isPinned
@@ -224,9 +203,6 @@ export function buildThreadActionMenuItems(
       separatorBefore: true,
       children: [
         { id: "copy-path", label: "Path", icon: "folder" },
-        ...(state.branch
-          ? [{ id: "copy-branch" as const, label: "Branch", icon: "git-branch" }]
-          : []),
         { id: "copy-thread", label: "Thread", icon: "message-square" },
         { id: "copy-thread-id", label: "Thread ID", icon: "hash" },
       ],

@@ -7,11 +7,6 @@ import { useDeviceType } from "../../native/native-layout-metrics";
 import { useNativeWorkspaceColumnsSupported } from "../../native/NativeWorkspaceColumns";
 import { useAdaptiveWorkspaceLayout } from "../layout/AdaptiveWorkspaceLayout";
 import { withNativeGlassHeaderItem } from "../layout/native-glass-header-items";
-import {
-  ThreadGitControls,
-  useThreadGitCenterHeaderItems,
-  useThreadGitRightHeaderItems,
-} from "./ThreadGitControls";
 
 type NativeHeaderItems = ReadonlyArray<Record<string, unknown>>;
 
@@ -20,7 +15,6 @@ export function useThreadHeaderOptions(props: {
   readonly subtitle: string;
   readonly headerColor: string;
   readonly usesNativeHeaderGlass: boolean;
-  readonly gitControls: Parameters<typeof ThreadGitControls>[0];
   readonly onReturnToThread?: () => void;
   readonly draft?: boolean;
 }) {
@@ -30,8 +24,6 @@ export function useThreadHeaderOptions(props: {
   const navigation = useNavigation();
   const { layout, startNewTask } = useAdaptiveWorkspaceLayout();
   const sidebarHeaderItem = useWorkspaceSidebarHeaderItem();
-  const threadCenterHeaderItems = useThreadGitCenterHeaderItems(props.gitControls);
-  const compactRightHeaderItems = useThreadGitRightHeaderItems(props.gitControls);
   const splitLeftHeaderItems: NativeHeaderItems = [
     ...(!usesDuoHeader
       ? [
@@ -88,31 +80,15 @@ export function useThreadHeaderOptions(props: {
         ? undefined
         : () => compactHomeHeaderItems,
     // The workspace navigator adds compose to the Duo detail column's bar.
-    unstable_headerRightItems: () =>
-      usesDuoHeader || layout.usesSplitView ? threadCenterHeaderItems : compactRightHeaderItems,
     unstable_headerToolbarItems: () => [],
     unstable_headerSubtitle: props.usesNativeHeaderGlass ? props.subtitle : undefined,
     contentStyle: undefined,
   };
-  const { environmentId, threadId, gitStatus } = props.gitControls;
   return {
     options,
     // Factories re-read only on version changes; include displayed items and hidden callback state such as default refs.
-    optionsVersion: [
-      splitLeftHeaderItems,
-      threadCenterHeaderItems,
-      compactRightHeaderItems,
-      usesDuoHeader,
-      environmentId,
-      threadId,
-      gitStatus?.isDefaultRef,
-      gitStatus?.refName,
-      gitStatus?.pr?.url,
-    ],
+    optionsVersion: [splitLeftHeaderItems, usesDuoHeader],
     sidebar: false,
-    fallback:
-      !layout.usesSplitView && !props.usesNativeHeaderGlass ? (
-        <ThreadGitControls {...props.gitControls} showActionControls />
-      ) : null,
+    fallback: null,
   };
 }

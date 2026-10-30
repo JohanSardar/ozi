@@ -6,14 +6,9 @@ export {
   makeGrokAdapterV2,
   type GrokAdapterV2Options,
 } from "./server/adapter.ts";
-export {
-  GROK_ACP_CANCEL_META,
-  GROK_ACP_INITIALIZE_META,
-  makeGrokAcpRuntime,
-} from "./server/acpSupport.ts";
+export { GROK_ACP_INITIALIZE_META, makeGrokAcpRuntime } from "./server/acpSupport.ts";
 export {
   buildGrokModelCapabilities,
-  buildInitialGrokProviderSnapshot,
   checkGrokProviderStatus,
   grokSlashCommandsFromInitialize,
   parseGrokModelsCliOutput,

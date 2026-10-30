@@ -435,13 +435,7 @@ const parseProcessTable = (raw: string): ReadonlyMap<number, ProcessTableRow> =>
   }
   return rows;
 };
-
-/**
- * The process group stopping `pid` signals. Shells with job control and agent tool shells give
- * every job its own group, so the group is the job. Null when the group also holds this server,
- * a direct child of it (agent CLIs and terminal shells), or one of its ancestors.
- */
-export const stoppableProcessGroup = (
+const stoppableProcessGroup = (
   table: ReadonlyMap<number, ProcessTableRow>,
   pid: number,
   serverPid: number,

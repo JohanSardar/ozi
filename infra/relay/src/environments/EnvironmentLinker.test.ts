@@ -85,7 +85,7 @@ const makeRequest = Effect.gen(function* () {
       label: "Link Test Environment",
       platform: { os: "darwin", arch: "arm64" },
       serverVersion: "0.0.0-test",
-      capabilities: { repositoryIdentity: true },
+      capabilities: { connectionProbe: true },
     },
     environmentPublicKey: environmentKeyPair.publicKey.trim(),
     endpoint: {
@@ -210,7 +210,7 @@ describe("EnvironmentLinker", () => {
           label: "Link Test Environment",
           platform: { os: "darwin", arch: "arm64" },
           serverVersion: "0.0.0-test",
-          capabilities: { repositoryIdentity: true },
+          capabilities: { connectionProbe: true },
         },
         environmentPublicKey: environmentKeyPair.publicKey.trim(),
         endpoint: {

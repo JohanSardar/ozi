@@ -5,7 +5,6 @@ import {
   THREAD_LIST_V2_ROW_CONTENT_CLASS_NAME,
   THREAD_LIST_V2_ROW_DIVIDERS,
   selectedThreadRowColors,
-  getThreadListV2NewBranchMenuTitle,
   getThreadListV2RowAppearance,
 } from "./thread-list-v2-row-appearance";
 import { RowPressable } from "../../components/ui/RowPressable";
@@ -48,17 +47,6 @@ import { copyThreadReference } from "../../lib/copyThreadReference";
 import { useUniwindTheme } from "../../lib/useUniwindTheme";
 import { useEnvironmentScope } from "../../state/session";
 import type { PendingNewTask } from "../../state/use-pending-new-tasks";
-import {
-  pendingDraftBranchNeedsRefs,
-  resolvePendingDraftBranch,
-} from "../../state/pending-new-tasks-model";
-import { useBranches } from "../../state/queries";
-import { useNewTaskProjectDefaults } from "./use-new-task-project-defaults";
-import {
-  resolveThreadPrBadgeAction,
-  type ThreadPrPresentation,
-} from "../../state/thread-pr-presentation";
-import { useThreadPr } from "../../state/use-thread-pr";
 import { useSwipeRowDormant } from "../home/swipe-row-activation";
 import { ThreadSwipeable } from "../home/thread-swipe-actions";
 import { buildThreadTitleRegenerationMenuItems } from "./thread-title-regeneration-menu";
@@ -79,8 +67,6 @@ import { QueuedMessageIcon } from "./queued-message-icon";
 import { shouldRecedeThreadRow } from "./thread-row-emphasis";
 import { ThreadSearchMatchExcerpt } from "./thread-search-match";
 import { useScaledTextRole } from "../settings/appearance/useScaledTextRole";
-import { PullRequestGlyph } from "../pull-requests/pullRequestGlyphs";
-import { pullRequestStatus } from "../pull-requests/pullRequestStatus";
 
 interface StatusLabel {
   readonly label: string;
@@ -386,28 +372,6 @@ export const ThreadListV2PendingRow = memo(function ThreadListV2PendingRow(props
     [deleteLabel, handleDelete, pendingTask.title],
   );
   const projectTitle = props.projectTitle ?? props.project?.title ?? pendingTask.projectTitle ?? "";
-  const projectCwd = props.project?.workspaceRoot || null;
-  // Drafts only; the reads are shared per-project atoms, and queued rows skip them.
-  const projectDefaults = useNewTaskProjectDefaults(isDraft ? props.project : null);
-  const draftDefaults = {
-    canChooseWorkspace: !projectDefaults.isScratch,
-    defaultMode: projectDefaults.defaultWorkspaceMode,
-    defaultModeSettled: projectDefaults.defaultWorkspaceModeSettled,
-  };
-  const draftBranchRefs = useBranches({
-    environmentId: pendingTask.environmentId,
-    cwd:
-      isDraft && pendingDraftBranchNeedsRefs(pendingTask.draft, draftDefaults) ? projectCwd : null,
-  });
-  const branch = isDraft
-    ? resolvePendingDraftBranch({
-        draft: pendingTask.draft,
-        defaults: draftDefaults,
-        isGitRepo: draftBranchRefs.data?.isRepo ?? true,
-        branches: draftBranchRefs.data?.refs ?? [],
-        projectCwd,
-      })
-    : pendingTask.branch;
 
   const handleMenuAction = useCallback(
     ({ nativeEvent }: { readonly nativeEvent: { readonly event: string } }) => {
@@ -468,49 +432,6 @@ export const ThreadListV2PendingRow = memo(function ThreadListV2PendingRow(props
       >
         {pendingTask.title}
       </Text>
-      {branch || props.environmentLabel ? (
-        <View className="mt-1 flex-row items-center gap-1">
-          <Text
-            className={cn(
-              "shrink text-xs text-foreground-muted",
-              sidebarPane && "text-drawer-foreground-muted",
-            )}
-            numberOfLines={1}
-          >
-            {branch ? (
-              <Text
-                className={cn(
-                  "text-xs text-foreground-muted",
-                  sidebarPane && "text-drawer-foreground-muted",
-                )}
-                style={{ fontFamily: MONO_FONT }}
-              >
-                {branch}
-              </Text>
-            ) : null}
-            {branch && props.environmentLabel ? "  ·  " : null}
-            {props.environmentLabel ? (
-              <Text
-                className={cn(
-                  "text-xs text-foreground-tertiary",
-                  sidebarPane && "text-drawer-foreground-muted",
-                )}
-              >
-                {props.environmentLabel}
-              </Text>
-            ) : null}
-          </Text>
-          {props.environmentLabel && props.environmentMachine ? (
-            <EnvironmentMachineSymbol
-              kind={props.environmentMachine}
-              size={11}
-              tintColorClassName={
-                sidebarPane ? "accent-drawer-foreground-muted" : "accent-foreground-tertiary"
-              }
-            />
-          ) : null}
-        </View>
-      ) : null}
     </>
   );
 
@@ -596,12 +517,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
   readonly selected?: boolean;
   readonly fullSwipeWidth?: number;
   readonly onSelectThread: (thread: EnvironmentThreadShell) => void;
-  readonly onOpenThreadPullRequests: (
-    thread: EnvironmentThreadShell,
-    pr: ThreadPrPresentation,
-  ) => void;
   readonly onDeleteThread: (thread: EnvironmentThreadShell) => void;
-  readonly onNewThreadOnBranch: (thread: EnvironmentThreadShell) => void;
   readonly onRenameThread: (thread: EnvironmentThreadShell) => void;
   readonly onRegenerateThreadTitle: (thread: EnvironmentThreadShell) => void;
   readonly onSettleThread: (thread: EnvironmentThreadShell) => Promise<boolean>;
@@ -642,11 +558,9 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
     thread,
     variant,
     onSelectThread,
-    onOpenThreadPullRequests,
     onDeleteThread,
     onRenameThread,
     onRegenerateThreadTitle,
-    onNewThreadOnBranch,
     onSettleThread,
     onSnoozeThread,
     onUnsnoozeThread,
@@ -675,11 +589,6 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
   }, [thread, props.providers]);
 
   const providerInstance = props.providerInstance;
-  const pr = useThreadPr(thread);
-  const prBadgeLabel = pr ? resolveThreadPrBadgeAction(pr).accessibilityLabel : null;
-  const handleOpenPullRequests = useCallback(() => {
-    if (pr) onOpenThreadPullRequests(thread, pr);
-  }, [onOpenThreadPullRequests, pr, thread]);
 
   const theme = useUniwindTheme();
   const sidebarPane = props.pane === "sidebar";
@@ -707,11 +616,8 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
   }, [props.wokeAt, thread.environmentId, thread.id, visitThread]);
   // VoiceOver cannot focus buttons inside the accessible row.
   const rowAccessibilityActions = useMemo(
-    () => [
-      ...(prBadgeLabel ? [{ name: "openPullRequests", label: prBadgeLabel }] : []),
-      ...(showsWoke ? [{ name: "dismissWoke", label: "Dismiss Woke notification" }] : []),
-    ],
-    [prBadgeLabel, showsWoke],
+    () => (showsWoke ? [{ name: "dismissWoke", label: "Dismiss Woke notification" }] : []),
+    [showsWoke],
   );
 
   const handleDelete = useCallback(() => onDeleteThread(thread), [onDeleteThread, thread]);
@@ -927,7 +833,6 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
   );
   const handleMenuAction = useCallback(
     ({ nativeEvent }: { readonly nativeEvent: { readonly event: string } }) => {
-      if (nativeEvent.event === "new-thread-on-branch") onNewThreadOnBranch(thread);
       if (nativeEvent.event === "settle") handleSettle();
       if (nativeEvent.event === "unsettle") handleUnsettle();
       if (nativeEvent.event === "unsnooze") handleUnsnooze();
@@ -975,7 +880,6 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
       }
     },
     [
-      onNewThreadOnBranch,
       thread,
       handleArchive,
       handleDelete,
@@ -1218,46 +1122,7 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
         ) : (
           <View className="flex-1" />
         )}
-        {pr ? (
-          <Pressable
-            // Padding cancelled by negative margin grows the touch target into
-            // the row padding without moving the badge.
-            className="-m-2.5 flex-row items-center gap-1 p-2.5"
-            accessibilityRole="button"
-            accessibilityLabel={prBadgeLabel ?? undefined}
-            onPress={handleOpenPullRequests}
-            // Handle long-press so opening the iOS row menu cannot also open the PR on release.
-            onLongPress={() => undefined}
-            style={({ pressed }) => ({ opacity: pressed ? 0.6 : 1 })}
-          >
-            <SymbolView
-              name={
-                pr.kind === "stack"
-                  ? PullRequestGlyph.stack
-                  : pr.state === null
-                    ? PullRequestGlyph.pullRequest
-                    : pullRequestStatus({ state: pr.state, isDraft: pr.isDraft }).icon
-              }
-              size={12}
-              tintColorClassName={
-                pr.state === null || pr.isDraft
-                  ? rowAppearance.mutedIconTintClassName
-                  : pr.state === "open"
-                    ? "accent-adaptive-emerald-600-400"
-                    : pr.state === "closed"
-                      ? "accent-adaptive-rose-600-400"
-                      : "accent-adaptive-violet-600-400"
-              }
-            />
-            <Text
-              accessibilityLabel={pr.accessibilityLabel}
-              className={cn("text-xs", pr.textClassName)}
-              style={{ fontFamily: MONO_FONT }}
-            >
-              {pr.label}
-            </Text>
-          </Pressable>
-        ) : null}
+
         {providerInstance ? (
           <View className="flex-row items-center">
             {providerDrivers.slice(0, -1).map(
@@ -1306,7 +1171,6 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
         accessibilityState={{ selected }}
         accessibilityActions={rowAccessibilityActions}
         onAccessibilityAction={(event) => {
-          if (event.nativeEvent.actionName === "openPullRequests") handleOpenPullRequests();
           if (event.nativeEvent.actionName === "dismissWoke") handleAcknowledgeWoke();
         }}
         onPress={() => {
@@ -1433,15 +1297,6 @@ export const ThreadListV2Row = memo(function ThreadListV2Row(props: {
         {(close) => (
           <Menu
             actions={[
-              ...(thread.branch
-                ? [
-                    {
-                      id: "new-thread-on-branch",
-                      title: getThreadListV2NewBranchMenuTitle(thread.branch),
-                      image: "square.and.pencil",
-                    },
-                  ]
-                : []),
               { id: "copy-thread", title: "Copy thread", image: "text.bubble" },
               { id: "copy-thread-id", title: "Copy thread ID", image: "doc.on.doc" },
               ...(snoozedRow

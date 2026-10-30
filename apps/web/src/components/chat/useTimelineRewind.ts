@@ -93,7 +93,7 @@ export function useTimelineRewind(input: TimelineRewindInput) {
   const onRevertToTurnCount = async (
     turnCount: number,
     messageId: MessageId,
-    restoreFiles?: boolean,
+    confirmed = false,
   ) => {
     const localApi = readLocalApi();
     if (
@@ -124,7 +124,7 @@ export function useTimelineRewind(input: TimelineRewindInput) {
       setThreadError(activeThread.id, "Interrupt the current turn before reverting checkpoints.");
       return;
     }
-    if (restoreFiles === undefined) {
+    if (!confirmed) {
       openRevertConfirm(routeThreadKey, { turnCount, messageId });
       return;
     }
@@ -139,7 +139,6 @@ export function useTimelineRewind(input: TimelineRewindInput) {
       routeThreadRef,
       threadId: activeThread.id,
       turnCount,
-      restoreFiles,
       // Keep the live checkpoint identity when command context refetches a bounded window.
       checkpoint: findRevertCheckpoint(serverProjection?.checkpoints ?? [], turnCount),
       draftTarget: composerDraftTarget,
@@ -166,8 +165,8 @@ export function useTimelineRewind(input: TimelineRewindInput) {
     }
   };
   const onRevertToTurnCountStable = useStableCallback(onRevertToTurnCount);
-  const onConfirmRevert = (turnCount: number, messageId: MessageId, restoreFiles: boolean) => {
-    void onRevertToTurnCount(turnCount, messageId, restoreFiles);
+  const onConfirmRevert = (turnCount: number, messageId: MessageId) => {
+    void onRevertToTurnCount(turnCount, messageId, true);
   };
   const onConfirmRevertStable = useStableCallback(onConfirmRevert);
 

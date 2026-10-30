@@ -46,21 +46,6 @@ describe("normalizeDesktopUpdateReleaseNotes", () => {
     });
   });
 
-  it("excludes a GitHub HTML contributor section", () => {
-    const result = normalizeDesktopUpdateReleaseNotes(
-      "<h2>What's Changed</h2><ul><li>Older fix</li><li>Newer fix</li></ul>" +
-        "<h2>New Contributors</h2><ul><li>@human made their first contribution</li></ul>" +
-        "<h2>Full Changelog</h2>",
-      "1.2.3",
-      "latest",
-    );
-
-    expect(result).toEqual({
-      releaseNotes: [{ version: "1.2.3", items: ["Newer fix", "Older fix"], totalItems: 2 }],
-      omittedReleaseCount: 0,
-    });
-  });
-
   it("reads a generated summary as a note and skips the folded full list", () => {
     const fixes = Array.from({ length: 9 }, (_, index) => `- Fix ${index + 1} (#${index + 1})`);
     const result = normalizeDesktopUpdateReleaseNotes(

@@ -62,7 +62,6 @@ import {
   useKnownTerminalSessions,
 } from "../../state/use-terminal-session";
 import { useThreadSelection } from "../../state/use-thread-selection";
-import { useSelectedThreadProjection } from "../../state/use-thread-detail";
 import { EnvironmentConnectionNotice } from "../connection/EnvironmentConnectionNotice";
 import { TerminalSurface, type TerminalSurfaceHandle } from "./NativeTerminalSurface";
 import { getMobileTerminalTheme } from "./terminalTheme";
@@ -401,9 +400,6 @@ function ThreadTerminal(props: {
   const writeTerminal = useAtomCommand(terminalEnvironment.write, "terminal write");
   const clearTerminal = useAtomCommand(terminalEnvironment.clear, "terminal clear");
   const retryEnvironment = useAtomCommand(environmentCatalog.retryNow, "environment retry");
-  const selectedThreadDetail = useSelectedThreadProjection();
-  const selectedThreadDetailWorktreePath =
-    selectedThreadDetail?.projection.thread.worktreePath ?? null;
   const routeThreadIdRaw = firstRouteParam(params.threadId);
   const routeThreadId = routeThreadIdRaw ? ThreadId.make(routeThreadIdRaw) : null;
   const environment = useEnvironmentPresentation(routeEnvironmentId);
@@ -489,8 +485,7 @@ function ThreadTerminal(props: {
           terminalLocation: activeKnownSession?.state.summary ?? null,
           activeSessionLocation: activeKnownSession?.state.summary ?? null,
           workspaceRoot: selectedThreadProject.workspaceRoot,
-          threadShellWorktreePath: selectedThread.worktreePath ?? null,
-          threadDetailWorktreePath: selectedThreadDetailWorktreePath,
+          workingDirectory: selectedThread?.workingDirectory ?? null,
         }
       : null,
   });
@@ -501,7 +496,7 @@ function ThreadTerminal(props: {
             threadId: selectedThread.id,
             terminalId,
             cwd: launchLocation.cwd,
-            worktreePath: launchLocation.worktreePath,
+            workingDirectory: launchLocation.workingDirectory,
             cols: initialAttachGridSize.cols,
             rows: initialAttachGridSize.rows,
             ...(pendingLaunch?.env ? { env: pendingLaunch.env } : {}),

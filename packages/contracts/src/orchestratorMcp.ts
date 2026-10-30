@@ -26,12 +26,6 @@ import {
   ScheduledTaskUpsertSchedule,
 } from "./scheduledTask.ts";
 import { ProviderInteractionMode, ProviderRequestKind, RuntimeMode } from "./providerPolicy.ts";
-import { PullRequestState } from "./pullRequest.ts";
-import {
-  ThreadLinkedPullRequest,
-  ThreadPullRequestKey,
-  ThreadPullRequestLinkSource,
-} from "./threadPullRequest.ts";
 import { hasOnlyPairedSurrogates } from "./threadMetadataMcp.ts";
 import { ThreadTitleRegeneration } from "./threadTitle.ts";
 import {
@@ -171,9 +165,8 @@ export const OrchestratorMcpDelegateTaskInput = Schema.Struct({
   title: Schema.optional(OrchestratorMcpTitle),
   role: Schema.optional(OrchestratorMcpTaskRole),
   isolation: Schema.optional(
-    Schema.Literals(["shared", "worktree"]).annotate({
-      description:
-        "'shared' (default): parent checkout. 'worktree': new prepared checkout from the parent commit, for a separate checkout or PR per child. Uncommitted edits stay out.",
+    Schema.Literals(["shared"]).annotate({
+      description: "Use the parent working directory.",
     }),
   ),
   mode: Schema.optional(
@@ -343,15 +336,6 @@ export const OrchestratorMcpThreadListInput = Schema.Struct({
 });
 export type OrchestratorMcpThreadListInput = typeof OrchestratorMcpThreadListInput.Type;
 
-/** state is null until the host is read. */
-export const OrchestratorMcpThreadPullRequest = Schema.Struct({
-  ...ThreadPullRequestKey.fields,
-  url: TrimmedNonEmptyString,
-  source: ThreadPullRequestLinkSource,
-  state: Schema.NullOr(PullRequestState),
-});
-export type OrchestratorMcpThreadPullRequest = typeof OrchestratorMcpThreadPullRequest.Type;
-
 export const OrchestratorMcpThreadListItem = Schema.Struct({
   threadId: ThreadId,
   projectId: ProjectId,
@@ -365,8 +349,6 @@ export const OrchestratorMcpThreadListItem = Schema.Struct({
   model: Schema.String,
   runtimeMode: RuntimeMode,
   interactionMode: ProviderInteractionMode,
-  linkedPullRequest: Schema.NullOr(ThreadLinkedPullRequest),
-  pullRequests: Schema.optional(Schema.Array(OrchestratorMcpThreadPullRequest)),
   settled: Schema.Boolean,
   settledAt: Schema.NullOr(IsoDateTime),
   snoozed: Schema.Boolean,
@@ -436,11 +418,8 @@ export const OrchestratorMcpThreadDetail = Schema.Struct({
   model: Schema.String,
   runtimeMode: RuntimeMode,
   interactionMode: ProviderInteractionMode,
-  linkedPullRequest: Schema.NullOr(ThreadLinkedPullRequest),
-  pullRequests: Schema.optional(Schema.Array(OrchestratorMcpThreadPullRequest)),
   titleRegeneration: Schema.NullOr(ThreadTitleRegeneration),
-  branch: Schema.NullOr(Schema.String),
-  worktreePath: Schema.NullOr(Schema.String),
+  workingDirectory: Schema.NullOr(Schema.String),
   parentThreadId: Schema.NullOr(ThreadId),
   relationshipToParent: Schema.NullOr(Schema.Literals(["fork", "subagent"])),
   runCount: NonNegativeInt,

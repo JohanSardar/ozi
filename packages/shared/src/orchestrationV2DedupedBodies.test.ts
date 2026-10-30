@@ -82,12 +82,11 @@ const assistantMessage = (id: string, messageId: string, text: string, threadId 
     { type: "assistant_message", messageId: MessageId.make(messageId), text, streaming: false },
     threadId,
   );
-const checkpoint = (id: string, checkpointId: string, itemFiles: typeof files) =>
+const checkpoint = (id: string, checkpointId: string) =>
   item(id, {
     type: "checkpoint",
     checkpointId: CheckpointId.make(checkpointId),
     scopeId: CheckpointScopeId.make("scope"),
-    files: itemFiles,
   });
 
 const local: OrchestrationV2TurnItem[] = [
@@ -95,9 +94,9 @@ const local: OrchestrationV2TurnItem[] = [
   assistantMessage("assistant", "m-assistant", "hi there"),
   assistantMessage("stale", "m-stale", "older text"),
   userMessage("empty", "m-empty", ""),
-  checkpoint("checkpoint", "c-1", files),
-  checkpoint("orphan-checkpoint", "c-missing", files),
-  checkpoint("no-files", "c-empty", []),
+  checkpoint("checkpoint", "c-1"),
+  checkpoint("orphan-checkpoint", "c-missing"),
+  checkpoint("no-files", "c-empty"),
   item("task", {
     type: "subagent",
     subagentId: subagent.id,

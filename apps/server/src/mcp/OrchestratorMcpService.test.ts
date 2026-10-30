@@ -49,7 +49,6 @@ import {
 } from "../orchestration-v2/Orchestrator.ts";
 import * as ProviderAdapterRegistry from "../orchestration-v2/ProviderAdapterRegistry.ts";
 import * as ThreadLaunchService from "../orchestration-v2/ThreadLaunchService.ts";
-import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
 import * as ThreadManagementService from "../orchestration-v2/ThreadManagementService.ts";
 import * as ProviderRegistry from "../provider/ProviderRegistry.ts";
 import { buildUnavailableProviderSnapshot } from "../provider/unavailableProviderSnapshot.ts";
@@ -68,7 +67,6 @@ const decodeTarget = Schema.decodeUnknownEffect(OrchestratorMcpTarget);
 
 const layerOrchestratorService = OrchestratorMcpService.layer.pipe(
   Layer.provide(Layer.mock(ThreadLaunchService.ThreadLaunchService)({})),
-  Layer.provide(Layer.mock(GitVcsDriver.GitVcsDriver)({})),
 );
 
 describe("OrchestratorMcpService", () => {
@@ -1830,8 +1828,7 @@ describe("OrchestratorMcpService provider resolution", () => {
               modelSelection: { instanceId: codexInstanceId, model: "gpt-5.4" },
               runtimeMode: "full-access",
               interactionMode: "default",
-              branch: null,
-              worktreePath: cwd,
+              workingDirectory: cwd,
             });
             yield* orchestrator.dispatch({
               type: "message.dispatch",
@@ -2915,8 +2912,7 @@ describe("OrchestratorMcpService thread stop", () => {
             modelSelection,
             runtimeMode: "full-access",
             interactionMode: "default",
-            branch: null,
-            worktreePath: cwd,
+            workingDirectory: cwd,
             createdBy: "user",
             creationSource: "web",
           });

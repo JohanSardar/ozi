@@ -929,25 +929,6 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
       );
     },
   });
-  const { copyToClipboard: copyBranchToClipboard } = useCopyToClipboard<{ branch: string }>({
-    target: "branch name",
-    onCopy: ({ branch }) => {
-      toastManager.add({
-        type: "success",
-        title: "Branch copied",
-        description: branch,
-      });
-    },
-    onError: (error) => {
-      toastManager.add(
-        stackedThreadToast({
-          type: "error",
-          title: "Failed to copy branch",
-          description: error instanceof Error ? error.message : "An error occurred.",
-        }),
-      );
-    },
-  });
   const { copyToClipboard: copyThreadIdToClipboard } = useCopyToClipboard<{ threadId: ThreadId }>({
     onCopy: ({ threadId }) => {
       toastManager.add({
@@ -2463,13 +2444,12 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           ),
         );
         const workspacePath =
-          session.worktreePath ??
+          session.workingDirectory ??
           projectByKey.get(`${session.environmentId}:${session.projectId}`)?.workspaceRoot;
         const clicked = await settlePromise(() =>
           api.contextMenu.show(
             buildDraftActionMenuItems({
               hasPath: Boolean(workspacePath),
-              hasBranch: Boolean(session.branch),
               hasProject: projectGroup != null,
             }),
             position,
@@ -2486,9 +2466,6 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
             return;
           case "copy-path":
             if (workspacePath) copyPathToClipboard(workspacePath, { path: workspacePath });
-            return;
-          case "copy-branch":
-            if (session.branch) copyBranchToClipboard(session.branch, { branch: session.branch });
             return;
           case "discard": {
             // The menu may outlive draft promotion; discarding then would strand the send.
@@ -2515,7 +2492,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
         const thread = threadByKeyRef.current.get(threadKey);
         if (!thread) return;
         const threadWorkspacePath =
-          thread.worktreePath ??
+          thread.workingDirectory ??
           projectByKey.get(`${thread.environmentId}:${thread.projectId}`)?.workspaceRoot ??
           null;
         const configLoaded = serverConfigs.has(thread.environmentId);
@@ -2546,7 +2523,6 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                 threadRef.environmentId,
                 AuthOrchestrationOperateScope,
               ),
-              branch: thread.branch ?? null,
               projectFilter: threadProjectGroup
                 ? {
                     label: threadProjectGroup.displayName,
@@ -2611,10 +2587,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
           case "new-thread-on-branch": {
             const result = await settlePromise(() =>
               handleNewThread(scopeProjectRef(thread.environmentId, thread.projectId), {
-                branch: thread.branch,
-                worktreePath: thread.worktreePath,
-                envMode: thread.worktreePath ? "worktree" : "local",
-                startFromOrigin: false,
+                workingDirectory: thread.workingDirectory,
               }),
             );
             if (result._tag === "Failure") {
@@ -2721,11 +2694,6 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               return;
             }
             copyPathToClipboard(threadWorkspacePath, { path: threadWorkspacePath });
-            return;
-          case "copy-branch":
-            if (thread.branch) {
-              copyBranchToClipboard(thread.branch, { branch: thread.branch });
-            }
             return;
           case "copy-thread":
             void copyThreadReference(threadChipCopyTarget(threadRef, thread.title));
@@ -3258,7 +3226,6 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                               routeRowThreadKey === threadKey ? revealActiveRow : undefined
                             }
                             isRouteThread={routeThreadKey === threadKey}
-                            openPullRequestsInRightPanel={routeThreadRef !== null}
                             jumpLabel={
                               showJumpHints ? (jumpLabelByKey.get(threadKey) ?? null) : null
                             }

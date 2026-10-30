@@ -4,9 +4,7 @@ import { View } from "react-native";
 import { RenderErrorBoundary, RenderFailureView } from "../../components/RenderErrorBoundary";
 import { NativeInspectorContent } from "../../native/NativeInspectorContent";
 
-export type ThreadInspectorMode = "route" | "git" | "files" | "preview";
-
-const INSPECTOR_PREWARM_DELAY_MS = 350;
+export type ThreadInspectorMode = "route" | "files" | "preview";
 
 function InspectorContentPane(props: {
   readonly children: ReactNode;
@@ -66,23 +64,6 @@ export function ThreadInspectorContentStack(props: {
       }
       return new Set([...current, props.mode]);
     });
-
-    if (props.mode === "route" || props.mode === "preview") {
-      return;
-    }
-
-    // Keep both inspectors alive after opening; detaching the file tree makes UIKit rebuild its expensive focus graph.
-    const alternateMode = props.mode === "files" ? "git" : "files";
-    const timeout = setTimeout(() => {
-      setMountedModes((current) => {
-        if (current.has(alternateMode)) {
-          return current;
-        }
-        return new Set([...current, alternateMode]);
-      });
-    }, INSPECTOR_PREWARM_DELAY_MS);
-
-    return () => clearTimeout(timeout);
   }, [props.mode]);
 
   return (
@@ -99,15 +80,7 @@ export function ThreadInspectorContentStack(props: {
       >
         <InspectorRenderer render={props.renderFiles} />
       </InspectorContentPane>
-      {props.renderGit ? (
-        <InspectorContentPane
-          mounted={mountedModes.has("git") || props.mode === "git"}
-          resetKeys={props.resetKeys}
-          visible={props.mode === "git"}
-        >
-          <InspectorRenderer render={props.renderGit} />
-        </InspectorContentPane>
-      ) : null}
+
       {props.renderRoute ? (
         <InspectorContentPane
           mounted={mountedModes.has("route") || props.mode === "route"}

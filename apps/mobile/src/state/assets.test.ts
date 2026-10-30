@@ -39,7 +39,7 @@ vi.mock("./presentation", () => ({
 vi.mock("./query", () => ({
   useEnvironmentQuery: () => ({ data: state.session, error: null }),
 }));
-vi.mock("./projectClones", () => ({ environmentProjectCloneListAtom: () => null }));
+vi.mock("./projectClones", () => ({}));
 vi.mock("../connection/runtime", () => ({ connectionAtomRuntime: {} }));
 vi.mock("../connection/catalog", () => ({
   environmentCatalog: { sessionGenerationAtom: () => null },

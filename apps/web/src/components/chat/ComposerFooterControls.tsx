@@ -247,7 +247,6 @@ export const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryA
   activeContextWindow: ContextWindowSnapshot | null;
   reserveContextWindowMeter: boolean;
   activeThreadModelDisplayName: string | null;
-  isPreparingWorktree: boolean;
   pendingAction: {
     questionIndex: number;
     isLastQuestion: boolean;
@@ -308,7 +307,6 @@ export const ComposerFooterPrimaryActions = memo(function ComposerFooterPrimaryA
         isSendBusy={props.isSendBusy}
         sendDisabledReason={props.sendDisabledReason}
         isEnvironmentUnavailable={props.isEnvironmentUnavailable}
-        isPreparingWorktree={props.isPreparingWorktree}
         hasSendableContent={props.hasSendableContent}
         canResume={props.canResume}
         preserveComposerFocusOnPointerDown={props.preserveComposerFocusOnPointerDown ?? false}

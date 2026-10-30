@@ -3,8 +3,7 @@ import type { LinkedPrompt } from "@t3tools/shared/promptLinks";
 import { type ComposerThreadTarget, useComposerDraftStore } from "~/composerDraftStore";
 
 import { toastManager } from "../ui/toast";
-
-export function warnAboutHiddenCharacters(prompt: LinkedPrompt): void {
+function warnAboutHiddenCharacters(prompt: LinkedPrompt): void {
   if (prompt.hiddenCharacters === 0) return;
   toastManager.add({
     type: "warning",

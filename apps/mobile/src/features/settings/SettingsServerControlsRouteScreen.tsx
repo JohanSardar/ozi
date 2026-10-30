@@ -8,8 +8,6 @@ import {
   type ResponseStreamingMode,
   type ServerSettings,
   type ServerSettingsPatch,
-  type ThreadEnvMode,
-  type WorktreeSubmodules,
   PROJECT_SCOPED_SERVER_SETTING_KEYS,
   type ProjectScopedServerSettingKey,
 } from "@t3tools/contracts";
@@ -23,12 +21,10 @@ import {
   AndroidSettingsEnvironmentFilter,
   SettingsEnvironmentFilterHeader,
 } from "./components/SettingsEnvironmentFilterHeader";
-import { BranchNamingSettings } from "./components/BranchNamingSettings";
 import { DatabaseStorageNotice } from "./components/DatabaseStorageNotice";
 import { ListChoiceRow as SettingsChoiceRow } from "../../components/ui/ListChoiceRow";
 import { SettingsSection } from "./components/SettingsSection";
 import { SettingsSwitchRow } from "./components/SettingsSwitchRow";
-import { SourceControlSignInSection } from "./components/SourceControlSignInSection";
 import { SettingsProjectOverridesSection } from "./components/SettingsProjectOverridesSection";
 import { useSettingsEnvironmentFilter } from "./settings-environment-filter";
 import { useSettingsWriter } from "./useSettingsWriter";
@@ -39,79 +35,25 @@ import {
   uniformMobileSetting,
   type ScopedMobileSettingsTarget,
 } from "./settings-scoped-server";
-import { PullRequestGlyph } from "../pull-requests/pullRequestGlyphs";
 import { AutoSettleSettingsRows } from "./ThreadSettingsSections";
 import { supportsSharedSettingsSync } from "@t3tools/client-runtime/state/shared-settings";
 
-type SettingsPage = "threads" | "source-control" | "worktrees" | "maintenance";
+type SettingsPage = "threads" | "maintenance";
 
 const PAGE_TITLES: Record<SettingsPage, string> = {
   threads: "Threads",
-  "source-control": "Source control",
-  worktrees: "Worktrees",
   maintenance: "Maintenance",
 };
 
 const PAGE_PROJECT_KEYS: Record<SettingsPage, readonly ProjectScopedServerSettingKey[]> = {
   threads: [
-    "defaultThreadEnvMode",
     "defaultRuntimeMode",
     "responseStreamingMode",
     "enableAgentBrowserAccess",
-    "sidebarAutoSettleOnMerge",
     "sidebarAutoSettleAfterDays",
-  ],
-  "source-control": ["defaultAutoPull", "removeAgentCreditsOnMerge"],
-  worktrees: [
-    "newWorktreesStartFromOrigin",
-    "worktreeSubmodules",
-    "branchNamingMode",
-    "branchNamePrefix",
-    "branchNameInstructions",
   ],
   maintenance: ["continueThreadsAfterServerUpdate"],
 };
-
-const SUBMODULE_CHOICES: ReadonlyArray<{
-  readonly mode: WorktreeSubmodules | null;
-  readonly label: string;
-  readonly description: string;
-}> = [
-  {
-    mode: null,
-    label: "Inherit",
-    description: "Use the repository's t3.json, or initialize recursively.",
-  },
-  { mode: "recursive", label: "Recursive", description: "Initialize nested submodules too." },
-  {
-    mode: "top-level",
-    label: "Top level only",
-    description: "Skip submodules declared inside other submodules.",
-  },
-  { mode: "none", label: "Skip", description: "Leave submodules empty for a setup script." },
-];
-
-const WORKSPACE_CHOICES: ReadonlyArray<{
-  readonly mode: ThreadEnvMode | null;
-  readonly label: string;
-  readonly description: string;
-}> = [
-  {
-    mode: null,
-    label: "Inherit",
-    description: "Use the repository's t3.json, or the current checkout.",
-  },
-  {
-    mode: "local",
-    label: "Current checkout",
-    description: "Start new threads in the existing workspace.",
-  },
-  {
-    mode: "worktree",
-    label: "New worktree",
-    description: "Give each new thread a separate checkout.",
-  },
-];
 
 const STREAMING_CHOICES: ReadonlyArray<{
   readonly mode: ResponseStreamingMode;
@@ -132,7 +74,6 @@ const STREAMING_CHOICES: ReadonlyArray<{
 
 // Only servers with thread auto-settlement store these, so other targets get the rest of a patch.
 const AUTO_SETTLE_SETTING_KEYS: ReadonlySet<string> = new Set([
-  "sidebarAutoSettleOnMerge",
   "sidebarAutoSettleAfterDays",
   "autoResumeLimitedThreads",
   "snoozeLimitedThreads",
@@ -158,14 +99,6 @@ function planServerSettingsWrites(
 
 export function SettingsThreadsRouteScreen() {
   return <ServerSettingsDetail page="threads" />;
-}
-
-export function SettingsEnvironmentSourceControlRouteScreen() {
-  return <ServerSettingsDetail page="source-control" />;
-}
-
-export function SettingsWorktreesRouteScreen() {
-  return <ServerSettingsDetail page="worktrees" />;
 }
 
 export function SettingsEnvironmentMaintenanceRouteScreen() {
@@ -201,10 +134,6 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
   const reference = displayTargets[0] ?? null;
   const uniform = <K extends keyof ServerSettings>(key: K) =>
     uniformMobileSetting(displayTargets, key);
-  // `uniform` folds a real null into "mixed"; nullable keys need the distinction.
-  const isMixed = (key: keyof ServerSettings) =>
-    reference === null ||
-    displayTargets.some((entry) => entry.settings[key] !== reference.settings[key]);
   const writeSettings = useSettingsWriter();
   const write = (patch: ServerSettingsPatch) => {
     if (writeInFlight.current) {
@@ -303,31 +232,6 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
               {props.page === "threads" ? (
                 <>
                   <SettingsSection
-                    title="Default workspace"
-                    trailing={
-                      pendingWrites === 0 && isMixed("defaultThreadEnvMode") ? (
-                        <MixedValuesLabel projectSelected={projectSelected} />
-                      ) : null
-                    }
-                  >
-                    {WORKSPACE_CHOICES.filter(
-                      (choice) => choice.mode !== null || !projectSelected,
-                    ).map((choice, index) => (
-                      <SettingsChoiceRow
-                        key={choice.mode ?? "inherit"}
-                        label={choice.label}
-                        description={choice.description}
-                        selected={
-                          !isMixed("defaultThreadEnvMode") &&
-                          uniform("defaultThreadEnvMode") === choice.mode
-                        }
-                        separated={index > 0}
-                        disabled={disabledFor("defaultThreadEnvMode")}
-                        onPress={() => write({ defaultThreadEnvMode: choice.mode })}
-                      />
-                    ))}
-                  </SettingsSection>
-                  <SettingsSection
                     title="Default permissions"
                     trailing={
                       pendingWrites === 0 && uniform("defaultRuntimeMode") === null ? (
@@ -378,85 +282,6 @@ function ServerSettingsDetail(props: { readonly page: SettingsPage }) {
                     />
                   </SettingsSection>
                   <AutoSettleSettingsRows write={write} pending={pendingWrites > 0} />
-                </>
-              ) : null}
-
-              {props.page === "source-control" ? (
-                <>
-                  {projectSelected ? null : (
-                    <SourceControlSignInSection
-                      environments={selectedTargets}
-                      canWrite={(environmentId) => writableEnvironments.has(environmentId)}
-                    />
-                  )}
-                  <SettingsSection title="Pull requests">
-                    <SettingsSwitchRow
-                      icon={PullRequestGlyph.merged}
-                      label="Remove agent credits when merging"
-                      subtitle="Remove recognized agent credits from merge and squash messages on hosts that support it, keeping human co-authors. Includes auto-merge. Excludes merge queues, stack merges, and existing commits."
-                      value={uniform("removeAgentCreditsOnMerge")}
-                      disabled={disabledFor("removeAgentCreditsOnMerge")}
-                      onValueChange={(value) => write({ removeAgentCreditsOnMerge: value })}
-                    />
-                  </SettingsSection>
-                  <SettingsSection title="Default branch">
-                    <SettingsSwitchRow
-                      icon="arrow.down.circle"
-                      label="Automatically pull"
-                      subtitle="Keep the default branch current when there are no local changes."
-                      value={uniform("defaultAutoPull")}
-                      disabled={disabledFor("defaultAutoPull")}
-                      onValueChange={(value) => write({ defaultAutoPull: value })}
-                    />
-                  </SettingsSection>
-                </>
-              ) : null}
-
-              {props.page === "worktrees" ? (
-                <>
-                  <SettingsSection title="New worktrees">
-                    <SettingsSwitchRow
-                      icon="arrow.triangle.branch"
-                      label="Start from remote"
-                      subtitle="Uses the latest commit of the base branch’s tracked remote branch, even if its name differs. Otherwise uses the same-named branch on origin. Uses your local branch if that remote branch is missing."
-                      value={uniform("newWorktreesStartFromOrigin")}
-                      disabled={disabledFor("newWorktreesStartFromOrigin")}
-                      onValueChange={(value) => write({ newWorktreesStartFromOrigin: value })}
-                    />
-                  </SettingsSection>
-                  <SettingsSection
-                    title="Worktree submodules"
-                    trailing={
-                      pendingWrites === 0 && isMixed("worktreeSubmodules") ? (
-                        <MixedValuesLabel projectSelected={projectSelected} />
-                      ) : null
-                    }
-                  >
-                    {SUBMODULE_CHOICES.filter(
-                      (choice) => choice.mode !== null || !projectSelected,
-                    ).map((choice, index) => (
-                      <SettingsChoiceRow
-                        key={choice.mode ?? "inherit"}
-                        label={choice.label}
-                        description={choice.description}
-                        selected={
-                          !isMixed("worktreeSubmodules") &&
-                          uniform("worktreeSubmodules") === choice.mode
-                        }
-                        separated={index > 0}
-                        disabled={disabledFor("worktreeSubmodules")}
-                        onPress={() => write({ worktreeSubmodules: choice.mode })}
-                      />
-                    ))}
-                  </SettingsSection>
-                  <BranchNamingSettings
-                    key={targetsKey}
-                    mode={uniform("branchNamingMode")}
-                    prefix={uniform("branchNamePrefix")}
-                    instructions={uniform("branchNameInstructions")}
-                    disabled={disabledFor("branchNamingMode")}
-                    onChange={write}
-                  />
                 </>
               ) : null}
 

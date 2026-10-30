@@ -51,9 +51,6 @@ function stableScopeKey(environmentId: EnvironmentId, scope: BackgroundScope): s
       return JSON.stringify([environmentId, scope.type]);
     case "provider-status":
       return JSON.stringify([environmentId, scope.type, scope.instanceId ?? null]);
-    case "vcs-status":
-    case "git-refs":
-      return JSON.stringify([environmentId, scope.type, scope.cwd]);
     case "thread":
       return JSON.stringify([environmentId, scope.type, scope.threadId]);
   }
@@ -110,15 +107,9 @@ function createActivityReport(
 function scopeForSubscription(
   observation: EnvironmentRpcSubscriptionObservation,
 ): BackgroundScope | null {
-  if (observation.method === WS_METHODS.subscribeResourceTelemetry) {
-    return { type: "diagnostics" };
-  }
-  if (observation.method !== WS_METHODS.subscribeVcsStatus) {
-    return null;
-  }
-  const input = observation.input as { readonly cwd?: unknown; readonly includeRemote?: unknown };
-  if (input.includeRemote === false) return null;
-  return typeof input.cwd === "string" ? { type: "vcs-status", cwd: input.cwd } : null;
+  return observation.method === WS_METHODS.subscribeResourceTelemetry
+    ? { type: "diagnostics" }
+    : null;
 }
 
 function retainBackgroundScope(environmentId: EnvironmentId, scope: BackgroundScope): () => void {
@@ -141,8 +132,7 @@ function retainBackgroundScope(environmentId: EnvironmentId, scope: BackgroundSc
     }
   };
 }
-
-export function observeBackgroundActivitySubscription(
+function observeBackgroundActivitySubscription(
   observation: EnvironmentRpcSubscriptionObservation,
 ): Effect.Effect<Effect.Effect<void>> {
   const scope = scopeForSubscription(observation);
@@ -153,14 +143,6 @@ export function observeBackgroundActivitySubscription(
     const release = retainBackgroundScope(observation.environmentId as EnvironmentId, scope);
     return Effect.sync(release);
   });
-}
-
-export function retainedBackgroundScopes(
-  environmentId: EnvironmentId,
-): ReadonlyArray<BackgroundScope> {
-  return Array.from(retainedScopes.values(), (entry) =>
-    entry.environmentId === environmentId ? entry.scope : null,
-  ).filter((scope): scope is BackgroundScope => scope !== null);
 }
 
 export const layerObserver = Layer.succeed(

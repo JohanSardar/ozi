@@ -2,7 +2,6 @@ import * as NodeServices from "@effect/platform-node/NodeServices";
 import { it } from "@effect/vitest";
 import { ClaudeSettings, ProviderInstanceId } from "@t3tools/contracts";
 import * as HostProcess from "@t3tools/shared/HostProcess";
-import { createModelSelection } from "@t3tools/shared/model";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
@@ -13,8 +12,6 @@ import { expect } from "vite-plus/test";
 import * as ServerConfig from "../config.ts";
 import { processProbeSource } from "../testUtils/processProbe.ts";
 import {
-  SYNTHETIC_CLAUDE_CAPABLE_MODEL,
-  SYNTHETIC_CLAUDE_COLLIDING_ALIAS,
   SYNTHETIC_CLAUDE_MODEL_CATALOG,
   SYNTHETIC_CLAUDE_STANDARD_MODEL,
 } from "../provider/ClaudeModelCatalog.testFixtures.ts";
@@ -196,46 +193,6 @@ function withFakeClaudeEnv<A, E, R>(
 }
 
 it.layer(layerClaudeTextGenerationTest)("ClaudeTextGeneration", (it) => {
-  it.effect(
-    "keeps canonical built-in capabilities when a custom model collides with its alias",
-    () =>
-      withFakeClaudeEnv(
-        {
-          output: JSON.stringify({
-            structured_output: {
-              title: "Improve orchestration flow",
-              body: "Body",
-            },
-          }),
-          argsMustContain: `--model ${SYNTHETIC_CLAUDE_CAPABLE_MODEL}[expanded] --effort max --settings {"disableAllHooks":true,"fastMode":true}`,
-          claudeConfig: { customModels: [SYNTHETIC_CLAUDE_COLLIDING_ALIAS] },
-        },
-        (textGeneration) =>
-          Effect.gen(function* () {
-            const generated = yield* textGeneration.generatePrContent({
-              cwd: process.cwd(),
-              baseBranch: "main",
-              headBranch: "feature/claude-effect",
-              commitSummary: "Improve orchestration",
-              diffSummary: "1 file changed",
-              diffPatch: "diff --git a/README.md b/README.md",
-              modelSelection: {
-                ...createModelSelection(
-                  ProviderInstanceId.make("claudeAgent"),
-                  SYNTHETIC_CLAUDE_CAPABLE_MODEL,
-                  [
-                    { id: "effort", value: "max" },
-                    { id: "fastMode", value: true },
-                  ],
-                ),
-              },
-            });
-
-            expect(generated.title).toBe("Improve orchestration flow");
-          }),
-      ),
-  );
-
   it.effect(
     "generates thread titles outside the project with tools, skills, and hooks disabled",
     () =>

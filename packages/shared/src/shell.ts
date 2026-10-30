@@ -547,8 +547,8 @@ export const withPathDirectoryListings =
 // An injected resolver or locator may answer differently for the same search, so its
 // entries are kept apart from every other resolver's.
 let spawnResolverCacheIdCount = 0;
-const spawnResolverCacheIds = new WeakMap<SpawnExecutableResolver | XcodeGitLocator, number>();
-function spawnResolverCacheId(resolver: SpawnExecutableResolver | XcodeGitLocator): number {
+const spawnResolverCacheIds = new WeakMap<SpawnExecutableResolver, number>();
+function spawnResolverCacheId(resolver: SpawnExecutableResolver): number {
   const known = spawnResolverCacheIds.get(resolver);
   if (known !== undefined) return known;
   const id = spawnResolverCacheIdCount++;
@@ -673,35 +673,12 @@ export const resolveCommandPath = Effect.fn("shell.resolveCommandPath")(function
   });
 });
 
-// Git 2.56 x64 uses ucrt64; ARM64 uses clangarm64; older x64/32-bit builds use mingw64/mingw32.
-const GIT_FOR_WINDOWS_BUILDS = ["ucrt64", "clangarm64", "mingw64", "mingw32"] as const;
-
 function isFileSync(filePath: string): boolean {
   try {
     return NodeFS.statSync(filePath).isFile();
   } catch {
     return false;
   }
-}
-
-/** Bypass the launcher's extra process and kernel-token leak. Retain it when MSYSTEM is set, or git.exe omits hook/helper PATH entries. */
-export function preferGitForWindowsBinary(
-  executable: string,
-  env: NodeJS.ProcessEnv,
-  isFile: (filePath: string) => boolean = isFileSync,
-): string {
-  if (env.MSYSTEM) return executable;
-  const path = NodePath.win32;
-  if (path.basename(executable).toLowerCase() !== "git.exe") return executable;
-  const launcherDirectory = path.dirname(executable);
-  const launcherFolder = path.basename(launcherDirectory).toLowerCase();
-  if (launcherFolder !== "cmd" && launcherFolder !== "bin") return executable;
-  const installRoot = path.dirname(launcherDirectory);
-  for (const build of GIT_FOR_WINDOWS_BUILDS) {
-    const candidate = path.join(installRoot, build, "bin", "git.exe");
-    if (isFile(candidate)) return candidate;
-  }
-  return executable;
 }
 
 // npm cmd-shim format for native executables.
@@ -747,68 +724,6 @@ export function npmShimExecutable(
   return isFile(executable) ? executable : undefined;
 }
 
-export type XcodeGitLocator = (env: NodeJS.ProcessEnv) => string | undefined;
-
-// xcrun honors DEVELOPER_DIR and the `xcode-select` choice, as the shim does.
-function locateXcodeGitWithXcrun(env: NodeJS.ProcessEnv): string | undefined {
-  try {
-    const located = NodeChildProcess.execFileSync("/usr/bin/xcrun", ["--find", "git"], {
-      encoding: "utf8",
-      env,
-      timeout: 5_000,
-      stdio: ["ignore", "pipe", "ignore"],
-    }).trim();
-    return NodePath.isAbsolute(located) ? located : undefined;
-  } catch {
-    return undefined;
-  }
-}
-
-export const XcodeGitLocation = Context.Reference<XcodeGitLocator>(
-  "@t3tools/shared/shell/XcodeGitLocation",
-  { defaultValue: () => locateXcodeGitWithXcrun },
-);
-
-const MACOS_GIT_SHIM = "/usr/bin/git";
-
-/**
- * Skip the xcrun shim's per-spawn lookup only when git resolves to /usr/bin/git.
- * User-selected git on PATH still wins, children keep PATH, and lookup failures use `git`.
- */
-const resolveMacosGit = Effect.fnUntraced(function* (
-  env: NodeJS.ProcessEnv,
-  resolveExecutable: SpawnExecutableResolver,
-) {
-  const locateXcodeGit = yield* XcodeGitLocation;
-  const cache = yield* CommandResolutionCache;
-  const cacheKey = [
-    "xcode-git",
-    String(spawnResolverCacheId(resolveExecutable)),
-    String(spawnResolverCacheId(locateXcodeGit)),
-    resolvePathEnvironmentVariable(env),
-    env.DEVELOPER_DIR ?? "",
-  ].join(COMMAND_RESOLUTION_CACHE_KEY_SEPARATOR);
-  const nowNanos = yield* Clock.currentTimeNanos;
-  const cached = cache.get(cacheKey);
-  // An Xcode update or removal deletes the binary; look again instead of failing the spawn.
-  if (
-    cached !== undefined &&
-    cached.expiresAtNanos > nowNanos &&
-    (cached.resolvedPath === null ||
-      resolveExecutable(cached.resolvedPath, "darwin", env) !== undefined)
-  ) {
-    return cached.resolvedPath ?? "git";
-  }
-  const located =
-    resolveExecutable("git", "darwin", env) === MACOS_GIT_SHIM ? locateXcodeGit(env) : undefined;
-  const realGit =
-    located !== undefined && resolveExecutable(located, "darwin", env) !== undefined
-      ? located
-      : null;
-  cacheCommandResolution(cache, cacheKey, realGit, nowNanos);
-  return realGit ?? "git";
-});
-
 export interface SpawnCommandOptions extends CommandAvailabilityOptions {
   /** Bypass npm cmd-shims; see npmShimExecutable for process-lifetime semantics. */
   readonly bypassNpmShim?: boolean;
@@ -820,8 +735,7 @@ export const resolveSpawnCommand = Effect.fnUntraced(function* (
   options: SpawnCommandOptions = {},
 ): Effect.fn.Return<ResolvedSpawnCommand> {
   const platform = yield* HostProcess.Platform;
-  const isMacosGit = platform === "darwin" && command === "git";
-  if (platform !== "win32" && !isMacosGit) {
+  if (platform !== "win32") {
     return { command, args: [...args], shell: false };
   }
 
@@ -833,13 +747,6 @@ export const resolveSpawnCommand = Effect.fnUntraced(function* (
         ? { ...hostEnvironment, ...options.env }
         : options.env;
   const resolveExecutable = yield* SpawnExecutableResolution;
-  if (isMacosGit) {
-    return {
-      command: yield* resolveMacosGit(env, resolveExecutable),
-      args: [...args],
-      shell: false,
-    };
-  }
   // The scan is synchronous and runs before every child process, so it shares
   // the PATH scan cache above. Explicit paths stay uncached for the same reason,
   // and so do misses: a failed spawn is how providers report "not installed",
@@ -862,7 +769,7 @@ export const resolveSpawnCommand = Effect.fnUntraced(function* (
     resolvedExecutable = cached.resolvedPath;
   } else {
     const found = resolveExecutable(command, platform, env);
-    resolvedExecutable = found === undefined ? null : preferGitForWindowsBinary(found, env);
+    resolvedExecutable = found === undefined ? null : found;
     if (!explicitPath && resolvedExecutable !== null) {
       cacheCommandResolution(cache, cacheKey, resolvedExecutable, nowNanos);
     }

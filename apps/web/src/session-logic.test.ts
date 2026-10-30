@@ -233,7 +233,6 @@ describe("V2 session presentation", () => {
           checkpointTurnCount: 1,
           checkpointRef: "checkpoint-run-1" as never,
           status: "ready",
-          files: [],
           assistantMessageId,
           completedAt: "2026-06-20T00:00:03.000Z",
         },
@@ -271,7 +270,6 @@ describe("V2 session presentation", () => {
       checkpointTurnCount: ordinal,
       checkpointRef: `checkpoint-${ordinal}` as never,
       status,
-      files: [],
       assistantMessageId: MessageId.make(`assistant-${ordinal}`),
       completedAt: "2026-06-20T00:00:09.000Z",
     });
@@ -1132,7 +1130,6 @@ describe("native provider presentation in the v2 timeline", () => {
       type: "checkpoint",
       checkpointId: CheckpointId.make("checkpoint"),
       scopeId: CheckpointScopeId.make("scope"),
-      files: [],
     };
     const entries = deriveTimelineEntriesFromVisibleTurnItems({
       visibleTurnItems: [visible(message), visible(checkpoint)],
@@ -1149,7 +1146,6 @@ describe("native provider presentation in the v2 timeline", () => {
       },
       isWorking: false,
       activeTurnStartedAt: null,
-      turnDiffSummaries: [],
       supportsConversationRollback: false,
     });
     expect(rows.map((row) => row.kind)).toEqual(["message"]);
@@ -1264,7 +1260,6 @@ describe("HTML renders in the timeline", () => {
       ...(expanded ? { expandedRunIds: new Set([runId]) } : {}),
       isWorking: false,
       activeTurnStartedAt: null,
-      turnDiffSummaries: [],
       supportsConversationRollback: false,
     }).map((row) => row.kind);
 

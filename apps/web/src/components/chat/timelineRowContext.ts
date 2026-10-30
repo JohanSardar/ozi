@@ -1,9 +1,4 @@
-import type { ToolCallDiffTarget } from "../../diffPanelStore";
-import type {
-  ProviderApprovalDecision,
-  RuntimeRequestId,
-  WorktreeSetupSnapshot,
-} from "@t3tools/contracts";
+import type { ProviderApprovalDecision, RuntimeRequestId } from "@t3tools/contracts";
 import {
   type AssistantCitation,
   type EnvironmentId,
@@ -19,7 +14,7 @@ import {
 import type { AsyncResult, Atom } from "effect/reactivity";
 import type { CommandOutputView } from "@t3tools/client-runtime/state/command-output";
 import type { WorkflowOpening } from "@t3tools/client-runtime/state/subagentRuntime";
-import { createContext, type MouseEvent, type ReactNode } from "react";
+import { createContext, type ReactNode } from "react";
 import { type LegendListRef } from "@legendapp/list/react";
 import type { CodexArtifactTemplate } from "@t3tools/shared/codexArtifactTemplates";
 import type { PendingApproval } from "../../session-logic";
@@ -70,9 +65,6 @@ export interface TimelineRowSharedState {
   findActive: boolean;
   onImageExpand: (preview: ExpandedImagePreview) => void;
   displayThreadKey?: string;
-  onOpenToolDiff: ((target: ToolCallDiffTarget) => void) | undefined;
-  /** Unset where there is no diff to open, so the timeline shows no "Open diff" button. */
-  onOpenTurnDiff: ((runId: RunId, filePath?: string) => void) | undefined;
   /**
    * Draws a published HTML visual. Unset, the row loads it from the environment; the guest page
    * loads it through its own route.
@@ -90,14 +82,10 @@ export interface TimelineRowSharedState {
   onToggleAttemptFold: (attemptId: RunAttemptId) => void;
   onFileOpen: (attachment: ChatFileAttachment) => void;
   onFileDownload: (attachment: ChatFileAttachment) => void;
-  openPullRequest: (event: MouseEvent<HTMLElement>, url: string) => void;
   onToggleWorkGroup: (groupId: string, anchorKey: string) => void;
   onToggleWorkEntry: (anchorKey: string, collapsed: boolean) => void;
-  onCancelWorktreeSetup: (() => void) | null;
   retryableWorkspacePreparationRunIds: ReadonlySet<RunId>;
   onRetryWorkspacePreparation: ((runId: RunId) => void) | null;
-  onWorktreeSetupWorkLocally: (() => void) | null;
-  onOpenWorktreeSetupTerminal: ((terminalId: string) => void) | null;
   workGroupViewState: WorkGroupViewState;
 }
 
@@ -106,9 +94,7 @@ export interface TimelineRowActivityState {
   isCompacting: boolean;
   isRevertingCheckpoint: boolean;
   awaitingUser: boolean;
-  isPreparingWorktree: boolean;
   latestRunId: RunId | null;
-  backgroundWorktreeSetup: WorktreeSetupSnapshot | null;
 }
 
 export const TimelineRowCtx = createContext<TimelineRowSharedState>(null!);

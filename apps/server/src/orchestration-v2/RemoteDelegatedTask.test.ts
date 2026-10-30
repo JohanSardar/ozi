@@ -98,8 +98,7 @@ const seedLiveParent = (name: string) =>
       modelSelection,
       runtimeMode: "full-access",
       interactionMode: "default",
-      branch: null,
-      worktreePath: null,
+      workingDirectory: null,
     });
     yield* sink.write({
       commandId: CommandId.make(`command:seed:${name}`),

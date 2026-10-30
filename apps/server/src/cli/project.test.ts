@@ -35,7 +35,6 @@ import * as SqlitePersistence from "../persistence/Sqlite.ts";
 import * as ProjectEnrichmentService from "../project/ProjectEnrichmentService.ts";
 import * as ProjectFaviconResolver from "../project/ProjectFaviconResolver.ts";
 import * as ProjectService from "../project/ProjectService.ts";
-import * as RepositoryIdentityResolver from "../project/RepositoryIdentityResolver.ts";
 import * as T3ProjectFileLoader from "../project/T3ProjectFileLoader.ts";
 import * as ServerSettings from "../serverSettings.ts";
 import * as WorkspacePaths from "../workspace/WorkspacePaths.ts";
@@ -85,7 +84,6 @@ const readProjects = (baseDir: string) =>
     const config = yield* makeConfig(baseDir);
     const layer = RuntimeLayer.layerProjectService.pipe(
       Layer.provideMerge(ProjectEnrichmentService.layer),
-      Layer.provideMerge(RepositoryIdentityResolver.layer),
       Layer.provideMerge(ProjectFaviconResolver.layer),
       Layer.provideMerge(T3ProjectFileLoader.layer),
       Layer.provideMerge(WorkspacePaths.layer),
@@ -175,8 +173,7 @@ const seedNativeThreads = Effect.fn("ProjectCliTest.seedNativeThreads")(function
           modelSelection: { instanceId: providerInstanceId, model: "gpt-5" },
           runtimeMode: "full-access",
           interactionMode: "default",
-          branch: null,
-          worktreePath: null,
+          workingDirectory: null,
           activeProviderThreadId: null,
           lineage: { parentThreadId: null, relationshipToParent: null, rootThreadId: id },
           forkedFrom: null,

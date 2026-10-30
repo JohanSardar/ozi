@@ -18,7 +18,6 @@ function shell(
     environmentId,
     id: ThreadId.make(id),
     title,
-    branch: null,
     createdAt: "2026-10-01T00:00:00.000Z",
     updatedAt: "2026-10-01T00:00:00.000Z",
     latestUserMessageAt: null,

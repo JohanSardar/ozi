@@ -49,8 +49,7 @@ const createThread = (threadId: ThreadId) =>
       title: "Before",
       modelSelection: { instanceId, model: "gpt-5" },
       ...supervised,
-      branch: null,
-      worktreePath: null,
+      workingDirectory: null,
       createdBy: "user",
       creationSource: "web",
     });

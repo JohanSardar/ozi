@@ -536,7 +536,6 @@ export const AcpProviderCapabilitiesV2 = {
     maxRecommendedHandoffChars: null,
   },
   checkpointing: {
-    appCanCheckpointFilesystem: true,
     supportsNestedCheckpointScopes: true,
     // ACP lacks truncation; rollback restores T3 checkpoints and starts a fresh agent session.
     providerCanRollbackConversation: true,

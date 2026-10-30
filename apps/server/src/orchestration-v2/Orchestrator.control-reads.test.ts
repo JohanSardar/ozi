@@ -81,8 +81,7 @@ it.effect(
         modelSelection,
         runtimeMode: "full-access",
         interactionMode: "default",
-        branch: null,
-        worktreePath: null,
+        workingDirectory: null,
         createdBy: "user",
         creationSource: "web",
       });
@@ -212,8 +211,7 @@ it.effect("marks a never-visited thread's first completion unread", () =>
       modelSelection,
       runtimeMode: "full-access",
       interactionMode: "default",
-      branch: null,
-      worktreePath: null,
+      workingDirectory: null,
       createdBy: "user",
       creationSource: "web",
     });
@@ -279,8 +277,7 @@ it.effect(
         modelSelection,
         runtimeMode: "full-access",
         interactionMode: "default",
-        branch: null,
-        worktreePath: null,
+        workingDirectory: null,
         createdBy: "user",
         creationSource: "web",
       });
@@ -492,7 +489,7 @@ it.effect(
         type: "thread.metadata.update",
         commandId: CommandId.make("workspace-control"),
         threadId,
-        worktreePath: "/new-repo",
+        workingDirectory: "/new-repo",
       });
       const thread = yield* projections.getThread(threadId);
       assert.equal(thread.title, "After");
@@ -558,8 +555,7 @@ it.effect("implements a proposed plan that the command projection leaves out", (
       modelSelection,
       runtimeMode: "full-access",
       interactionMode: "plan",
-      branch: null,
-      worktreePath: null,
+      workingDirectory: null,
       createdBy: "user",
       creationSource: "web",
     });
@@ -612,8 +608,7 @@ it.effect("settles only the stopped run's background work, once", () =>
       modelSelection,
       runtimeMode: "full-access",
       interactionMode: "default",
-      branch: null,
-      worktreePath: null,
+      workingDirectory: null,
       createdBy: "user",
       creationSource: "web",
     });
@@ -790,96 +785,6 @@ it.effect("settles only the stopped run's background work, once", () =>
   }).pipe(Effect.provide(layerTest)),
 );
 
-it.effect("keeps delegated child pull-request links independent of the parent", () =>
-  Effect.gen(function* () {
-    const orchestrator = yield* Orchestrator.OrchestratorV2;
-    const projections = yield* ProjectionStore.ProjectionStoreV2;
-    const parentThreadId = ThreadId.make("thread:parent-pr");
-    const projectId = ProjectId.make("project:parent-pr");
-    const parentPullRequest = {
-      projectId,
-      repository: "JohanSardar/ozi",
-      number: 123,
-      url: "https://github.com/JohanSardar/ozi/pull/123",
-    };
-    yield* orchestrator.dispatch({
-      type: "thread.create",
-      commandId: CommandId.make("create-parent-pr"),
-      threadId: parentThreadId,
-      projectId,
-      title: "Parent with a linked PR",
-      modelSelection,
-      runtimeMode: "full-access",
-      interactionMode: "default",
-      branch: "feature/parent-pr",
-      worktreePath: "/repo-worktree",
-      createdBy: "user",
-      creationSource: "web",
-    });
-    yield* orchestrator.dispatch({
-      type: "thread.metadata.update",
-      commandId: CommandId.make("link-parent-pr"),
-      threadId: parentThreadId,
-      linkedPullRequest: parentPullRequest,
-    });
-    yield* orchestrator.dispatch({
-      type: "message.dispatch",
-      commandId: CommandId.make("start-parent-pr"),
-      threadId: parentThreadId,
-      messageId: MessageId.make("message:parent-pr"),
-      text: "Delegate a review",
-      attachments: [],
-      dispatchMode: { type: "start_immediately" },
-      createdBy: "user",
-      creationSource: "web",
-    });
-    const parent = yield* projections.getThreadProjection(parentThreadId);
-    const parentRun = parent.runs[0]!;
-    yield* orchestrator.dispatch({
-      type: "delegated_task.request",
-      commandId: CommandId.make("delegate-parent-pr"),
-      parentThreadId,
-      parentRunId: parentRun.id,
-      parentNodeId: parentRun.rootNodeId!,
-      task: "Review the changes",
-      modelSelection,
-      runtimeMode: "full-access",
-      interactionMode: "default",
-      createdBy: "agent",
-      creationSource: "mcp",
-    });
-    const updatedParent = yield* projections.getThreadProjection(parentThreadId);
-    const childThreadId = updatedParent.subagents[0]!.childThreadId!;
-    const child = yield* projections.getThreadProjection(childThreadId);
-    assert.isNull(child.thread.linkedPullRequest);
-    assert.deepEqual(child.thread.pullRequests, []);
-    assert.equal(child.thread.branch, parent.thread.branch);
-    assert.equal(child.thread.worktreePath, parent.thread.worktreePath);
-    assert.equal(child.thread.lineage.parentThreadId, parentThreadId);
-
-    const childPullRequest = {
-      ...parentPullRequest,
-      number: 456,
-      url: "https://github.com/JohanSardar/ozi/pull/456",
-    };
-    yield* orchestrator.dispatch({
-      type: "thread.metadata.update",
-      commandId: CommandId.make("link-child-pr"),
-      threadId: childThreadId,
-      linkedPullRequest: childPullRequest,
-    });
-    const linkedChild = yield* projections.getThreadProjection(childThreadId);
-    assert.deepEqual(linkedChild.thread.linkedPullRequest, childPullRequest);
-    assert.deepEqual(
-      linkedChild.thread.pullRequests?.map((link) => link.number),
-      [456],
-    );
-    const parentAfterChildLink = yield* projections.getThreadProjection(parentThreadId);
-    assert.deepEqual(parentAfterChildLink.thread.linkedPullRequest, parentPullRequest);
-    assert.deepEqual(parentAfterChildLink.thread.pullRequests, parent.thread.pullRequests);
-  }).pipe(Effect.provide(layerTest)),
-);
-
 it.effect("wakes the parent once when its delegated task asks a question", () =>
   Effect.gen(function* () {
     const orchestrator = yield* Orchestrator.OrchestratorV2;
@@ -895,8 +800,7 @@ it.effect("wakes the parent once when its delegated task asks a question", () =>
       modelSelection,
       runtimeMode: "full-access",
       interactionMode: "default",
-      branch: null,
-      worktreePath: null,
+      workingDirectory: null,
       createdBy: "user",
       creationSource: "web",
     });
@@ -1227,8 +1131,7 @@ it.effect.each([false, true])("rejects thread.create for an existing id (deleted
       modelSelection,
       runtimeMode: "full-access",
       interactionMode: "default",
-      branch: null,
-      worktreePath: null,
+      workingDirectory: null,
       createdBy: "user",
       creationSource: "web",
       importedNativeThread: {
@@ -1281,8 +1184,7 @@ it.effect("replays a thread.create receipt without changing the thread", () =>
       modelSelection,
       runtimeMode: "full-access",
       interactionMode: "default",
-      branch: null,
-      worktreePath: null,
+      workingDirectory: null,
       createdBy: "user",
       creationSource: "web",
     } as const;
@@ -1312,8 +1214,7 @@ it.effect("explicit settle clears snooze atomically and stays idempotent after r
       modelSelection,
       runtimeMode: "full-access",
       interactionMode: "default",
-      branch: null,
-      worktreePath: null,
+      workingDirectory: null,
       createdBy: "user",
       creationSource: "web",
     });
@@ -1398,8 +1299,7 @@ it.effect("dispatch records the command outcome and its duration", () =>
       modelSelection,
       runtimeMode: "full-access",
       interactionMode: "default",
-      branch: null,
-      worktreePath: null,
+      workingDirectory: null,
       createdBy: "user",
       creationSource: "web",
     });

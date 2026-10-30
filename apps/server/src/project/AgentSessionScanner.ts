@@ -9,7 +9,6 @@ import {
   resolveProviderInstanceEnabled,
   type AgentSessionImportSource,
   type AgentSessionProjectCandidate,
-  type AgentSessionProjectGit,
   type AgentSessionScanResult,
   type ProviderInstanceConfig,
 } from "@t3tools/contracts";
@@ -23,18 +22,12 @@ import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
 import * as Semaphore from "effect/Semaphore";
 import * as Stream from "effect/Stream";
-
-import { isBareGitConfig, parseOriginUrlFromGitConfig } from "@t3tools/shared/git";
 import * as HostProcess from "@t3tools/shared/HostProcess";
 import { normalizeProjectPathForComparison } from "@t3tools/shared/path";
-import { repositoryPathFromRemoteUrl } from "@t3tools/source-control-core/server/SourceControlProvider";
-
-import * as ServerConfig from "../config.ts";
 import * as ProjectStore from "../orchestration-v2/ProjectStore.ts";
 import { resolveCodexHomeLayout } from "../provider/Drivers/CodexHomeLayout.ts";
 import { expandHomePath } from "@t3tools/provider-core/server/pathExpansion";
 import * as ServerSettings from "../serverSettings.ts";
-import { sourceControlDefinitions } from "../sourceControl/sourceControlDefinitions.ts";
 import {
   createTranscriptJsonReader,
   createTranscriptJsonSelector,
@@ -529,23 +522,6 @@ function shouldRetainDecodedRecord(
   );
 }
 
-function normalizeForWorktreeMatch(value: string, caseFold: boolean): string {
-  const normalized = `${value.replaceAll("\\", "/")}/`;
-  return caseFold ? normalized.toLowerCase() : normalized;
-}
-
-function isT3ManagedWorktree(
-  candidatePath: string,
-  worktreesDir: string,
-  caseFold: boolean,
-): boolean {
-  const normalized = normalizeForWorktreeMatch(candidatePath, caseFold);
-  return (
-    normalized.startsWith(normalizeForWorktreeMatch(worktreesDir, caseFold)) ||
-    normalized.includes("/.ozi/worktrees/")
-  );
-}
-
 // false stops metadata scanning for an excluded rollout, even if later records contain a cwd.
 function extractCwd(line: string, source: AgentSessionSource): string | null | false {
   let parsed: unknown;
@@ -626,12 +602,8 @@ export const make = Effect.gen(function* () {
   // Concurrent client imports must not hold multiple selected-history budgets.
   const importReadLock = yield* Semaphore.make(1);
   const path = yield* Path.Path;
-  const serverConfig = yield* ServerConfig.ServerConfig;
   const serverSettings = yield* ServerSettings.ServerSettingsService;
   const projectStore = yield* ProjectStore.ProjectStoreV2;
-  const baseDir = path.resolve(serverConfig.baseDir);
-  const worktreesDir = path.resolve(serverConfig.worktreesDir);
-  const foldWorktreeCase = (yield* HostProcess.Platform) === "win32";
   const hostEnvironment = yield* HostProcess.Environment;
   const homeDir = yield* HostProcess.HomeDirectory;
   // `/private/tmp` is what macOS reports for sessions started in `/tmp`.
@@ -647,15 +619,13 @@ export const make = Effect.gen(function* () {
 
   const isExcludedProjectPath = (candidatePath: string) =>
     excludedProjectRoots.has(normalizeProjectPathForComparison(candidatePath)) ||
-    excludedProjectAncestors.some((ancestor) =>
-      normalizeForWorktreeMatch(candidatePath, foldWorktreeCase).startsWith(
-        normalizeForWorktreeMatch(ancestor, foldWorktreeCase),
-      ),
-    ) ||
-    normalizeForWorktreeMatch(candidatePath, foldWorktreeCase).startsWith(
-      normalizeForWorktreeMatch(baseDir, foldWorktreeCase),
-    ) ||
-    isT3ManagedWorktree(candidatePath, worktreesDir, foldWorktreeCase);
+    excludedProjectAncestors.some((ancestor) => {
+      const relative = path.relative(ancestor, candidatePath);
+      return (
+        relative === "" ||
+        (relative !== ".." && !relative.startsWith(`..${path.sep}`) && !path.isAbsolute(relative))
+      );
+    });
 
   const listDirectory = (directory: string) =>
     fileSystem.readDirectory(directory).pipe(Effect.orElseSucceed((): ReadonlyArray<string> => []));
@@ -676,50 +646,6 @@ export const make = Effect.gen(function* () {
       .realPath(resolved)
       .pipe(Effect.orElseSucceed(() => resolved));
     return `path:${normalizeProjectPathForComparison(realPath)}`;
-  });
-
-  const readGitIdentity = Effect.fn("AgentSessionScanner.readGitIdentity")(function* (
-    directory: string,
-  ): Effect.fn.Return<
-    | { readonly _tag: "Repository"; readonly git: AgentSessionProjectGit | null }
-    | { readonly _tag: "Worktree" }
-    | { readonly _tag: "NotGit" }
-  > {
-    const gitPath = path.join(directory, ".git");
-    const gitStats = yield* statOption(gitPath);
-    if (Option.isNone(gitStats)) return { _tag: "NotGit" } as const;
-    let gitDir = gitPath;
-    if (gitStats.value.type !== "Directory") {
-      const pointer = yield* fileSystem
-        .readFileString(gitPath)
-        .pipe(Effect.orElseSucceed(() => ""));
-      const target = /^gitdir:\s*(.+)$/m.exec(pointer)?.[1]?.trim();
-      if (target === undefined || target.length === 0) return { _tag: "NotGit" } as const;
-      gitDir = path.resolve(directory, target);
-    }
-    const linkedWorktree =
-      gitStats.value.type !== "Directory" && /[\\/]worktrees[\\/][^\\/]+[\\/]?$/.test(gitDir);
-    if (linkedWorktree) {
-      const commonDir = yield* fileSystem
-        .readFileString(path.join(gitDir, "commondir"))
-        .pipe(Effect.orElseSucceed(() => ""));
-      if (commonDir.trim().length === 0) return { _tag: "Worktree" } as const;
-      gitDir = path.resolve(gitDir, commonDir.trim());
-    }
-    const configText = yield* fileSystem
-      .readFileString(path.join(gitDir, "config"))
-      .pipe(Effect.orElseSucceed(() => ""));
-    // Bare repositories have no main checkout, so offer their linked worktrees independently.
-    if (linkedWorktree && !isBareGitConfig(configText)) return { _tag: "Worktree" } as const;
-    const originUrl = parseOriginUrlFromGitConfig(configText);
-    return {
-      _tag: "Repository",
-      git: {
-        remoteKey:
-          originUrl === null ? null : sourceControlDefinitions.repositoryKeyFromRemote(originUrl),
-        repository: repositoryPathFromRemoteUrl(originUrl),
-      },
-    } as const;
   });
 
   const readCwd = Effect.fn("AgentSessionScanner.readCwd")(function* (
@@ -1194,11 +1120,9 @@ export const make = Effect.gen(function* () {
         sources: Array<AgentSessionSource>;
         threadCount: number;
         lastActiveAtMs: number | null;
-        git: AgentSessionProjectGit | null;
       }
     >();
     const directoryKeys = new Map<string, string>();
-    const gitIdentities = new Map<string, AgentSessionProjectGit | null>();
 
     for (const candidate of raw) {
       const expanded = expandHomePath(candidate.cwd.trim(), homeDir);
@@ -1219,13 +1143,7 @@ export const make = Effect.gen(function* () {
         if (isExcludedProjectPath(realPath)) {
           key = "";
         } else {
-          const gitIdentity = yield* readGitIdentity(resolved);
-          if (gitIdentity._tag === "Worktree") {
-            key = "";
-          } else {
-            key = yield* directoryIdentity(resolved, stats.value);
-            gitIdentities.set(key, gitIdentity._tag === "Repository" ? gitIdentity.git : null);
-          }
+          key = yield* directoryIdentity(resolved, stats.value);
         }
         directoryKeys.set(resolved, key);
       }
@@ -1238,7 +1156,6 @@ export const make = Effect.gen(function* () {
           sources: [candidate.source],
           threadCount: candidate.threadCount,
           lastActiveAtMs: candidate.lastActiveAtMs,
-          git: gitIdentities.get(key) ?? null,
         });
         continue;
       }
@@ -1284,7 +1201,6 @@ export const make = Effect.gen(function* () {
             ? null
             : DateTime.formatIso(DateTime.makeUnsafe(entry.lastActiveAtMs)),
         alreadyImported: importedProject !== undefined,
-        git: entry.git,
       });
     }
 

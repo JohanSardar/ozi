@@ -35,9 +35,8 @@ const creation: QueuedThreadMessage = {
   runtimeMode: "full-access",
   creation: {
     projectId: ProjectId.make("project-1"),
-    workspaceMode: "worktree",
-    branch: "main",
-    worktreePath: null,
+    workspaceMode: "local",
+    workingDirectory: null,
   },
   createdAt: "2026-08-24T12:00:00.000Z",
 };

@@ -7,7 +7,6 @@ import {
   type ConnectionCatalogEntry,
   type ConnectionRoute,
 } from "./catalog.ts";
-import { pullRequestRoutingConnectionKey } from "./pullRequestRoutingPermissions.ts";
 import { BearerConnectionTarget, RelayConnectionTarget } from "./model.ts";
 import {
   connectionRouteId,
@@ -345,24 +344,6 @@ describe("learned routes", () => {
     expect(removedWithRelay(relayOnly)).toBe(true);
     expect(removedWithRelay(entryWithRoutes(relayOnly, learned))).toBe(true);
     expect(removedWithRelay(entryWithRoutes(relayOnly, [LAN, RELAY]))).toBe(false);
-  });
-
-  it("keeps pull request routing trust when a route is learned", () => {
-    const learned = mergeLearnedRoutes({
-      entry: relayOnly,
-      activeRoute: RELAY,
-      reported: [{ httpBaseUrl: "http://192.168.1.10:3773/" }],
-      allowInsecure: true,
-    })!;
-    const withLearned: ConnectionCatalogEntry = {
-      ...relayOnly,
-      target: learned[0]!.target,
-      profile: learned[0]!.profile,
-      alternateRoutes: learned.slice(1),
-    };
-    expect(pullRequestRoutingConnectionKey(withLearned)).toBe(
-      pullRequestRoutingConnectionKey(relayOnly),
-    );
   });
 
   it("keeps the Ozi Connect credential when learning over a learned Ozi Connect route", () => {

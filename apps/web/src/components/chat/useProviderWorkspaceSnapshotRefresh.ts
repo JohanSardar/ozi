@@ -20,13 +20,13 @@ const idleRefreshAtom: Atom.Atom<unknown> = Atom.make<void>(undefined).pipe(
  */
 export function useProviderWorkspaceSnapshotRefresh(input: {
   readonly environmentId: EnvironmentId;
-  readonly gitCwd: string | null;
+  readonly workingDirectory: string | null;
   readonly instanceId: ProviderInstanceId | undefined;
 }): () => void {
-  const { environmentId, gitCwd, instanceId } = input;
+  const { environmentId, instanceId, workingDirectory } = input;
   const atom =
-    gitCwd && instanceId
-      ? providerWorkspaceSnapshotRefresh({ environmentId, instanceId, cwd: gitCwd })
+    workingDirectory && instanceId
+      ? providerWorkspaceSnapshotRefresh({ environmentId, instanceId, cwd: workingDirectory })
       : idleRefreshAtom;
   return useAtomRefresh(atom);
 }

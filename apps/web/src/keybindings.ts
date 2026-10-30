@@ -308,28 +308,12 @@ export function modelPickerJumpIndexFromCommand(command: string): number | null 
   return index === -1 ? null : index;
 }
 
-export function isTerminalToggleShortcut(
-  event: ShortcutEventLike,
-  keybindings: ResolvedKeybindingsConfig,
-  options?: ShortcutMatchOptions,
-): boolean {
-  return matchesCommandShortcut(event, keybindings, "terminal.toggle", options);
-}
-
 export function isTerminalSplitShortcut(
   event: ShortcutEventLike,
   keybindings: ResolvedKeybindingsConfig,
   options?: ShortcutMatchOptions,
 ): boolean {
   return matchesCommandShortcut(event, keybindings, "terminal.split", options);
-}
-
-export function isTerminalSplitVerticalShortcut(
-  event: ShortcutEventLike,
-  keybindings: ResolvedKeybindingsConfig,
-  options?: ShortcutMatchOptions,
-): boolean {
-  return matchesCommandShortcut(event, keybindings, "terminal.splitVertical", options);
 }
 
 export function isTerminalNewShortcut(
@@ -346,14 +330,6 @@ export function isTerminalCloseShortcut(
   options?: ShortcutMatchOptions,
 ): boolean {
   return matchesCommandShortcut(event, keybindings, "terminal.close", options);
-}
-
-export function isDiffToggleShortcut(
-  event: ShortcutEventLike,
-  keybindings: ResolvedKeybindingsConfig,
-  options?: ShortcutMatchOptions,
-): boolean {
-  return matchesCommandShortcut(event, keybindings, "diff.toggle", options);
 }
 
 export function isOpenFavoriteEditorShortcut(

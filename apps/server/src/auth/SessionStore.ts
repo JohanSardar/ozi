@@ -1,7 +1,7 @@
+import { SavedAuthScopes } from "./savedScopes.ts";
 import {
   AuthSessionId,
   AuthStandardClientScopes,
-  AuthEnvironmentScopes,
   type AuthClientMetadata,
   type AuthClientSession,
   type AuthEnvironmentScope,
@@ -432,7 +432,7 @@ const SessionClaims = Schema.Struct({
   kind: Schema.Literal("session"),
   sid: AuthSessionId,
   sub: Schema.String,
-  scopes: AuthEnvironmentScopes,
+  scopes: SavedAuthScopes,
   method: Schema.Literals(["browser-session-cookie", "bearer-access-token", "dpop-access-token"]),
   jkt: Schema.optionalKey(Schema.String),
   rtc: Schema.optionalKey(RuntimeMode),

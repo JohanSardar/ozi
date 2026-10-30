@@ -27,7 +27,7 @@ const modelSelection = {
 
 function makeThread(input: {
   readonly now: DateTime.Utc;
-  readonly worktreePath: string | null;
+  readonly workingDirectory: string | null;
   readonly runtimeMode?: RuntimeMode;
 }): OrchestrationV2AppThread {
   const threadId = ThreadId.make("thread:runtime-policy");
@@ -41,8 +41,7 @@ function makeThread(input: {
     modelSelection,
     runtimeMode: input.runtimeMode ?? "full-access",
     interactionMode: "default",
-    branch: null,
-    worktreePath: input.worktreePath,
+    workingDirectory: input.workingDirectory,
     activeProviderThreadId: null,
     lineage: {
       parentThreadId: null,
@@ -91,8 +90,6 @@ const layerTest = RuntimePolicy.layerFromProjectStore.pipe(
           title: "Project",
           workspaceRoot: "/project-root",
           defaultModelSelection: null,
-          defaultThreadEnvMode: null,
-          autoPull: false,
           faviconPath: null,
           projectIcon: null,
           scripts: [],
@@ -112,7 +109,7 @@ it.layer(layerTest)("RuntimePolicyV2", (it) => {
       const modeFor = (instanceId: ProviderInstanceId, runtimeMode: RuntimeMode) =>
         policy
           .resolve({
-            thread: makeThread({ now, worktreePath: null, runtimeMode }),
+            thread: makeThread({ now, workingDirectory: null, runtimeMode }),
             modelSelection: { instanceId, model: "test-model" },
           })
           .pipe(Effect.map((resolved) => resolved.runtimeMode));

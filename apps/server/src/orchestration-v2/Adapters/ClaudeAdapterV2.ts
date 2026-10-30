@@ -431,7 +431,6 @@ export const ClaudeProviderCapabilitiesV2 = {
     maxRecommendedHandoffChars: null,
   },
   checkpointing: {
-    appCanCheckpointFilesystem: true,
     supportsNestedCheckpointScopes: true,
     providerCanRollbackConversation: true,
     providerRollbackReturnsSnapshot: true,
@@ -1659,8 +1658,6 @@ export const CLAUDE_READ_ONLY_T3_MCP_ALLOWED_TOOLS: ReadonlyArray<string> = [
   "mcp__t3-code__list_scheduled_tasks",
   "mcp__t3-code__t3_thread_list",
   "mcp__t3-code__t3_thread_wait",
-  "mcp__t3-code__t3_worktree_status",
-  "mcp__t3-code__t3_worktree_list",
   "mcp__t3-code__t3_project_list",
   "mcp__t3-code__t3_project_read",
   "mcp__t3-code__t3_thread_search",
@@ -4433,23 +4430,6 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
       }),
       Effect.orElseSucceed(() => undefined),
     );
-  // A worktree's .git file points at <main>/.git/worktrees/<name>, whose commondir leads back to
-  // <main>/.git. A bare repository has no main checkout, so its worktree keeps its own file.
-  const mainCheckoutRoot = (checkout: string) =>
-    fileSystem.readFileString(path.join(checkout, ".git")).pipe(
-      Effect.flatMap((pointer) => {
-        const gitDir = /^gitdir:\s*(.+)$/m.exec(pointer)?.[1]?.trim();
-        if (gitDir === undefined) return Effect.succeed(checkout);
-        const worktreeGitDir = path.resolve(checkout, gitDir);
-        return fileSystem.readFileString(path.join(worktreeGitDir, "commondir")).pipe(
-          Effect.map((commonDir) => {
-            const common = path.resolve(worktreeGitDir, commonDir.trim());
-            return path.basename(common) === ".git" ? path.dirname(common) : checkout;
-          }),
-        );
-      }),
-      Effect.orElseSucceed(() => checkout),
-    );
   // Claude Code keeps .claude/settings.local.json at the repository root, or in cwd outside a
   // repository, on Windows, or when the root is home. Its owner check is skipped: missing it only
   // leaves tool search on, Claude Code's default.
@@ -4462,7 +4442,7 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
         .exists(path.join(directory, ".git"))
         .pipe(Effect.orElseSucceed(() => false));
       if (isCheckout) {
-        const root = yield* mainCheckoutRoot(directory);
+        const root = yield* Effect.succeed(directory);
         return root === (yield* HostProcess.HomeDirectory) ? cwd : root;
       }
       if (path.dirname(directory) === directory) return cwd;

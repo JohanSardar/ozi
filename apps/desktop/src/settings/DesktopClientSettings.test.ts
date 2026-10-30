@@ -34,9 +34,6 @@ const clientSettings: ClientSettings = {
   confirmThreadDelete: false,
   confirmThreadUnpin: false,
   contextWindowMeterEnabled: false,
-  diffFilesCollapsed: true,
-  diffIgnoreWhitespace: true,
-  diffLayout: "stacked",
   environmentIdentificationMode: "artwork",
   favorites: [],
   fontFamilyCode: "",
@@ -52,9 +49,7 @@ const clientSettings: ClientSettings = {
   onboardingCompletedAt: null,
   panelAnimationDurationMs: 0,
   planModeEnabled: false,
-  proactivePanelsEnabled: true,
   showSkillsInSlashMenu: false,
-  persistComposerContextStrip: true,
   providerModelPreferences: {},
   sidebarProjectGroupingMode: "repository_path",
   sidebarProjectGroupingOverrides: {
@@ -70,7 +65,6 @@ const clientSettings: ClientSettings = {
   sidebarWorkingShelfEnabled: false,
   loadBalancingEnabled: false,
   loadBalancingWeights: { "environment-1": 75, "environment-2": 0 },
-  pullRequestMergeMethodOverrides: {},
   timestampFormat: "24-hour",
   wordWrap: true,
 };

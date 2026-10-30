@@ -38,8 +38,6 @@ import * as ServerSettings from "../serverSettings.ts";
 import * as CommandReceiptStore from "../orchestration-v2/CommandReceiptStore.ts";
 import * as SecretRequests from "../secrets/SecretRequests.ts";
 import * as RemoteDelegation from "../peer/RemoteDelegation.ts";
-import * as SourceControlRepositoryService from "../sourceControl/SourceControlRepositoryService.ts";
-import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
 import * as McpHttpServer from "./McpHttpServer.ts";
 import * as McpInvocationContext from "./McpInvocationContext.ts";
 import * as PeerForwarding from "../peer/PeerForwarding.ts";
@@ -92,8 +90,7 @@ const layerLaunches = Layer.effect(
             modelSelection: input.modelSelection,
             runtimeMode: input.runtimeMode,
             interactionMode: input.interactionMode,
-            branch: null,
-            worktreePath: null,
+            workingDirectory: null,
             ...(input.linkOrigin === undefined ? {} : { linkOrigin: input.linkOrigin }),
             ...(input.delegatedFrom === undefined ? {} : { delegatedFrom: input.delegatedFrom }),
             createdBy: input.createdBy,
@@ -166,17 +163,6 @@ const layerTools = Layer.mergeAll(
   Layer.provide(
     Layer.mock(ManagedProjectFolders.ManagedProjectFolders)({ namedProjectsRoot: "/p" }),
   ),
-  Layer.provide(Layer.mock(GitVcsDriver.GitVcsDriver)({})),
-  Layer.provide(
-    Layer.mock(SourceControlRepositoryService.SourceControlRepositoryService)({
-      cloneRepository: (input) =>
-        Effect.succeed({
-          cwd: input.destinationPath,
-          remoteUrl: "https://github.com/JohanSardar/ozi.git",
-          repository: null,
-        }),
-    }),
-  ),
   Layer.provide(
     ServerConfig.layerTest(process.cwd(), { prefix: "t3-link-origin-" }).pipe(
       Layer.provide(NodeServices.layer),
@@ -207,7 +193,7 @@ const clientScope = (
   requestNamespace: `client:${sessionId}`,
   thread: undefined,
   client: { sessionId, label: `Ozi · ${sessionId}`, access, linked },
-  capabilities: new Set(["orchestration", "worktree", "pull-requests"]),
+  capabilities: new Set(["orchestration"]),
   issuedAt: 0,
 });
 const laptop = clientScope("laptop", true, "auto");
@@ -263,8 +249,7 @@ const usersOwnThread = Effect.gen(function* () {
     // Within an `auto` link's modes, so only the fence decides.
     runtimeMode: "auto",
     interactionMode: "default",
-    branch: null,
-    worktreePath: null,
+    workingDirectory: null,
     createdBy: "user",
     creationSource: "web",
   });

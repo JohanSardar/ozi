@@ -7,7 +7,7 @@ import {
   resolveEnvironmentMachineKind,
 } from "@t3tools/contracts";
 
-import type { EnvironmentOption } from "../components/BranchToolbar.logic";
+import type { EnvironmentOption } from "../components/environmentOptions";
 import {
   deriveLogicalProjectKeyFromSettings,
   selectProjectGroupingSettings,

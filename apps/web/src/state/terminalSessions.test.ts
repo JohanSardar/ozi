@@ -41,7 +41,7 @@ function summary(
     threadId,
     terminalId,
     cwd: "/repo",
-    worktreePath: null,
+    workingDirectory: null,
     status: "running",
     pid: 123,
     exitCode: null,
@@ -107,7 +107,7 @@ describe("attachedTerminalSessionAtom", () => {
       threadId: threadA,
       terminalId: "terminal-1",
       cwd: "/repo",
-      worktreePath: null,
+      workingDirectory: null,
       env: { OZI_PROJECT_ROOT: "/repo" },
     };
     const atom = attachedTerminalSessionAtom(environmentA, input);

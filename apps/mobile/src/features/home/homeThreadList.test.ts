@@ -14,7 +14,6 @@ function makeProject(
 ): EnvironmentProject {
   return {
     workspaceRoot: `/workspaces/${input.id}`,
-    repositoryIdentity: null,
     defaultModelSelection: null,
     scripts: [],
     createdAt: "2026-06-01T00:00:00.000Z",
@@ -31,8 +30,7 @@ function makeThread(
     modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.4" },
     runtimeMode: "full-access",
     interactionMode: "default",
-    branch: null,
-    worktreePath: null,
+    workingDirectory: null,
     createdAt: "2026-06-01T00:00:00.000Z",
     updatedAt: "2026-06-01T00:00:00.000Z",
     archivedAt: null,
@@ -116,82 +114,6 @@ describe("home project scopes", () => {
         now: "2026-06-01T00:00:00.000Z",
       }).items.map((item) => item.thread.id),
     ).toEqual([threads[1]!.id]);
-  });
-
-  it("keeps repository identity from an older duplicate when the freshness winner lacks it", () => {
-    const localEnvironmentId = EnvironmentId.make("environment-local");
-    const remoteEnvironmentId = EnvironmentId.make("environment-remote");
-    const repositoryIdentity = {
-      canonicalKey: "github.com/JohanSardar/ozi",
-      locator: {
-        source: "git-remote" as const,
-        remoteName: "origin",
-        remoteUrl: "git@github.com:JohanSardar/ozi.git",
-      },
-    };
-    const projects = [
-      makeProject({
-        environmentId: localEnvironmentId,
-        id: ProjectId.make("project-local"),
-        title: "ozi",
-        repositoryIdentity,
-      }),
-      makeProject({
-        environmentId: remoteEnvironmentId,
-        id: ProjectId.make("project-remote-with-identity"),
-        title: "ozi",
-        workspaceRoot: "/remote/t3code",
-        repositoryIdentity,
-        updatedAt: "2026-06-01T00:00:00.000Z",
-      }),
-      makeProject({
-        environmentId: remoteEnvironmentId,
-        id: ProjectId.make("project-remote-fresh"),
-        title: "ozi",
-        workspaceRoot: "/remote/t3code/",
-        updatedAt: "2026-06-02T00:00:00.000Z",
-      }),
-    ];
-
-    const scopes = buildHomeProjectScopes({
-      projects,
-      environmentId: null,
-      projectGroupingMode: "repository",
-    });
-
-    expect(scopes).toHaveLength(1);
-    expect(scopes[0]?.representative.id).toBe(ProjectId.make("project-local"));
-    expect(scopes[0]?.projects.map((project) => project.id)).toContain(
-      ProjectId.make("project-remote-fresh"),
-    );
-    expect(scopes[0]?.projectRefs).toHaveLength(3);
-  });
-
-  it("does not merge unrelated repositories that share a title", () => {
-    const environmentId = EnvironmentId.make("environment-1");
-    const projects = ["one", "two"].map((name) =>
-      makeProject({
-        environmentId,
-        id: ProjectId.make(`project-${name}`),
-        title: "app",
-        repositoryIdentity: {
-          canonicalKey: `github.com/example/${name}`,
-          locator: {
-            source: "git-remote" as const,
-            remoteName: "origin",
-            remoteUrl: `git@github.com:example/${name}.git`,
-          },
-        },
-      }),
-    );
-
-    expect(
-      buildHomeProjectScopes({
-        projects,
-        environmentId: null,
-        projectGroupingMode: "repository",
-      }),
-    ).toHaveLength(2);
   });
 
   it("prefers an exact scope key over a project ID that collides with it", () => {

@@ -20,10 +20,7 @@ const SECTIONS = [
   },
   {
     title: "Server settings",
-    rows: [
-      { id: "SettingsProviderAccounts", label: "Provider accounts" },
-      { id: "SettingsEnvironmentSourceControl", label: "Source control" },
-    ],
+    rows: [{ id: "SettingsProviderAccounts", label: "Provider accounts" }],
   },
 ];
 

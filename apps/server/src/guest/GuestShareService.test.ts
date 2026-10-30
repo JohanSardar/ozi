@@ -158,8 +158,7 @@ const shareThreadFor = Effect.fn(function* (threadId: ThreadId) {
     modelSelection: { instanceId, model: "gpt-5.1-codex" },
     runtimeMode: "full-access",
     interactionMode: "default",
-    branch: null,
-    worktreePath: null,
+    workingDirectory: null,
     createdBy: "user",
     creationSource: "web",
   });

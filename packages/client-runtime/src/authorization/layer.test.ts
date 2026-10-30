@@ -39,9 +39,7 @@ const DESCRIPTOR = {
     arch: "x64",
   },
   serverVersion: "0.0.0-test",
-  capabilities: {
-    repositoryIdentity: true,
-  },
+  capabilities: {},
 };
 const BOOTSTRAP: RelayEnvironmentConnectResponse = {
   environmentId: ENVIRONMENT_ID,

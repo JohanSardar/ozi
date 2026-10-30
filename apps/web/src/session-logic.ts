@@ -46,7 +46,6 @@ import {
   type ChatMessage,
   type ProposedPlan,
   type SessionPhase,
-  type TurnDiffSummary,
 } from "./types";
 import * as DateTime from "effect/DateTime";
 import * as Equal from "effect/Equal";
@@ -476,7 +475,6 @@ function projectedWorkEntry(row: OrchestrationV2ProjectedTurnItem): WorkLogEntry
       return {
         ...common,
         label: title ?? "Checkpoint captured",
-        changedFiles: item.files.map((file) => file.path),
         toolData: item,
       };
     case "system_notice":
@@ -1157,5 +1155,3 @@ export function deriveCanInterruptRunningThread(
     (derivePhase(runtime) === "running" || threadRuntimeHasInterruptibleRun(runtime))
   );
 }
-
-export type { TurnDiffSummary };

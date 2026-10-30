@@ -1,4 +1,4 @@
-import { DEFAULT_SERVER_SETTINGS, type ServerSettingsPatch } from "@t3tools/contracts";
+import { DEFAULT_SERVER_SETTINGS } from "@t3tools/contracts";
 import { AsyncResult } from "effect/reactivity";
 import type { ReactNode } from "react";
 import { act } from "react";
@@ -8,7 +8,6 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test"
 const { Children, mocks } = vi.hoisted(() => ({
   Children: ({ children }: { children?: ReactNode }) => children,
   mocks: {
-    branchNaming: { onChange: (_patch: ServerSettingsPatch) => {} },
     updateSettings: vi.fn(),
     alert: vi.fn(),
     targets: [] as ReturnType<typeof environment>[],
@@ -45,9 +44,7 @@ vi.mock("../../state/preferences", () => ({
   updateMobilePreferencesAtom: {},
 }));
 vi.mock("./components/AutoSettleDaysField", () => ({ AutoSettleDaysField: () => null }));
-vi.mock("./components/SourceControlSignInSection", () => ({
-  SourceControlSignInSection: () => null,
-}));
+vi.mock("./components/SourceControlSignInSection", () => ({}));
 vi.mock("react-native-safe-area-context", () => ({ useSafeAreaInsets: () => ({ bottom: 0 }) }));
 vi.mock("@react-navigation/native", () => ({ useNavigation: () => ({}) }));
 vi.mock("../../state/session", () => ({
@@ -113,12 +110,7 @@ vi.mock("./components/SettingsSwitchRow", () => ({
   ),
 }));
 vi.mock("./components/SettingsRow", () => ({ SettingsRow: () => null }));
-vi.mock("./components/BranchNamingSettings", () => ({
-  BranchNamingSettings: (props: { onChange: (patch: ServerSettingsPatch) => void }) => {
-    mocks.branchNaming.onChange = props.onChange;
-    return null;
-  },
-}));
+vi.mock("./components/BranchNamingSettings", () => ({}));
 vi.mock("./settings-environment-filter", () => ({
   useSettingsEnvironmentFilter: () => ({
     selectedTargets: mocks.targets,
@@ -135,10 +127,7 @@ vi.mock("./settings-environment-filter", () => ({
   }),
 }));
 
-import {
-  SettingsThreadsRouteScreen,
-  SettingsWorktreesRouteScreen,
-} from "./SettingsServerControlsRouteScreen";
+import { SettingsThreadsRouteScreen } from "./SettingsServerControlsRouteScreen";
 
 function environment(environmentId: string, label: string) {
   return {
@@ -148,7 +137,6 @@ function environment(environmentId: string, label: string) {
     serverConfig: {
       settings: {
         ...DEFAULT_SERVER_SETTINGS,
-        defaultAutoPull: false,
         sidebarAutoSettleOnMerge: false,
       },
       environment: {
@@ -178,26 +166,6 @@ afterEach(() => {
 });
 
 describe("SettingsServerControlsRouteScreen", () => {
-  it("sends a draft saved during a pending write once that write settles", async () => {
-    const pending = Promise.withResolvers<AsyncResult.Success<void>>();
-    mocks.updateSettings.mockReturnValueOnce(pending.promise);
-    act(() => root.render(<SettingsWorktreesRouteScreen />));
-
-    act(() => mocks.branchNaming.onChange({ branchNamingMode: "custom" }));
-    act(() => mocks.branchNaming.onChange({ branchNameInstructions: "Use issue IDs." }));
-    expect(mocks.updateSettings).toHaveBeenCalledOnce();
-
-    await act(async () => pending.resolve(AsyncResult.success(undefined)));
-
-    expect(mocks.updateSettings).toHaveBeenCalledTimes(2);
-    expect(mocks.updateSettings).toHaveBeenLastCalledWith({
-      environmentId: "local",
-      input: {
-        patch: { branchNamingMode: "custom", branchNameInstructions: "Use issue IDs." },
-      },
-    });
-  });
-
   it("holds auto-settle changes until a pending project override write settles", async () => {
     mocks.projectSelected = true;
     const pending = Promise.withResolvers<AsyncResult.Success<void>>();

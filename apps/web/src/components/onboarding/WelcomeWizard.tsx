@@ -1529,7 +1529,7 @@ function ImportCandidateList({
   readonly selectedKeys: ReadonlySet<string>;
   readonly onSelectionChange: (next: ReadonlySet<string>) => void;
 }) {
-  const { repositories, other } = groupOnboardingProjects(candidates);
+  const folders = groupOnboardingProjects(candidates);
   const setKeys = (keys: ReadonlyArray<string>, checked: boolean) => {
     const next = new Set(selectedKeys);
     for (const key of keys) {
@@ -1538,58 +1538,22 @@ function ImportCandidateList({
     }
     onSelectionChange(next);
   };
-  const otherSelected = other.filter((candidate) => selectedKeys.has(candidate.key)).length;
 
   return (
     <>
-      {repositories.map((group) => (
-        <ImportRepositoryGroup
+      {folders.map((group) => (
+        <ImportFolderGroup
           key={group.key}
           group={group}
           selectedKeys={selectedKeys}
           onToggle={setKeys}
         />
       ))}
-      {other.length > 0 ? (
-        <Collapsible>
-          <div className="flex items-center gap-2.5 rounded-md px-2 py-1.5 hover:bg-muted/40">
-            <Checkbox
-              checked={otherSelected === other.length}
-              indeterminate={otherSelected > 0 && otherSelected < other.length}
-              onCheckedChange={(checked) =>
-                setKeys(
-                  other.map((candidate) => candidate.key),
-                  checked === true,
-                )
-              }
-            />
-            <CollapsibleTrigger className="group flex min-w-0 flex-1 items-center gap-1.5 text-left">
-              <ChevronRightIcon className="size-3.5 shrink-0 text-muted-foreground transition-transform group-data-panel-open:rotate-90" />
-              <span className="truncate text-sm text-muted-foreground">Other folders</span>
-              <span className="ml-auto shrink-0 text-xs text-muted-foreground tabular-nums">
-                {other.length} {other.length === 1 ? "folder" : "folders"}
-              </span>
-            </CollapsibleTrigger>
-          </div>
-          <CollapsiblePanel>
-            {other.map((candidate) => (
-              <ImportCandidateRow
-                key={candidate.key}
-                candidate={candidate}
-                path={candidate.path}
-                nested
-                checked={selectedKeys.has(candidate.key)}
-                onCheckedChange={(checked) => setKeys([candidate.key], checked)}
-              />
-            ))}
-          </CollapsiblePanel>
-        </Collapsible>
-      ) : null}
     </>
   );
 }
 
-function ImportRepositoryGroup({
+function ImportFolderGroup({
   group,
   selectedKeys,
   onToggle,

@@ -124,7 +124,7 @@ const legacyTask: ScheduledTask = {
   schedule: { type: "interval", everyMs: 60_000 },
   projectId: ProjectId.make("project"),
   threadId: null,
-  workspaceStrategy: { type: "worktree", baseRef: "release" },
+  workspaceStrategy: { type: "root" },
   modelSelection: { instanceId: ProviderInstanceId.make("codex"), model: "gpt-5.4" },
   runtimeMode: "full-access",
   interactionMode: "default",
@@ -218,31 +218,6 @@ describe("webhook scheduled tasks", () => {
     for (const invalid of ["0", "-5", "1.5", "abc", "1441"]) {
       expect(scheduleFromDraft({ ...draft, maxDeliveryAgeMinutes: invalid })).toBeNull();
     }
-  });
-
-  it("sends filters only when the form changed them", () => {
-    const filters = [
-      { path: "headers.x-github-event", op: "equals", value: "pull_request" },
-      { path: "body.action", op: "in", value: ["opened", "reopened"] },
-    ] as const;
-    const draft = taskToDraft({
-      ...webhookTask,
-      schedule: { type: "webhook", signature, filters },
-    });
-    expect(draft.filters.map((filter) => filter.op)).toEqual(["equals", "in"]);
-    // A title-only save leaves the key out, so the server keeps whatever is stored now.
-    expect(scheduleFromDraft({ ...draft, title: "Renamed" })).not.toHaveProperty("filters");
-    expect(scheduleFromDraft({ ...draft, filters: draft.filters.slice(0, 1) })).toMatchObject({
-      filters: filters.slice(0, 1),
-    });
-    // Removing every row is a change, so it clears the stored filters.
-    expect(scheduleFromDraft({ ...draft, filters: [] })).toMatchObject({ filters: [] });
-    expect(
-      scheduleFromDraft({
-        ...draft,
-        filters: [{ id: "f1", path: "body.action", op: "in", value: " , " }],
-      }),
-    ).toBeNull();
   });
 });
 

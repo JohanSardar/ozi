@@ -73,7 +73,6 @@ import {
   ThreadListV2WorkingShelfHeader,
 } from "./thread-list-v2-items";
 import { useThreadRowProviderInstanceResolver } from "./thread-provider-instance";
-import type { ThreadPrPresentation } from "../../state/thread-pr-presentation";
 import {
   isThreadListV2ListItem,
   threadListV2ListItemsAreEqual,
@@ -101,15 +100,10 @@ interface ThreadNavigationSidebarProps {
   readonly selectedThreadKey: string | null;
   readonly onOpenSettings: () => void;
   readonly onOpenEnvironmentSettings: () => void;
-  readonly onNewThreadOnBranch: (thread: EnvironmentThreadShell) => void;
   readonly onNewThreadInProject: (project: EnvironmentProject) => void;
   readonly onOpenPendingTask: (pendingTask: PendingNewTask) => void;
   readonly onSearchQueryChange: (query: string) => void;
   readonly onSelectThread: (thread: EnvironmentThreadShell) => void;
-  readonly onOpenThreadPullRequests: (
-    thread: EnvironmentThreadShell,
-    pr: ThreadPrPresentation,
-  ) => void;
   readonly onRequestVisibility: () => void;
   readonly searchQuery: string;
 }
@@ -430,7 +424,7 @@ function ThreadNavigationSidebarPane(
     }
   };
   // Destructure callback props; capturing all props would invalidate these row-closing handlers on unrelated changes.
-  const { onSelectThread, onOpenThreadPullRequests } = props;
+  const { onSelectThread } = props;
   // A row listed for a message match opens the thread at that message, by
   // tap or by shortcut.
   const handleSelectThread = (thread: EnvironmentThreadShell) => {
@@ -442,13 +436,6 @@ function ThreadNavigationSidebarPane(
       requestThreadMessageJump(scopedThreadKey(thread.environmentId, thread.id), messageId);
     }
     onSelectThread(thread);
-    openSwipeableRef.current?.close();
-  };
-  const handleOpenThreadPullRequests = (
-    thread: EnvironmentThreadShell,
-    pr: ThreadPrPresentation,
-  ) => {
-    onOpenThreadPullRequests(thread, pr);
     openSwipeableRef.current?.close();
   };
   const handleScrollBeginDrag = () => {
@@ -540,7 +527,6 @@ function ThreadNavigationSidebarPane(
         const scopeKey = scopedProjectKey(thread.environmentId, thread.projectId);
         return (
           <ThreadListV2Row
-            onNewThreadOnBranch={props.onNewThreadOnBranch}
             thread={thread}
             variant={item.item.variant}
             hasQueuedMessages={item.hasQueuedMessages}
@@ -580,7 +566,6 @@ function ThreadNavigationSidebarPane(
             }
             fullSwipeWidth={props.width - 20}
             onSelectThread={handleSelectThread}
-            onOpenThreadPullRequests={handleOpenThreadPullRequests}
             onDeleteThread={confirmDeleteThread}
             onArchiveThread={archiveThread}
             onRenameThread={renameThread}

@@ -1,4 +1,3 @@
-import type { RepositoryIdentity } from "@t3tools/contracts";
 import * as Cache from "effect/Cache";
 import * as Cause from "effect/Cause";
 import * as Context from "effect/Context";
@@ -13,26 +12,21 @@ import * as Ref from "effect/Ref";
 import type * as Scope from "effect/Scope";
 
 import * as ProjectFaviconResolver from "./ProjectFaviconResolver.ts";
-import * as RepositoryIdentityResolver from "./RepositoryIdentityResolver.ts";
 
 const DEFAULT_CACHE_CAPACITY = 512;
 const DEFAULT_MAX_PENDING = 512;
 const DEFAULT_CONCURRENCY = 4;
-const DEFAULT_SUCCESS_TTL = Duration.minutes(1);
 // Frequent shell reads scan ~20 files per project; icons change rarely, so cache longer than identities.
 const DEFAULT_FAVICON_TTL = Duration.minutes(15);
 const DEFAULT_FAILURE_TTL = Duration.seconds(5);
 
 export interface ProjectEnrichment {
-  readonly repositoryIdentity: RepositoryIdentity | null;
   readonly faviconPath: string | null;
-  readonly repositoryIdentityResolved: boolean;
 }
 
 export interface ProjectEnrichmentChange {
   readonly workspaceRoot: string;
   readonly enrichment: ProjectEnrichment;
-  readonly repositoryIdentityResolved: boolean;
 }
 
 export interface ProjectEnrichmentServiceOptions {
@@ -47,9 +41,6 @@ export class ProjectEnrichmentService extends Context.Service<
     readonly peek: (workspaceRoot: string) => Effect.Effect<ProjectEnrichment>;
     readonly request: (workspaceRoot: string) => Effect.Effect<void>;
     readonly getAvailable: (workspaceRoot: string) => Effect.Effect<ProjectEnrichment>;
-    readonly readRepositoryIdentity: (
-      workspaceRoot: string,
-    ) => Effect.Effect<RepositoryIdentity | null>;
     readonly invalidate: (workspaceRoots: Iterable<string>) => Effect.Effect<void>;
     readonly subscribeChanges: Effect.Effect<
       PubSub.Subscription<ProjectEnrichmentChange>,
@@ -70,37 +61,17 @@ function availableValue<A, E>(cached: Option.Option<Exit.Exit<A, E>>): A | null 
   });
 }
 
-function isSuccessfullyResolved<A, E>(cached: Option.Option<Exit.Exit<A, E>>): boolean {
-  return Option.match(cached, {
-    onNone: () => false,
-    onSome: (exit) => Exit.isSuccess(exit),
-  });
-}
-
 interface EnrichmentWorkLane {
   readonly pendingRoots: Ref.Ref<ReadonlySet<string>>;
   readonly queue: Queue.Queue<string>;
 }
-
-export const make = Effect.fn("ProjectEnrichmentService.make")(function* (
+const make = Effect.fn("ProjectEnrichmentService.make")(function* (
   options: ProjectEnrichmentServiceOptions = {},
 ) {
-  const repositoryIdentityResolver = yield* RepositoryIdentityResolver.RepositoryIdentityResolver;
   const faviconResolver = yield* ProjectFaviconResolver.ProjectFaviconResolver;
   const cacheCapacity = Math.max(1, options.cacheCapacity ?? DEFAULT_CACHE_CAPACITY);
   const maxPending = Math.max(1, options.maxPending ?? DEFAULT_MAX_PENDING);
   const concurrency = Math.max(1, options.concurrency ?? DEFAULT_CONCURRENCY);
-
-  const repositoryIdentityCache = yield* Cache.makeWith(
-    (workspaceRoot: string) => Effect.exit(repositoryIdentityResolver.resolve(workspaceRoot)),
-    {
-      capacity: cacheCapacity,
-      timeToLive: Exit.match({
-        onFailure: () => DEFAULT_FAILURE_TTL,
-        onSuccess: (result) => (Exit.isSuccess(result) ? DEFAULT_SUCCESS_TTL : DEFAULT_FAILURE_TTL),
-      }),
-    },
-  );
   const faviconCache = yield* Cache.makeWith(
     (workspaceRoot: string) => Effect.exit(faviconResolver.resolvePath(workspaceRoot)),
     {
@@ -118,7 +89,6 @@ export const make = Effect.fn("ProjectEnrichmentService.make")(function* (
     );
     return { pendingRoots, queue } satisfies EnrichmentWorkLane;
   });
-  const repositoryIdentityLane = yield* makeWorkLane;
   const faviconLane = yield* makeWorkLane;
   const changes = yield* Effect.acquireRelease(
     PubSub.sliding<ProjectEnrichmentChange>(256),
@@ -156,24 +126,6 @@ export const make = Effect.fn("ProjectEnrichmentService.make")(function* (
         })
       : Effect.void;
 
-  const resolveRepositoryIdentity = Effect.fn("ProjectEnrichmentService.resolveRepositoryIdentity")(
-    function* (workspaceRoot: string) {
-      const repositoryIdentity = yield* Cache.get(repositoryIdentityCache, workspaceRoot);
-      yield* logFailure(workspaceRoot, "repositoryIdentity", repositoryIdentity);
-      const faviconPath = yield* Cache.getSuccess(faviconCache, workspaceRoot);
-      const repositoryIdentityResolved = Exit.isSuccess(repositoryIdentity);
-      yield* PubSub.publish(changes, {
-        workspaceRoot,
-        repositoryIdentityResolved,
-        enrichment: {
-          repositoryIdentity: availableValue(Option.some(repositoryIdentity)),
-          faviconPath: availableValue(faviconPath),
-          repositoryIdentityResolved,
-        },
-      });
-    },
-  );
-
   const resolveFavicon = Effect.fn("ProjectEnrichmentService.resolveFavicon")(function* (
     workspaceRoot: string,
   ) {
@@ -202,13 +154,10 @@ export const make = Effect.fn("ProjectEnrichmentService.make")(function* (
       discard: true,
     });
   };
-  yield* Effect.all(
-    [
-      startWorkers(repositoryIdentityLane, resolveRepositoryIdentity),
-      startWorkers(faviconLane, resolveFavicon),
-    ],
-    { concurrency: "unbounded", discard: true },
-  );
+  yield* Effect.all([startWorkers(faviconLane, resolveFavicon)], {
+    concurrency: "unbounded",
+    discard: true,
+  });
 
   const requestLane = Effect.fn("ProjectEnrichmentService.requestLane")(function* (
     lane: EnrichmentWorkLane,
@@ -228,34 +177,18 @@ export const make = Effect.fn("ProjectEnrichmentService.make")(function* (
   const peek: ProjectEnrichmentService["Service"]["peek"] = Effect.fn(
     "ProjectEnrichmentService.peek",
   )(function* (workspaceRoot) {
-    const [repositoryIdentity, faviconPath] = yield* Effect.all(
-      [
-        Cache.getSuccess(repositoryIdentityCache, workspaceRoot),
-        Cache.getSuccess(faviconCache, workspaceRoot),
-      ] as const,
-      { concurrency: "unbounded" },
-    );
+    const faviconPath = yield* Cache.getSuccess(faviconCache, workspaceRoot);
     return {
-      repositoryIdentity: availableValue(repositoryIdentity),
       faviconPath: availableValue(faviconPath),
-      repositoryIdentityResolved: isSuccessfullyResolved(repositoryIdentity),
     };
   });
 
   const request: ProjectEnrichmentService["Service"]["request"] = Effect.fn(
     "ProjectEnrichmentService.request",
   )(function* (workspaceRoot) {
-    const [hasRepositoryIdentity, hasFaviconPath] = yield* Effect.all(
-      [Cache.has(repositoryIdentityCache, workspaceRoot), Cache.has(faviconCache, workspaceRoot)],
-      { concurrency: "unbounded" },
-    );
+    const hasFaviconPath = yield* Cache.has(faviconCache, workspaceRoot);
     yield* Effect.all(
-      [
-        hasRepositoryIdentity
-          ? Effect.void
-          : requestLane(repositoryIdentityLane, workspaceRoot, "repositoryIdentity"),
-        hasFaviconPath ? Effect.void : requestLane(faviconLane, workspaceRoot, "faviconPath"),
-      ],
+      [hasFaviconPath ? Effect.void : requestLane(faviconLane, workspaceRoot, "faviconPath")],
       { concurrency: "unbounded", discard: true },
     );
   });
@@ -268,12 +201,6 @@ export const make = Effect.fn("ProjectEnrichmentService.make")(function* (
     return available;
   });
 
-  const readRepositoryIdentity: ProjectEnrichmentService["Service"]["readRepositoryIdentity"] =
-    Effect.fn("ProjectEnrichmentService.readRepositoryIdentity")(function* (workspaceRoot) {
-      const resolved = yield* Cache.get(repositoryIdentityCache, workspaceRoot);
-      return Exit.isSuccess(resolved) ? resolved.value : null;
-    });
-
   const invalidate: ProjectEnrichmentService["Service"]["invalidate"] = Effect.fn(
     "ProjectEnrichmentService.invalidate",
   )(function* (workspaceRoots) {
@@ -282,7 +209,6 @@ export const make = Effect.fn("ProjectEnrichmentService.make")(function* (
       (workspaceRoot) =>
         Effect.all(
           [
-            Cache.invalidate(repositoryIdentityCache, workspaceRoot),
             Cache.invalidate(faviconCache, workspaceRoot),
             // The resolver keeps its own misses, which would outlive a clone filling the folder.
             faviconResolver.invalidate(workspaceRoot),
@@ -297,7 +223,6 @@ export const make = Effect.fn("ProjectEnrichmentService.make")(function* (
     peek,
     request,
     getAvailable,
-    readRepositoryIdentity,
     invalidate,
     subscribeChanges: PubSub.subscribe(changes),
   });

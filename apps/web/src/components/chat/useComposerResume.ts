@@ -33,12 +33,10 @@ interface ComposerResumeInput {
   readonly activeEnvironmentUnavailable: boolean;
   readonly runtimeMode: RuntimeMode;
   readonly interactionMode: ProviderInteractionMode;
-  readonly localCheckoutBranchMismatch: { readonly currentBranch: string } | null;
   readonly composerRef: ComposerHandleRef;
   readonly persistThreadSettingsForNextTurn: (input: {
     threadId: EnvironmentThreadShell["id"];
     createdAt: string;
-    branch?: string;
     runtimeMode: RuntimeMode;
     interactionMode: ProviderInteractionMode;
   }) => Promise<AtomCommandResult<void, unknown>>;
@@ -65,7 +63,6 @@ export function useComposerResume(input: ComposerResumeInput) {
     activeEnvironmentUnavailable,
     runtimeMode,
     interactionMode,
-    localCheckoutBranchMismatch,
     composerRef,
     persistThreadSettingsForNextTurn,
     clearUsageLimitsFor,
@@ -110,9 +107,6 @@ export function useComposerResume(input: ComposerResumeInput) {
       const settingsResult = await persistThreadSettingsForNextTurn({
         threadId,
         createdAt,
-        ...(localCheckoutBranchMismatch
-          ? { branch: localCheckoutBranchMismatch.currentBranch }
-          : {}),
         runtimeMode,
         interactionMode,
       });

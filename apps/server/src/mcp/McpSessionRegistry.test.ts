@@ -32,65 +32,6 @@ const makeRegistry = (now: () => number, httpServer = fakeHttpServer) =>
       Effect.provide(NodeServices.layer),
     );
 
-it.effect("stores only a token hash, resolves the bearer token, and revokes by thread", () =>
-  Effect.gen(function* () {
-    let timestamp = 1_000;
-    const registry = yield* makeRegistry(() => timestamp);
-    const threadId = ThreadId.make("thread-1");
-    const issued = yield* registry.issue({
-      threadId,
-      providerInstanceId: ProviderInstanceId.make("codex"),
-      capabilities: new Set(["preview"]),
-    });
-    expect(issued.config.endpoint).toBe("http://127.0.0.1:43123/mcp");
-    const token = issued.config.authorizationHeader.replace(/^Bearer\s+/, "");
-    expect(token.length).toBeGreaterThan(20);
-
-    const resolved = yield* registry.resolve(token);
-    expect(resolved?.thread.threadId).toBe(threadId);
-    expect(resolved?.capabilities).toEqual(
-      new Set(["preview", "orchestration", "worktree", "pull-requests"]),
-    );
-
-    yield* registry.revokeThread(threadId);
-    expect(yield* registry.resolve(token)).toBeUndefined();
-
-    timestamp += 2_000;
-  }),
-);
-
-it.effect("always grants pull-requests and gates browser access", () =>
-  Effect.gen(function* () {
-    const registry = yield* makeRegistry(() => 1_000);
-    const withPreview = yield* registry.issue({
-      threadId: ThreadId.make("thread-preview"),
-      providerInstanceId: ProviderInstanceId.make("codex"),
-      capabilities: new Set(["preview"]),
-    });
-    const withoutPreview = yield* registry.issue({
-      threadId: ThreadId.make("thread-no-preview"),
-      providerInstanceId: ProviderInstanceId.make("codex"),
-      capabilities: new Set(),
-    });
-    const capabilitiesOf = (issued: typeof withPreview) =>
-      registry
-        .resolve(issued.config.authorizationHeader.replace(/^Bearer\s+/, ""))
-        .pipe(Effect.map((scope) => [...(scope?.capabilities ?? [])].sort()));
-
-    expect(yield* capabilitiesOf(withPreview)).toEqual([
-      "orchestration",
-      "preview",
-      "pull-requests",
-      "worktree",
-    ]);
-    expect(yield* capabilitiesOf(withoutPreview)).toEqual([
-      "orchestration",
-      "pull-requests",
-      "worktree",
-    ]);
-  }),
-);
-
 // regression: #3114 use bound host for MCP endpoint
 it.effect("builds MCP endpoints from the bound server host", () =>
   Effect.gen(function* () {

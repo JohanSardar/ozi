@@ -54,8 +54,7 @@ export const FX_SUPPORTED_RUNTIME_MODES = [
   "approval-required",
   "auto",
 ] as const satisfies ReadonlyArray<RuntimeMode>;
-/** fx 0.0.13 answers a cancelled prompt with `stopReason: cancelled`. */
-export const FX_ACP_CANCEL_BEHAVIOR = "wait-for-prompt" as const;
+const FX_ACP_CANCEL_BEHAVIOR = "wait-for-prompt" as const;
 
 /**
  * Supervised runs fx's `ask` mode and Auto its automatic review. An explicit

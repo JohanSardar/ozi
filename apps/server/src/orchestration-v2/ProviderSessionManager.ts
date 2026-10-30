@@ -420,7 +420,7 @@ export const layerWithOptions = (
                 const { browser: browserToolsAvailable } = yield* agentAccessSettings(threadId);
                 const capabilities = new Set<
                   import("../mcp/McpInvocationContext.ts").McpCapability
-                >(["orchestration", "worktree", "pull-requests"]);
+                >(["orchestration"]);
                 if (browserToolsAvailable) capabilities.add("preview");
                 const subagent = yield* projectionStore.getThread(threadId).pipe(
                   Effect.map((thread) => thread.lineage.relationshipToParent === "subagent"),

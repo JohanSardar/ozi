@@ -44,18 +44,12 @@ import { OrchestratorToolkit } from "../../apps/server/src/mcp/toolkits/orchestr
 import { PreviewToolkit } from "../../apps/server/src/mcp/toolkits/preview/tools.ts";
 import { PreviewControlsToolkit } from "../../apps/server/src/mcp/toolkits/previewControls/tools.ts";
 import { ProjectToolkit } from "../../apps/server/src/mcp/toolkits/project/tools.ts";
-import {
-  CHILD_PULL_REQUEST_REPORT_NEXT,
-  PullRequestsToolkit,
-} from "../../apps/server/src/mcp/toolkits/pullRequests/tools.ts";
 import { ThreadToolkit } from "../../apps/server/src/mcp/toolkits/thread/tools.ts";
-import { WorktreeToolkit } from "../../apps/server/src/mcp/toolkits/worktree/tools.ts";
 import {
   CLAUDE_PROVIDER,
   makeClaudeQueryOptions,
 } from "../../apps/server/src/orchestration-v2/Adapters/ClaudeAdapterV2.ts";
 import { proxyConfig } from "../shared/proxy.ts";
-import { changeRequestsCreatedBy } from "../../apps/server/src/orchestration-v2/PullRequestSyncReactor.ts";
 /** Agent models by id, with the display name a harness gives them. */
 const MODELS = {
   "claude-sonnet-5-5": "Sonnet 5.5",
@@ -107,8 +101,6 @@ export type SampleRun = {
   stopReason: string;
   /** The agent's final answer: its last response's text, if it ended its turn. */
   readonly finalText?: string;
-  /** PRs linked to the thread when the sample ends, by the agent or by T3. */
-  readonly linked?: ReadonlyArray<string>;
 };
 
 const Rest = [Schema.Record(Schema.String, Schema.Unknown)] as const;
@@ -148,8 +140,6 @@ const McpToolUseExpect = Schema.Struct({
   /** Case-sensitive regexes on the agent's visible text. */
   textMust: Schema.optional(Schema.Array(Schema.String)),
   textMustNot: Schema.optional(Schema.Array(Schema.String)),
-  /** Each entry matches a PR URL linked at the end, as `args` values match. */
-  linked: Schema.optional(Schema.Array(Schema.String)),
 });
 
 /**
@@ -317,8 +307,6 @@ const t3SourceTools: ReadonlyArray<Tool.Any> = [
   ProjectToolkit,
   EnvironmentToolkit,
   PreviewControlsToolkit,
-  WorktreeToolkit,
-  PullRequestsToolkit,
   PreviewToolkit,
   HtmlToolkit,
 ].flatMap((toolkit): ReadonlyArray<Tool.Any> => Object.values(toolkit.tools));
@@ -482,7 +470,6 @@ export const buildBase = (
     (value) =>
       options.keepUserInstructions || !value.includes("Codebase and user instructions are"),
   );
-  // gitStatus names a real repo state. Each case gets one built from its fake world instead.
   const gitStatusAt = reminders.findIndex((value) => value.includes("# gitStatus"));
   // Claude Code sends no schema for tools it only names. Web tools get their usual one, the
   // rest load open.
@@ -493,7 +480,6 @@ export const buildBase = (
     model,
     system: system.map(text),
     reminders: reminders.filter((_, i) => i !== gitStatusAt).map((value) => text(anonymize(value))),
-    gitStatusAt: gitStatusAt === -1 ? reminders.length : gitStatusAt,
     /** The shell simulator's cwd and OS follow the template's environment section. */
     environment: {
       cwd: anonymize(cwd),
@@ -577,7 +563,6 @@ const buildCodexBase = (
     model: options.model,
     system: [],
     reminders: [],
-    gitStatusAt: 0,
     environment: {
       cwd: clean(cwd),
       platform: cwd.startsWith("/Users/") ? "darwin" : "linux",
@@ -637,14 +622,9 @@ const codexMessages = (messages: ReadonlyArray<ApiMessage>): Array<Block> =>
   );
 /** One tool call the shell simulator has answered, or one from the case's prior turns. */
 type ShellEntry = { readonly tool: string; readonly input: unknown; readonly output: string };
-/** PRs T3 links by itself because a shell command created them, as `gh pr create` does. */
-const createdPullRequests = ({ tool, input, output }: ShellEntry) =>
-  tool === "Bash" && isRecord(input) && typeof input.command === "string"
-    ? changeRequestsCreatedBy(input.command, output).map(({ url }) => url)
-    : [];
 /**
  * One sample's state. ToolSearch adds loaded schemas to `tools`, like Claude Code. `shell` is the
- * history the simulator keeps consistent with; `linked` and `nextTask` do the same for T3 results.
+ * history the simulator keeps consistent with; `nextTask` does the same for T3 results.
  */
 type Sample = {
   readonly testCase: McpToolUseCase;
@@ -653,7 +633,6 @@ type Sample = {
   readonly repo: string;
   readonly shell: Array<ShellEntry>;
   readonly shellUsage: Usage;
-  readonly linked: Set<string>;
   readonly codeStore: Record<string, unknown>;
   nextTask: number;
 };
@@ -663,12 +642,6 @@ const SHELL_TOOLS = new Set(["Bash", "Read", "Edit", "Write", "WebFetch"]);
 export const makeSample = (testCase: McpToolUseCase, base: Base): Sample => {
   const prior = testCase.setup.priorTurns ?? [];
   const priorCalls = prior.flatMap((turn) => turn.toolCalls ?? []);
-  const repo = testCase.setup.world?.repo ?? "acme/app";
-  const urls = priorCalls.flatMap((call) =>
-    ["link_pull_request", "watch_pull_request"].includes(call.tool) && isRecord(call.input)
-      ? [pullRequest(repo, call.input).url]
-      : [],
-  );
   const taskNumbers = [...valueText(prior).matchAll(/task-(\d+)/g)].map((match) =>
     Number(match[1]),
   );
@@ -682,7 +655,6 @@ export const makeSample = (testCase: McpToolUseCase, base: Base): Sample => {
     repo: testCase.setup.world?.repo ?? "acme/app",
     shell,
     shellUsage: emptyUsage(),
-    linked: new Set([...urls, ...shell.flatMap(createdPullRequests)]),
     codeStore: {},
     nextTask: Math.max(0, ...taskNumbers) + 1,
   };
@@ -754,7 +726,7 @@ export const buildMessages = (sample: Sample) => {
       : undefined,
     context,
   ];
-  const reminders = base.reminders.toSpliced(base.gitStatusAt, 0, reminder(gitStatus(testCase)));
+  const reminders = [reminder(gitStatus(testCase)), ...base.reminders];
   push("user", ...reminders, ...notes.flatMap((note) => (note ? [reminder(note)] : [])));
   const toolSearch = findTool(base, "ToolSearch")?.name ?? "ToolSearch";
   let nextId = 0;
@@ -837,23 +809,8 @@ const DEFAULT_THREAD = {
 const HTML_RENDERED =
   "Shown to the reader above your reply. Don't mention or describe the page; reply with only what it doesn't already say.";
 
-/** Pull request identity from a `url` or `repository` plus `number` input, like T3's results. */
-const pullRequest = (repo: string, input: Readonly<Record<string, unknown>>) => {
-  const url = typeof input.url === "string" ? input.url : "";
-  const repository =
-    /github\.com\/([^/]+\/[^/]+)\/pull/.exec(url)?.[1] ?? valueText(input.repository ?? repo);
-  const number = Number(/(\d+)\/?$/.exec(url)?.[1] ?? input.number);
-  return {
-    host: "github.com",
-    repository,
-    number,
-    url: url || `https://github.com/${repository}/pull/${number}`,
-  };
-};
-
 /** A believable T3 result for a tool the case does not mock. */
 const t3Default = (sample: Sample, name: string, input: Readonly<Record<string, unknown>>) => {
-  const pr = () => pullRequest(sample.repo, input);
   switch (name) {
     case "orchestrator_capabilities":
       return {
@@ -889,11 +846,6 @@ const t3Default = (sample: Sample, name: string, input: Readonly<Record<string, 
       };
     case "task_cancel":
       return { taskId: input.taskId, status: "cancel_requested" };
-    case "link_pull_request": {
-      const alreadyLinked = sample.linked.has(pr().url);
-      sample.linked.add(pr().url);
-      return { ...pr(), alreadyLinked };
-    }
     case "request_secret": {
       // T3 names both a ref and a file with 32 hex characters, and keeps files in its secrets dir.
       const id = "5f0c9e2a7b4d4183a6e1c8d2b9f07a64";
@@ -903,23 +855,6 @@ const t3Default = (sample: Sample, name: string, input: Readonly<Record<string, 
         ? { status: "saved", file: `${home}/.ozi/userdata/secrets/files/${id}` }
         : { status: "saved", secretRef: `secret-ref:${id}` };
     }
-    case "unlink_pull_request":
-      return { ...pr(), wasLinked: sample.linked.delete(pr().url) };
-    case "watch_pull_request":
-      sample.linked.add(pr().url);
-      return { ...pr(), watching: true, wasWatching: false };
-    case "unwatch_pull_request":
-      return { ...pr(), watching: false, wasWatching: true };
-    case "list_thread_pull_requests":
-      return {
-        pullRequests: [...sample.linked].map((url) => ({
-          ...pullRequest(sample.repo, { url }),
-          source: "agent",
-          watching: false,
-          state: "open",
-        })),
-        chains: [],
-      };
     case "t3_thread_read": {
       const threadId = valueText(input.threadId);
       const { title, status, items } = DEFAULT_THREAD;
@@ -950,7 +885,7 @@ const t3Default = (sample: Sample, name: string, input: Readonly<Record<string, 
 const EVAL_ENVIRONMENT_ID = EnvironmentId.make("eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee");
 
 /** Fields T3 adds to real thread and task results, applied to mocks and defaults alike. */
-const withProductFields = (name: string, value: unknown, child: boolean): unknown => {
+const withProductFields = (name: string, value: unknown): unknown => {
   if (!isRecord(value)) return value;
   const linked = (thread: unknown, idKey = "threadId") => {
     if (!isRecord(thread) || thread.link !== undefined) return thread;
@@ -985,8 +920,6 @@ const withProductFields = (name: string, value: unknown, child: boolean): unknow
       return listed("threads");
     case "t3_thread_search":
       return listed("matches");
-    case "link_pull_request":
-      return child ? { ...value, next: CHILD_PULL_REQUEST_REPORT_NEXT } : value;
     default:
       return value;
   }
@@ -1023,9 +956,6 @@ const searchTools = (base: Base, query: string, max: number) => {
   const found = base.deferred.filter((tool) => hits(tool).length > 0);
   return found.toSorted((a, b) => hits(b).length - hits(a).length).slice(0, max);
 };
-
-const SUBAGENT_WATCH_ERROR =
-  "This thread is a subagent, so it cannot watch pull requests. Its parent thread owns the pull request: finish your task and report back instead.";
 
 /** Result for a native tool the case does not mock, other than shell, file, and web tools. */
 const nativeResult = (name: string, input: Readonly<Record<string, unknown>>) => {
@@ -1139,7 +1069,6 @@ const simulate = Effect.fn("evaluateMcpToolUse.simulate")(function* (
   if (call.tool === "Bash" && output === "") output = "(Bash completed with no output)";
   const entry = { ...call, output };
   sample.shell.push(entry);
-  for (const url of createdPullRequests(entry)) sample.linked.add(url);
   return output;
 });
 
@@ -1179,19 +1108,15 @@ const answerToolCall = Effect.fn("evaluateMcpToolUse.answerToolCall")(function* 
       call.id,
       name === "orchestrator_capabilities"
         ? capabilities(sample, mock)
-        : withProductFields(name, mock, testCase.setup.role === "delegated-child"),
+        : withProductFields(name, mock),
     );
   if (isT3Name(call.name)) {
-    // T3 refuses a watch from a delegated child.
-    if (name === "watch_pull_request" && testCase.setup.role === "delegated-child") {
-      return failed(SUBAGENT_WATCH_ERROR);
-    }
     const value = t3Default(sample, name, input);
     return toolResult(
       call.id,
       name === "orchestrator_capabilities"
         ? capabilities(sample, value)
-        : withProductFields(name, value, testCase.setup.role === "delegated-child"),
+        : withProductFields(name, value),
     );
   }
   if (call.name === "clock__curr_time")
@@ -1248,7 +1173,6 @@ export const gradeSample = (expect: McpToolUseCase["expect"], run: SampleRun) =>
   const add = (check: string, pass: boolean) => checks.push({ check, pass });
   const calls = run.calls.map((call) => ({ ...call, input: withOptionsObject(call.input) }));
   const count = (tool: string) => calls.filter((call) => call.tool === tool).length;
-  // `tool` may list alternatives, as in "link_pull_request|watch_pull_request".
   const found = ({ tool, args = {} }: McpToolUseCall) =>
     calls.some((call) => tool.split("|").includes(call.tool) && matches(args, call.input));
   const label = ({ tool, args }: McpToolUseCall) => (args ? `${tool} ${valueText(args)}` : tool);
@@ -1279,8 +1203,6 @@ export const gradeSample = (expect: McpToolUseCase["expect"], run: SampleRun) =>
     add(`shellMustNot /${p}/`, !shell.some((c) => test(p, c)));
   for (const p of expect.textMust ?? []) add(`textMust /${p}/`, test(p, run.text));
   for (const p of expect.textMustNot ?? []) add(`textMustNot /${p}/`, !test(p, run.text));
-  const isLinked = (url: string) => (run.linked ?? []).some((at) => matches(url, at));
-  for (const url of expect.linked ?? []) add(`linked ${url}`, isLinked(url));
   return checks;
 };
 
@@ -1625,7 +1547,6 @@ const runSample = Effect.fn("evaluateMcpToolUse.runSample")(function* (
     text: said.join("\n\n"),
     stopReason,
     finalText,
-    linked: [...sample.linked],
     usage,
     shellUsage: sample.shellUsage,
     transcript: input ? transcript : messages.slice(start),

@@ -23,16 +23,13 @@ import {
   useNativeLayoutMetrics,
 } from "../../native/native-layout-metrics";
 import { HomeRouteScreen } from "../home/HomeRouteScreen";
-import { dispatchHardwareKeyboardCommand } from "../keyboard/hardwareKeyboardCommands";
 import { WorkspaceConnectionTitle } from "../home/WorkspaceConnectionTitle";
 import { useAdaptiveWorkspaceLayout } from "../layout/AdaptiveWorkspaceLayout";
-import { PullRequestsScreen } from "../pull-requests/PullRequestsScreen";
 import {
   WorkspaceTabsContext,
   WorkspaceTabsProvider,
   useWorkspaceTabs,
 } from "./WorkspaceTabsContext";
-import { WorkspaceToolbar } from "./WorkspaceToolbar";
 import {
   WORKSPACE_DOCK,
   workspaceDockBottomClearance,
@@ -168,18 +165,6 @@ function WorkspaceRootContent() {
             title="Ozi"
             titleContent={renderHeaderTitle()}
             actions={[
-              ...(state.selectedTab === "threads" || state.selectedTab === "pullRequests"
-                ? [
-                    {
-                      accessibilityLabel:
-                        state.selectedTab === "threads" ? "Search threads" : "Search pull requests",
-                      icon: "magnifyingglass" as const,
-                      onPress: () => {
-                        dispatchHardwareKeyboardCommand("focusSearch");
-                      },
-                    },
-                  ]
-                : []),
               {
                 accessibilityLabel: "Settings",
                 icon: "gearshape",
@@ -195,8 +180,6 @@ function WorkspaceRootContent() {
             <WorkspaceNoTabs />
           ) : state.selectedTab === "threads" ? (
             <HomeRouteScreen />
-          ) : state.selectedTab === "pullRequests" ? (
-            <PullRequestsScreen />
           ) : (
             <WorkspaceExtraTab tab={state.selectedTab} />
           )}
@@ -206,12 +189,6 @@ function WorkspaceRootContent() {
         ) : null}
         {/* Android's Settings list carries its own search in its app bar. */}
         {enabled.length === 0 && !settingsOpen ? null : (
-            settingsOpen
-              ? Platform.OS === "ios"
-              : state.selectedTab === "threads" || state.selectedTab === "pullRequests"
-          ) ? (
-          <WorkspaceToolbar sidebar={sidebarNavigation} onNewTask={startNewTask} />
-        ) : (
           <WorkspaceSectionToolbar onNewTask={startNewTask} showCompose={false} />
         )}
       </View>

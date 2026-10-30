@@ -31,14 +31,9 @@ import * as ChildProcessSpawner from "effect/process/ChildProcessSpawner";
 import type * as EffectAcpSchema from "effect-acp/compat";
 
 import * as TestProviderHost from "@t3tools/provider-testing/TestProviderHost";
-import * as ProjectStore from "../ProjectStore.ts";
-import { buildInitialGrokProviderSnapshot } from "@t3tools/provider-grok/testing";
-import type { ProviderInstance } from "@t3tools/provider-core/server/driver";
-import * as ProviderInstanceRegistry from "../../provider/ProviderInstanceRegistry.ts";
 import * as IdAllocator from "@t3tools/provider-core/server/IdAllocator";
 import * as McpProviderSessions from "@t3tools/provider-core/server/McpProviderSessions";
 import * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAdapter";
-import * as RuntimePolicy from "../RuntimePolicy.ts";
 import { acpPermissionDisposition } from "@t3tools/provider-acp/server/clientPolicy";
 import { acpCompletedTurnShouldTerminalizeTool } from "@t3tools/provider-acp/server/adapter";
 import {
@@ -297,67 +292,6 @@ describe("Grok launch permission mode", () => {
       assert.deepEqual(yield* launchArgs(policy(runtimeMode)), [args]);
     }),
   );
-
-  it.effect("launches a thread stored as Auto-accept edits asking", () =>
-    Effect.gen(function* () {
-      const snapshot = yield* buildInitialGrokProviderSnapshot(LAUNCH_TEST_GROK_SETTINGS);
-      const instanceId = ProviderInstanceId.make("grok-launch-test");
-      const now = yield* DateTime.now;
-      const threadId = ThreadId.make("grok-launch-test");
-      const modelSelection = { instanceId, model: "grok-build" } as const;
-      const resolved = yield* Effect.gen(function* () {
-        const runtimePolicy = yield* RuntimePolicy.RuntimePolicyV2;
-        return yield* runtimePolicy.resolve({
-          thread: {
-            createdBy: "user",
-            creationSource: "web",
-            id: threadId,
-            projectId: ProjectId.make("grok-launch-test"),
-            title: "Grok launch test",
-            providerInstanceId: instanceId,
-            modelSelection,
-            runtimeMode: "auto-accept-edits",
-            interactionMode: "default",
-            branch: null,
-            worktreePath: process.cwd(),
-            activeProviderThreadId: null,
-            lineage: { parentThreadId: null, relationshipToParent: null, rootThreadId: threadId },
-            forkedFrom: null,
-            createdAt: now,
-            updatedAt: now,
-            archivedAt: null,
-            settledOverride: null,
-            settledAt: null,
-            lastVisitedAt: null,
-            deletedAt: null,
-          },
-          modelSelection,
-        });
-      }).pipe(
-        Effect.provide(
-          RuntimePolicy.layerFromProjectStore.pipe(
-            Layer.provide(
-              Layer.mock(ProjectStore.ProjectStoreV2)({
-                get: () => Effect.die("the thread has a worktree"),
-              }),
-            ),
-            Layer.provide(
-              Layer.mock(ProviderInstanceRegistry.ProviderInstanceRegistry)({
-                getInstance: () =>
-                  Effect.succeed({
-                    snapshot: { getSnapshot: Effect.succeed(snapshot) },
-                  } as ProviderInstance),
-              }),
-            ),
-          ),
-        ),
-      );
-      assert.equal(resolved.runtimeMode, "approval-required");
-      assert.deepEqual(yield* launchArgs(resolved), [
-        ["--permission-mode", "default", "agent", "stdio"],
-      ]);
-    }),
-  );
 });
 
 describe("Grok native questions", () => {
@@ -540,8 +474,7 @@ describe("Grok native questions", () => {
           modelSelection,
           runtimeMode: "approval-required",
           interactionMode: "default",
-          branch: null,
-          worktreePath: workspace,
+          workingDirectory: workspace,
           activeProviderThreadId: providerThread.id,
           lineage: { parentThreadId: null, relationshipToParent: null, rootThreadId: threadId },
           forkedFrom: null,

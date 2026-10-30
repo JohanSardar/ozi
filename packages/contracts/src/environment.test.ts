@@ -10,7 +10,7 @@ const descriptor = {
   label: "Local",
   platform: { os: "darwin", arch: "arm64" },
   serverVersion: "0.0.32",
-  capabilities: { repositoryIdentity: true },
+  capabilities: {},
 } as const;
 
 describe("ExecutionEnvironmentDescriptor", () => {

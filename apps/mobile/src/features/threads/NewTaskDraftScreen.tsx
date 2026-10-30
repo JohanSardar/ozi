@@ -16,7 +16,6 @@ import { ThreadId } from "@t3tools/contracts";
 
 import * as Dialog from "../../components/ui/Dialog";
 import { useAtomValue } from "@effect/atom-react";
-import * as Cause from "effect/Cause";
 import { AsyncResult } from "effect/reactivity";
 import { settlePromise, squashAtomCommandFailure } from "@t3tools/client-runtime/state/runtime";
 import {
@@ -43,14 +42,6 @@ import { composerContextImportsAtom } from "../../state/use-composer-drafts";
 import { abortComposerDraftOperations } from "../../state/composerDraftOperations";
 import { composerContextSendBlockReason } from "../../lib/composerContext";
 import { ComposerInlineControl } from "../../components/ComposerToolbar";
-
-import {
-  composerAttachmentUploadBlockReason,
-  composerAttachmentsStillUploading,
-  composerAttachmentUploadsAtom,
-} from "../../state/composer-attachment-uploads";
-
-import { SymbolView } from "../../components/ui/AppSymbol";
 import { AppText as Text } from "../../components/ui/AppText";
 import { threadContextsOutsideEnvironment } from "@t3tools/shared/composerContextReferences";
 
@@ -59,15 +50,9 @@ import { makeTurnCommandMetadata } from "../../lib/commandMetadata";
 import {
   clearComposerDraftContent,
   getComposerDraftSnapshot,
-  updateComposerDraftSettings,
   scheduleUnusedComposerAttachmentCleanup,
 } from "../../state/use-composer-drafts";
 import { useEnvironmentServerConfig, useProjects } from "../../state/entities";
-import { useProjectClone } from "../../state/projectClones";
-import { projectEnvironment } from "../../state/projects";
-import { sourceControlEnvironment } from "../../state/sourceControl";
-import { useAtomCommand } from "../../state/use-atom-command";
-import { ProjectCloneBanner } from "./ProjectCloneBanner";
 import {
   describeUnavailableModelSelection,
   isModelSelectionUnavailable,
@@ -83,12 +68,7 @@ import {
   nextEnvironmentId,
   useHardwareKeyboardCommand,
 } from "../keyboard/hardwareKeyboardCommands";
-import { resolveProjectThreadCreationBranch } from "./projectThreadCreationValidation";
 import { resolveDraftProjectSelection } from "./new-task-project-selection";
-import {
-  resolveNewTaskBranchLabel,
-  resolveNewTaskWorkspaceLabel,
-} from "./new-task-context-presentation";
 import { incomingShareImports, useIncomingShare } from "../sharing/IncomingShareProvider";
 import { idleShareFlagAtom, idleShareImportPhaseAtom } from "./incomingShareImport";
 import { newTaskFlowKey } from "./new-task-flow-state";
@@ -96,57 +76,11 @@ import { appAtomRegistry } from "../../state/atom-registry";
 
 import { readEnvironmentScope, useEnvironmentScope } from "../../state/session";
 
-function NewTaskWorkspaceIcon(props: {
-  readonly workspaceMode: "local" | "worktree";
-  readonly worktreePath: string | null;
-  readonly size: number;
-}) {
-  if (props.workspaceMode === "local" && props.worktreePath === null) {
-    return (
-      <SymbolView
-        name="folder"
-        size={props.size}
-        tintColorClassName="accent-icon-muted"
-        type="monochrome"
-      />
-    );
-  }
-
-  const boxSize = (14 * props.size) / 16;
-  return (
-    <View
-      className="size-4"
-      style={Platform.OS === "android" ? { width: boxSize, height: boxSize } : undefined}
-    >
-      <SymbolView
-        name="folder"
-        size={props.size}
-        tintColorClassName="accent-icon-muted"
-        type="monochrome"
-      />
-      <View
-        className="absolute -right-1 -bottom-1"
-        style={
-          Platform.OS === "android" ? { right: -boxSize / 4, bottom: -boxSize / 4 } : undefined
-        }
-      >
-        <SymbolView
-          name="arrow.triangle.branch"
-          size={Math.round((9 * props.size) / 16)}
-          tintColorClassName="accent-icon-muted"
-          type="monochrome"
-        />
-      </View>
-    </View>
-  );
-}
-
 export function NewTaskDraftScreen(props: {
   readonly initialProjectRef?: {
     readonly environmentId?: string;
     readonly projectId?: string;
-    readonly branch?: string | null;
-    readonly worktreePath?: string | null;
+    readonly workingDirectory?: string | null;
     readonly cloning?: boolean;
   };
   readonly draftId?: string;
@@ -191,78 +125,7 @@ export function NewTaskDraftScreen(props: {
     selectedProject?.environmentId ?? null,
     AuthOrchestrationOperateScope,
   );
-  const projectCloneState = useProjectClone(
-    selectedProject
-      ? { environmentId: selectedProject.environmentId, projectId: selectedProject.id }
-      : null,
-  );
-  const projectClone = projectCloneState === "pending" ? null : projectCloneState;
-  const awaitingKnownClone =
-    projectCloneState === "pending" &&
-    props.initialProjectRef?.cloning === true &&
-    selectedProject !== null &&
-    selectedProject.id === props.initialProjectRef.projectId &&
-    selectedProject.environmentId === props.initialProjectRef.environmentId;
-  const cloneBlocksStart =
-    awaitingKnownClone || (projectClone !== null && projectClone.phase !== "done");
-  const cancelProjectClone = useAtomCommand(sourceControlEnvironment.cancelProjectClone, {
-    reportFailure: false,
-  });
-  const retryProjectClone = useAtomCommand(sourceControlEnvironment.retryProjectClone, {
-    reportFailure: false,
-  });
-  const runCloneAction = async (
-    title: string,
-    action: () => Promise<AsyncResult.AsyncResult<unknown, unknown>>,
-  ) => {
-    const result = await action();
-    if (AsyncResult.isFailure(result)) {
-      const error = Cause.squash(result.cause);
-      Dialog.alert(title, error instanceof Error ? error.message : "An error occurred.");
-    }
-  };
-  const deleteProject = useAtomCommand(projectEnvironment.delete, { reportFailure: false });
-  const removeClonedProject = async () => {
-    if (!selectedProject) return;
-    const removed = selectedProject;
-    const result = await deleteProject({
-      environmentId: removed.environmentId,
-      input: { projectId: removed.id },
-    });
-    if (AsyncResult.isFailure(result)) {
-      const error = Cause.squash(result.cause);
-      Dialog.alert(
-        "Failed to remove project",
-        error instanceof Error ? error.message : "An error occurred.",
-      );
-      return;
-    }
-    if (flow.getSelectedProjectKey() === scopedProjectKey(removed.environmentId, removed.id)) {
-      navigation.dispatch(StackActions.replace("Home"));
-    }
-  };
-  const uploadStates = useAtomValue(composerAttachmentUploadsAtom);
-  const attachmentBlockReason = selectedProject
-    ? composerAttachmentUploadBlockReason({
-        environmentId: selectedProject.environmentId,
-        attachments: flow.attachments,
-        connected: environmentConnected,
-        serverConfig: selectedEnvironmentServerConfig,
-        states: uploadStates,
-      })
-    : null;
-  const attachmentsUploading =
-    environmentConnected &&
-    selectedProject !== null &&
-    composerAttachmentsStillUploading({
-      environmentId: selectedProject.environmentId,
-      attachments: flow.attachments,
-      serverConfig: selectedEnvironmentServerConfig,
-      states: uploadStates,
-    });
-  const queuesInsteadOfStarting = !environmentConnected || attachmentsUploading;
   const promptInputRef = useRef<ComposerEditorHandle>(null);
-  const loadedBranchesProjectKeyRef = useRef<string | null>(null);
   const [isReturningToProjectPicker, setIsReturningToProjectPicker] = useState(false);
   const incomingShare = props.incomingShareId ? getShare(props.incomingShareId) : null;
   const requestedInitialProjectAvailable = Boolean(
@@ -359,9 +222,7 @@ export function NewTaskDraftScreen(props: {
   const cycleEnvironmentCommands = environments.length > 1 ? (["cycleHost"] as const) : [];
   useHardwareKeyboardCommand(cycleEnvironmentCommands, cycleEnvironment);
   const composerWorkspaceCwd =
-    (flow.workspaceMode === "worktree"
-      ? selectedProject?.workspaceRoot
-      : (flow.selectedWorktreePath ?? selectedProject?.workspaceRoot)) || null;
+    (flow.selectedProject?.workspaceRoot ?? null ?? selectedProject?.workspaceRoot) || null;
   const preventRemove =
     (isIncomingShareHoldingRoute && !isProjectPickerReturnActive) || flow.submitting;
   usePreventRemove(preventRemove, () => undefined);
@@ -421,25 +282,6 @@ export function NewTaskDraftScreen(props: {
         if (appliedInitialProjectKeyRef.current === directProjectKey) {
           return;
         }
-        if (props.initialProjectRef?.branch) {
-          if (
-            selectedProject?.environmentId !== directProject.environmentId ||
-            selectedProject.id !== directProject.id
-          ) {
-            setProject(directProject);
-            return;
-          }
-          if (!flow.draftKey) return;
-          // Checkout completed before mount; local mode reuses it while worktree mode would create another.
-          updateComposerDraftSettings(flow.draftKey, {
-            workspaceSelection: {
-              mode: "local",
-              branch: props.initialProjectRef.branch,
-              worktreePath: props.initialProjectRef.worktreePath ?? null,
-              startFromOrigin: false,
-            },
-          });
-        }
         appliedInitialProjectKeyRef.current = directProjectKey;
         if (
           selectedProject?.environmentId === directProject.environmentId &&
@@ -486,7 +328,6 @@ export function NewTaskDraftScreen(props: {
     isFocused,
     projectScopes,
     projects,
-    flow.draftKey,
     props.initialProjectRef,
     props.incomingShareId,
     props.draftId,
@@ -496,48 +337,10 @@ export function NewTaskDraftScreen(props: {
     setProject,
   ]);
 
-  const { loadBranches } = flow;
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- requests the selected project's branch list from the server once per project
-  useEffect(() => {
-    if (!selectedProject) {
-      loadedBranchesProjectKeyRef.current = null;
-      return;
-    }
-    const projectKey = `${selectedProject.environmentId}:${selectedProject.id}`;
-    if (loadedBranchesProjectKeyRef.current === projectKey) {
-      return;
-    }
-    loadedBranchesProjectKeyRef.current = projectKey;
-    loadBranches();
-  }, [loadBranches, selectedProject]);
-
   const selectedEnvironmentLabel =
     flow.environments.find(
       (environment) => environment.environmentId === flow.selectedEnvironmentId,
     )?.environmentLabel ?? "Environment";
-  const availableCurrentBranchName =
-    flow.availableBranches.find((branch) => branch.current)?.name ??
-    flow.availableBranches.find((branch) => branch.isDefault)?.name ??
-    null;
-  const selectedBranchName = resolveProjectThreadCreationBranch({
-    workspaceMode: flow.workspaceMode,
-    selectedBranch:
-      flow.selectedBranchName ??
-      (flow.workspaceMode === "worktree" ? availableCurrentBranchName : null),
-    currentCheckoutBranch: flow.currentCheckoutBranchName,
-  });
-  const selectedBranchLabel = resolveNewTaskBranchLabel({
-    branchName: selectedBranchName,
-    startFromOrigin: flow.startFromOrigin,
-    workspaceMode: flow.workspaceMode,
-    pullRequestReference: flow.pullRequestReference,
-  });
-  const workspaceLabel = resolveNewTaskWorkspaceLabel({
-    workspaceMode: flow.workspaceMode,
-    worktreePath: flow.selectedWorktreePath,
-  });
-  const showBranchLoading =
-    environmentConnected && flow.branchesLoading && flow.availableBranches.length === 0;
 
   const {
     onPickDraftMedia: handlePickMedia,
@@ -556,7 +359,6 @@ export function NewTaskDraftScreen(props: {
     if (
       !selectedProject ||
       !draftKey ||
-      cloneBlocksStart ||
       !isIncomingShareReady ||
       isImportingShare ||
       isComposerInteractionLocked
@@ -577,20 +379,7 @@ export function NewTaskDraftScreen(props: {
         draft.modelSelection ?? null,
         selectedProject.id,
       ) ?? flow.selectedModel;
-    const workspaceSelection = flow.resolveWorkspaceSelection(draft.workspaceSelection);
-    const workspaceMode = workspaceSelection.mode;
-    const selectedBranchName = workspaceSelection.branch;
-    const initialMessageText = draft.text.trim();
-
-    if (
-      attachmentBlockReason !== null ||
-      !modelSelection ||
-      (initialMessageText.length === 0 && draft.attachments.length === 0) ||
-      flow.submitting ||
-      (workspaceMode === "worktree" && !selectedBranchName)
-    ) {
-      return null;
-    }
+    if (modelSelection === null) return null;
     if (
       environmentConnected &&
       isModelSelectionUnavailable(
@@ -639,9 +428,7 @@ export function NewTaskDraftScreen(props: {
       return null;
     }
 
-    const message = flow.buildPendingTaskMessage(creationMetadata, {
-      currentCheckoutBranch: queuesInsteadOfStarting ? null : flow.currentCheckoutBranchName,
-    });
+    const message = flow.buildPendingTaskMessage(creationMetadata, {});
     if (!message) {
       return null;
     }
@@ -684,13 +471,9 @@ export function NewTaskDraftScreen(props: {
 
   const setupBlockReason =
     isIncomingShareReady && !isImportingShare
-      ? cloneBlocksStart
-        ? "Wait for the project clone to finish."
-        : flow.submitting
-          ? "Starting the thread…"
-          : flow.workspaceMode === "worktree" && (!flow.selectedBranchName || !flow.isGitRepoKnown)
-            ? "Choose a base branch before creating a worktree."
-            : null
+      ? flow.submitting
+        ? "Starting the thread…"
+        : null
       : "Wait for shared content to finish importing.";
   const chooseProject = () => {
     if (isComposerInteractionLocked) {
@@ -700,7 +483,7 @@ export function NewTaskDraftScreen(props: {
     void KeyboardController.dismiss({ animated: true });
     navigation.navigate("NewTaskProject", { incomingShareId: props.incomingShareId });
   };
-  const openContextPicker = (routeName: "NewTaskBranch" | "NewTaskEnvironment") => {
+  const openContextPicker = (routeName: "NewTaskEnvironment") => {
     if (isComposerInteractionLocked) {
       return;
     }
@@ -810,39 +593,6 @@ export function NewTaskDraftScreen(props: {
       </NativeScrollEdgeEffectsContext>
     );
 
-  const workspaceControls = (
-    <View className="flex-row items-center gap-1 px-2">
-      <ComposerInlineControl
-        accessibilityHint={`Switches to ${flow.workspaceMode === "local" ? "a new worktree" : "the current checkout"}`}
-        accessibilityLabel={workspaceLabel}
-        disabled={isComposerInteractionLocked || !flow.isGitRepo}
-        renderIcon={(size) => (
-          <NewTaskWorkspaceIcon
-            workspaceMode={flow.workspaceMode}
-            worktreePath={flow.selectedWorktreePath}
-            size={size}
-          />
-        )}
-        label={workspaceLabel}
-        maxWidth="100%"
-        onPress={() => flow.setWorkspaceMode(flow.workspaceMode === "local" ? "worktree" : "local")}
-        showChevron={false}
-      />
-
-      <View className="min-w-0 shrink">
-        <ComposerInlineControl
-          accessibilityLabel={`${flow.workspaceMode === "worktree" ? "Base branch" : "Branch"}: ${selectedBranchLabel}`}
-          chevronDirection="right"
-          disabled={isComposerInteractionLocked || !flow.isGitRepo}
-          icon="arrow.triangle.branch"
-          label={showBranchLoading ? "Loading branches…" : selectedBranchLabel}
-          maxWidth="100%"
-          onPress={() => openContextPicker("NewTaskBranch")}
-        />
-      </View>
-    </View>
-  );
-
   if (!flow.selectedModel) {
     return (
       <ThreadScreenFallback
@@ -884,8 +634,7 @@ export function NewTaskDraftScreen(props: {
     modelSelection: flow.selectedModel,
     runtimeMode: flow.runtimeMode,
     interactionMode: flow.interactionMode,
-    branch: flow.selectedBranchName,
-    worktreePath: flow.selectedWorktreePath,
+    workingDirectory: flow.selectedProject?.workspaceRoot ?? null,
     createdAt: creationMetadata.createdAt,
   });
   return (
@@ -897,35 +646,7 @@ export function NewTaskDraftScreen(props: {
         }
         draftMode={{
           content: heroViewport,
-          controls: (
-            <View className="pb-1">
-              {projectClone && projectClone.phase !== "done" && selectedProject ? (
-                <View className="px-1 pb-2">
-                  <ProjectCloneBanner
-                    clone={projectClone}
-                    onCancel={() =>
-                      void runCloneAction("Failed to cancel clone", () =>
-                        cancelProjectClone({
-                          environmentId: selectedProject.environmentId,
-                          input: { projectId: selectedProject.id },
-                        }),
-                      )
-                    }
-                    onRetry={() =>
-                      void runCloneAction("Failed to retry clone", () =>
-                        retryProjectClone({
-                          environmentId: selectedProject.environmentId,
-                          input: { projectId: selectedProject.id },
-                        }),
-                      )
-                    }
-                    onRemove={() => void removeClonedProject()}
-                  />
-                </View>
-              ) : null}
-              {flow.canChooseWorkspace ? workspaceControls : null}
-            </View>
-          ),
+          controls: environmentControl,
           editorRef: promptInputRef,
           sendBlockedReason: setupBlockReason,
           interactionLocked: isComposerInteractionLocked,

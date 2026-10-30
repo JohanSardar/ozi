@@ -110,7 +110,6 @@ function makeFakeBrowserWindow() {
     once: vi.fn((eventName: string, listener: (...args: readonly unknown[]) => void) => {
       windowListeners.set(eventName, listener);
     }),
-    restore: vi.fn(),
     setBackgroundColor: vi.fn(),
     setAutoHideCursor: vi.fn(),
     setFullScreen: vi.fn(),

@@ -218,7 +218,7 @@ const withDirectory = <T>(value: T, directory: string): T => {
 
 const threadCommands = (input: {
   readonly name: string;
-  readonly worktreePath: string;
+  readonly workingDirectory: string;
   readonly runtimeMode?: RuntimeMode;
   readonly interactionMode?: ProviderInteractionMode;
 }) => {
@@ -237,8 +237,7 @@ const threadCommands = (input: {
       modelSelection: bigPickle,
       runtimeMode: input.runtimeMode ?? "full-access",
       interactionMode: input.interactionMode ?? "default",
-      branch: null,
-      worktreePath: input.worktreePath,
+      workingDirectory: input.workingDirectory,
     } satisfies OrchestrationV2Command,
     message: (key: string, modelSelection: ModelSelection = bigPickle, text?: string) =>
       ({
@@ -301,7 +300,7 @@ describe("OpenCode 2 through the orchestrator", () => {
       Effect.gen(function* () {
         const name = `opencode2-model-switch-${via.replace(" ", "-")}`;
         const cwd = yield* checkpointWorkspace(name);
-        const thread = threadCommands({ name, worktreePath: cwd });
+        const thread = threadCommands({ name, workingDirectory: cwd });
         const projection = yield* runScenario({
           name,
           threadId: thread.threadId,
@@ -353,7 +352,7 @@ describe("OpenCode 2 through the orchestrator", () => {
     Effect.gen(function* () {
       const name = "opencode2-mode-change";
       const cwd = yield* checkpointWorkspace(name);
-      const thread = threadCommands({ name, worktreePath: cwd });
+      const thread = threadCommands({ name, workingDirectory: cwd });
       const setMode = (key: string, runtimeMode: RuntimeMode) =>
         ({
           type: "thread.runtime-mode.set",
@@ -404,7 +403,7 @@ describe("OpenCode 2 through the orchestrator", () => {
     Effect.gen(function* () {
       const name = "opencode2-plan-rules";
       const cwd = yield* checkpointWorkspace(name);
-      const thread = threadCommands({ name, worktreePath: cwd, interactionMode: "plan" });
+      const thread = threadCommands({ name, workingDirectory: cwd, interactionMode: "plan" });
       const projection = yield* runScenario({
         name,
         threadId: thread.threadId,
@@ -453,7 +452,7 @@ describe("OpenCode 2 through the orchestrator", () => {
       const transcript = yield* OpenCode2OrchestratorReplayHarness.decodeTranscript(
         withDirectory(recorded, cwd),
       );
-      const source = threadCommands({ name, worktreePath: cwd });
+      const source = threadCommands({ name, workingDirectory: cwd });
       const target = ThreadId.make(`thread:${name}:target`);
       const [one, two] = [source.message("one"), source.message("two")];
       const commands: ReadonlyArray<OrchestrationV2Command> = [
@@ -515,7 +514,7 @@ describe("OpenCode 2 through the orchestrator", () => {
     Effect.gen(function* () {
       const name = "opencode2-queued-cancel";
       const cwd = yield* checkpointWorkspace(name);
-      const thread = threadCommands({ name, worktreePath: cwd });
+      const thread = threadCommands({ name, workingDirectory: cwd });
       const queued = (key: string): OrchestrationV2Command => ({
         ...thread.message(key),
         dispatchMode: { type: "queue_after_active" },
@@ -634,7 +633,7 @@ describe("OpenCode 2 through the orchestrator", () => {
         ...input.reconnect(BACKGROUND_PARENT),
       ],
     });
-    const thread = threadCommands({ name: input.name, worktreePath: cwd });
+    const thread = threadCommands({ name: input.name, workingDirectory: cwd });
     const ids = yield* IdAllocator.IdAllocatorV2;
     const run = (ordinal: number) => ids.derive.run({ threadId: thread.threadId, ordinal });
     const result = yield* runOrchestratorV2ProviderReplayScenario(
@@ -893,7 +892,10 @@ describe("OpenCode 2 through the orchestrator", () => {
             byLabel("session.execution.succeeded.3"),
           ],
         });
-        const thread = threadCommands({ name: "opencode2-background-in-turn", worktreePath: cwd });
+        const thread = threadCommands({
+          name: "opencode2-background-in-turn",
+          workingDirectory: cwd,
+        });
         const ids = yield* IdAllocator.IdAllocatorV2;
         const result = yield* runOrchestratorV2ProviderReplayScenario(
           {

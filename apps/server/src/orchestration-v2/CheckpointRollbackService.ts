@@ -5,31 +5,20 @@ import {
   type OrchestrationV2DomainEvent,
   ProviderThreadId,
   ThreadId,
-  VcsProcessExitError,
 } from "@t3tools/contracts";
 import * as Context from "effect/Context";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
-import * as Option from "effect/Option";
 import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
-
-import * as GitWorkflowService from "../git/GitWorkflowService.ts";
 import type * as ServerConfig from "../config.ts";
 import type * as ServerSettings from "../serverSettings.ts";
-import { makeIsManagedWorktreePath } from "../worktreesDirectory.ts";
-import { withWorkspaceLease } from "../workspace/workspaceLease.ts";
-import {
-  isCheckpointRestoreIsolated,
-  SHARED_WORKSPACE_RESTORE_MESSAGE,
-} from "./CheckpointRestoreSafety.ts";
-import { CheckpointRestoreError, CheckpointServiceV2 } from "./CheckpointService.ts";
+import { CheckpointServiceV2 } from "./CheckpointService.ts";
 import { EventSinkV2 } from "./EventSink.ts";
 import * as IdAllocator from "@t3tools/provider-core/server/IdAllocator";
 import { ProjectionStoreV2 } from "./ProjectionStore.ts";
-import { GIT_INDEX_LOCKED_DETAIL } from "../vcs/VcsProcess.ts";
 import * as ProjectStore from "./ProjectStore.ts";
 import type * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAdapter";
 import { ProviderSessionManagerV2 } from "./ProviderSessionManager.ts";
@@ -47,7 +36,6 @@ export class CheckpointRollbackExecutionError extends Schema.TaggedError<Checkpo
       "active-provider-changed",
       "provider-turn-unavailable",
       "unexpected-failure",
-      "shared-workspace",
     ]),
     threadId: ThreadId,
     providerThreadId: ProviderThreadId,
@@ -63,8 +51,6 @@ export class CheckpointRollbackExecutionError extends Schema.TaggedError<Checkpo
         return `Active provider changed before rollback target ${this.checkpointId} could execute on thread ${this.threadId}.`;
       case "provider-turn-unavailable":
         return `Provider turn for rollback target ${this.checkpointId} is unavailable on provider thread ${this.providerThreadId}.`;
-      case "shared-workspace":
-        return SHARED_WORKSPACE_RESTORE_MESSAGE;
       case "unexpected-failure":
         return ROLLBACK_FAILED_MESSAGE;
     }
@@ -72,19 +58,14 @@ export class CheckpointRollbackExecutionError extends Schema.TaggedError<Checkpo
 }
 
 const isCheckpointRollbackExecutionError = Schema.is(CheckpointRollbackExecutionError);
-const isVcsProcessExitError = Schema.is(VcsProcessExitError);
-const isCheckpointRestoreError = Schema.is(CheckpointRestoreError);
 
 /**
  * The message clients see when a rollback fails. Only a held Git index lock
  * gets its own explanation; other reasons carry internal ids or raw Git
  * output, so they fall back to the generic message.
  */
-export function rollbackFailureClientMessage(error: CheckpointRollbackExecutionError): string {
-  const restoreCause = isCheckpointRestoreError(error.cause) ? error.cause.cause : undefined;
-  return isVcsProcessExitError(restoreCause) && restoreCause.detail === GIT_INDEX_LOCKED_DETAIL
-    ? GIT_INDEX_LOCKED_DETAIL
-    : ROLLBACK_FAILED_MESSAGE;
+export function rollbackFailureClientMessage(): string {
+  return ROLLBACK_FAILED_MESSAGE;
 }
 
 export interface CheckpointRollbackServiceV2Shape {
@@ -93,7 +74,6 @@ export interface CheckpointRollbackServiceV2Shape {
     readonly providerThreadId: ProviderThreadId;
     readonly checkpointId: CheckpointId;
     readonly scopeId: CheckpointScopeId;
-    readonly restoreFiles?: boolean;
   }) => Effect.Effect<void, CheckpointRollbackExecutionError>;
 }
 
@@ -106,7 +86,7 @@ export const layer: Layer.Layer<
   CheckpointRollbackServiceV2,
   never,
   | CheckpointServiceV2
-  | GitWorkflowService.GitWorkflowService
+  | never
   | EventSinkV2
   | IdAllocator.IdAllocatorV2
   | ProjectionStoreV2
@@ -121,25 +101,18 @@ export const layer: Layer.Layer<
 > = Layer.effect(
   CheckpointRollbackServiceV2,
   Effect.gen(function* () {
-    const checkpoints = yield* CheckpointServiceV2;
-    const gitWorkflow = yield* GitWorkflowService.GitWorkflowService;
     const eventSink = yield* EventSinkV2;
     const ids = yield* IdAllocator.IdAllocatorV2;
     const projections = yield* ProjectionStoreV2;
     const sessions = yield* ProviderSessionManagerV2;
     const runtimePolicy = yield* RuntimePolicyV2;
-    const fileSystem = yield* FileSystem.FileSystem;
-    const projects = yield* ProjectStore.ProjectStoreV2;
-    const path = yield* Path.Path;
     const threadCommands = yield* ThreadCommandExecutor.ThreadCommandExecutor;
-    const isManagedWorktreePath = yield* makeIsManagedWorktreePath;
 
     const execute = Effect.fn("orchestrationV2.checkpointRollback.execute")(function* (input: {
       readonly threadId: ThreadId;
       readonly providerThreadId: ProviderThreadId;
       readonly checkpointId: CheckpointId;
       readonly scopeId: CheckpointScopeId;
-      readonly restoreFiles?: boolean;
     }) {
       const context = yield* projections.getCheckpointRollbackContext(input.threadId, input);
       const { providerThread, checkpoint, scope, targetAttempt, runsToRollback, staleCheckpoints } =
@@ -199,42 +172,6 @@ export const layer: Layer.Layer<
               };
             });
 
-      const { worktreePath, branch } = context.thread;
-      // Recreated only where the server would have made it, as turn start does.
-      if (
-        worktreePath != null &&
-        branch != null &&
-        !(yield* fileSystem.exists(worktreePath)) &&
-        (yield* isManagedWorktreePath(worktreePath))
-      ) {
-        const project = yield* projects.get(context.thread.projectId);
-        if (Option.isSome(project)) {
-          yield* gitWorkflow.pruneWorktrees({ cwd: project.value.workspaceRoot });
-          yield* gitWorkflow.createWorktree({
-            cwd: project.value.workspaceRoot,
-            refName: branch,
-            path: worktreePath,
-          });
-        }
-      }
-
-      if (
-        input.restoreFiles !== false &&
-        !(yield* isCheckpointRestoreIsolated(context.thread, scope, {
-          fileSystem,
-          projections,
-          projects,
-          path,
-        }))
-      ) {
-        return yield* new CheckpointRollbackExecutionError({
-          reason: "shared-workspace",
-          threadId: input.threadId,
-          providerThreadId: input.providerThreadId,
-          checkpointId: input.checkpointId,
-        });
-      }
-
       const modelSelection = context.thread.modelSelection;
       const resolvedRuntimePolicy = yield* runtimePolicy.resolve({
         thread: context.thread,
@@ -273,9 +210,7 @@ export const layer: Layer.Layer<
               target: rollbackTarget,
               providerThreadTurns,
             });
-      if (input.restoreFiles !== false) yield* checkpoints.restore({ scope, checkpoint });
       if (staleCheckpoints.length > 0) {
-        yield* checkpoints.deleteStaleRefs({ scope, checkpoints: staleCheckpoints });
       }
 
       // Lock against full-row thread writes that could restore the old native session after rollback.
@@ -356,11 +291,7 @@ export const layer: Layer.Layer<
       // The inner execute owns the rollback span; this wrapper selects the workspace lease.
       execute: Effect.fnUntraced(
         function* (input) {
-          // Storage cleanup removes worktrees under the same lease.
-          const thread = yield* projections.getThread(input.threadId);
-          yield* thread.worktreePath === null
-            ? execute(input)
-            : withWorkspaceLease(path.resolve(thread.worktreePath), execute(input));
+          yield* execute(input);
         },
         (effect, input) =>
           effect.pipe(

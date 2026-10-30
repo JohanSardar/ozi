@@ -1,10 +1,10 @@
+import { SplitIcon } from "lucide-react";
 import { useAtomValue } from "@effect/atom-react";
 import { ThreadDetailsControl } from "./ThreadDetailsControl";
 import { ThreadHoverCardPopup } from "../ThreadHoverCard";
 import { ThreadDetailsSection } from "./ThreadDetailsSection";
 import { SectionHeaderStatus } from "../ui/collapsible-section-header";
 import { SubagentTooltipContent } from "./SubagentTooltipContent";
-import { PullRequestGlyph } from "../pullRequest/pullRequestIcons";
 import { scopedThreadKey, scopeThreadRef } from "@t3tools/client-runtime/environment";
 import {
   deriveWorkflowGroups,
@@ -48,7 +48,6 @@ import {
   BotIcon,
   ChevronDownIcon,
   CornerLeftUpIcon,
-  GitForkIcon,
   LoaderCircleIcon,
   MoreHorizontalIcon,
   PlusIcon,
@@ -612,7 +611,7 @@ export function ThreadRelationshipsPanel(props: {
                 ? CornerLeftUpIcon
                 : isSubagent
                   ? BotIcon
-                  : GitForkIcon;
+                  : SplitIcon;
               const relationship = relationshipLabel(edge, props.threadId);
               const projectedAgent =
                 isSubagent && !isParent ? subagentsByThreadId.get(threadId) : undefined;
@@ -800,13 +799,7 @@ export function ThreadRelationshipsPanel(props: {
                               }
                               disabled={!canMerge || busyAction !== null}
                               onClick={() => void merge()}
-                            >
-                              {busyAction === "merge" ? (
-                                <LoaderCircleIcon className="size-3 animate-spin" />
-                              ) : (
-                                <PullRequestGlyph.merged className="size-3" />
-                              )}
-                            </ThreadDetailsControl>
+                            ></ThreadDetailsControl>
                           }
                         />
                         <TooltipPopup side="left">

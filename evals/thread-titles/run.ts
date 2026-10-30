@@ -2,7 +2,6 @@
 // @effect-diagnostics nodeBuiltinImport:off
 import * as NodeUtil from "node:util";
 import * as NodeCrypto from "node:crypto";
-import * as FetchHttpClient from "effect/http/FetchHttpClient";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { CodexSettings, ProviderInstanceId } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
@@ -17,14 +16,6 @@ import {
   formatThreadTitleContext,
   type ThreadTitleMessage,
 } from "@t3tools/provider-core/server/threadTitleContext";
-import * as ThreadTitleLinks from "../../apps/server/src/textGeneration/ThreadTitleLinks.ts";
-import * as SourceControlProviderRegistry from "../../apps/server/src/sourceControl/SourceControlProviderRegistry.ts";
-import * as SourceControlBuiltInDrivers from "../../apps/server/src/sourceControl/builtInDrivers.ts";
-import * as ServerSettings from "../../apps/server/src/serverSettings.ts";
-import * as VcsProcess from "../../apps/server/src/vcs/VcsProcess.ts";
-import * as VcsDriverRegistry from "../../apps/server/src/vcs/VcsDriverRegistry.ts";
-import * as VcsProjectConfig from "../../apps/server/src/vcs/VcsProjectConfig.ts";
-import * as GitVcsDriver from "../../apps/server/src/vcs/GitVcsDriver.ts";
 import * as ProcessRunner from "../../apps/server/src/processRunner.ts";
 import * as ServerConfig from "../../apps/server/src/config.ts";
 
@@ -46,7 +37,6 @@ const Results = Schema.fromJsonString(
       id: Schema.String,
       title: Schema.String,
       latencyMs: Schema.Number,
-      linkedContextDigest: Schema.String,
     }),
   ),
 );
@@ -78,29 +68,15 @@ await Effect.runPromise(
       const context = formatThreadTitleContext(fixture.messages);
       const message = values.initial ? firstMessage.text : context.message;
       const attachments = values.initial ? firstMessage.attachments : context.attachments;
-      const [elapsed, { generated, linkedContextDigest }] = yield* Effect.gen(function* () {
-        const linkedContext = yield* ThreadTitleLinks.resolveThreadTitleLinks({
-          cwd,
-          message,
-        });
-        const linkedContextDigest = NodeCrypto.createHash("sha256")
-          .update(linkedContext ?? "")
-          .digest("hex");
-        if (previous && previous.linkedContextDigest !== linkedContextDigest) {
-          throw new Error(
-            `Linked context changed for ${fixture.id}. Record a new baseline before comparing titles.`,
-          );
-        }
-        const generated = yield* generation.generateThreadTitle({
+      const [elapsed, generated] = yield* generation
+        .generateThreadTitle({
           cwd,
           message,
           previousTitle: values.initial ? undefined : fixture.previousTitle,
           attachments,
-          linkedContext,
           modelSelection: { instanceId: ProviderInstanceId.make("codex"), model },
-        });
-        return { generated, linkedContextDigest };
-      }).pipe(Effect.timed);
+        })
+        .pipe(Effect.timed);
       const oldTitle = previous?.title ?? fixture.previousTitle;
       const newFirst = NodeCrypto.randomInt(2) === 0;
       results.push({
@@ -108,7 +84,6 @@ await Effect.runPromise(
         title: generated.title,
         latencyMs: Duration.toMillis(elapsed),
         needsRefinement: generated.needsRefinement ?? false,
-        linkedContextDigest,
       });
       review.push({
         id: fixture.id,
@@ -139,17 +114,7 @@ await Effect.runPromise(
     );
   }).pipe(
     Effect.provide(
-      Layer.mergeAll(
-        ProcessRunner.layer,
-        SourceControlProviderRegistry.layer.pipe(
-          Layer.provide(SourceControlBuiltInDrivers.layer),
-          Layer.provide(ServerSettings.layerTest()),
-          Layer.provide(VcsDriverRegistry.layer.pipe(Layer.provide(VcsProjectConfig.layer))),
-          Layer.provide(GitVcsDriver.layer),
-          Layer.provide(VcsProcess.layer),
-          Layer.provide(FetchHttpClient.layer),
-        ),
-      ).pipe(
+      ProcessRunner.layer.pipe(
         Layer.provideMerge(
           ServerConfig.layerTest(process.cwd(), { prefix: "t3-title-evaluation-state-" }),
         ),

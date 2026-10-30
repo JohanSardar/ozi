@@ -122,13 +122,6 @@ export function AutoSettleSettingsRows(props: {
       ) : null}
       <SettingsSection title="Auto-settle">
         <SettingsSwitchRow
-          icon="arrow.triangle.branch"
-          label="Auto-settle merged threads"
-          value={referenceSettings.sidebarAutoSettleOnMerge}
-          disabled={disabled}
-          onValueChange={(value) => writeToAll({ sidebarAutoSettleOnMerge: value })}
-        />
-        <SettingsSwitchRow
           icon="clock"
           label="Auto-settle inactive threads"
           value={afterDays !== null}

@@ -487,7 +487,7 @@ function FloatingStatusLabel(props: {
         onLayout={props.onLayout}
       >
         <SymbolView
-          name="arrow.triangle.branch"
+          name="bubble.left.and.bubble.right"
           size={13}
           tintColorClassName="foreground"
           type="monochrome"
@@ -496,7 +496,7 @@ function FloatingStatusLabel(props: {
           className="flex-none"
           textClassName="font-t3-medium"
           compact
-          icon="arrow.triangle.branch"
+          icon="bubble.left.and.bubble.right"
           iconSubtleColor="transparent"
           label={props.status.label}
           showIcon={false}

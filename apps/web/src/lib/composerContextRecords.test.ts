@@ -2,11 +2,9 @@ import {
   type ComposerContextId,
   EnvironmentId,
   MessageId,
-  OrchestrationMessageContext,
   ThreadId,
   type PreviewAnnotationPayload,
 } from "@t3tools/contracts";
-import * as Schema from "effect/Schema";
 import { upgradeLegacyContextMessage } from "@t3tools/shared/composerContextLegacy";
 
 import {
@@ -17,22 +15,17 @@ import { describe, expect, it } from "vite-plus/test";
 
 import {
   asKnownContextRecord,
-  buildMessageContext,
   composerContextImportLookupIds,
   isSameComposerContextPayload,
   previewAnnotationContextRecord,
   previewAnnotationFromRecord,
-  pullRequestContextKindLabel,
   resolveUserMessageContext,
   selectedMessageContextFragment,
-  reviewCommentContextRecord,
   terminalContextRecord,
   terminalContextReference,
   terminalContextDraftFromRecord,
   uploadedAttachmentContextRecord,
 } from "./composerContextRecords";
-
-const decodeMessageContext = Schema.decodeUnknownSync(OrchestrationMessageContext);
 
 const annotation: PreviewAnnotationPayload = {
   id: "ann_1",
@@ -113,28 +106,6 @@ describe("composerContextRecords", () => {
       ),
     ).toMatchObject({ attachmentId: "persisted-file", contextId: "file_local-file" });
   });
-  it("does not bind an annotation screenshot to a same-ID file", () => {
-    const context = buildMessageContext({
-      terminalContexts: [],
-      reviewComments: [],
-      previewAnnotations: [annotation],
-      attachments: [
-        {
-          attachment: {
-            type: "file",
-            id: annotation.id,
-            name: "notes.txt",
-            mimeType: "text/plain",
-            sizeBytes: 1,
-            file: null,
-          },
-          attachmentId: "uploaded-file",
-        },
-      ],
-    })!;
-    expect(context.records.map((record) => record.kind)).toEqual(["preview-annotation", "file"]);
-    expect(context.records[0]).not.toHaveProperty("screenshotContextId");
-  });
   it.each(["x", "terminal_x"])(
     "preserves canonical terminal IDs across repeated imports: %s",
     (id) => {
@@ -156,67 +127,6 @@ describe("composerContextRecords", () => {
       );
     },
   );
-  it("scopes colliding producer ids and links the annotation to its screenshot record", () => {
-    const id = "same.id:1";
-    const context = buildMessageContext({
-      terminalContexts: [
-        {
-          id,
-          threadId: ThreadId.make("t1"),
-          terminalId: "default",
-          terminalLabel: "Terminal",
-          lineStart: 1,
-          lineEnd: 1,
-          text: "output",
-          createdAt: "2026-01-01T00:00:00.000Z",
-        },
-      ],
-      reviewComments: [
-        {
-          id,
-          sectionId: "s",
-          sectionTitle: "Review",
-          filePath: "file.ts",
-          startIndex: 0,
-          endIndex: 0,
-          rangeLabel: "L1",
-          text: "Review",
-          diff: "",
-        },
-      ],
-      previewAnnotations: [{ ...annotation, id }],
-      attachments: [
-        {
-          attachment: {
-            type: "image",
-            id,
-            name: "shot.png",
-            mimeType: "image/png",
-            sizeBytes: 1,
-            file: new File(["x"], "shot.png"),
-            previewUrl: "blob:shot",
-          },
-          attachmentId: "uploaded-image",
-        },
-        {
-          attachment: {
-            type: "file",
-            id,
-            name: "file.txt",
-            mimeType: "text/plain",
-            sizeBytes: 1,
-            file: null,
-          },
-          attachmentId: "uploaded-file",
-        },
-      ],
-    })!;
-    expect(decodeMessageContext(context).records).toHaveLength(5);
-    const preview = context.records.find((record) => record.kind === "preview-annotation");
-    const image = context.records.find((record) => record.kind === "image");
-    expect(preview).toMatchObject({ screenshotContextId: image!.contextId });
-    expect(image).toMatchObject({ attachmentId: "uploaded-image" });
-  });
 
   it("restores multiple edits on one target without parsing display strings", () => {
     const styleChanges = [
@@ -253,29 +163,6 @@ describe("composerContextRecords", () => {
     const prompt = `prose ${formatInlineContextReference(reference)} tail`;
     expect(removeInlineContextReference(prompt, context.id).prompt).toBe(prompt);
     expect(removeInlineContextReference(prompt, reference.contextId).prompt).toBe("prose tail");
-  });
-
-  it("clamps an oversized review selection so the record still encodes", () => {
-    const build = (diffLength: number) =>
-      reviewCommentContextRecord({
-        id: "rc-big",
-        sectionId: "file:a/b.ts",
-        sectionTitle: "File comment",
-        filePath: "a/b.ts",
-        startIndex: 0,
-        endIndex: 1,
-        rangeLabel: "L1",
-        text: "Why?",
-        diff: "d".repeat(diffLength),
-      });
-
-    const atLimit = build(32_000);
-    expect(atLimit.diff).toHaveLength(32_000);
-    const overLimit = build(32_001);
-    expect(overLimit.diff.length).toBeLessThanOrEqual(32_000);
-    expect(overLimit.diff.endsWith("… truncated …")).toBe(true);
-    expect(() => decodeMessageContext({ version: 1, records: [atLimit] })).not.toThrow();
-    expect(() => decodeMessageContext({ version: 1, records: [overLimit] })).not.toThrow();
   });
 
   it("finds the destination collision for different legacy terminal messages", () => {
@@ -318,26 +205,6 @@ describe("composerContextRecords", () => {
   });
 
   it("resolves structured context directly and upgrades legacy text otherwise", () => {
-    const structured = resolveUserMessageContext({
-      text: "hi [b.ts L4](t3-context://v1/review-comment/rc-1)",
-      context: {
-        version: 1,
-        records: [
-          reviewCommentContextRecord({
-            id: "rc-1",
-            sectionId: "s",
-            sectionTitle: "t",
-            filePath: "a/b.ts",
-            startIndex: 3,
-            endIndex: 3,
-            rangeLabel: "L4",
-            text: "",
-            diff: "",
-          }),
-        ],
-      },
-    });
-    expect(structured.recordsById.get("review-comment_rc-1")?.kind).toBe("review-comment");
     const legacy = resolveUserMessageContext({
       text: "hi\n\n<terminal_context>\n- T line 1:\n  1 | x\n</terminal_context>",
     });
@@ -346,60 +213,7 @@ describe("composerContextRecords", () => {
   });
 });
 
-describe("pullRequestContextKindLabel", () => {
-  const comment = (url: string, isDraft: boolean) => ({
-    id: "pull-request-context:7",
-    sectionId: "pull-request:7",
-    sectionTitle: "PR #7",
-    filePath: "PR #7",
-    startIndex: 0,
-    endIndex: 0,
-    rangeLabel: "Title",
-    text: "",
-    diff: "",
-    pullRequest: {
-      number: 7,
-      title: "Title",
-      url,
-      headBranch: "feature",
-      baseBranch: "main",
-      state: "open" as const,
-      isDraft,
-    },
-  });
-
-  it("names the change request the way its host does", () => {
-    expect(pullRequestContextKindLabel(comment("https://github.com/acme/app/pull/7", false))).toBe(
-      "Open pull request",
-    );
-    expect(
-      pullRequestContextKindLabel(comment("https://gitlab.com/acme/app/-/merge_requests/7", true)),
-    ).toBe("Draft merge request");
-  });
-});
-
-describe("producer ids that do not fit the grammar", () => {
-  it("folds review comment ids and keeps the raw id in the draft shape", () => {
-    const record = reviewCommentContextRecord({
-      id: "pull-request-finding:42",
-      sectionId: "s",
-      sectionTitle: "t",
-      filePath: "a/b.ts",
-      startIndex: 0,
-      endIndex: 0,
-      rangeLabel: "L1",
-      text: "",
-      diff: "",
-    });
-    expect(record.contextId).toMatch(/^review-comment_pull-request-finding-42-[0-9a-f]{16}$/);
-    expect(
-      resolveUserMessageContext({
-        text: `[b.ts L1](t3-context://v1/review-comment/${record.contextId})`,
-        context: { version: 1, records: [record] },
-      }).recordsById.has(record.contextId),
-    ).toBe(true);
-  });
-});
+describe("producer ids that do not fit the grammar", () => {});
 
 describe("selectedMessageContextFragment", () => {
   const terminal = terminalContextRecord({
@@ -412,19 +226,8 @@ describe("selectedMessageContextFragment", () => {
     lineEnd: 1,
     text: "A",
   });
-  const review = reviewCommentContextRecord({
-    id: "rc-1",
-    sectionId: "s",
-    sectionTitle: "t",
-    filePath: "a/b.ts",
-    startIndex: 3,
-    endIndex: 3,
-    rangeLabel: "L4",
-    text: "",
-    diff: "",
-  });
   const input = {
-    records: [terminal, review],
+    records: [terminal],
     environmentId: EnvironmentId.make("env"),
     threadId: ThreadId.make("t"),
     messageId: MessageId.make("msg-1"),
@@ -433,10 +236,9 @@ describe("selectedMessageContextFragment", () => {
   it("carries only records for chips inside the selection", () => {
     const fragment = selectedMessageContextFragment({
       ...input,
-      markdown: `see [b.ts L4](t3-context://v1/review-comment/${review.contextId})`,
+      markdown: `see [T line 1](t3-context://v1/terminal/${terminal.contextId})`,
     });
 
-    expect(fragment).toContain(review.contextId);
-    expect(fragment).not.toContain(terminal.contextId);
+    expect(fragment).toContain(terminal.contextId);
   });
 });

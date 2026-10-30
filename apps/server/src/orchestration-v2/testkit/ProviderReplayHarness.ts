@@ -10,17 +10,12 @@ import * as PlatformError from "effect/PlatformError";
 import type * as SqlClient from "effect/sql/SqlClient";
 import type { MigrationError } from "effect/sql/Migrator";
 import type { SqlError } from "effect/sql/SqlError";
-
-import * as CheckpointStore from "../../checkpointing/CheckpointStore.ts";
 import * as ServerConfig from "../../config.ts";
 import * as SqlitePersistence from "../../persistence/Sqlite.ts";
 import * as ServerSettings from "../../serverSettings.ts";
 import * as ThreadManagementService from "../ThreadManagementService.ts";
 import * as McpProviderSessions from "@t3tools/provider-core/server/McpProviderSessions";
 import * as McpSessionRegistryTestkit from "../../mcp/McpSessionRegistry.testkit.ts";
-import * as VcsDriverRegistry from "../../vcs/VcsDriverRegistry.ts";
-import * as GitVcsDriver from "../../vcs/GitVcsDriver.ts";
-import * as VcsProcess from "../../vcs/VcsProcess.ts";
 import * as CheckpointCaptureService from "../CheckpointCaptureService.ts";
 import * as CheckpointService from "../CheckpointService.ts";
 import * as CheckpointRollbackService from "../CheckpointRollbackService.ts";
@@ -89,7 +84,6 @@ export function makeReplayServerConfig(
     const terminalLogsDir = path.join(logsDir, "terminals");
     const attachmentsDir = path.join(stateDir, "attachments");
     const environmentThemesDir = path.join(stateDir, "themes");
-    const worktreesDir = path.join(baseDir, "worktrees");
     const providerStatusCacheDir = path.join(baseDir, "caches");
 
     for (const directory of [
@@ -99,7 +93,6 @@ export function makeReplayServerConfig(
       terminalLogsDir,
       attachmentsDir,
       environmentThemesDir,
-      worktreesDir,
       providerStatusCacheDir,
     ]) {
       yield* fs.makeDirectory(directory, { recursive: true });
@@ -139,7 +132,6 @@ export function makeReplayServerConfig(
       keybindingsConfigPath: path.join(stateDir, "keybindings.json"),
       settingsPath: path.join(stateDir, "settings.json"),
       providerStatusCacheDir,
-      worktreesDir,
       attachmentsDir,
       browserArtifactsDir: path.join(stateDir, "browser-artifacts"),
       environmentThemesDir,
@@ -329,24 +321,11 @@ export function layerWithRegistry<Error>(
         layerEventSinkProvided,
         IdAllocator.layer,
         ThreadCommandExecutor.layer,
-        GitVcsDriver.layer.pipe(
-          Layer.provide(layerServerConfig),
-          Layer.provide(NodeServices.layer),
-        ),
       ),
     ),
   );
-  const layerVcsDriverRegistry = VcsDriverRegistry.layer.pipe(
-    Layer.provide(VcsProcess.layer),
-    Layer.provide(layerServerConfig),
-    Layer.provide(NodeServices.layer),
-  );
-  const layerCheckpointStore = CheckpointStore.layer.pipe(
-    Layer.provide(layerVcsDriverRegistry),
-    Layer.provide(NodeServices.layer),
-  );
   const layerCheckpointServiceProvided = CheckpointService.layer.pipe(
-    Layer.provide(Layer.mergeAll(layerCheckpointStore, IdAllocator.layer)),
+    Layer.provide(IdAllocator.layer),
   );
   const layerContextHandoffServiceProvided = ContextHandoffService.layer.pipe(
     Layer.provide(IdAllocator.layer),

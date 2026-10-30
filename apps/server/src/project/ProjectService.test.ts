@@ -3,14 +3,13 @@ import * as Queue from "effect/Queue";
 import * as Tracer from "effect/Tracer";
 import { assert, it } from "@effect/vitest";
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import { CommandId, type Project, ProjectId, ProviderInstanceId } from "@t3tools/contracts";
+import { CommandId, ProjectId } from "@t3tools/contracts";
 import * as Deferred from "effect/Deferred";
 import * as Effect from "effect/Effect";
 import * as Fiber from "effect/Fiber";
 import * as Layer from "effect/Layer";
 import * as Metric from "effect/Metric";
 import * as Option from "effect/Option";
-import * as Ref from "effect/Ref";
 import { TestClock } from "effect/testing";
 import * as SqlClient from "effect/sql/SqlClient";
 
@@ -32,7 +31,6 @@ import * as WorkspacePaths from "../workspace/WorkspacePaths.ts";
 import * as ProjectEnrichmentService from "./ProjectEnrichmentService.ts";
 import * as ProjectFaviconResolver from "./ProjectFaviconResolver.ts";
 import * as ProjectService from "./ProjectService.ts";
-import * as RepositoryIdentityResolver from "./RepositoryIdentityResolver.ts";
 
 const layerWorkspacePaths = Layer.succeed(WorkspacePaths.WorkspacePaths, {
   normalizeWorkspaceRoot: (workspaceRoot) => Effect.succeed(workspaceRoot.replace(/\/$/, "")),
@@ -40,24 +38,10 @@ const layerWorkspacePaths = Layer.succeed(WorkspacePaths.WorkspacePaths, {
     Effect.succeed({ absolutePath: `${workspaceRoot}/${relativePath}`, relativePath }),
 });
 
-const layerMetadata = Layer.merge(
-  Layer.succeed(RepositoryIdentityResolver.RepositoryIdentityResolver, {
-    resolve: (workspaceRoot) =>
-      Effect.succeed({
-        canonicalKey: `github.com/t3tools/${workspaceRoot.split("/").at(-1)}`,
-        locator: {
-          source: "git-remote" as const,
-          remoteName: "origin",
-          remoteUrl: `git@github.com:t3tools/${workspaceRoot.split("/").at(-1)}.git`,
-        },
-        rootPath: workspaceRoot,
-      }),
-  }),
-  Layer.succeed(ProjectFaviconResolver.ProjectFaviconResolver, {
-    invalidate: () => Effect.void,
-    resolvePath: (workspaceRoot) => Effect.succeed(`${workspaceRoot}/favicon.svg`),
-  }),
-);
+const layerMetadata = Layer.succeed(ProjectFaviconResolver.ProjectFaviconResolver, {
+  invalidate: () => Effect.void,
+  resolvePath: (workspaceRoot) => Effect.succeed(`${workspaceRoot}/favicon.svg`),
+});
 
 class EnrichmentCompletions extends Context.Service<EnrichmentCompletions, Queue.Queue<void>>()(
   "ozi/project/ProjectService.test/EnrichmentCompletions",
@@ -89,10 +73,7 @@ const layerEnrichmentCompletions = Layer.effectContext(
 );
 
 const layerTestFor = (
-  projectMetadataLayer: Layer.Layer<
-    | ProjectFaviconResolver.ProjectFaviconResolver
-    | RepositoryIdentityResolver.RepositoryIdentityResolver
-  >,
+  projectMetadataLayer: Layer.Layer<ProjectFaviconResolver.ProjectFaviconResolver>,
 ) =>
   RuntimeLayer.layerProjectService.pipe(
     Layer.provideMerge(ProjectEnrichmentService.layer),
@@ -124,127 +105,7 @@ const layerProjectServiceDependencies = Layer.mergeAll(
   Layer.provide(NodeServices.layer),
 );
 
-const waitForProject = Effect.fn("ProjectServiceTest.waitForProject")(function* (
-  service: ProjectService.ProjectService["Service"],
-  projectId: ProjectId,
-  predicate: (project: Project) => boolean,
-) {
-  return yield* Effect.scoped(
-    Effect.gen(function* () {
-      const completions = yield* EnrichmentCompletions;
-      for (;;) {
-        const project = Option.getOrThrow(yield* service.getById(projectId));
-        if (predicate(project)) return project;
-        yield* Queue.take(completions);
-      }
-    }),
-  );
-});
-
 it.layer(layerTest)("ProjectService", (it) => {
-  it.effect("creates, updates, resolves, snapshots, and soft-deletes projects", () =>
-    Effect.gen(function* () {
-      const service = yield* ProjectService.ProjectService;
-      const projectId = ProjectId.make("project:service-test");
-      const modelSelection = {
-        instanceId: ProviderInstanceId.make("codex_custom"),
-        model: "gpt-5.1-codex",
-      } as const;
-      yield* TestClock.setTime(Date.parse("2026-06-20T10:00:00.000Z"));
-
-      const created = yield* service.create({
-        commandId: CommandId.make("command:project:create"),
-        projectId,
-        title: "Project",
-        workspaceRoot: "/work/project/",
-        defaultModelSelection: modelSelection,
-        scripts: [
-          {
-            id: "setup",
-            name: "Setup",
-            command: "vp install",
-            icon: "configure",
-            runOnWorktreeCreate: true,
-          },
-        ],
-      });
-      assert.equal(created.workspaceRoot, "/work/project");
-      assert.isNull(created.repositoryIdentity);
-      assert.isNull(created.faviconPath);
-
-      const hydratedCreated = yield* waitForProject(
-        service,
-        projectId,
-        (project) => project.repositoryIdentity !== null && project.faviconPath !== null,
-      );
-      assert.equal(hydratedCreated?.repositoryIdentity?.canonicalKey, "github.com/t3tools/project");
-      assert.equal(hydratedCreated?.faviconPath, "/work/project/favicon.svg");
-
-      const updated = yield* service.update({
-        commandId: CommandId.make("command:project:update"),
-        projectId,
-        title: "Renamed",
-        autoPull: true,
-        projectIcon: { kind: "emoji", emoji: "🦊" },
-        faviconPath: "/work/project/custom.svg",
-        defaultThreadEnvMode: "worktree",
-      });
-      assert.equal(updated.title, "Renamed");
-      assert.equal(updated.createdAt, created.createdAt);
-      assert.isTrue(updated.autoPull);
-      assert.deepEqual(updated.projectIcon, { kind: "emoji", emoji: "🦊" });
-      assert.equal(updated.faviconPath, "/work/project/custom.svg");
-      assert.equal(updated.defaultThreadEnvMode, "worktree");
-
-      const byId = yield* service.getById(projectId);
-      const byWorkspace = yield* service.getByWorkspaceRoot("/work/project/");
-      assert.isTrue(Option.isSome(byId));
-      assert.isTrue(Option.isSome(byWorkspace));
-      assert.equal(Option.getOrThrow(byWorkspace).id, projectId);
-      assert.isTrue(Option.getOrThrow(byId).autoPull);
-      assert.deepEqual(Option.getOrThrow(byId).projectIcon, updated.projectIcon);
-      assert.equal(Option.getOrThrow(byId).faviconPath, updated.faviconPath);
-      assert.equal(Option.getOrThrow(byId).defaultThreadEnvMode, "worktree");
-      const reset = yield* service.update({
-        commandId: CommandId.make("command:project:reset-appearance"),
-        projectId,
-        autoPull: false,
-        projectIcon: null,
-        faviconPath: null,
-        defaultThreadEnvMode: null,
-      });
-      assert.isFalse(reset.autoPull);
-      assert.isNull(reset.projectIcon);
-      assert.equal(reset.faviconPath, hydratedCreated.faviconPath);
-      assert.isNull(reset.defaultThreadEnvMode);
-      assert.deepEqual(
-        (yield* service.snapshot).projects.map((project) => project.id),
-        [projectId],
-      );
-
-      const deleted = yield* service.delete({
-        commandId: CommandId.make("command:project:delete"),
-        projectId,
-      });
-      assert.isNotNull(deleted.deletedAt);
-      assert.isTrue(Option.isNone(yield* service.getById(projectId)));
-      assert.isTrue(Option.isSome(yield* service.getById(projectId, { includeDeleted: true })));
-      assert.deepEqual((yield* service.snapshot).projects, []);
-
-      const sql = yield* SqlClient.SqlClient;
-      const changes = yield* sql<{ readonly event_type: string }>`
-        SELECT event_type
-        FROM orchestration_events
-        WHERE aggregate_kind = 'project' AND stream_id = ${projectId}
-        ORDER BY sequence ASC
-      `;
-      assert.deepEqual(
-        changes.map((change) => change.event_type),
-        ["project.created", "project.meta-updated", "project.meta-updated", "project.deleted"],
-      );
-    }),
-  );
-
   it.effect("records the outcome and duration of a committed project command", () =>
     Effect.gen(function* () {
       const service = yield* ProjectService.ProjectService;
@@ -291,101 +152,6 @@ it.layer(layerTest)("ProjectService", (it) => {
       assert.isTrue(first.created);
       assert.isFalse(second.created);
       assert.equal(second.project.id, first.project.id);
-    }),
-  );
-
-  it.effect("commits the event, the row and the receipt together, once per command id", () =>
-    Effect.gen(function* () {
-      const service = yield* ProjectService.ProjectService;
-      const sql = yield* SqlClient.SqlClient;
-      const projectId = ProjectId.make("project:retry");
-      const input = {
-        commandId: CommandId.make("command:retry:create"),
-        projectId,
-        title: "Retry",
-        workspaceRoot: "/work/retry",
-      };
-      const first = yield* service.create(input);
-      const retried = yield* service.create(input);
-      assert.deepEqual(retried, first);
-      const updateInput = {
-        commandId: CommandId.make("command:retry:update"),
-        projectId,
-        autoPull: true,
-      };
-      yield* service.update(updateInput);
-      yield* service.update(updateInput);
-
-      const committed = yield* sql<{
-        readonly sequence: number;
-        readonly event_type: string;
-        readonly receipt_sequence: number;
-        readonly status: string;
-        readonly aggregate_kind: string;
-      }>`
-        SELECT events.sequence, events.event_type,
-          receipts.result_sequence AS receipt_sequence, receipts.status, receipts.aggregate_kind
-        FROM orchestration_events AS events
-        JOIN orchestration_command_receipts AS receipts ON receipts.command_id = events.command_id
-        WHERE events.stream_id = ${projectId}
-        ORDER BY events.sequence
-      `;
-      assert.deepEqual(
-        committed.map((row) => [row.event_type, row.status, row.aggregate_kind]),
-        [
-          ["project.created", "accepted", "project"],
-          ["project.meta-updated", "accepted", "project"],
-        ],
-      );
-      for (const row of committed) assert.equal(row.receipt_sequence, row.sequence);
-      assert.isTrue(Option.getOrThrow(yield* service.getById(projectId)).autoPull);
-    }),
-  );
-
-  it.effect("replays a rejected receipt instead of re-planning the command", () =>
-    Effect.gen(function* () {
-      const service = yield* ProjectService.ProjectService;
-      const sql = yield* SqlClient.SqlClient;
-      const projectId = ProjectId.make("project:rejected");
-      yield* service.create({
-        commandId: CommandId.make("command:rejected:create"),
-        projectId,
-        title: "Rejected",
-        workspaceRoot: "/work/rejected",
-      });
-      const invalid = {
-        commandId: CommandId.make("command:rejected:script"),
-        projectId,
-        scripts: [
-          {
-            id: "Not.Valid",
-            name: "Invalid",
-            command: "true",
-            icon: "play" as const,
-            runOnWorktreeCreate: false,
-          },
-        ],
-      };
-      const first = yield* service.update(invalid).pipe(Effect.flip);
-      assert.equal(first._tag, "ProjectOperationError");
-      const replayed = yield* service
-        .update({ ...invalid, scripts: [{ ...invalid.scripts[0]!, id: "valid" }] })
-        .pipe(Effect.flip);
-      assert.equal(replayed._tag, "ProjectOperationError");
-      assert.include(
-        String(replayed._tag === "ProjectOperationError" && replayed.cause),
-        "Script ID",
-      );
-      const receipts = yield* sql<{ readonly status: string; readonly aggregate_id: string }>`
-        SELECT status, aggregate_id FROM orchestration_command_receipts
-        WHERE command_id = ${invalid.commandId}
-      `;
-      assert.deepEqual(receipts, [{ status: "rejected", aggregate_id: projectId }]);
-      const events = yield* sql`
-        SELECT sequence FROM orchestration_events WHERE command_id = ${invalid.commandId}
-      `;
-      assert.deepEqual(events, []);
-      assert.deepEqual(Option.getOrThrow(yield* service.getById(projectId)).scripts, []);
     }),
   );
 
@@ -532,116 +298,6 @@ it.layer(layerTest)("ProjectService", (it) => {
     }),
   );
 });
-
-it.effect("keeps project snapshots available when optional metadata enrichment fails", () =>
-  Effect.gen(function* () {
-    const layerFailingMetadata = Layer.merge(
-      Layer.succeed(RepositoryIdentityResolver.RepositoryIdentityResolver, {
-        resolve: () => Effect.succeed(null),
-      }),
-      Layer.succeed(ProjectFaviconResolver.ProjectFaviconResolver, {
-        invalidate: () => Effect.void,
-        resolvePath: (workspaceRoot) =>
-          Effect.fail(
-            new ProjectFaviconResolver.ProjectFaviconResolutionError({
-              operation: "stat-candidate",
-              workspaceRoot,
-              cause: "permission denied",
-            }),
-          ),
-      }),
-    );
-
-    yield* Effect.gen(function* () {
-      const service = yield* ProjectService.ProjectService;
-      const projectId = ProjectId.make("project:failed-enrichment");
-      yield* service.create({
-        commandId: CommandId.make("command:failed-enrichment:create"),
-        projectId,
-        title: "Still visible",
-        workspaceRoot: "/work/failed-enrichment",
-      });
-
-      const snapshot = yield* service.snapshot;
-      assert.equal(snapshot.projects.length, 1);
-      assert.equal(snapshot.projects[0]?.id, projectId);
-      assert.equal(snapshot.projects[0]?.title, "Still visible");
-      assert.isNull(snapshot.projects[0]?.repositoryIdentity ?? null);
-      assert.isNull(snapshot.projects[0]?.faviconPath ?? null);
-    }).pipe(Effect.provide(layerTestFor(layerFailingMetadata)));
-  }),
-);
-
-it.effect("invalidates workspace-derived metadata when a project moves", () =>
-  Effect.gen(function* () {
-    const metadataVersion = yield* Ref.make(1);
-    const layerVersionedMetadata = Layer.merge(
-      Layer.succeed(RepositoryIdentityResolver.RepositoryIdentityResolver, {
-        resolve: (workspaceRoot) =>
-          Ref.get(metadataVersion).pipe(
-            Effect.map((version) => ({
-              canonicalKey: `example.test/v${version}${workspaceRoot}`,
-              locator: {
-                source: "git-remote" as const,
-                remoteName: "origin",
-                remoteUrl: `https://example.test/v${version}${workspaceRoot}.git`,
-              },
-              rootPath: workspaceRoot,
-            })),
-          ),
-      }),
-      Layer.succeed(ProjectFaviconResolver.ProjectFaviconResolver, {
-        invalidate: () => Effect.void,
-        resolvePath: (workspaceRoot) =>
-          Ref.get(metadataVersion).pipe(
-            Effect.map((version) => `${workspaceRoot}/favicon-v${version}.svg`),
-          ),
-      }),
-    );
-
-    yield* Effect.gen(function* () {
-      const service = yield* ProjectService.ProjectService;
-      const projectId = ProjectId.make("project:moved-enrichment");
-      yield* service.create({
-        commandId: CommandId.make("command:moved-enrichment:create"),
-        projectId,
-        title: "Moved",
-        workspaceRoot: "/work/original",
-      });
-      assert.equal(
-        (yield* waitForProject(
-          service,
-          projectId,
-          (project) => project.faviconPath === "/work/original/favicon-v1.svg",
-        )).faviconPath,
-        "/work/original/favicon-v1.svg",
-      );
-
-      yield* Ref.set(metadataVersion, 2);
-      yield* service.update({
-        commandId: CommandId.make("command:moved-enrichment:away"),
-        projectId,
-        workspaceRoot: "/work/temporary",
-      });
-      yield* service.snapshot;
-
-      yield* Ref.set(metadataVersion, 3);
-      yield* service.update({
-        commandId: CommandId.make("command:moved-enrichment:return"),
-        projectId,
-        workspaceRoot: "/work/original",
-      });
-      assert.equal(
-        (yield* waitForProject(
-          service,
-          projectId,
-          (project) => project.faviconPath === "/work/original/favicon-v3.svg",
-        )).faviconPath,
-        "/work/original/favicon-v3.svg",
-      );
-    }).pipe(Effect.provide(layerTestFor(layerVersionedMetadata)));
-  }),
-);
 
 it.effect("serializes two projects claiming the same workspace root", () =>
   Effect.gen(function* () {

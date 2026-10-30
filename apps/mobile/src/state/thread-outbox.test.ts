@@ -9,7 +9,6 @@ import {
   EnvironmentId,
   MessageId,
   OrchestrationDispatchCommandError,
-  ProjectId,
   ProviderInstanceId,
   ThreadId,
 } from "@t3tools/contracts";
@@ -78,7 +77,6 @@ vi.mock("expo-file-system", () => {
 import {
   decodeQueuedThreadMessage,
   encodeQueuedThreadMessage,
-  isQueuedThreadCreationSendable,
   resolveThreadOutboxDeliveryAction,
   resolveThreadOutboxDispatchStep,
   resolveThreadOutboxFailureAction,
@@ -1185,69 +1183,6 @@ describe("thread outbox", () => {
         environmentConnected: true,
       }),
     ).toBe("remove");
-  });
-
-  it("round-trips queued PR checkout sources and gates incomplete creations from sending", () => {
-    const base = queuedMessage({
-      messageId: "message-1",
-      createdAt: "2026-06-08T10:00:01.000Z",
-    });
-    const creationMessage = {
-      ...base,
-      modelSelection: {
-        instanceId: ProviderInstanceId.make("codex"),
-        model: "gpt-5.4",
-      },
-      creation: {
-        projectId: ProjectId.make("project-1"),
-        workspaceMode: "worktree",
-        branch: "fork/feature",
-        worktreePath: null,
-        startFromOrigin: false,
-        pullRequestReference: "https://github.com/acme/repo/pull/123",
-      },
-    } satisfies QueuedThreadMessage;
-
-    expect(decodeQueuedThreadMessage(encodeQueuedThreadMessage(creationMessage))).toEqual(
-      creationMessage,
-    );
-    expect(isQueuedThreadCreationSendable(creationMessage)).toBe(true);
-    expect(
-      isQueuedThreadCreationSendable({
-        ...creationMessage,
-        creation: { ...creationMessage.creation, branch: null },
-      }),
-    ).toBe(false);
-    expect(
-      isQueuedThreadCreationSendable({
-        ...creationMessage,
-        creation: { ...creationMessage.creation, branch: "" },
-      }),
-    ).toBe(false);
-    expect(isQueuedThreadCreationSendable({ ...creationMessage, modelSelection: undefined })).toBe(
-      false,
-    );
-    expect(isQueuedThreadCreationSendable(base)).toBe(false);
-    expect(isQueuedThreadCreationSendable({ ...creationMessage, text: "  " })).toBe(false);
-    expect(
-      isQueuedThreadCreationSendable({
-        ...creationMessage,
-        text: "",
-        attachments: [
-          {
-            id: "image-1",
-            type: "image",
-            name: "photo.png",
-            mimeType: "image/png",
-            sizeBytes: 3,
-            fileUri: "file:///documents/t3-composer-attachments/photo.png",
-            previewUri: "file:///documents/t3-composer-attachments/photo.png",
-            uploadedAttachmentId: "pending-photo-png",
-            uploadEnvironmentId: EnvironmentId.make("environment-1"),
-          },
-        ],
-      }),
-    ).toBe(true);
   });
 
   it("retries transport failures but drops deterministic command failures", () => {

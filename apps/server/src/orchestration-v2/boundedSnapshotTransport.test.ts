@@ -125,8 +125,7 @@ function threadCreated(id: ThreadId, at: DateTime.Utc, forkOf?: RunId): Orchestr
       modelSelection,
       runtimeMode: "full-access",
       interactionMode: "default",
-      branch: null,
-      worktreePath: null,
+      workingDirectory: null,
       activeProviderThreadId: null,
       lineage:
         forkOf === undefined
@@ -268,7 +267,6 @@ function bodiesEvents(at: DateTime.Utc): OrchestrationV2DomainEvent[] {
         updatedAt: at,
       },
     });
-  const files = [{ path: "src/index.ts", kind: "modified", additions: 4, deletions: 2 }];
   return [
     threadCreated(BODIES, at),
     runCreated(BODIES, bodiesRun, at),
@@ -313,7 +311,6 @@ function bodiesEvents(at: DateTime.Utc): OrchestrationV2DomainEvent[] {
         appRunOrdinal: 1,
         ref: CheckpointRef.make(`refs/t3/${BODIES}`),
         status: "ready",
-        files,
         capturedAt: at,
       },
     }),
@@ -321,7 +318,6 @@ function bodiesEvents(at: DateTime.Utc): OrchestrationV2DomainEvent[] {
       type: "checkpoint",
       checkpointId: CheckpointId.make(`checkpoint:${BODIES}`),
       scopeId: CheckpointScopeId.make(`scope:${BODIES}`),
-      files,
     }),
   ];
 }

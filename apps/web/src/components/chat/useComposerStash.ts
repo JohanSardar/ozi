@@ -26,7 +26,6 @@ import {
   usePromptStashStore,
 } from "../../promptStashStore";
 import { type PendingUserInput } from "../../session-logic";
-import { type ReviewCommentContext } from "../../reviewCommentContext";
 import { collapseExpandedComposerCursor } from "../../composer-logic";
 import { compressImageForStash } from "../../lib/imageCompression";
 import { formatInlineContextReference } from "~/lib/composerContextReferences";
@@ -34,7 +33,6 @@ import { isCommandPaletteOpen } from "../../commandPaletteBus";
 import { pendingDraftWork } from "./pendingDraftWork";
 import {
   previewAnnotationContextRecord,
-  reviewCommentContextRecord,
   terminalContextRecord,
 } from "~/lib/composerContextRecords";
 import { randomUUID } from "~/lib/utils";
@@ -81,7 +79,6 @@ export function useComposerStash(input: {
   readonly composerMenuOpen: boolean;
   readonly isComposerCollapsedMobile: boolean;
   readonly composerPreviewAnnotations: ReadonlyArray<PreviewAnnotationPayload>;
-  readonly composerReviewComments: ReadonlyArray<ReviewCommentContext>;
   readonly composerThreadContexts: ReadonlyArray<ThreadContextRecord>;
   readonly attachmentTargetKey: string;
   readonly isComposerDraftTargetOpen: (targetKey: string) => boolean;
@@ -111,7 +108,6 @@ export function useComposerStash(input: {
     composerMenuOpen,
     isComposerCollapsedMobile,
     composerPreviewAnnotations,
-    composerReviewComments,
     composerThreadContexts,
     attachmentTargetKey,
     isComposerDraftTargetOpen,
@@ -129,9 +125,6 @@ export function useComposerStash(input: {
   const addComposerDraftFiles = useComposerDraftStore((store) => store.addFiles);
   const removeComposerDraftPreviewAnnotation = useComposerDraftStore(
     (store) => store.removePreviewAnnotation,
-  );
-  const removeComposerDraftReviewComment = useComposerDraftStore(
-    (store) => store.removeReviewComment,
   );
   const clearComposerDraftTerminalContexts = useComposerDraftStore(
     (store) => store.clearTerminalContexts,
@@ -461,7 +454,6 @@ export function useComposerStash(input: {
     const stashedRecords: ComposerContextRecord[] = [
       ...composerThreadContexts,
       ...readTerminalContexts().map(terminalContextRecord),
-      ...composerReviewComments.map(reviewCommentContextRecord),
       ...composerPreviewAnnotations.map((annotation) =>
         previewAnnotationContextRecord(annotation, {
           screenshotContextId: images.some((image) => image.id === annotation.id)
@@ -563,9 +555,6 @@ export function useComposerStash(input: {
       clearComposerDraftPromptAndImages(stashTarget);
       clearComposerDraftTerminalContexts(stashTarget);
       setComposerDraftThreadContexts(stashTarget, []);
-      for (const comment of composerReviewComments) {
-        removeComposerDraftReviewComment(stashTarget, comment.id);
-      }
       for (const annotation of composerPreviewAnnotations) {
         releaseAttachmentUpload(annotation.id);
         removeComposerDraftPreviewAnnotation(stashTarget, annotation.id);

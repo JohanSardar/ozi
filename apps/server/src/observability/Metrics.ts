@@ -83,14 +83,6 @@ export const runQueueWait = Metric.timer("t3_run_queue_wait", {
   description: "Time a run waited between being requested and starting.",
 });
 
-export const gitCommandsTotal = Metric.counter("t3_git_commands_total", {
-  description: "Total git commands executed by the server runtime.",
-});
-
-export const gitCommandDuration = Metric.timer("t3_git_command_duration", {
-  description: "Git command execution duration.",
-});
-
 export const terminalSessionsTotal = Metric.counter("t3_terminal_sessions_total", {
   description: "Total terminal sessions started.",
 });

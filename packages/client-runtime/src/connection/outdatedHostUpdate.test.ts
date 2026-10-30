@@ -36,7 +36,7 @@ const descriptor = (protocol: number | undefined, serverVersion: string) =>
     platform: { os: "darwin", arch: "arm64" },
     serverVersion,
     ...(protocol === undefined ? {} : { orchestrationProtocolVersion: protocol }),
-    capabilities: { repositoryIdentity: true, serverSelfUpdate: "boot-service" },
+    capabilities: { serverSelfUpdate: "boot-service" },
   }) satisfies ExecutionEnvironmentDescriptor;
 
 const RpcRequest = Schema.TaggedStruct("Request", {
@@ -242,76 +242,6 @@ describe("updateOutdatedHost", () => {
       ]);
       expect(result.targetVersion).toBe("0.0.46");
       expect(calls).toEqual(["compatibility:clear", "enabled:true"]);
-    }),
-  );
-
-  it.effect("refuses a host that cannot update itself without opening a socket", () =>
-    Effect.gen(function* () {
-      const manual = {
-        ...descriptor(undefined, "0.0.45"),
-        capabilities: { repositoryIdentity: true },
-      };
-      let opened = false;
-      const error = yield* Effect.flip(
-        updateOutdatedHost(TARGET.environmentId, { targetVersion: "0.0.46" }, () => Effect.void),
-      ).pipe(
-        Effect.provide(
-          Layer.mergeAll(
-            Layer.succeed(
-              EnvironmentRegistry.EnvironmentRegistry,
-              EnvironmentRegistry.EnvironmentRegistry.of({
-                entries: yield* SubscriptionRef.make<
-                  ReadonlyMap<EnvironmentId, ConnectionCatalogEntry>
-                >(
-                  new Map([
-                    [
-                      TARGET.environmentId,
-                      { target: TARGET, profile: Option.none(), enabled: false },
-                    ],
-                  ]),
-                ),
-              } as unknown as EnvironmentRegistry.EnvironmentRegistry["Service"]),
-            ),
-            Layer.succeed(
-              ConnectionResolver.ConnectionResolver,
-              ConnectionResolver.ConnectionResolver.of({
-                prepare: () => Effect.die(new Error("unused")),
-                prepareForUpdate: () =>
-                  Effect.succeed({
-                    descriptor: manual,
-                    prepared: {
-                      environmentId: TARGET.environmentId,
-                      label: TARGET.label,
-                      httpBaseUrl: TARGET.httpBaseUrl,
-                      socketUrl: "wss://build.example.test/ws",
-                      httpAuthorization: null,
-                      target: TARGET,
-                    },
-                  }),
-              }),
-            ),
-            Layer.succeed(
-              RelayEnvironmentDiscovery.RelayEnvironmentDiscovery,
-              RelayEnvironmentDiscovery.RelayEnvironmentDiscovery.of({
-                state: yield* SubscriptionRef.make(
-                  RelayEnvironmentDiscovery.EMPTY_RELAY_ENVIRONMENT_DISCOVERY_STATE,
-                ),
-                refresh: Effect.void,
-              }),
-            ),
-            Layer.succeed(
-              HttpClient.HttpClient,
-              HttpClient.make(() => Effect.die(new Error("unused"))),
-            ),
-            Layer.succeed(Socket.WebSocketConstructor, () => {
-              opened = true;
-              throw new Error("unused");
-            }),
-          ),
-        ),
-      );
-      expect(error).toMatchObject({ _tag: "OutdatedHostUpdateError" });
-      expect(opened).toBe(false);
     }),
   );
 });

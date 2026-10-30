@@ -11,7 +11,6 @@ import {
   isAtomCommandInterrupted,
   squashAtomCommandFailure,
 } from "@t3tools/client-runtime/state/runtime";
-import { projectScriptMenuLabel } from "@t3tools/shared/projectScripts";
 import { ChevronDownIcon, DownloadIcon, PlusIcon, SettingsIcon, WrenchIcon } from "lucide-react";
 import React, { useState } from "react";
 
@@ -134,9 +133,6 @@ export default function ProjectScriptsControl({
       name: fileScript.name,
       command: fileScript.command,
       icon: fileScript.icon ?? "play",
-      runOnWorktreeCreate: fileScript.runOnWorktreeCreate ?? false,
-      waitForSetup: fileScript.runOnWorktreeCreate === true && fileScript.async === false,
-      runOnSettle: fileScript.runOnSettle ?? false,
       ...(readEnvironmentScope(environmentId, AuthSettingsWriteScope) ? { keybinding: null } : {}),
       previewUrl: fileScript.previewUrl ?? null,
       autoOpenPreview: fileScript.previewUrl ? (fileScript.autoOpenPreview ?? false) : false,
@@ -190,7 +186,7 @@ export default function ProjectScriptsControl({
             onClick={() => onRunScript?.(script)}
           >
             <ScriptIcon icon={script.icon} className="size-4" />
-            <MenuItemLabel>{projectScriptMenuLabel(script)}</MenuItemLabel>
+            <MenuItemLabel>{script.name}</MenuItemLabel>
             <span className="relative ms-auto flex h-6 min-w-6 items-center justify-end">
               {shortcutLabel &&
                 (presentation === "menu" ? (

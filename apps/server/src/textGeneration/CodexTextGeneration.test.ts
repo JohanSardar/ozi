@@ -1,13 +1,3 @@
-import {
-  DEFAULT_TEXT_GENERATION_MODEL_BY_PROVIDER,
-  ProviderDriverKind,
-  type ModelSelection,
-  type ServerProvider,
-} from "@t3tools/contracts";
-import type { ProviderInstance } from "@t3tools/provider-core/server/driver";
-import * as ProviderInstanceRegistry from "../provider/ProviderInstanceRegistry.ts";
-import * as ServerSettings from "../serverSettings.ts";
-import * as SourceControlProviderRegistry from "../sourceControl/SourceControlProviderRegistry.ts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { it } from "@effect/vitest";
 import * as Cause from "effect/Cause";
@@ -18,7 +8,6 @@ import * as FileSystem from "effect/FileSystem";
 import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 import * as Schema from "effect/Schema";
-import * as Scope from "effect/Scope";
 import { createModelSelection } from "@t3tools/shared/model";
 import { expect } from "vite-plus/test";
 
@@ -246,26 +235,6 @@ it.layer(layerCodexTextGenerationTest)("CodexTextGeneration", (it) => {
       ),
   );
 
-  it.effect("omits a persisted service tier for managed ChatGPT text generation", () =>
-    withFakeCodexEnv(
-      {
-        output: JSON.stringify({ subject: "Update project", body: "" }),
-        managedRuntime: true,
-        forbidArg: 'service_tier="priority"',
-      },
-      (textGeneration) =>
-        textGeneration.generateCommitMessage({
-          cwd: process.cwd(),
-          branch: "feature/chatgpt",
-          stagedSummary: "M README.md",
-          stagedPatch: "diff --git a/README.md b/README.md",
-          modelSelection: createModelSelection(ProviderInstanceId.make("codex"), "gpt-5.4", [
-            { id: "serviceTier", value: "priority" },
-          ]),
-        }),
-    ),
-  );
-
   it.effect("generates titles with the user's MCP servers and plugins off", () =>
     withFakeCodexEnv(
       {
@@ -290,26 +259,6 @@ it.layer(layerCodexTextGenerationTest)("CodexTextGeneration", (it) => {
     ),
   );
 
-  it.effect("still generates when Codex cannot list its MCP servers", () =>
-    withFakeCodexEnv(
-      {
-        output: JSON.stringify({ branch: "remove-default-shapes" }),
-        mcpServers: 2,
-        requireArg: "--config features.plugins=false --config features.apps=false --ephemeral",
-        forbidArg: "mcp_servers=",
-      },
-      (textGeneration) =>
-        Effect.gen(function* () {
-          const result = yield* textGeneration.generateBranchName({
-            cwd: process.cwd(),
-            message: "Remove default shapes from characters",
-            modelSelection: DEFAULT_TEST_MODEL_SELECTION,
-          });
-          expect(result.branch).toBe("remove-default-shapes");
-        }),
-    ),
-  );
-
   it.effect("keeps plugins and apps off over launch args that turn them on", () =>
     withFakeCodexEnv(
       {
@@ -330,54 +279,6 @@ it.layer(layerCodexTextGenerationTest)("CodexTextGeneration", (it) => {
     ),
   );
 
-  it.effect("passes exec-safe launch args into codex exec", () =>
-    withFakeCodexEnv(
-      {
-        output: JSON.stringify({
-          subject: "Add important change",
-          body: "",
-        }),
-        launchArgs: "--strict-config --listen off",
-        requireArg: "--strict-config",
-        forbidArg: "--listen",
-      },
-      (textGeneration) =>
-        textGeneration.generateCommitMessage({
-          cwd: process.cwd(),
-          branch: "feature/codex-effect",
-          stagedSummary: "M README.md",
-          stagedPatch: "diff --git a/README.md b/README.md",
-          modelSelection: DEFAULT_TEST_MODEL_SELECTION,
-        }),
-    ),
-  );
-
-  it.effect("generates branch names even when the ambient scope is already closed", () =>
-    withFakeCodexEnv(
-      {
-        output: JSON.stringify({
-          branch: "feat/background-generation",
-        }),
-      },
-      (textGeneration) =>
-        Effect.gen(function* () {
-          // Background fibers can outlive request scopes; temp files scoped there would be reaped on creation.
-          const closedScope = yield* Scope.make();
-          yield* Scope.close(closedScope, Exit.void);
-
-          const generated = yield* textGeneration
-            .generateBranchName({
-              cwd: process.cwd(),
-              message: "Please update session handling.",
-              modelSelection: DEFAULT_TEST_MODEL_SELECTION,
-            })
-            .pipe(Effect.provideService(Scope.Scope, closedScope));
-
-          expect(generated.branch).toBe("feat/background-generation");
-        }),
-    ),
-  );
-
   it.effect("returns the refinement signal for an unresolved subject", () =>
     withFakeCodexEnv(
       { output: JSON.stringify({ title: "Investigate issue", needsRefinement: true }) },
@@ -393,146 +294,4 @@ it.layer(layerCodexTextGenerationTest)("CodexTextGeneration", (it) => {
         }),
     ),
   );
-
-  it.effect("resolves persisted attachment ids to files for codex image inputs", () =>
-    withFakeCodexEnv(
-      {
-        output: JSON.stringify({
-          branch: "fix/ui-regression",
-        }),
-        requireImage: true,
-      },
-      (textGeneration) =>
-        Effect.gen(function* () {
-          const fs = yield* FileSystem.FileSystem;
-          const path = yield* Path.Path;
-          const { attachmentsDir } = yield* ServerConfig.ServerConfig;
-          const attachmentId = "thread-1-attachment";
-          const imagePath = path.join(attachmentsDir, `${attachmentId}.png`);
-          yield* fs.makeDirectory(attachmentsDir, { recursive: true });
-          yield* fs.writeFile(imagePath, Buffer.from("hello"));
-
-          const generated = yield* textGeneration
-            .generateBranchName({
-              modelSelection: DEFAULT_TEST_MODEL_SELECTION,
-              cwd: process.cwd(),
-              message: "Fix layout bug from screenshot.",
-              attachments: [
-                {
-                  type: "image",
-                  id: attachmentId,
-                  name: "bug.png",
-                  mimeType: "image/png",
-                  sizeBytes: 5,
-                },
-              ],
-            })
-            .pipe(
-              Effect.tap(() =>
-                fs.stat(imagePath).pipe(
-                  Effect.map((fileInfo) => {
-                    expect(fileInfo.type).toBe("File");
-                  }),
-                ),
-              ),
-              Effect.ensuring(fs.remove(imagePath).pipe(Effect.ignore)),
-            );
-
-          expect(generated.branch).toBe("fix/ui-regression");
-        }),
-    ),
-  );
 });
-
-it.effect.each([false, true])("text generation preflight: exhausted=%s", (exhausted) =>
-  Effect.gen(function* () {
-    const primary = ProviderInstanceId.make("codex");
-    const fallback = ProviderInstanceId.make("claude_work");
-    const selection = {
-      instanceId: primary,
-      model: "chat-model",
-      options: [{ id: "effort", value: "high" }],
-    };
-    const calls: ModelSelection[] = [];
-    const instances: ProviderInstance[] = [primary, fallback].map((instanceId) => {
-      const driver = ProviderDriverKind.make(instanceId === primary ? "codex" : "claudeAgent");
-      const snapshot: ServerProvider = {
-        instanceId,
-        driver,
-        enabled: true,
-        installed: true,
-        status: "ready",
-        auth: { status: "authenticated" },
-        version: null,
-        checkedAt: "1970-01-01T00:00:00Z",
-        models: [],
-        slashCommands: [],
-        skills: [],
-        ...(exhausted && instanceId === primary
-          ? {
-              usageLimits: {
-                checkedAt: "1970-01-01T00:00:00Z",
-                windows: [{ id: "session", kind: "session", label: "Session", usedPercent: 100 }],
-              },
-            }
-          : {}),
-      };
-      return {
-        instanceId,
-        driverKind: driver,
-        continuationIdentity: { driverKind: driver, continuationKey: instanceId },
-        displayName: undefined,
-        enabled: true,
-        snapshot: { getSnapshot: Effect.succeed(snapshot) } as ProviderInstance["snapshot"],
-        orchestrationAdapter: {} as ProviderInstance["orchestrationAdapter"],
-        textGeneration: TextGeneration.TextGeneration.of({
-          generateCommitMessage: () => Effect.die("unused"),
-          generatePrContent: () => Effect.die("unused"),
-          generateBranchName: () => Effect.die("unused"),
-          generateReviewGuide: () => Effect.die("unused"),
-          generateThreadTitle: (input) =>
-            Effect.sync(() => {
-              calls.push(input.modelSelection);
-              return { title: "Generated title" };
-            }),
-        }),
-      };
-    });
-    const service = yield* TextGeneration.make.pipe(
-      Effect.provide(
-        Layer.mergeAll(
-          Layer.mock(ProviderInstanceRegistry.ProviderInstanceRegistry)({
-            listInstances: Effect.succeed(instances),
-            getInstance: (id) =>
-              Effect.succeed(instances.find((instance) => instance.instanceId === id)),
-          }),
-          ServerSettings.layerTest({
-            providerInstances: {
-              [fallback]: { driver: ProviderDriverKind.make("claudeAgent"), config: {} },
-            },
-          }),
-          Layer.mock(SourceControlProviderRegistry.SourceControlProviderRegistry)({
-            resolveLink: () => Effect.die("unused"),
-          }),
-        ),
-      ),
-    );
-    expect(
-      yield* service.generateThreadTitle({
-        cwd: "/tmp",
-        message: "hello",
-        linkedContext: "",
-        modelSelection: selection,
-      }),
-    ).toEqual({ title: "Generated title" });
-    expect(calls).toEqual([
-      exhausted
-        ? {
-            instanceId: fallback,
-            model:
-              DEFAULT_TEXT_GENERATION_MODEL_BY_PROVIDER[ProviderDriverKind.make("claudeAgent")],
-          }
-        : selection,
-    ]);
-  }),
-);

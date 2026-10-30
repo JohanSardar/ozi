@@ -99,13 +99,6 @@ export function useThreadActionMenu(input: {
     },
     onError: (error) => failureToast("Failed to copy path", error),
   });
-  const { copyToClipboard: copyBranchToClipboard } = useCopyToClipboard<{ branch: string }>({
-    target: "branch name",
-    onCopy: ({ branch }) => {
-      toastManager.add({ type: "success", title: "Branch copied", description: branch });
-    },
-    onError: (error) => failureToast("Failed to copy branch", error),
-  });
   const { copyToClipboard: copyThreadIdToClipboard } = useCopyToClipboard<{ threadId: ThreadId }>({
     onCopy: ({ threadId }) => {
       toastManager.add({ type: "success", title: "Thread ID copied", description: threadId });
@@ -133,7 +126,6 @@ export function useThreadActionMenu(input: {
       const snoozePresets = resolveSnoozePresets(now, timestampFormat, threadRef.environmentId);
       const items = buildThreadActionMenuItems({
         canOperate: readEnvironmentScope(threadRef.environmentId, AuthOrchestrationOperateScope),
-        branch: thread.branch ?? null,
         projectFilter: null,
         isPinned: thread.pinnedAt != null,
         isSettled: supports.settlement && thread.settledOverride === "settled",
@@ -205,10 +197,7 @@ export function useThreadActionMenu(input: {
         case "new-thread-on-branch": {
           const result = await settlePromise(() =>
             handleNewThread(scopeProjectRef(threadRef.environmentId, thread.projectId), {
-              branch: thread.branch,
-              worktreePath: thread.worktreePath,
-              envMode: thread.worktreePath ? "worktree" : "local",
-              startFromOrigin: false,
+              workingDirectory: thread.workingDirectory,
             }),
           );
           if (result._tag === "Failure") {
@@ -270,7 +259,7 @@ export function useThreadActionMenu(input: {
           return;
         }
         case "copy-path": {
-          const workspacePath = thread.worktreePath ?? projectCwd;
+          const workspacePath = thread.workingDirectory ?? projectCwd;
           if (!workspacePath) {
             toastManager.add(
               stackedThreadToast({
@@ -284,11 +273,6 @@ export function useThreadActionMenu(input: {
           copyPathToClipboard(workspacePath, { path: workspacePath });
           return;
         }
-        case "copy-branch":
-          if (thread.branch) {
-            copyBranchToClipboard(thread.branch, { branch: thread.branch });
-          }
-          return;
         case "copy-thread":
           void copyThreadReference(threadChipCopyTarget(threadRef, thread.title));
           return;

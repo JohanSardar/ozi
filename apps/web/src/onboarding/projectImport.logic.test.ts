@@ -2,7 +2,6 @@ import { EnvironmentId, ProjectId, type AgentSessionProjectCandidate } from "@t3
 import { describe, expect, it } from "vite-plus/test";
 
 import {
-  groupOnboardingProjects,
   partitionOnboardingProjects,
   onboardingProjectKey,
   resolveOnboardingLandingProject,
@@ -22,15 +21,9 @@ function candidate(
     threadCount: 3,
     lastActiveAt: "2026-08-20T12:00:00.000Z",
     alreadyImported: false,
-    git: { remoteKey: null, repository: null },
     ...overrides,
   };
 }
-
-const github = (repository: string) => ({
-  remoteKey: `github.com/${repository.toLowerCase()}`,
-  repository,
-});
 
 describe("partitionOnboardingProjects", () => {
   it("keeps existing projects available for thread history import", () => {
@@ -53,85 +46,6 @@ describe("partitionOnboardingProjects", () => {
       available: [recent, older],
       recent: [recent],
     });
-  });
-
-  it("keeps non-git folders and thin histories out of the default selection", () => {
-    const repo = candidate("/projects/repo");
-    const folder = candidate("/projects/folder", { git: null });
-    const thin = candidate("/projects/thin", { threadCount: 2 });
-
-    expect(partitionOnboardingProjects([repo, folder, thin], now).recent).toEqual([repo]);
-  });
-
-  it("selects candidates from servers that do not report git identity", () => {
-    const { git: _git, ...legacy } = candidate("/projects/legacy");
-
-    expect(partitionOnboardingProjects([legacy], now).recent).toEqual([legacy]);
-  });
-});
-
-describe("groupOnboardingProjects", () => {
-  it("groups clones by origin, keeps local repos separate, and folds non-git folders away", () => {
-    const main = candidate("/code/ozi", {
-      git: github("JohanSardar/ozi"),
-      threadCount: 79,
-      lastActiveAt: "2026-08-21T12:00:00.000Z",
-    });
-    const clone = candidate("/code/clones/ozi-2", {
-      git: github("JohanSardar/ozi"),
-      threadCount: 13,
-      lastActiveAt: "2026-08-10T12:00:00.000Z",
-    });
-    const older = candidate("/code/fleet", {
-      git: github("t3dotgg/fleet"),
-      threadCount: 295,
-      lastActiveAt: "2026-08-22T00:00:00.000Z",
-    });
-    const local = candidate("/code/scratch-repo", { title: "scratch-repo" });
-    const folder = candidate("/tmp/notes", { git: null });
-
-    const grouped = groupOnboardingProjects([main, clone, older, local, folder]);
-
-    expect(grouped.other).toEqual([folder]);
-    expect(
-      grouped.repositories.map((group) => ({
-        label: group.label,
-        paths: group.candidates.map((item) => item.path),
-        threadCount: group.threadCount,
-        lastActiveAt: group.lastActiveAt,
-      })),
-    ).toEqual([
-      {
-        label: "t3dotgg/fleet",
-        paths: ["/code/fleet"],
-        threadCount: 295,
-        lastActiveAt: "2026-08-22T00:00:00.000Z",
-      },
-      {
-        label: "JohanSardar/ozi",
-        paths: ["/code/ozi", "/code/clones/ozi-2"],
-        threadCount: 92,
-        lastActiveAt: "2026-08-21T12:00:00.000Z",
-      },
-      {
-        label: "scratch-repo",
-        paths: ["/code/scratch-repo"],
-        threadCount: 3,
-        lastActiveAt: "2026-08-20T12:00:00.000Z",
-      },
-    ]);
-  });
-
-  // regression: #10547 project import broke on servers that predate git identity
-  it("lists candidates without git identity as standalone repositories", () => {
-    const { git: _git, ...legacy } = candidate("/code/legacy", { title: "legacy" });
-
-    const grouped = groupOnboardingProjects([legacy]);
-
-    expect(grouped.other).toEqual([]);
-    expect(grouped.repositories.map((group) => [group.label, group.repository])).toEqual([
-      ["legacy", null],
-    ]);
   });
 });
 

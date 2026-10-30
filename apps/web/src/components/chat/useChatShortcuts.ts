@@ -9,7 +9,6 @@ import {
 } from "../../lib/terminalCloseShortcut";
 import { getTerminalFocusOwner, type TerminalFocusOwner } from "../../lib/terminalFocus";
 import type { ComposerHandleRef } from "../../composerHandleContext";
-import type { BranchToolbarHandle } from "../BranchToolbar";
 import { shouldTypeToFocusComposer } from "./composerFocusRedirect";
 import { composerShortcutCommands } from "./composerShortcuts";
 
@@ -31,7 +30,6 @@ interface ChatShortcutsInput {
   readonly threadFindActive: boolean;
   /** Takes type-to-focus keys and the composer and branch toolbar chords. */
   readonly composerRef: ComposerHandleRef;
-  readonly branchToolbarRef: { readonly current: BranchToolbarHandle | null };
   readonly closeThreadFind: () => void;
   readonly commands: ChatShortcutCommands;
   /** Handles commands not in `commands`, such as project scripts. */
@@ -77,7 +75,7 @@ export function useChatShortcuts(input: ChatShortcutsInput) {
     if (!command) return;
     const run =
       input.commands[command] ??
-      composerShortcutCommands(input.composerRef, input.branchToolbarRef)[command] ??
+      composerShortcutCommands(input.composerRef)[command] ??
       input.fallback(command);
     if (!run || run({ event, terminalFocusOwner }) === false) return;
     event.preventDefault();

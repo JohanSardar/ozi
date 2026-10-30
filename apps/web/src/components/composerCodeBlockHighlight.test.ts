@@ -5,14 +5,14 @@ import StarterKit from "@tiptap/starter-kit";
 import { afterEach, describe, expect, it, onTestFinished, vi } from "vite-plus/test";
 
 import { ComposerCodeBlockExtension } from "~/composer-rich-text-doc";
-import type { DiffThemeName } from "~/lib/diffRendering";
+import type { CodeThemeName } from "~/lib/syntaxHighlighting";
 import { getSyntaxHighlighterPromise } from "~/lib/syntaxHighlighting";
 
 import { composerCodeBlockHighlight, tokenizeBlock } from "./composerCodeBlockHighlight";
 
 vi.mock("~/lib/syntaxHighlighting", () => ({ getSyntaxHighlighterPromise: vi.fn() }));
 
-const THEME = "pierre-dark" as DiffThemeName;
+const THEME = "pierre-dark" as CodeThemeName;
 
 function fakeHighlighter(colorFor: (content: string) => string | undefined) {
   return {

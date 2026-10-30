@@ -278,18 +278,6 @@ function formatComposerContextProviderPayload(record: KnownComposerContextRecord
       }
       return lines.join("\n");
     }
-    case "review-comment": {
-      const lines = [
-        `file: ${record.filePath}`,
-        `range: ${record.rangeLabel} (${record.startIndex}-${record.endIndex})`,
-        `section: ${record.sectionTitle}`,
-      ];
-      if (record.text.trim()) lines.push("comment:", indent(record.text.trim()));
-      if (record.diff.trim()) {
-        lines.push(`${record.fenceLanguage ?? "diff"}:`, indent(record.diff.trimEnd()));
-      }
-      return lines.join("\n");
-    }
     case "mention":
       return `path: ${record.path}`;
     case "skill":

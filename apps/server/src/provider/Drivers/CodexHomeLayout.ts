@@ -20,7 +20,6 @@ const KNOWN_SHARED_DIRECTORIES = [
   "archived_sessions",
   "sqlite",
   "shell_snapshots",
-  "worktrees",
   "skills",
   "plugins",
   "cache",

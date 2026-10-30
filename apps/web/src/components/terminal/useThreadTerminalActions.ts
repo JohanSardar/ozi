@@ -21,7 +21,7 @@ import { selectThreadTerminalUiState, useTerminalUiStateStore } from "../../term
 /** Where a new terminal starts. Omitted fields fall back to the thread's project and worktree. */
 export interface TerminalLaunchLocation {
   readonly cwd: string;
-  readonly worktreePath: string | null;
+  readonly workingDirectory: string | null;
 }
 
 /** Allocate terminal ids and launch locations centrally so all surfaces share one view of sessions. */
@@ -39,7 +39,8 @@ export function useThreadTerminalActions(threadRef: ScopedThreadRef | null) {
       ? scopeProjectRef(draftThread.environmentId, draftThread.projectId)
       : null;
   const project = useProject(projectRef);
-  const threadWorktreePath = serverThread?.worktreePath ?? draftThread?.worktreePath ?? null;
+  const threadWorkingDirectory =
+    serverThread?.workingDirectory ?? draftThread?.workingDirectory ?? null;
   const knownSessions = useKnownTerminalSessions({
     environmentId: threadRef?.environmentId ?? null,
     threadId: threadRef?.threadId ?? null,
@@ -75,9 +76,9 @@ export function useThreadTerminalActions(threadRef: ScopedThreadRef | null) {
       ? {
           cwd: projectScriptCwd({
             project: { cwd: project.workspaceRoot },
-            worktreePath: threadWorktreePath,
+            workingDirectory: threadWorkingDirectory,
           }),
-          worktreePath: threadWorktreePath,
+          workingDirectory: threadWorkingDirectory,
         }
       : null;
 
@@ -100,10 +101,12 @@ export function useThreadTerminalActions(threadRef: ScopedThreadRef | null) {
         threadId: threadRef.threadId,
         terminalId,
         cwd: location.cwd,
-        ...(location.worktreePath !== null ? { worktreePath: location.worktreePath } : {}),
+        ...(location.workingDirectory !== null
+          ? { workingDirectory: location.workingDirectory }
+          : {}),
         env: projectScriptRuntimeEnv({
           project: { cwd: project.workspaceRoot },
-          worktreePath: location.worktreePath,
+          workingDirectory: location.workingDirectory,
           ...(input.extraEnv ? { extraEnv: input.extraEnv } : {}),
         }),
         ...input.size,

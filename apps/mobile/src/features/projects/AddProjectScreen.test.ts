@@ -1,17 +1,13 @@
-import * as NodeFS from "node:fs";
-import * as NodeFSP from "node:fs/promises";
-import * as NodeOS from "node:os";
-import * as NodePath from "node:path";
 import * as NodeModule from "node:module";
 import type { EnvironmentConnectionPhase } from "@t3tools/client-runtime/connection";
 import { workspaceDetailRouter } from "../workspace/workspace-detail-selection";
 import type { NavigationState } from "@react-navigation/native";
-import { AuthOrchestrationOperateScope, AuthSourceControlWriteScope } from "@t3tools/contracts";
+import { AuthOrchestrationOperateScope } from "@t3tools/contracts";
 import * as Cause from "effect/Cause";
 import { AsyncResult } from "effect/reactivity";
 import { act, createElement, isValidElement, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vite-plus/test";
+import { afterEach, describe, expect, it, vi } from "vite-plus/test";
 
 const state = vi.hoisted(() => ({
   scopes: new Set<string>(),
@@ -98,7 +94,7 @@ vi.mock("../../components/EnvironmentMachineSymbol", () => ({
   EnvironmentMachineSymbol: "EnvironmentMachineSymbol",
 }));
 vi.mock("../../components/ui/ErrorBanner", () => ({ ErrorBanner: "ErrorBanner" }));
-vi.mock("./SourceControlIcon", () => ({ SourceControlIcon: "SourceControlIcon" }));
+vi.mock("./SourceControlIcon", () => ({}));
 vi.mock("../../lib/uuid", () => ({ uuidv4: () => "project" }));
 vi.mock("../../state/session", () => ({
   useEnvironmentScope: (_environmentId: string, scope: string) => state.scopes.has(scope),
@@ -140,16 +136,7 @@ vi.mock("../../state/presentation", () => ({
   useEnvironmentPresentation: () => ({ isReady: true, presentation: null }),
 }));
 vi.mock("../../state/filesystem", () => ({ filesystemEnvironment: {} }));
-vi.mock("../../state/sourceControl", () => ({
-  sourceControlEnvironment: {
-    discovery: (input: unknown) => input,
-    startProjectClone: async ({ input }: { input: { destinationPath: string } }) => {
-      if (state.startCloneResult) return state.startCloneResult;
-      NodeFS.mkdirSync(input.destinationPath);
-      return AsyncResult.success(undefined);
-    },
-  },
-}));
+vi.mock("../../state/sourceControl", () => ({}));
 vi.mock("../../state/projects", () => ({
   projectEnvironment: {
     createNew: () => state.createNewResult,
@@ -173,7 +160,6 @@ vi.mock("../../state/use-composer-drafts", () => ({
 
 import {
   AddProjectNewScreen,
-  AddProjectDestinationScreen,
   AddProjectLocalFolderScreen,
   AddProjectSourceScreen,
 } from "./AddProjectScreen";
@@ -225,57 +211,6 @@ function renderScreen(render: () => ReactNode) {
   return screen;
 }
 
-function cloneAction() {
-  const action = findAction(
-    renderScreen(() =>
-      AddProjectDestinationScreen({
-        environmentId: "environment",
-        remoteUrl: "https://example.com/repo.git",
-        repositoryName: "repo",
-      }),
-    ),
-    "Clone project",
-    true,
-  );
-  if (!action) throw new Error("Clone action missing");
-  return action;
-}
-
-describe("clone project permissions", () => {
-  beforeEach(async () => {
-    state.baseDirectory = await NodeFSP.mkdtemp(
-      NodePath.join(NodeOS.tmpdir(), "t3-clone-permissions-"),
-    );
-    state.scopes = new Set([AuthSourceControlWriteScope]);
-    state.projects = [];
-    state.createResult = null;
-  });
-
-  afterEach(async () => {
-    await NodeFSP.rm(state.baseDirectory, { recursive: true, force: true });
-  });
-
-  it("does not leave a clone on disk when project creation is denied", async () => {
-    await cloneAction()();
-
-    expect(NodeFS.existsSync(NodePath.join(state.baseDirectory, "repo"))).toBe(false);
-    expect(state.projects).toEqual([]);
-  });
-
-  it.each([AuthSourceControlWriteScope, AuthOrchestrationOperateScope])(
-    "rechecks %s before a retained clone action creates a directory",
-    async (scope) => {
-      state.scopes.add(AuthOrchestrationOperateScope);
-      const submit = cloneAction();
-      state.scopes.delete(scope);
-      await submit();
-
-      expect(NodeFS.existsSync(NodePath.join(state.baseDirectory, "repo"))).toBe(false);
-      expect(state.projects).toEqual([]);
-    },
-  );
-});
-
 function mountProjectFlow(
   withDraft: boolean,
   withChooser = true,
@@ -308,10 +243,6 @@ function mountProjectFlow(
     current = next;
     state.navigationState = current;
   };
-  if (withPullRequest) {
-    apply(StackActions.push("PullRequest", { number: 123 }));
-    apply(StackActions.push("PullRequestFile", { path: "file.ts" }));
-  }
   const underlyingRoutes = current.routes;
   if (withDraft) {
     apply(StackActions.push("Thread", { draft: { projectId: "previous-project" } }));

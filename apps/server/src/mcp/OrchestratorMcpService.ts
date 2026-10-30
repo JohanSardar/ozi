@@ -11,7 +11,6 @@ import {
   type OrchestrationV2Subagent,
   type OrchestrationV2ThreadProjection,
   type OrchestrationV2ThreadShell,
-  type OrchestrationV2ThreadLaunchWorkspaceStrategy,
   type OrchestrationV2TurnItem,
   OrchestratorMcpFailure,
   type OrchestratorMcpCapabilitiesInput,
@@ -37,7 +36,6 @@ import {
   type OrchestratorMcpListScheduledTasksInput,
   type ProjectId,
   type OrchestratorMcpThreadDetail,
-  type OrchestratorMcpThreadPullRequest,
   type OrchestratorMcpThreadInterruptInput,
   type OrchestratorMcpThreadInterruptResult,
   type OrchestratorMcpThreadListInput,
@@ -66,10 +64,6 @@ import {
 import { getProviderOptionCurrentValue } from "@t3tools/shared/model";
 import { runRanAfter } from "@t3tools/shared/orchestrationV2ThreadError";
 import { formatThreadLink } from "@t3tools/shared/threadLinks";
-import {
-  normalizeThreadPullRequestKey,
-  visibleThreadPullRequests,
-} from "../sourceControl/threadPullRequests.ts";
 import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
 import * as Crypto from "effect/Crypto";
@@ -95,10 +89,8 @@ import {
 import { runOutcome } from "../orchestration-v2/RestartBackgroundNote.ts";
 import * as ThreadManagementService from "../orchestration-v2/ThreadManagementService.ts";
 import * as ThreadLaunchService from "../orchestration-v2/ThreadLaunchService.ts";
-import * as GitVcsDriver from "../vcs/GitVcsDriver.ts";
 import { isSnoozed } from "../orchestration-v2/ThreadSettlementService.ts";
 import { userFacingDispatchErrorMessage } from "../orchestration-v2/UserFacingErrors.ts";
-import * as ProjectService from "../project/ProjectService.ts";
 import * as ProviderRegistry from "../provider/ProviderRegistry.ts";
 import * as ScheduledTaskService from "../scheduledTasks/ScheduledTaskService.ts";
 import * as ServerSettings from "../serverSettings.ts";
@@ -733,19 +725,6 @@ function threadSnooze(
   };
 }
 
-function threadPullRequests(
-  links: OrchestrationV2ThreadShell["pullRequests"],
-): OrchestratorMcpThreadPullRequest[] {
-  return visibleThreadPullRequests(links ?? []).map((link) => ({
-    host: normalizeThreadPullRequestKey(link).host,
-    repository: link.repository,
-    number: link.number,
-    url: link.url,
-    source: link.source,
-    state: link.snapshot?.state ?? null,
-  }));
-}
-
 function listItemFromShell(
   scope: McpInvocationScope,
   shell: OrchestrationV2ThreadShell,
@@ -764,8 +743,6 @@ function listItemFromShell(
     model: shell.modelSelection.model,
     runtimeMode: shell.runtimeMode,
     interactionMode: shell.interactionMode,
-    linkedPullRequest: shell.linkedPullRequest ?? null,
-    pullRequests: threadPullRequests(shell.pullRequests),
     ...threadSettlement(shell),
     ...threadSnooze(shell, nowMs),
     parentThreadId: shell.lineage.parentThreadId,
@@ -799,8 +776,6 @@ function threadDetail(
     model: projection.thread.modelSelection.model,
     runtimeMode: projection.thread.runtimeMode,
     interactionMode: projection.thread.interactionMode,
-    linkedPullRequest: projection.thread.linkedPullRequest ?? null,
-    pullRequests: threadPullRequests(projection.thread.pullRequests),
     titleRegeneration:
       projection.thread.titleRegeneration === undefined ||
       projection.thread.titleRegeneration === null
@@ -809,8 +784,7 @@ function threadDetail(
             requestId: projection.thread.titleRegeneration.requestId,
             startedAt: DateTime.formatIso(projection.thread.titleRegeneration.startedAt),
           },
-    branch: projection.thread.branch,
-    worktreePath: projection.thread.worktreePath,
+    workingDirectory: projection.thread.workingDirectory,
     parentThreadId: projection.thread.lineage.parentThreadId,
     relationshipToParent: projection.thread.lineage.relationshipToParent,
     runCount: projection.runs.length,
@@ -886,7 +860,7 @@ function turnItemText(item: OrchestrationV2TurnItem): string | null {
         .filter((line): line is string => line !== undefined)
         .join("\n");
     case "checkpoint":
-      return jsonText(item.files);
+      return item.checkpointId;
     case "run_interrupt_request":
     case "run_interrupt_result":
     case "system_notice":
@@ -961,25 +935,8 @@ const make = Effect.gen(function* () {
   const providerRegistry = yield* ProviderRegistry.ProviderRegistry;
   const providerAdapters = yield* ProviderAdapterRegistry.ProviderAdapterRegistryV2;
   const scheduledTasks = yield* ScheduledTaskService.ScheduledTaskService;
-  const projects = yield* ProjectService.ProjectService;
-  const threadLaunch = yield* ThreadLaunchService.ThreadLaunchService;
-  const gitDriver = yield* GitVcsDriver.GitVcsDriver;
   const serverSettings = yield* ServerSettings.ServerSettingsService;
   const remoteDelegation = yield* RemoteDelegation.RemoteDelegation;
-
-  const requireProject = (projectId: ProjectId) =>
-    projects.getById(projectId).pipe(
-      Effect.mapError((error) =>
-        failure("orchestration_error", `Unable to read project ${projectId}: ${error.message}`),
-      ),
-      Effect.flatMap(
-        Option.match({
-          onNone: () =>
-            Effect.fail(failure("invalid_request", `Project ${projectId} was not found.`)),
-          onSome: Effect.succeed,
-        }),
-      ),
-    );
 
   const secretRequests = yield* SecretRequests.SecretRequests;
 
@@ -2199,36 +2156,6 @@ const make = Effect.gen(function* () {
         parent.thread.interactionMode,
         input.interactionMode,
       );
-      let workspaceStrategy: OrchestrationV2ThreadLaunchWorkspaceStrategy | undefined;
-      if (input.isolation === "worktree" && !isRetryOfAcceptedDelegation) {
-        const project = yield* requireProject(parent.thread.projectId);
-        const base = yield* gitDriver
-          .resolveCommit({
-            cwd: parent.thread.worktreePath ?? project.workspaceRoot,
-            revision: "HEAD",
-          })
-          .pipe(
-            Effect.mapError(() =>
-              failure("invalid_request", "Unable to resolve the parent checkout commit."),
-            ),
-          );
-        // Launch preparation creates the worktree from the project root, so a
-        // parent checkout in another repository (such as a Git folder inside
-        // Scratch) would hand it a commit it cannot find.
-        if (parent.thread.worktreePath !== null) {
-          yield* gitDriver
-            .resolveCommit({ cwd: project.workspaceRoot, revision: base.commitSha })
-            .pipe(
-              Effect.mapError(() =>
-                failure(
-                  "invalid_request",
-                  `Isolation "worktree" creates the child checkout in project "${project.title}" (${project.workspaceRoot}), which does not contain the parent checkout's commit. Use isolation "shared" to work in the parent's checkout.`,
-                ),
-              ),
-            );
-        }
-        workspaceStrategy = { type: "worktree", baseRef: base.commitSha, startFromOrigin: false };
-      }
       // ThreadManagementService.dispatch is the chokepoint for this command
       // type's own enablement check, using the same command id and its
       // receipt-replay exemption, so no separate assert runs here.
@@ -2246,7 +2173,6 @@ const make = Effect.gen(function* () {
           modelSelection: target.modelSelection,
           runtimeMode,
           interactionMode,
-          ...(workspaceStrategy === undefined ? {} : { workspaceStrategy }),
           // Async delegations wake the parent on every child terminal; wait
           // delegations deliver through the blocking tool call, so a wake is
           // only needed if the parent settled first (timeout, disconnect).
@@ -2273,21 +2199,6 @@ const make = Effect.gen(function* () {
         );
       }
       const taskId = taskEvent.event.payload.id;
-      const childThreadId = taskEvent.event.payload.childThreadId;
-      const childRunEvent = result.storedEvents.find(
-        (stored) => stored.event.type === "run.created" && stored.event.threadId === childThreadId,
-      );
-      if (
-        childThreadId !== null &&
-        childRunEvent?.event.type === "run.created" &&
-        childRunEvent.event.payload.workspacePreparation !== undefined
-      ) {
-        yield* threadLaunch.prepareRun({
-          commandId,
-          threadId: childThreadId,
-          runId: childRunEvent.event.payload.id,
-        });
-      }
 
       if (input.mode !== "wait") {
         return yield* readTask(scope, taskId, false, true);
@@ -2631,8 +2542,7 @@ const make = Effect.gen(function* () {
                   modelSelection: target.modelSelection,
                   runtimeMode,
                   interactionMode,
-                  branch: parent.thread.branch,
-                  worktreePath: parent.thread.worktreePath,
+                  workingDirectory: parent.thread.workingDirectory,
                   ...(parent.thread.linkOrigin === undefined
                     ? {}
                     : { linkOrigin: parent.thread.linkOrigin }),
@@ -3062,11 +2972,10 @@ export const layer: Layer.Layer<
   | Crypto.Crypto
   | ThreadManagementService.ThreadManagementService
   | ThreadLaunchService.ThreadLaunchService
-  | GitVcsDriver.GitVcsDriver
+  | never
   | ProviderRegistry.ProviderRegistry
   | ProviderAdapterRegistry.ProviderAdapterRegistryV2
   | ScheduledTaskService.ScheduledTaskService
-  | ProjectService.ProjectService
   | SecretRequests.SecretRequests
   | ServerSettings.ServerSettingsService
   | RemoteDelegation.RemoteDelegation

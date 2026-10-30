@@ -280,8 +280,7 @@ export function makeTurnInput(input: {
       modelSelection,
       runtimeMode: "approval-required",
       interactionMode: "default",
-      branch: null,
-      worktreePath: null,
+      workingDirectory: null,
       activeProviderThreadId: input.providerThread.id,
       lineage: {
         parentThreadId: null,

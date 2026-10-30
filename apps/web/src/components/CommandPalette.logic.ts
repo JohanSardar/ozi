@@ -10,21 +10,11 @@ import {
   type ThreadSearchSubject,
 } from "@t3tools/shared/paletteSearch";
 import { threadSearchSubject } from "@t3tools/client-runtime/state/thread-search";
-import type { CommandPaletteLinkedThreads } from "../commandPaletteBus";
-import {
-  addProjectRemoteSourceLabel,
-  addProjectRemoteSourcePathHint,
-  buildAddProjectRemoteSourceReadiness,
-  type AddProjectRemoteSource,
-  type AddProjectRemoteSourceReadiness,
-} from "@t3tools/client-runtime/operations/projects";
 import {
   type EnvironmentId,
   type EnvironmentMachineKind,
   type FilesystemBrowseEntry,
   type KeybindingCommand,
-  type SourceControlDiscoveryResult,
-  type SourceControlRepositoryInfo,
   THREAD_JUMP_KEYBINDING_COMMANDS,
 } from "@t3tools/contracts";
 import { filterFilesystemBrowseEntries } from "@t3tools/client-runtime/state/filesystem";
@@ -36,24 +26,6 @@ import { isSidebarSubagentThread } from "./Sidebar.logic";
 export const RECENT_THREAD_LIMIT = 12;
 export const ITEM_ICON_CLASS = "size-4 text-icon-muted";
 export const ADDON_ICON_CLASS = "size-4";
-
-export function buildLinkedThreadActionItems(
-  input: CommandPaletteLinkedThreads & {
-    query: string;
-    icon: ReactNode;
-    runThread: (thread: Pick<SidebarThreadSummary, "environmentId" | "id">) => Promise<void>;
-  },
-): CommandPaletteActionItem[] {
-  return input.threads.map((thread) => ({
-    kind: "action",
-    value: `thread:${input.environmentId}:${thread.id}`,
-    title: thread.title || "Untitled thread",
-    description: thread.archivedAt === null ? "Linked thread" : "Archived thread",
-    searchTerms: [input.query, thread.title],
-    icon: input.icon,
-    run: () => input.runThread({ environmentId: input.environmentId, id: thread.id }),
-  }));
-}
 
 export function browseInputEndPaddingClass(input: {
   readonly willCreateProjectPath: boolean;
@@ -75,7 +47,6 @@ export type CommandPaletteOpenIntent =
   | {
       readonly kind: "search";
       readonly query: string;
-      readonly linkedThreads?: CommandPaletteLinkedThreads;
     };
 
 export interface CommandPaletteUiState {
@@ -95,7 +66,6 @@ export type CommandPaletteUiAction =
   | {
       readonly _tag: "OpenSearch";
       readonly query: string;
-      readonly linkedThreads?: CommandPaletteLinkedThreads;
     }
   | { readonly _tag: "OpenAddProject" }
   | { readonly _tag: "OpenNewThreadIn" }
@@ -149,7 +119,6 @@ export function reduceCommandPaletteUiState(
       return openWithIntent({
         kind: "search",
         query: action.query,
-        ...(action.linkedThreads ? { linkedThreads: action.linkedThreads } : {}),
       });
     case "OpenAddProject":
       return openWithIntent({ kind: "add-project" });
@@ -386,7 +355,6 @@ export function buildProjectActionItems(input: {
 export type BuildThreadActionItemsThread = Pick<
   SidebarThreadSummary,
   | "archivedAt"
-  | "branch"
   | "createdAt"
   | "environmentId"
   | "id"
@@ -395,14 +363,9 @@ export type BuildThreadActionItemsThread = Pick<
   | "projectId"
   | "runtime"
   | "title"
-  | "worktreePath"
+  | "workingDirectory"
 > &
-  Partial<
-    Pick<
-      SidebarThreadSummary,
-      "pullRequests" | "linkedPullRequest" | "branchPullRequest" | "opens" | "latestUserMessageAt"
-    >
-  > & {
+  Partial<Pick<SidebarThreadSummary, "opens" | "latestUserMessageAt">> & {
     updatedAt: string;
   };
 
@@ -431,9 +394,6 @@ export function buildThreadActionItems<TThread extends BuildThreadActionItemsThr
 
     if (projectTitle) {
       descriptionParts.push(projectTitle);
-    }
-    if (thread.branch) {
-      descriptionParts.push(`#${thread.branch}`);
     }
     const isCurrent =
       thread.id === input.activeThread?.id &&
@@ -797,55 +757,6 @@ export interface AddProjectEnvironmentOption {
   readonly isPrimary: boolean;
   readonly isConnected: boolean;
   readonly status: string;
-}
-
-export type AddProjectCloneFlow =
-  | {
-      readonly step: "repository";
-      readonly environmentId: EnvironmentId;
-      readonly source: AddProjectRemoteSource;
-    }
-  | {
-      readonly step: "confirm";
-      readonly environmentId: EnvironmentId;
-      readonly source: AddProjectRemoteSource;
-      readonly repositoryInput: string;
-      readonly repository: SourceControlRepositoryInfo | null;
-      readonly remoteUrl: string;
-    };
-
-export function remoteProjectInputPlaceholder(flow: AddProjectCloneFlow | null): string | null {
-  if (!flow) return null;
-  if (flow.step === "confirm") return null;
-  if (flow.source === "url") {
-    return "Enter Git clone URL";
-  }
-  return `Enter ${addProjectRemoteSourceLabel(flow.source)} repository (${addProjectRemoteSourcePathHint(flow.source)})`;
-}
-
-export function buildPaletteRemoteSourceReadiness(
-  discovery: SourceControlDiscoveryResult | null,
-): AddProjectRemoteSourceReadiness {
-  const readiness = buildAddProjectRemoteSourceReadiness(discovery);
-  return (source) => {
-    const entry = readiness(source);
-    return entry.hint === null
-      ? entry
-      : {
-          ...entry,
-          hint: entry.hint.replace(
-            "Open source control settings",
-            "Open Settings -> Source control",
-          ),
-        };
-  };
-}
-
-export function errorMessage(error: unknown): string {
-  if (error instanceof Error && error.message.trim().length > 0) {
-    return error.message;
-  }
-  return "An error occurred.";
 }
 
 const OVERLAY_MODE_BY_COMMAND = {

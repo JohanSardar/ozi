@@ -74,8 +74,6 @@ function makeHarness(
               title: "Project",
               workspaceRoot: "/repo",
               defaultModelSelection: modelSelection,
-              defaultThreadEnvMode: null,
-              autoPull: false,
               faviconPath: null,
               projectIcon: null,
               scripts: [],
@@ -121,8 +119,7 @@ function createThread(input: { readonly command: string; readonly thread: string
       modelSelection,
       runtimeMode: "full-access",
       interactionMode: "default",
-      branch: null,
-      worktreePath: null,
+      workingDirectory: null,
       createdBy: "user",
       creationSource: "web",
     });

@@ -182,7 +182,7 @@ export function scheduleFromDraft(draft: ScheduleDraft): ScheduledTaskUpsertSche
   };
 }
 
-type Workspace = "worktree" | "root" | "existing_worktree";
+type Workspace = "root";
 export type ScheduledTaskDraft = {
   readonly task: ScheduledTask | null;
   readonly title: string;
@@ -195,7 +195,6 @@ export type ScheduledTaskDraft = {
   readonly baseRef: string;
   readonly checkoutPath: string;
   readonly enabled: boolean;
-  readonly startFromOrigin: boolean;
   readonly runtimeMode: RuntimeMode;
 };
 
@@ -222,7 +221,6 @@ function draftSignature(draft: ScheduledTaskDraft): string {
     draft.baseRef,
     draft.checkoutPath,
     draft.enabled,
-    draft.startFromOrigin,
     draft.runtimeMode,
   ]);
 }
@@ -246,11 +244,10 @@ export function createDraft(
     modelSelection,
     modelSelectionIsExplicit: false,
     schedule: DEFAULT_SCHEDULE,
-    workspace: "worktree",
+    workspace: "root",
     baseRef: "main",
     checkoutPath: "",
     enabled: true,
-    startFromOrigin: true,
     runtimeMode: "full-access",
   };
 }
@@ -265,16 +262,9 @@ export function editDraft(task: ScheduledTask): ScheduledTaskDraft {
     modelSelectionIsExplicit: true,
     schedule: scheduleDraftForTask(task),
     workspace: task.workspaceStrategy.type,
-    baseRef: task.workspaceStrategy.type === "worktree" ? task.workspaceStrategy.baseRef : "main",
-    checkoutPath:
-      task.workspaceStrategy.type === "existing_worktree"
-        ? task.workspaceStrategy.worktreePath
-        : "",
+    baseRef: "main",
+    checkoutPath: "",
     enabled: task.enabled,
-    startFromOrigin:
-      task.workspaceStrategy.type === "worktree"
-        ? (task.workspaceStrategy.startFromOrigin ?? false)
-        : true,
     runtimeMode: task.runtimeMode,
   };
 }

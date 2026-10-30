@@ -1,4 +1,5 @@
-import type { ToolCallDiffTarget } from "../../diffPanelStore";
+import { resolveCodeThemeName } from "~/lib/syntaxHighlighting";
+
 import type { EnvironmentId, OrchestrationV2ProjectedTurnItem } from "@t3tools/contracts";
 import {
   toolCallLines,
@@ -7,18 +8,15 @@ import {
   turnItemOutputImages,
   turnItemOutputText,
 } from "@t3tools/client-runtime/work-log/item-detail";
-import { formatDiffCount } from "@t3tools/client-runtime/diff-count";
 import { isJavaScriptReplTool } from "@t3tools/shared/toolActivity";
 import { ExternalLinkIcon } from "lucide-react";
 import { memo, type ReactNode, Suspense, use } from "react";
 
 import { useRenderedAppearance } from "../../hooks/useTheme";
 import { cn } from "../../lib/utils";
-import { resolveDiffThemeName } from "../../lib/diffRendering";
 import { getSyntaxHighlighterPromise } from "../../lib/syntaxHighlighting";
 import { useTurnItemDetail } from "../../state/queries";
 import { formatWorkspaceRelativePath } from "../../filePathDisplay";
-import { Button } from "../ui/button";
 import ChatMarkdown from "../ChatMarkdown";
 import { ChatMarkdownAssetImage } from "./ChatMarkdownMedia";
 import { RenderErrorBoundary } from "../RenderErrorBoundary";
@@ -33,7 +31,6 @@ interface V2ItemInspectorProps {
   readonly environmentId: EnvironmentId;
   readonly cwd?: string | undefined;
   readonly workspaceRoot?: string | undefined;
-  readonly onOpenToolDiff?: ((target: ToolCallDiffTarget) => void) | undefined;
   readonly onImageExpand?: ((preview: ExpandedImagePreview) => void) | undefined;
   readonly source?: TurnItemSource | undefined;
 }
@@ -49,7 +46,7 @@ function SyntaxTokens({
   const highlighter = use(getSyntaxHighlighterPromise(language));
   const { tokens } = highlighter.codeToTokens(text, {
     lang: language,
-    theme: resolveDiffThemeName(resolvedTheme),
+    theme: resolveCodeThemeName(resolvedTheme),
   });
   return tokens.flatMap((line, lineIndex) => [
     lineIndex > 0 ? "\n" : "",
@@ -284,27 +281,6 @@ export const V2ItemInspector = memo(function V2ItemInspector(props: V2ItemInspec
             <span className="font-mono text-muted-foreground">
               {formatWorkspaceRelativePath(item.fileName, props.workspaceRoot)}
             </span>
-            {item.additions !== undefined || item.deletions !== undefined ? (
-              <span>
-                <span className="text-diff-addition">+{formatDiffCount(item.additions ?? 0)}</span>{" "}
-                <span className="text-diff-deletion">-{formatDiffCount(item.deletions ?? 0)}</span>
-              </span>
-            ) : null}
-            {props.onOpenToolDiff ? (
-              <Button
-                size="xs"
-                variant="outline"
-                onClick={() =>
-                  props.onOpenToolDiff?.({
-                    threadId: props.projectedItem.sourceThreadId,
-                    itemId: props.projectedItem.sourceItemId,
-                    revision: turnItemDetailRevision(item),
-                  })
-                }
-              >
-                Open diff
-              </Button>
-            ) : null}
           </div>
           {item.status === "failed" && item.diffStr?.trim() ? (
             <StructuredValue value={item.diffStr} />

@@ -1,13 +1,13 @@
+const EMPTY_CHECKPOINT_SUMMARIES: ReadonlyArray<ThreadCheckpointSummary> = [];
+import type { ThreadCheckpointSummary } from "@t3tools/client-runtime/state/thread-checkpoints";
 import { threadEnvironment } from "../../state/threads";
 import { useAtomCommand } from "../../state/use-atom-command";
-import type { ToolCallDiffTarget } from "../../diffPanelStore";
 import { AudioPreviewUnmountContext } from "../files/AudioPreview";
 import { ThreadFindTimelineContext } from "./ThreadFindProvider";
 import { MarkdownFindContext } from "./markdownFindContext";
 import { useChatCanvas } from "./ChatCanvasContext";
 import { WorkLogBlock } from "./WorkLog";
 import { TimelinePendingApprovalRow } from "./TimelinePendingApprovalRow";
-import type { WorktreeSetupSnapshot } from "@t3tools/contracts";
 import { deriveTimelineMinimapItems } from "./timelineMinimapItems";
 import {
   type AssistantCitation,
@@ -52,7 +52,7 @@ import {
 } from "@legendapp/list/react";
 import { type PendingApproval, type TimelineEntry } from "../../session-logic";
 import type { CodexArtifactTemplate } from "@t3tools/shared/codexArtifactTemplates";
-import { type ChatFileAttachment, type TurnDiffSummary } from "../../types";
+import { type ChatFileAttachment } from "../../types";
 import { ArrowRightIcon, BotIcon, CircleAlertIcon, Minimize2Icon } from "lucide-react";
 import { ChevronDown, ChevronRight } from "lucide";
 import { MorphIcon } from "~/components/MorphIcon";
@@ -67,7 +67,6 @@ import {
 import { AssistantSelectionToolbar } from "./AssistantSelectionToolbar";
 import { type AssistantCitationRequest } from "./AssistantCitationSource";
 import { useAssistantCitationTarget } from "./useAssistantCitationTarget";
-import { worktreeSetupAgentStarted } from "@t3tools/client-runtime/worktree-setup";
 import { resolveCitationPhase, type CitedHistory } from "./citationProcedure";
 import {
   resolveTimelineIsAtEnd,
@@ -83,8 +82,6 @@ import {
 import { type ThreadFindMatch } from "./threadFind";
 import { useThreadFindNavigation } from "./useThreadFindNavigation";
 import { TooltipScrollDismissArea } from "../ui/tooltip";
-import { WorktreeSetupCard } from "./WorktreeSetupCard";
-import { useOpenPrLink } from "~/lib/openPullRequestLink";
 import { useMediaQuery } from "~/hooks/useMediaQuery";
 import { cn } from "~/lib/utils";
 import { type TimestampFormat } from "@t3tools/contracts/settings";
@@ -216,13 +213,8 @@ interface MessagesTimelineProps {
   isWorking: boolean;
   runlessWorkActive?: boolean;
   activeTurnStartedAt?: string | null;
-  worktreeSetup?: WorktreeSetupSnapshot | null;
-  onCancelWorktreeSetup?: () => void;
   retryableWorkspacePreparationRunIds?: ReadonlySet<RunId>;
   onRetryWorkspacePreparation?: (runId: RunId) => void;
-  onWorktreeSetupWorkLocally?: () => void;
-  onOpenWorktreeSetupTerminal?: (terminalId: string) => void;
-  isPreparingWorktree?: boolean;
   isCompacting?: boolean;
   awaitingUser?: "approval" | "input" | null;
   /** Which request is waiting, so a second one of the same kind is announced too. */
@@ -237,13 +229,10 @@ interface MessagesTimelineProps {
   /** See isDetailBehindShell. */
   detailBehindShell?: boolean;
   runningRunId?: RunId | null;
-  turnDiffSummaries: ReadonlyArray<TurnDiffSummary>;
   routeThreadKey: string;
   displayThreadKey?: string;
   /** Off where another region already speaks the thread's status, like a subagent's bar. */
   announceTurnStatus?: boolean;
-  onOpenToolDiff?: (target: ToolCallDiffTarget) => void;
-  onOpenTurnDiff?: (runId: RunId, filePath?: string) => void;
   onOpenThread: (threadId: OrchestrationV2TurnItem["threadId"]) => void;
   renderHtmlRender?: TimelineRowSharedState["renderHtmlRender"];
   turnItemSource?: TimelineRowSharedState["turnItemSource"];
@@ -259,6 +248,7 @@ interface MessagesTimelineProps {
     readonly sourceThreadId: ThreadId;
     readonly runId: RunId;
   }) => Promise<void>;
+  checkpointSummaries?: ReadonlyArray<ThreadCheckpointSummary>;
   supportsConversationRollback: boolean;
   threadStartCheckpointReady?: boolean;
   availableRevertTurnCounts?: ReadonlySet<number> | undefined;
@@ -324,14 +314,9 @@ const ConversationTimeline = memo(function ConversationTimeline({
   isWorking,
   runlessWorkActive = false,
   activeTurnStartedAt = null,
-  worktreeSetup = null,
   footer = null,
-  onCancelWorktreeSetup,
   retryableWorkspacePreparationRunIds = EMPTY_RUN_IDS,
   onRetryWorkspacePreparation,
-  onWorktreeSetupWorkLocally,
-  onOpenWorktreeSetupTerminal,
-  isPreparingWorktree = false,
   isCompacting = false,
   awaitingUser = null,
   awaitingRequestId = null,
@@ -346,12 +331,9 @@ const ConversationTimeline = memo(function ConversationTimeline({
   announcedRun = null,
   detailBehindShell = false,
   runningRunId = null,
-  turnDiffSummaries,
   routeThreadKey,
   displayThreadKey,
   announceTurnStatus = true,
-  onOpenToolDiff,
-  onOpenTurnDiff,
   onOpenThread,
   renderHtmlRender,
   turnItemSource,
@@ -359,6 +341,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   workflowOpening = null,
   onForkFromRun,
   supportsConversationRollback,
+  checkpointSummaries = EMPTY_CHECKPOINT_SUMMARIES,
   threadStartCheckpointReady = false,
   availableRevertTurnCounts,
   onRevertToTurnCount,
@@ -446,7 +429,6 @@ const ConversationTimeline = memo(function ConversationTimeline({
     setExpandedAttemptIds(paintedExpandedAttemptIds);
   }
   const citationThreadRef = parseScopedThreadKey(routeThreadKey);
-  const openPullRequest = useOpenPrLink(citationThreadRef ?? undefined);
   const [minimapStripMap] = useState(() => new Map<string, HTMLSpanElement>());
   const [disclosureToggleSettling, setDisclosureToggleSettling] = useState(false);
   const disclosureAnchorKeyRef = useRef<string | null>(null);
@@ -663,6 +645,7 @@ const ConversationTimeline = memo(function ConversationTimeline({
   const pendingApprovalRequestIds = new Set(pendingApprovalsByRequestId.keys());
   const rawRows = useIncrementalTimelineRows(`${listIdentityKey}\0${workspaceRoot ?? ""}`, {
     timelineEntries,
+    checkpoints: checkpointSummaries,
     pendingApprovalRequestIds,
     latestRun,
     runningRunId,
@@ -672,11 +655,9 @@ const ConversationTimeline = memo(function ConversationTimeline({
     isWorking,
     runlessWorkActive,
     activeTurnStartedAt,
-    turnDiffSummaries,
     supportsConversationRollback,
     threadStartCheckpointReady,
     availableRevertTurnCounts,
-    worktreeSetup,
   });
   const rows = useStableRows(rawRows, listIdentityKey);
   const unmatchedPendingApprovals = new Map(pendingApprovalsByRequestId);
@@ -1022,9 +1003,6 @@ const ConversationTimeline = memo(function ConversationTimeline({
     onSendAppMessage,
     onAppFullscreenChange,
     onFileDownload,
-    openPullRequest,
-    onOpenToolDiff,
-    onOpenTurnDiff,
     onOpenThread,
     renderHtmlRender,
     turnItemSource,
@@ -1034,11 +1012,8 @@ const ConversationTimeline = memo(function ConversationTimeline({
     onToggleAttemptFold,
     onToggleWorkGroup,
     onToggleWorkEntry: suspendEndScrollMaintenanceForDisclosure,
-    onCancelWorktreeSetup: onCancelWorktreeSetup ?? null,
     retryableWorkspacePreparationRunIds,
     onRetryWorkspacePreparation: onRetryWorkspacePreparation ?? null,
-    onWorktreeSetupWorkLocally: onWorktreeSetupWorkLocally ?? null,
-    onOpenWorktreeSetupTerminal: onOpenWorktreeSetupTerminal ?? null,
     workGroupViewState,
   };
   const compactionAwaitingRow =
@@ -1048,20 +1023,11 @@ const ConversationTimeline = memo(function ConversationTimeline({
         (row.kind === "context-compaction" && row.active) ||
         (row.kind === "working" && row.compacting),
     );
-  const backgroundWorktreeSetup =
-    worktreeSetup !== null &&
-    worktreeSetup.phase === "running" &&
-    worktreeSetupAgentStarted(worktreeSetup) &&
-    latestRun?.startedAt != null
-      ? worktreeSetup
-      : null;
   const activityState: TimelineRowActivityState = {
     isWorking,
     isCompacting: compactionAwaitingRow,
     isRevertingCheckpoint,
-    backgroundWorktreeSetup,
     awaitingUser: awaitingUser !== null,
-    isPreparingWorktree,
     latestRunId: latestRun?.runId ?? null,
   };
   // Mounted in both the empty and filled timeline so a thread's first turn
@@ -1430,16 +1396,7 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
           ? undefined
           : row.kind === "turn-fold" || row.kind === "working"
             ? "pb-1.5"
-            : (row.kind === "message" &&
-                  row.message.role === "assistant" &&
-                  !row.showAssistantMeta) ||
-                row.kind === "worktree-setup" ||
-                row.kind === "event" ||
-                row.kind === "attempt-fold" ||
-                row.kind === "html-render" ||
-                row.kind === "mcp-app"
-              ? "pb-2"
-              : "pb-4",
+            : "pb-4",
         (row.kind === "message" && row.message.role === "assistant") ||
           row.kind === "assistant-meta"
           ? "group/assistant"
@@ -1488,33 +1445,11 @@ const TimelineRowContent = memo(function TimelineRowContent({ row }: { row: Time
       {row.kind === "html-render" ? <HtmlRenderTimelineRow row={row} /> : null}
       {row.kind === "mcp-app" ? <McpAppTimelineRow row={row} /> : null}
       {row.kind === "working" ? <WorkingTimelineRow row={row} /> : null}
-      {row.kind === "worktree-setup" ? <WorktreeSetupTimelineRow row={row} /> : null}
+
       {row.kind === "event" ? <V2EventTimelineRow row={row} /> : null}
     </div>
   );
 });
-
-function WorktreeSetupTimelineRow({
-  row,
-}: {
-  row: Extract<TimelineRow, { kind: "worktree-setup" }>;
-}) {
-  const ctx = use(TimelineRowCtx);
-  const terminalId = row.snapshot.setupScript?.terminalId ?? null;
-  const openTerminal = ctx.onOpenWorktreeSetupTerminal;
-  const onOpenTerminal = openTerminal && terminalId ? () => openTerminal(terminalId) : null;
-  return (
-    <WorktreeSetupCard
-      snapshot={row.snapshot}
-      embedded={row.embedded}
-      onCancel={row.embedded ? null : ctx.onCancelWorktreeSetup}
-      onWorkLocally={
-        !row.embedded && row.snapshot.phase === "running" ? ctx.onWorktreeSetupWorkLocally : null
-      }
-      onOpenTerminal={onOpenTerminal}
-    />
-  );
-}
 
 function ContextCompactionTimelineRow({
   row,

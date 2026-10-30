@@ -61,12 +61,7 @@ import { useOpenInPreferredEditor } from "../editorPreferences";
 import { resolvePathLinkTarget } from "@t3tools/shared/fileLinks";
 import { isTerminalUrl } from "../terminal-links";
 import {
-  isDiffToggleShortcut,
   isTerminalClearShortcut,
-  isTerminalNewShortcut,
-  isTerminalSplitShortcut,
-  isTerminalSplitVerticalShortcut,
-  isTerminalToggleShortcut,
   terminalDeleteShortcutData,
   terminalNavigationShortcutData,
 } from "../keybindings";
@@ -458,7 +453,7 @@ interface TerminalViewportProps {
   terminalId: string;
   terminalLabel: string;
   cwd: string;
-  worktreePath?: string | null;
+  workingDirectory?: string | null;
   runtimeEnv?: Record<string, string>;
   providerInstanceId?: ProviderInstanceId;
   onSessionExited: () => void;
@@ -471,7 +466,7 @@ interface TerminalViewportProps {
 
 interface TerminalLaunchLocation {
   readonly cwd: string;
-  readonly worktreePath?: string | null;
+  readonly workingDirectory?: string | null;
   readonly runtimeEnv?: Record<string, string>;
 }
 
@@ -481,7 +476,7 @@ export function TerminalViewport(props: TerminalViewportProps) {
     props.threadId,
     props.terminalId,
     props.cwd,
-    props.worktreePath ?? null,
+    props.workingDirectory ?? null,
     runtimeEnvSignature(props.runtimeEnv),
   ]);
   return <TerminalSessionViewport key={sessionKey} {...props} />;
@@ -494,7 +489,7 @@ function TerminalSessionViewport({
   terminalId,
   terminalLabel,
   cwd,
-  worktreePath,
+  workingDirectory,
   runtimeEnv,
   providerInstanceId,
   onSessionExited,
@@ -564,7 +559,7 @@ function TerminalSessionViewport({
     threadId,
     terminalId,
     cwd,
-    ...(worktreePath !== undefined ? { worktreePath } : {}),
+    ...(workingDirectory !== undefined ? { workingDirectory } : {}),
     ...(runtimeEnv ? { env: runtimeEnv } : {}),
     ...(providerInstanceId ? { providerInstanceId } : {}),
   });
@@ -938,17 +933,7 @@ function TerminalSessionViewport({
 
       function handleBeforeKey(event: KeyboardEvent): boolean {
         const currentKeybindings = readKeybindings();
-        const options = { context: { terminalFocus: true, terminalOpen: true } };
         if (preventTerminalCloseShortcut(event, currentKeybindings)) {
-          return false;
-        }
-        if (
-          isTerminalToggleShortcut(event, currentKeybindings, options) ||
-          isTerminalSplitShortcut(event, currentKeybindings, options) ||
-          isTerminalSplitVerticalShortcut(event, currentKeybindings, options) ||
-          isTerminalNewShortcut(event, currentKeybindings, options) ||
-          isDiffToggleShortcut(event, currentKeybindings, options)
-        ) {
           return false;
         }
 
@@ -1160,7 +1145,7 @@ interface ThreadTerminalDrawerProps {
   threadRef: ScopedThreadRef;
   threadId: ThreadId;
   cwd: string;
-  worktreePath?: string | null;
+  workingDirectory?: string | null;
   runtimeEnv?: Record<string, string>;
   visible?: boolean;
   height: number;
@@ -1296,8 +1281,8 @@ function TerminalSplitPanes({
                 terminalId={terminalId}
                 terminalLabel={terminalLabelById.get(terminalId) ?? "Terminal"}
                 cwd={terminalLaunchLocation.cwd}
-                {...(terminalLaunchLocation.worktreePath !== undefined
-                  ? { worktreePath: terminalLaunchLocation.worktreePath }
+                {...(terminalLaunchLocation.workingDirectory !== undefined
+                  ? { workingDirectory: terminalLaunchLocation.workingDirectory }
                   : {})}
                 {...(terminalLaunchLocation.runtimeEnv
                   ? { runtimeEnv: terminalLaunchLocation.runtimeEnv }
@@ -1417,7 +1402,7 @@ export default function ThreadTerminalDrawer({
   threadRef,
   threadId,
   cwd,
-  worktreePath,
+  workingDirectory,
   runtimeEnv,
   visible = true,
   height,
@@ -1590,7 +1575,7 @@ export default function ThreadTerminalDrawer({
   const resolveTerminalLaunchLocation = (terminalId: string): TerminalLaunchLocation =>
     terminalLaunchLocationsById?.get(terminalId) ?? {
       cwd,
-      ...(worktreePath !== undefined ? { worktreePath } : {}),
+      ...(workingDirectory !== undefined ? { workingDirectory } : {}),
       ...(runtimeEnv ? { runtimeEnv } : {}),
     };
   const splitTerminalActionLabel = hasReachedSplitLimit

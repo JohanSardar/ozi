@@ -15,12 +15,6 @@ export interface ThreadCheckpointSummary {
   readonly checkpointTurnCount: number;
   readonly checkpointRef: CheckpointRef;
   readonly status: "ready" | "missing" | "error" | "stale";
-  readonly files: ReadonlyArray<{
-    readonly path: string;
-    readonly kind: string;
-    readonly additions: number;
-    readonly deletions: number;
-  }>;
   readonly assistantMessageId: MessageId | null;
   readonly completedAt: string;
 }
@@ -42,7 +36,6 @@ export function deriveThreadCheckpointSummaries(
         checkpointTurnCount: checkpoint.appRunOrdinal,
         checkpointRef: checkpoint.ref,
         status: checkpoint.status,
-        files: checkpoint.files,
         assistantMessageId,
         completedAt: DateTime.formatIso(checkpoint.capturedAt),
       },

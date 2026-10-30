@@ -10,13 +10,7 @@ import * as TextGenerationOperations from "@t3tools/provider-core/server/textGen
 import * as OpenCodeRuntime from "./OpenCodeRuntime.ts";
 import * as OpenCodeServerOwner from "./OpenCodeServerOwner.ts";
 
-const OpenCodeTextGenerationOperation = Schema.Literals([
-  "generateCommitMessage",
-  "generatePrContent",
-  "generateBranchName",
-  "generateThreadTitle",
-  "generateReviewGuide",
-]);
+const OpenCodeTextGenerationOperation = Schema.Literals(["generateThreadTitle"]);
 
 const openCodeTextGenerationErrorContext = {
   operation: OpenCodeTextGenerationOperation,
@@ -344,8 +338,5 @@ export const makeOpenCodeTextGeneration = Effect.fn("makeOpenCodeTextGeneration"
     return yield* TextGenerationOperations.decodeJsonReply(input, "OpenCode", rawOutput);
   });
 
-  return TextGenerationOperations.fromRunner(
-    "OpenCodeTextGeneration",
-    TextGenerationOperations.withoutInvestigation("OpenCode", runOpenCodeJson),
-  );
+  return TextGenerationOperations.fromRunner("OpenCodeTextGeneration", runOpenCodeJson);
 });

@@ -37,7 +37,7 @@ function makeReport(overrides: Partial<ClientActivityReportInput> = {}): ClientA
     visible: true,
     focused: true,
     recentlyInteracted: true,
-    scopes: [{ type: "vcs-status", cwd: "/repo" }],
+    scopes: [{ type: "diagnostics" }],
     ttlMs: 45_000,
     observedAt: TEST_NOW,
     ...overrides,
@@ -154,7 +154,7 @@ describe("BackgroundPolicy", () => {
       const snapshot = yield* policy.snapshot;
       assert.equal(snapshot.activeForegroundLeaseCount, 1);
       assert.equal(snapshot.shouldRunOpportunisticWork, false);
-      assert.equal(yield* policy.shouldRunScopeWork({ type: "vcs-status", cwd: "/repo" }), false);
+      assert.equal(yield* policy.shouldRunScopeWork({ type: "diagnostics" }), false);
     }).pipe(
       Effect.provide(
         layerFor({
@@ -178,7 +178,7 @@ describe("BackgroundPolicy", () => {
       const snapshot = yield* policy.snapshot;
       assert.equal(snapshot.activeForegroundLeaseCount, 0);
       assert.deepStrictEqual(snapshot.activeScopeKeys, ["vcs-status:/repo"]);
-      assert.equal(yield* policy.shouldRunScopeWork({ type: "vcs-status", cwd: "/repo" }), false);
+      assert.equal(yield* policy.shouldRunScopeWork({ type: "diagnostics" }), false);
     }).pipe(Effect.provide(layerFor(nominalHostPower))),
   );
 
@@ -194,7 +194,7 @@ describe("BackgroundPolicy", () => {
       const snapshot = yield* policy.snapshot;
       assert.equal(snapshot.activeForegroundLeaseCount, 1);
       assert.equal(snapshot.shouldRunOpportunisticWork, true);
-      assert.equal(yield* policy.shouldRunScopeWork({ type: "vcs-status", cwd: "/repo" }), true);
+      assert.equal(yield* policy.shouldRunScopeWork({ type: "diagnostics" }), true);
     }).pipe(Effect.provide(layerFor(nominalHostPower))),
   );
 
@@ -207,7 +207,7 @@ describe("BackgroundPolicy", () => {
         makeReport(),
       );
 
-      assert.equal(yield* policy.shouldRunScopeWork({ type: "vcs-status", cwd: "/repo" }), false);
+      assert.equal(yield* policy.shouldRunScopeWork({ type: "diagnostics" }), false);
     }).pipe(
       Effect.provide(
         layerFor(
@@ -231,7 +231,7 @@ describe("BackgroundPolicy", () => {
         makeReport(),
       );
 
-      assert.equal(yield* policy.shouldRunScopeWork({ type: "vcs-status", cwd: "/repo" }), true);
+      assert.equal(yield* policy.shouldRunScopeWork({ type: "diagnostics" }), true);
     }).pipe(
       Effect.provide(
         layerFor(
