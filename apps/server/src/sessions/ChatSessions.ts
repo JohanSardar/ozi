@@ -42,6 +42,7 @@ import * as ServerSettings from "../serverSettings.ts";
 import * as ThreadManagement from "../orchestration-v2/ThreadManagementService.ts";
 import * as ProviderSessionManager from "../orchestration-v2/ProviderSessionManager.ts";
 import * as EventSink from "../orchestration-v2/EventSink.ts";
+import * as PiConfig from "./PiConfig.ts";
 import { attachmentRelativePath } from "../attachmentStore.ts";
 
 const PiRecord = Schema.Struct({
@@ -207,6 +208,9 @@ const make = Effect.gen(function* () {
   const settings = yield* ServerSettings.ServerSettingsService;
   const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
   const crypto = yield* Crypto.Crypto;
+  const piConfigContext = yield* Effect.context<
+    Crypto.Crypto | FileSystem.FileSystem | Path.Path
+  >();
   const uuid = () => crypto.randomUUIDv4().pipe(Effect.orDie);
   const commandId = () => uuid().pipe(Effect.map(CommandId.make));
   const load = (id: ThreadId) => threads.getThreadProjection(id);
@@ -427,7 +431,12 @@ const make = Effect.gen(function* () {
           );
           return { threadId: input.threadId, stdout, stderr, exitCode: Number(exitCode) };
         }),
-      ).pipe(Effect.timeout("2 minutes"));
+      ).pipe(
+        Effect.timeout("2 minutes"),
+        Effect.ensuring(
+          PiConfig.invalidate(config.baseDir).pipe(Effect.provide(piConfigContext), Effect.orDie),
+        ),
+      );
     }
     const providerThread = projection.providerThreads.find(
       (item) =>

@@ -116,7 +116,7 @@ Explicit completion checks judge only the worker's assigned obligations and prop
 
 Pi receives runtime-owned input provenance alongside each prompt. Real requests persist their GUI message ID in native history; worker completion notifications retain that request instead of resetting completion rounds. The provenance follows both new turns and steering, and survives native session reloads.
 
-Local and remote `ozi pi` load the selected harness and its configured launch arguments. Ozi uses the bundled subscription bridge, data root and agent directory. Native Pi configuration/package commands retain their original arguments.
+Local and remote `ozi pi` load the selected harness and its configured launch arguments. Ozi uses the bundled subscription bridge, data root and agent directory. Native Pi configuration/package commands retain their original arguments. After a local or remote `ozi pi` command exits, each running Pi chat reloads its configuration before its next turn through the session reload path, preserving native history. Configuration changes never interrupt an active turn.
 
 The single-origin development proxy forwards session WebSockets under `/mcp`, so paired `ozi main` and `ozi pi` clients use the same public origin as the GUI.
 

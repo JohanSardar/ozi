@@ -25,6 +25,7 @@ import * as Path from "effect/Path";
 import * as Predicate from "effect/Predicate";
 import * as Schema from "effect/Schema";
 
+import * as PiConfig from "../sessions/PiConfig.ts";
 import * as ServerConfig from "../config.ts";
 import * as ProviderAuthService from "../provider/ProviderAuthService.ts";
 import * as ServerSettings from "../serverSettings.ts";
@@ -124,6 +125,11 @@ export const layer: Layer.Layer<
     const providerSessions = yield* ProviderSessionManager.ProviderSessionManagerV2;
     const runExecution = yield* RunExecutionService.RunExecutionServiceV2;
     const runtimePolicy = yield* RuntimePolicy.RuntimePolicyV2;
+    const piConfigRevisions = new Map<string, string>();
+    const piConfigContext = yield* Effect.context<FileSystem.FileSystem | Path.Path>();
+    const piConfigRevision = PiConfig.revision((yield* ServerConfig.ServerConfig).baseDir).pipe(
+      Effect.provide(piConfigContext),
+    );
 
     // Build draining callbacks outside startup scope so they cannot retain full thread history.
     const makeRunControls = (input: {
@@ -608,6 +614,16 @@ export const layer: Layer.Layer<
         });
         if (!repaired.committed) return;
       }
+      const configRevision = providerThread.driver === "pi" ? yield* piConfigRevision : "";
+      if (
+        providerThread.driver === "pi" &&
+        configRevision !== (piConfigRevisions.get(providerSessionId) ?? "")
+      ) {
+        yield* providerSessions.detach({
+          providerSessionId,
+          threadId: projection.thread.id,
+        });
+      }
       const sessionResult = yield* Effect.result(
         providerSessions.open({
           threadId: projection.thread.id,
@@ -638,6 +654,7 @@ export const layer: Layer.Layer<
         return;
       }
       const session = sessionResult.success;
+      if (session.driver === "pi") piConfigRevisions.set(providerSessionId, configRevision);
       if (!(yield* isCurrentAttemptInStatus("starting"))) return;
       const loadFromProvider = Effect.fn("ProviderTurnStartService.loadFromProvider")(function* (
         load: Effect.Effect<OrchestrationV2ProviderThread, ProviderAdapter.ProviderAdapterV2Error>,
