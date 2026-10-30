@@ -38,7 +38,13 @@ if (
     // Windows desktop launches without stdin; attach before reading, except on fast paths using pipes.
     const { attachConsoleStdin } = await import("./cli/consoleStdin.ts");
     attachConsoleStdin();
-    const { runCli } = await import("./binCli.ts");
-    runCli();
+    if (command === "-p" || command === "--print") process.argv[2] = "print";
+    if (["session", "print", "-p", "--print", "answer"].includes(command ?? "")) {
+      const { runSessionCli } = await import("./cli/chatSessions.ts");
+      runSessionCli();
+    } else {
+      const { runCli } = await import("./binCli.ts");
+      runCli();
+    }
   }
 }

@@ -1,5 +1,6 @@
 import * as Tickets from "./tickets/Tickets.ts";
 import * as TicketClearing from "./tickets/TicketClearing.ts";
+import * as ChatSessions from "./sessions/ChatSessions.ts";
 import { OrchestrationDispatchCommandError } from "@t3tools/contracts";
 import * as Context from "effect/Context";
 import * as Crypto from "effect/Crypto";
@@ -1299,6 +1300,7 @@ export const layerWsRpc = (
         yield* RepositoryIdentityResolver.RepositoryIdentityResolver;
       const projectEnrichment = yield* ProjectEnrichmentService.ProjectEnrichmentService;
       const agentSessionScanner = yield* AgentSessionScanner.AgentSessionScanner;
+      const chatSessions = yield* ChatSessions.ChatSessions;
       const agentSessionImporter = yield* AgentSessionImporter.AgentSessionImporter;
       const checkpointDiffQuery = yield* CheckpointDiffQuery.CheckpointDiffQuery;
       const keybindings = yield* Keybindings.Keybindings;
@@ -2828,6 +2830,9 @@ export const layerWsRpc = (
           ),
         [WS_METHODS.attachmentsCreateUploadUrl]: (input) => issueAttachmentUploadUrl(input),
         [WS_METHODS.attachmentsDelete]: (input) => deletePendingAttachment(input.attachmentId),
+        [WS_METHODS.chatSessionsExecute]: (input) => chatSessions.execute(input),
+        [WS_METHODS.chatSessionsPrint]: (input) => chatSessions.print(input),
+        [WS_METHODS.chatSessionsAnswer]: (input) => chatSessions.answer(input),
         [WS_METHODS.agentSessionsScan]: () => agentSessionScanner.scan,
         [WS_METHODS.agentSessionsImport]: (input) =>
           agentSessionImporter.importRecentAgentThreads(input),

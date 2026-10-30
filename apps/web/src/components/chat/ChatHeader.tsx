@@ -1,3 +1,4 @@
+import { ChatSessionsMenu } from "./ChatSessionsMenu";
 import {
   AuthOrchestrationOperateScope,
   type EnvironmentId,
@@ -441,6 +442,14 @@ export const ChatHeader = memo(function ChatHeader({
           ) : null}
         </WorkspaceBreadcrumbItem>
       </WorkspaceBreadcrumb>
+      {isServerThread && canOperateThread ? (
+        <ChatSessionsMenu
+          key={activeThreadId}
+          environmentId={activeThreadEnvironmentId}
+          threadId={activeThreadId}
+          onOpenThread={onOpenThread}
+        />
+      ) : null}
       {isServerThread ? <GuestShareIndicator threadRef={activeThreadRef} /> : null}
     </div>
   );

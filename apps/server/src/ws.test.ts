@@ -1,6 +1,7 @@
 import * as Tickets from "./tickets/Tickets.ts";
 import * as TicketClearing from "./tickets/TicketClearing.ts";
 import * as NodeServices from "@effect/platform-node/NodeServices";
+import * as ChatSessions from "./sessions/ChatSessions.ts";
 import { assert, it } from "@effect/vitest";
 import {
   AuthSessionId,
@@ -532,6 +533,7 @@ const layerUnusedConfigRpcServices = Layer.mergeAll(
   Layer.mock(TerminalManager.TerminalManager)({}),
   Layer.mock(ThreadLaunchService.ThreadLaunchService)({}),
   Layer.mock(ThreadManagement.ThreadManagementService)({}),
+  Layer.mock(ChatSessions.ChatSessions)({}),
   Layer.mock(ThreadSearch.ThreadSearch)({}),
   Layer.mock(UsageService.UsageService)({}),
   Layer.mock(VcsProvisioningService.VcsProvisioningService)({}),

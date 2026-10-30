@@ -68,3 +68,4 @@ export * from "./worktreeSetup.ts";
 export * from "./secretRequest.ts";
 export * from "./clientRpcPermissions.ts";
 export * from "./ticket.ts";
+export * from "./chatSessions.ts";

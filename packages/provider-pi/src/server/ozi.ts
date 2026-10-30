@@ -7,6 +7,10 @@ import * as FileSystem from "effect/FileSystem";
 import * as ProviderHost from "@t3tools/provider-core/server/ProviderHost";
 import type { PiSettings } from "../settings.ts";
 
+export const bundledPiBinary = NodeURL.fileURLToPath(
+  new URL("./cli.js", import.meta.resolve("@earendil-works/pi-coding-agent")),
+);
+
 const SYSTEM = `You are Ozi, the user's one point of contact. Never do the work yourself: delegate execution, research and checking, and stay available. Answer directly only from existing knowledge.
 
 Keep one job per outcome. Brief workers with the user's request, context, authority and success evidence. Confirm they started, relay changes, supervise to completion. Dispatch or a worker's claim is not success. Reconcile after interruption; never duplicate work.
@@ -46,9 +50,6 @@ export const prepareOzi = Effect.fn("PiProvider.prepareOzi")(function* (
   const extension = path.dirname(
     NodeURL.fileURLToPath(import.meta.resolve("@ozi/pi/package.json")),
   );
-  const binary = NodeURL.fileURLToPath(
-    new URL("./cli.js", import.meta.resolve("@earendil-works/pi-coding-agent")),
-  );
   const encodeArgument = Schema.encodeEffect(Schema.fromJsonString(Schema.String));
   const extensionArg = yield* encodeArgument(extension);
   const rootArg = yield* encodeArgument(root);
@@ -56,7 +57,7 @@ export const prepareOzi = Effect.fn("PiProvider.prepareOzi")(function* (
     settings: {
       ...settings,
       binaryPath:
-        settings.binaryPath && settings.binaryPath !== "pi" ? settings.binaryPath : binary,
+        settings.binaryPath && settings.binaryPath !== "pi" ? settings.binaryPath : bundledPiBinary,
       launchArgs: `${settings.launchArgs} --extension ${extensionArg} --ozi-data-root ${rootArg}`,
     },
     environment: { ...environment, PI_CODING_AGENT_DIR: agentDir, OZI_DATA_ROOT: root },
