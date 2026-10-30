@@ -1,7 +1,5 @@
 import { assert, it } from "@effect/vitest";
 import {
-  CheckpointId,
-  CheckpointScopeId,
   CommandId,
   NodeId,
   ProviderSessionId,
@@ -11,7 +9,6 @@ import {
   RunId,
   RuntimeRequestId,
   ThreadId,
-  VcsProcessExitError,
 } from "@t3tools/contracts";
 import * as Cause from "effect/Cause";
 import * as DateTime from "effect/DateTime";
@@ -23,7 +20,6 @@ import * as Option from "effect/Option";
 import * as Ref from "effect/Ref";
 
 import * as CheckpointRollbackService from "./CheckpointRollbackService.ts";
-import * as CheckpointService from "./CheckpointService.ts";
 import * as EffectOutbox from "./EffectOutbox.ts";
 import * as EffectWorker from "./EffectWorker.ts";
 import * as RunFinalizationService from "./RunFinalizationService.ts";
@@ -200,75 +196,6 @@ it.effect("settles a stopped run when its adapter has already lost the native tu
       });
     }).pipe(Effect.provide(layer));
     assert.deepEqual(yield* Ref.get(events), ["thread.background-work.settle"]);
-  }),
-);
-
-const lockedIndexMessage =
-  "Git's index is locked. Wait for other Git operations to finish, then try again.";
-const rollbackCheckpointId = CheckpointId.make("checkpoint:effect-worker-rollback");
-const rollbackScopeId = CheckpointScopeId.make("checkpoint-scope:effect-worker-rollback");
-const restoreFailure = (detail: string) =>
-  new CheckpointRollbackService.CheckpointRollbackExecutionError({
-    reason: "unexpected-failure",
-    threadId,
-    providerThreadId,
-    checkpointId: rollbackCheckpointId,
-    cause: new CheckpointService.CheckpointRestoreError({
-      scopeId: rollbackScopeId,
-      checkpointId: rollbackCheckpointId,
-      cause: new VcsProcessExitError({
-        operation: "GitVcsDriverCore.restoreCheckpoint",
-        command: "git",
-        cwd: "/private/repo",
-        exitCode: 128,
-        detail,
-        failureKind: "command-failed",
-      }),
-    }),
-  });
-
-it.effect.each([
-  {
-    name: "a held Git index lock",
-    failure: restoreFailure(lockedIndexMessage),
-    message: lockedIndexMessage,
-  },
-  {
-    name: "raw Git output",
-    failure: restoreFailure("error: could not clean /private/repo/secret.txt"),
-    message: CheckpointRollbackService.ROLLBACK_FAILED_MESSAGE,
-  },
-])("reports a rollback blocked by $name only after the last attempt", ({ failure, message }) =>
-  Effect.gen(function* () {
-    const now = yield* DateTime.now;
-    const failures = yield* Ref.make<ReadonlyArray<string>>([]);
-    const layer = layerExecutorFor({
-      events: yield* Ref.make<ReadonlyArray<string>>([]),
-      rollback: () => Effect.fail(failure),
-      threads: {
-        dispatch: (command) =>
-          Ref.update(failures, (current) =>
-            command.type === "checkpoint.rollback.fail" ? [...current, command.message] : current,
-          ).pipe(Effect.as({ sequence: 1, storedEvents: [] })),
-      },
-    });
-    yield* Effect.gen(function* () {
-      const executor = yield* EffectWorker.OrchestrationEffectExecutorV2;
-      const rollback: EffectOutbox.OrchestrationEffectV2 = {
-        ...restartEffect(now, { type: "detach" }),
-        request: {
-          type: "provider-thread.rollback",
-          providerThreadId,
-          checkpointId: rollbackCheckpointId,
-          scopeId: rollbackScopeId,
-          restoreFiles: true,
-        },
-      };
-      yield* Effect.flip(executor.execute(rollback, { willRetry: true }));
-      assert.deepEqual(yield* Ref.get(failures), []);
-      yield* Effect.flip(executor.execute(rollback, { willRetry: false }));
-    }).pipe(Effect.provide(layer));
-    assert.deepEqual(yield* Ref.get(failures), [message]);
   }),
 );
 

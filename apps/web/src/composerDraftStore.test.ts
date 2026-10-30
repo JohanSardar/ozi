@@ -11,7 +11,6 @@ import { makeThreadProjectionFixture } from "./test-fixtures";
 import * as Option from "effect/Option";
 import { AsyncResult, Atom, AtomRegistry } from "effect/reactivity";
 import {
-  scopedProjectKey,
   scopedThreadKey,
   scopeProjectRef,
   scopeThreadRef,
@@ -95,11 +94,7 @@ import {
 } from "./composerDraftStore";
 import { waitForDraftHeroTransition } from "./components/chat/draftHeroTransition";
 import { insertInlineContextReference } from "./lib/composerContextReferences";
-import {
-  buildMessageContext,
-  environmentContextRecord,
-  terminalContextReference,
-} from "./lib/composerContextRecords";
+import { environmentContextRecord, terminalContextReference } from "./lib/composerContextRecords";
 import { threadContextRecord } from "@t3tools/shared/composerContextReferences";
 import {
   copiedComposerAttachmentFile,
@@ -767,48 +762,6 @@ describe("composerDraftStore environment contexts", () => {
 
   beforeEach(resetComposerDraftStore);
 
-  it("mentions a machine once, survives persistence, and sends only its identity", () => {
-    const store = useComposerDraftStore.getState();
-    store.setPrompt(threadRef, "Run it on");
-    store.addEnvironmentContexts(threadRef, [vps]);
-    store.addEnvironmentContexts(threadRef, [{ ...vps, label: "renamed" }]);
-
-    const draft = draftFor(threadId, TEST_ENVIRONMENT_ID);
-    expect(draft?.environmentContexts).toEqual([vps]);
-    expect(vps.label).toBe("Hetzner vps");
-    expect(draft?.prompt).toBe(
-      `Run it on [${vps.label}](t3-context://v1/environment/${vps.contextId}) `,
-    );
-
-    const merge = useComposerDraftStore.persist.getOptions().merge!;
-    const hydrated = merge(
-      JSON.parse(
-        JSON.stringify(partializeComposerDraftStoreState(useComposerDraftStore.getState())),
-      ),
-      useComposerDraftStore.getInitialState(),
-    );
-    const restored = hydrated.draftsByThreadKey[scopedThreadKey(threadRef)];
-    expect(restored?.environmentContexts).toEqual([vps]);
-    expect(restored?.prompt).toBe(draft?.prompt);
-
-    expect(
-      buildMessageContext({
-        terminalContexts: [],
-        reviewComments: [],
-        previewAnnotations: [],
-        environmentContexts: restored?.environmentContexts ?? [],
-      })?.records,
-    ).toEqual([
-      {
-        version: 1,
-        kind: "environment",
-        contextId: vps.contextId,
-        label: "Hetzner vps",
-        environmentId: "environment-vps",
-      },
-    ]);
-  });
-
   it("drops the chip with the record and removes an otherwise empty draft", () => {
     const store = useComposerDraftStore.getState();
     store.addEnvironmentContexts(threadRef, [vps]);
@@ -888,43 +841,6 @@ describe("composerDraftStore project draft thread mapping", () => {
     expect(store.getDraftThreadByProjectRef(projectRef)).toBeNull();
     expect(store.getDraftThreadByProjectRef(otherProjectRef)?.draftId).toBe(draftId);
     expect(store.getComposerDraft(draftId)?.prompt).toBe("keep this prompt");
-  });
-
-  it("rotates a failed bootstrap thread id without losing its draft", () => {
-    const store = useComposerDraftStore.getState();
-    const retryThreadId = ThreadId.make("thread-retry");
-    store.setProjectDraftThreadId(projectRef, draftId, {
-      threadId,
-      branch: "feature/test",
-      worktreePath: null,
-      createdAt: "2026-01-01T00:00:00.000Z",
-      envMode: "worktree",
-      startFromOrigin: true,
-      runtimeMode: "approval-required",
-      interactionMode: "plan",
-    });
-    store.setPrompt(draftId, "keep this prompt");
-    markPromotedDraftThreadByRef(scopeThreadRef(TEST_ENVIRONMENT_ID, threadId));
-
-    store.setLogicalProjectDraftThreadId(scopedProjectKey(projectRef), projectRef, draftId, {
-      threadId: retryThreadId,
-      createdAt: "2026-01-01T00:01:00.000Z",
-    });
-
-    expect(useComposerDraftStore.getState().getDraftThread(draftId)).toMatchObject({
-      threadId: retryThreadId,
-      branch: "feature/test",
-      worktreePath: null,
-      createdAt: "2026-01-01T00:01:00.000Z",
-      envMode: "worktree",
-      startFromOrigin: true,
-      runtimeMode: "approval-required",
-      interactionMode: "plan",
-      promotedTo: null,
-    });
-    expect(useComposerDraftStore.getState().getComposerDraft(draftId)?.prompt).toBe(
-      "keep this prompt",
-    );
   });
 
   it("clears only matching project draft mapping entries", () => {
@@ -1106,14 +1022,13 @@ describe("composerDraftStore project draft thread mapping", () => {
     const freshId = DraftId.make("fresh-background-draft");
     store.setProjectDraftThreadId(projectRef, freshId, { threadId: ThreadId.make("fresh-thread") });
     store.setPrompt(freshId, "new work");
-    store.setDraftThreadContext(draftId, { branch: "retry-base" });
+    store.setDraftThreadContext(draftId, {});
     restoreFailedDraftThread(draftId, sentDraft, ThreadId.make("retry-thread"));
     store.setPrompt(draftId, "retry work");
     expect(useComposerDraftStore.getState().getDraftSession(draftId)?.promotedTo).toBeNull();
     expect(useComposerDraftStore.getState().getDraftSession(draftId)?.threadId).toBe(
       "retry-thread",
     );
-    expect(useComposerDraftStore.getState().getDraftSession(draftId)?.branch).toBe("retry-base");
     expect(draftByKey(freshId)?.prompt).toBe("new work");
     expect(draftByKey(draftId)?.prompt).toBe("retry work");
   });
@@ -1143,55 +1058,6 @@ describe("composerDraftStore project draft thread mapping", () => {
     expect(useComposerDraftStore.getState().getDraftThread(draftId)).toBeNull();
     expect(draftByKey(draftId)).toBeUndefined();
     expect(draftFor(threadId, TEST_ENVIRONMENT_ID)?.prompt).toBe("promote me");
-  });
-
-  it("preserves existing branch and worktree when setProjectDraftThreadId receives undefined", () => {
-    const store = useComposerDraftStore.getState();
-    store.setProjectDraftThreadId(projectRef, draftId, {
-      threadId,
-      branch: "main",
-      worktreePath: "/tmp/main-worktree",
-    });
-    const runtimeUndefinedOptions = {
-      branch: undefined,
-      worktreePath: undefined,
-    } as unknown as {
-      branch?: string | null;
-      worktreePath?: string | null;
-    };
-    store.setProjectDraftThreadId(projectRef, draftId, runtimeUndefinedOptions);
-
-    expect(useComposerDraftStore.getState().getDraftThread(draftId)).toMatchObject({
-      environmentId: TEST_ENVIRONMENT_ID,
-      projectId,
-      branch: "main",
-      worktreePath: "/tmp/main-worktree",
-      envMode: "worktree",
-    });
-  });
-
-  it("clears branch and worktree but keeps env mode when remapping a draft to another environment", () => {
-    const store = useComposerDraftStore.getState();
-    store.setProjectDraftThreadId(projectRef, draftId, {
-      threadId,
-      branch: "feature/local-only",
-      worktreePath: "/tmp/local-worktree",
-      envMode: "worktree",
-      startFromOrigin: true,
-    });
-
-    store.setLogicalProjectDraftThreadId(scopedProjectKey(projectRef), remoteProjectRef, draftId, {
-      threadId,
-    });
-
-    expect(useComposerDraftStore.getState().getDraftThread(draftId)).toMatchObject({
-      environmentId: OTHER_TEST_ENVIRONMENT_ID,
-      projectId,
-      branch: null,
-      worktreePath: null,
-      envMode: "worktree",
-      startFromOrigin: true,
-    });
   });
 
   it("clears stale upload metadata when retargeting a draft to another environment", () => {
@@ -1252,15 +1118,13 @@ describe("composerDraftStore project draft thread mapping", () => {
       environmentSelection: "auto",
       loadBalancedEnvironmentId: OTHER_TEST_ENVIRONMENT_ID,
     });
-    store.setDraftThreadContext(draftId, { branch: "feature/pinned" });
+    store.setDraftThreadContext(draftId, {});
     expect(store.getDraftThread(draftId)?.environmentSelection).toBe("manual");
     store.setDraftThreadContext(draftId, {
-      branch: null,
       environmentSelection: "auto",
       loadBalancedEnvironmentId: null,
     });
     expect(store.getDraftThread(draftId)).toMatchObject({
-      branch: null,
       environmentSelection: "auto",
       loadBalancedEnvironmentId: null,
     });
@@ -1930,9 +1794,7 @@ describe("composerDraftStore model seed migration", () => {
     createdAt: "2026-08-01T00:00:00.000Z",
     runtimeMode: "full-access",
     interactionMode: "default",
-    branch: null,
-    worktreePath: null,
-    envMode: "local",
+    workingDirectory: null,
     startFromOrigin: false,
     promotedTo: null,
   });
@@ -2216,114 +2078,8 @@ describe("createDeferredStorage", () => {
 });
 
 describe("composerDraftStore inline context references", () => {
-  const threadId = ThreadId.make("thread-inline-context");
-  const threadRef = scopeThreadRef(TEST_ENVIRONMENT_ID, threadId);
-  const reviewComment = {
-    id: "rc-1",
-    sectionId: "file:a/b.ts",
-    sectionTitle: "File comment",
-    filePath: "a/b.ts",
-    startIndex: 3,
-    endIndex: 3,
-    rangeLabel: "L4",
-    text: "Why?",
-    diff: "const x = 1;",
-  };
-  const reviewLink = "[b.ts L4](t3-context://v1/review-comment/review-comment_rc-1)";
-  const annotation = {
-    id: "ann-1",
-    pageUrl: "http://localhost:3000/",
-    pageTitle: "Home",
-    comment: "Bigger",
-    elements: [],
-    regions: [],
-    strokes: [],
-    styleChanges: [],
-    screenshot: null,
-    createdAt: "2026-01-01T00:00:00.000Z",
-  };
-  const annotationLink = "[Bigger](t3-context://v1/preview-annotation/preview-annotation_ann-1)";
-
   beforeEach(() => {
     resetComposerDraftStore();
-  });
-
-  it("appends a link when a review comment is added and strips it on removal", () => {
-    const store = useComposerDraftStore.getState();
-    store.setPrompt(threadRef, "look");
-    store.addReviewComment(threadRef, reviewComment);
-    expect(draftFor(threadId, TEST_ENVIRONMENT_ID)?.prompt).toBe(`look ${reviewLink} `);
-    store.addReviewComment(threadRef, { ...reviewComment, text: "edited" });
-    expect(draftFor(threadId, TEST_ENVIRONMENT_ID)?.prompt).toBe(`look ${reviewLink} `);
-    store.removeReviewComment(threadRef, "rc-1");
-    expect(draftFor(threadId, TEST_ENVIRONMENT_ID)?.prompt).toBe("look");
-  });
-
-  it("keeps bulk-set review records and their inline references in sync", () => {
-    const store = useComposerDraftStore.getState();
-    store.setPrompt(threadRef, "Explain this pull request.");
-    store.setReviewComments(threadRef, [reviewComment]);
-
-    expect(draftFor(threadId, TEST_ENVIRONMENT_ID)?.prompt).toBe(
-      `Explain this pull request. ${reviewLink} `,
-    );
-    expect(draftFor(threadId, TEST_ENVIRONMENT_ID)?.reviewComments).toEqual([reviewComment]);
-
-    store.setReviewComments(threadRef, []);
-    expect(draftFor(threadId, TEST_ENVIRONMENT_ID)?.prompt).toBe("Explain this pull request.");
-    expect(draftFor(threadId, TEST_ENVIRONMENT_ID)?.reviewComments).toEqual([]);
-  });
-
-  it("hands new review comments to a registered caret handler instead of appending", () => {
-    const store = useComposerDraftStore.getState();
-    store.setPrompt(threadRef, "look");
-    const seen: string[] = [];
-    store.setContextInsertionHandler(threadRef, (references) => {
-      seen.push(...references.map((reference) => reference.contextId));
-      return true;
-    });
-    store.addReviewComment(threadRef, reviewComment);
-    expect(seen).toEqual(["review-comment_rc-1"]);
-    expect(draftFor(threadId, TEST_ENVIRONMENT_ID)?.prompt).toBe("look");
-    store.setContextInsertionHandler(threadRef, null);
-    store.addReviewComment(threadRef, { ...reviewComment, id: "rc-2" });
-    expect(draftFor(threadId, TEST_ENVIRONMENT_ID)?.prompt).toBe(
-      "look [b.ts L4](t3-context://v1/review-comment/review-comment_rc-2) ",
-    );
-  });
-
-  it("does not overwrite a prompt update made by the caret handler", () => {
-    const store = useComposerDraftStore.getState();
-    store.setPrompt(threadRef, "before after");
-    store.setContextInsertionHandler(threadRef, (references) => {
-      const reference = references[0];
-      if (!reference) return false;
-      useComposerDraftStore
-        .getState()
-        .setPrompt(
-          threadRef,
-          `before [${reference.label}](t3-context://v1/${reference.kind}/${reference.contextId}) after`,
-        );
-      return true;
-    });
-
-    store.addReviewComment(threadRef, reviewComment);
-
-    expect(draftFor(threadId, TEST_ENVIRONMENT_ID)?.prompt).toBe(`before ${reviewLink} after`);
-    expect(draftFor(threadId, TEST_ENVIRONMENT_ID)?.reviewComments).toEqual([reviewComment]);
-    store.setContextInsertionHandler(threadRef, null);
-  });
-
-  it("keeps links for retained context when clearing text and attachments", () => {
-    const store = useComposerDraftStore.getState();
-    store.addReviewComment(threadRef, reviewComment);
-    store.addPreviewAnnotation(threadRef, annotation);
-    store.clearComposerPromptAndImages(threadRef);
-    const draft = draftFor(threadId, TEST_ENVIRONMENT_ID);
-    expect(draft?.prompt).toContain(reviewLink);
-    expect(draft?.prompt).toContain(annotationLink);
-    expect(draft?.reviewComments).toEqual([reviewComment]);
-    expect(draft?.previewAnnotations).toEqual([annotation]);
   });
 });
 

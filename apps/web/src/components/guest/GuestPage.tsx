@@ -346,7 +346,6 @@ function NameForm({
 // The timeline needs an environment id to key its rows. Nothing behind it loads on this page;
 // see isGuestPage.
 const GUEST_ENVIRONMENT_ID = EnvironmentId.make("guest");
-const NO_TURN_DIFFS: ReadonlyArray<never> = [];
 const NO_OPTIMISTIC_MESSAGES: ReadonlyArray<never> = [];
 const ignore = () => {};
 
@@ -455,7 +454,6 @@ function GuestThread({
             activeTurnStartedAt={workStartedAt}
             latestRun={activityRun}
             runningRunId={runningRunId}
-            turnDiffSummaries={NO_TURN_DIFFS}
             runs={projection.runs}
             routeThreadKey={threadKey}
             onOpenThread={ignore}

@@ -48,8 +48,7 @@ export function threadCreated(
       },
       runtimeMode: "full-access",
       interactionMode: "default",
-      branch: null,
-      worktreePath: null,
+      workingDirectory: null,
       activeProviderThreadId: null,
       lineage: { parentThreadId: null, relationshipToParent: null, rootThreadId: threadId },
       forkedFrom: null,
@@ -350,12 +349,6 @@ export function longTurnThreadBatches(
           type: "checkpoint",
           checkpointId: CheckpointId.make(`long-turn-checkpoint-${index}-${row}`),
           scopeId: CheckpointScopeId.make(`long-turn-scope-${index}`),
-          files: Array.from({ length: 40 }, (_, file) => ({
-            path: `src/feature/module-${row}-${file}.ts`,
-            kind: "modified",
-            additions: file + 1,
-            deletions: file,
-          })),
         };
       }
       if (row % 100 === 99) {
@@ -455,7 +448,6 @@ export function shellFleetEvents(
     const settledAt = DateTime.makeUnsafe(Date.UTC(2026, 5, 3, 0, index));
     const settled = threadCreated(provider, threadId, {
       title: `Settled transfer thread ${index}`,
-      branch: `feature/settled-${index}`,
       settledOverride: "settled",
       settledAt,
       updatedAt: settledAt,

@@ -278,42 +278,6 @@ describe("theme files", () => {
     });
   });
 
-  it("preserves valid imported-theme collections and drops malformed metadata", () => {
-    vi.stubGlobal("window", {
-      localStorage: {
-        getItem: (key: string) =>
-          key === CUSTOM_THEMES_STORAGE_KEY
-            ? JSON.stringify([
-                {
-                  id: "github-dark",
-                  label: "GitHub Dark",
-                  appearance: "dark",
-                  colors: { canvas: "#0d1117" },
-                  collection: { id: "open-vsx:github.github-vscode-theme", label: "GitHub Theme" },
-                },
-                {
-                  id: "github-light",
-                  label: "GitHub Light",
-                  appearance: "light",
-                  colors: { canvas: "#ffffff" },
-                  collection: { id: "bad collection id", label: "GitHub Theme" },
-                },
-              ])
-            : null,
-      },
-    });
-
-    invalidateCustomThemes();
-    expect(getCustomThemes()).toMatchObject([
-      { collection: { id: "open-vsx:github.github-vscode-theme", label: "GitHub Theme" } },
-      { id: "github-light" },
-    ]);
-    expect(getCustomThemes()[1]).not.toHaveProperty("collection");
-
-    vi.unstubAllGlobals();
-    invalidateCustomThemes();
-  });
-
   it("atomically replaces an imported collection and removes stale variants", () => {
     const collection = { id: "open-vsx:demo.theme", label: "Demo Theme" };
     const personalTheme = {

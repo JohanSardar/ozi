@@ -1,8 +1,5 @@
 import { useAtomValue } from "@effect/atom-react";
-import {
-  type CheckpointDiffTarget,
-  type ComposerPathSearchTarget,
-} from "@t3tools/client-runtime/state/threads";
+import { type ComposerPathSearchTarget } from "@t3tools/client-runtime/state/threads";
 import {
   createThreadSearchResultsAtomFamily,
   makeThreadSearchKey,
@@ -14,7 +11,6 @@ import {
 } from "@t3tools/client-runtime/state/thread-search";
 import { THREAD_SEARCH_QUERY_MAX_LENGTH } from "@t3tools/contracts";
 import { messageSearchTokens } from "@t3tools/shared/paletteSearch";
-import { type VcsRefTarget } from "@t3tools/client-runtime/state/vcs";
 import type {
   EnvironmentId,
   OrchestrationV2GetTurnItemResult,
@@ -23,10 +19,7 @@ import type {
   ProjectEntryKind,
   ThreadId,
   TurnItemId,
-  VcsListRefsResult,
-  VcsRef,
 } from "@t3tools/contracts";
-import * as Cause from "effect/Cause";
 import { AsyncResult, Atom } from "effect/reactivity";
 import { useEffect, useState } from "react";
 
@@ -34,21 +27,16 @@ import { appAtomRegistry } from "../rpc/atomRegistry";
 import { useFilesystemReadAccess } from "./filesystem";
 import { orchestrationEnvironment } from "./orchestration";
 import { olderSettledThreads, threadFamilies } from "./threads";
-import { isPaginatedBranchesNextPagePending } from "./paginatedBranches";
 import { projectContentSearch, projectEnvironment } from "./projects";
 import { useEnvironmentQuery } from "./query";
-import { vcsEnvironment } from "./vcs";
 
 const PROJECT_PATH_SEARCH_DEBOUNCE_MS = 120;
 const COMPOSER_PATH_SEARCH_LIMIT = 80;
 const PROJECT_CONTENT_SEARCH_DEBOUNCE_MS = 120;
 const PROJECT_CONTENT_SEARCH_LIMIT = 500;
 const THREAD_SEARCH_DEBOUNCE_MS = 120;
-const VCS_REF_LIST_LIMIT = 100;
-const EMPTY_REFS: ReadonlyArray<VcsRef> = [];
 const EMPTY_PROJECT_ENTRIES: ReadonlyArray<ProjectEntry> = [];
 const EMPTY_CONTENT_MATCHES: ReadonlyArray<ProjectContentMatch> = [];
-const INITIAL_BRANCH_CURSORS = [undefined] as const;
 const EMPTY_THREAD_SEARCH_MATCHES: ReadonlyArray<EnvironmentThreadSearchMatch> = Object.freeze([]);
 const EMPTY_THREAD_SEARCH_ATOM = Atom.make<ThreadSearchResultsState>({
   matches: EMPTY_THREAD_SEARCH_MATCHES,
@@ -160,113 +148,6 @@ export function useThreadSearch(
     matches: visible.matches,
     query: visible.query,
     isPending,
-  };
-}
-
-function vcsRefPageAtom(targetKey: string, cursor: number | undefined) {
-  const [environmentId, cwd, query] = JSON.parse(targetKey) as [EnvironmentId, string, string];
-  return vcsEnvironment.listRefs({
-    environmentId,
-    input: {
-      cwd,
-      ...(query.length > 0 ? { query } : {}),
-      ...(cursor === undefined ? {} : { cursor }),
-      limit: VCS_REF_LIST_LIMIT,
-    },
-  });
-}
-
-const EMPTY_VCS_REF_PAGES_ATOM = Atom.make<
-  ReadonlyArray<Atom.Type<ReturnType<typeof vcsRefPageAtom>>>
->([]).pipe(Atom.withLabel("web:vcs-ref-pages:empty"));
-
-const vcsRefPagesAtom = Atom.family((pagesKey: string) => {
-  const [targetKey, cursors] = JSON.parse(pagesKey) as [string, Array<number | null>];
-  const pageAtoms = cursors.map((cursor) => vcsRefPageAtom(targetKey, cursor ?? undefined));
-  return Atom.make((get) => pageAtoms.map((atom) => get(atom))).pipe(
-    Atom.withLabel(`web:vcs-ref-pages:${pagesKey}`),
-  );
-});
-
-export function usePaginatedBranches(target: VcsRefTarget) {
-  // Leave unkeyed; mismatches already reset cursors, and a seeded key would break caching across the hook.
-  const [pagination, setPagination] = useState<{
-    readonly targetKey: string | null;
-    readonly cursors: ReadonlyArray<number | undefined>;
-  }>({
-    targetKey: null,
-    cursors: INITIAL_BRANCH_CURSORS,
-  });
-  const { environmentId, cwd } = target;
-  const query = target.query?.trim() ?? "";
-  const targetKey =
-    environmentId !== null && cwd !== null ? JSON.stringify([environmentId, cwd, query]) : null;
-  const cursors = pagination.targetKey === targetKey ? pagination.cursors : INITIAL_BRANCH_CURSORS;
-  const pagesKey = targetKey === null ? null : JSON.stringify([targetKey, cursors]);
-  const results = useAtomValue(
-    pagesKey === null ? EMPTY_VCS_REF_PAGES_ATOM : vcsRefPagesAtom(pagesKey),
-  );
-  const values = results.flatMap((result) => {
-    const value = AsyncResult.getOrElse(result, () => null);
-    return value === null ? [] : [value];
-  });
-  const refs = new Map<string, VcsRef>();
-  for (const value of values) {
-    for (const ref of value.refs) {
-      refs.set(ref.name, ref);
-    }
-  }
-  const first = values[0] ?? null;
-  const last = values.at(-1) ?? null;
-  const data: VcsListRefsResult | null =
-    first === null || last === null
-      ? null
-      : {
-          refs: [...refs.values()],
-          isRepo: first.isRepo,
-          hasPrimaryRemote: first.hasPrimaryRemote,
-          nextCursor: last.nextCursor,
-          totalCount: Math.max(...values.map((value) => value.totalCount)),
-        };
-  const failed = results.find((result) => result._tag === "Failure");
-  const isFetchingNextPage = isPaginatedBranchesNextPagePending(results);
-  const error =
-    failed?._tag === "Failure"
-      ? (() => {
-          const cause = Cause.squash(failed.cause);
-          return cause instanceof Error && cause.message.trim().length > 0
-            ? cause.message
-            : "Failed to load refs.";
-        })()
-      : null;
-  const refresh = () => {
-    setPagination({ targetKey, cursors: INITIAL_BRANCH_CURSORS });
-    if (targetKey !== null) {
-      appAtomRegistry.refresh(vcsRefPageAtom(targetKey, undefined));
-    }
-  };
-  const nextCursor = data?.nextCursor;
-  const loadNext = () => {
-    if (targetKey === null || nextCursor === null || nextCursor === undefined) {
-      return;
-    }
-    setPagination((current) => {
-      const currentCursors =
-        current.targetKey === targetKey ? current.cursors : INITIAL_BRANCH_CURSORS;
-      return currentCursors.includes(nextCursor)
-        ? { targetKey, cursors: currentCursors }
-        : { targetKey, cursors: [...currentCursors, nextCursor] };
-    });
-  };
-
-  return {
-    data,
-    refs: data?.refs ?? EMPTY_REFS,
-    error,
-    isPending: results.some((result) => result.waiting),
-    isFetchingNextPage,
-    refresh,
-    loadNext,
   };
 }
 
@@ -402,48 +283,6 @@ export function useProjectContentSearch(target: ProjectContentSearchTarget) {
     truncated: result.data?.truncated ?? false,
     invalidRegex: target.useRegex && result.data?.regexFallbackError !== undefined,
   };
-}
-
-export function useCheckpointDiff(
-  target: CheckpointDiffTarget,
-  options?: { readonly enabled?: boolean },
-) {
-  const enabled =
-    options?.enabled !== false &&
-    target.environmentId !== null &&
-    target.threadId !== null &&
-    target.fromTurnCount !== null &&
-    target.toTurnCount !== null;
-  const fullThreadTarget =
-    enabled && target.fromTurnCount === 0
-      ? {
-          environmentId: target.environmentId!,
-          input: {
-            threadId: target.threadId!,
-            toTurnCount: target.toTurnCount!,
-            ignoreWhitespace: target.ignoreWhitespace,
-          },
-        }
-      : null;
-  const turnTarget =
-    enabled && target.fromTurnCount !== 0
-      ? {
-          environmentId: target.environmentId!,
-          input: {
-            threadId: target.threadId!,
-            fromTurnCount: target.fromTurnCount!,
-            toTurnCount: target.toTurnCount!,
-            ignoreWhitespace: target.ignoreWhitespace,
-          },
-        }
-      : null;
-  const fullThread = useEnvironmentQuery(
-    fullThreadTarget === null ? null : orchestrationEnvironment.fullThreadDiff(fullThreadTarget),
-  );
-  const turn = useEnvironmentQuery(
-    turnTarget === null ? null : orchestrationEnvironment.turnDiff(turnTarget),
-  );
-  return fullThreadTarget === null ? turn : fullThread;
 }
 
 /** Reads one item's detail from somewhere other than the environment, as the guest page does. */

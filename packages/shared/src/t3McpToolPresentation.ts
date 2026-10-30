@@ -41,9 +41,6 @@ export type T3McpToolSummaryAction =
   | "question-read"
   | "question-respond"
   | "secret-request"
-  | "worktree-handoff"
-  | "worktree-list"
-  | "worktree-status"
   | "project-list"
   | "project-read"
   | "project-create"
@@ -72,7 +69,7 @@ export type T3McpToolSummaryAction =
 export interface T3McpToolDefinition {
   readonly displayName: string;
   readonly labels: readonly [action: string, running: string, completed: string, detail: string];
-  readonly icon: "t3-code" | "browser" | "pull-request";
+  readonly icon: "t3-code" | "browser";
   readonly summaryAction: T3McpToolSummaryAction;
 }
 
@@ -88,41 +85,6 @@ function tool(
 const OZI_MCP_SERVER_ALIASES = new Set(["t3-code", "t3_code", "t3code"]);
 
 const OZI_MCP_TOOLS: Readonly<Record<string, T3McpToolDefinition>> = {
-  link_pull_request: tool(
-    ["Link", "Linking", "Linked", "a pull request"],
-    "link-pr",
-    "pull-request",
-  ),
-  unlink_pull_request: tool(
-    ["Unlink", "Unlinking", "Unlinked", "a pull request"],
-    "unlink-pr",
-    "pull-request",
-  ),
-  list_thread_pull_requests: tool(
-    ["Check", "Checking", "Checked", "linked pull requests"],
-    "list-prs",
-    "pull-request",
-  ),
-  watch_pull_request: tool(
-    ["Watch", "Watching", "Watching", "a pull request"],
-    "watch-pr",
-    "pull-request",
-  ),
-  unwatch_pull_request: tool(
-    ["Stop watching", "Unwatching", "Stopped watching", "a pull request"],
-    "unwatch-pr",
-    "pull-request",
-  ),
-  write_pull_request_guides: tool(
-    ["Write", "Writing", "Started writing", "review guides"],
-    "write-pr-guides",
-    "pull-request",
-  ),
-  read_pull_request_guide: tool(
-    ["Read", "Reading", "Read", "a review guide"],
-    "read-pr-guide",
-    "pull-request",
-  ),
   orchestrator_capabilities: tool(
     ["Get", "Getting", "Got", "orchestration capabilities"],
     "capabilities",
@@ -165,11 +127,6 @@ const OZI_MCP_TOOLS: Readonly<Record<string, T3McpToolDefinition>> = {
     ["Interrupt", "Interrupting", "Requested an interrupt of", "a T3 thread"],
     "thread-interrupt",
   ),
-  t3_worktree_handoff: tool(
-    ["Hand off", "Handing off", "Handed off", "thread to a git worktree"],
-    "worktree-handoff",
-  ),
-  t3_worktree_status: tool(["Get", "Getting", "Got", "thread worktree status"], "worktree-status"),
   preview_status: tool(["Get", "Getting", "Got", "preview browser status"], "browser", "browser"),
   preview_open: tool(
     ["Open", "Opening", "Opened", "a page in the preview browser"],
@@ -304,7 +261,6 @@ const OZI_MCP_TOOLS: Readonly<Record<string, T3McpToolDefinition>> = {
   t3_thread_transfers: tool(["Read", "Reading", "Read", "thread transfers"], "thread-transfers"),
   t3_thread_organize: tool(["Organize", "Organizing", "Organized", "a thread"], "thread-organize"),
   t3_thread_update: tool(["Update", "Updating", "Updated", "T3 thread metadata"], "thread-update"),
-  t3_worktree_list: tool(["List", "Listing", "Listed", "workspace branches"], "worktree-list"),
   t3_preview_list: tool(["List", "Listing", "Listed", "preview tabs"], "browser", "browser"),
   t3_preview_close: tool(["Close", "Closing", "Closed", "a preview tab"], "browser", "browser"),
   t3_environment_read: tool(

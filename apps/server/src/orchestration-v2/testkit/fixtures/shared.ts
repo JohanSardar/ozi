@@ -420,8 +420,7 @@ function createThreadCommand(input: {
     modelSelection: input.modelSelection,
     runtimeMode: input.runtimeMode ?? "full-access",
     interactionMode: input.interactionMode ?? "default",
-    branch: null,
-    worktreePath: null,
+    workingDirectory: null,
   };
 }
 
@@ -864,7 +863,6 @@ export function materializeFixtureInput(input: {
             });
             pushDispatch({
               type: "checkpoint.rollback",
-              restoreFiles: false,
               commandId: yield* idAllocator.allocate.command({
                 fixtureName: input.scenario,
                 commandName: `rollback-${step.checkpointSuffix}`,

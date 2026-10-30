@@ -7,7 +7,6 @@ import {
   ThreadId,
   TrimmedNonEmptyString,
 } from "./baseSchemas.ts";
-import { ThreadLinkedPullRequest } from "./threadPullRequest.ts";
 import { ThreadTitleRegeneration } from "./threadTitle.ts";
 
 export function hasOnlyPairedSurrogates(value: string): boolean {
@@ -64,7 +63,6 @@ export const ThreadMetadataMcpUpdateResult = Schema.Struct({
   sequence: NonNegativeInt,
   title: Schema.String,
   titleRegeneration: Schema.NullOr(ThreadTitleRegeneration),
-  linkedPullRequest: Schema.NullOr(ThreadLinkedPullRequest),
   updatedAt: IsoDateTime,
 });
 export type ThreadMetadataMcpUpdateResult = typeof ThreadMetadataMcpUpdateResult.Type;

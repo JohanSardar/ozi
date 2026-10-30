@@ -11,9 +11,6 @@ export interface ProjectScriptInput {
   readonly name: ProjectScript["name"];
   readonly command: ProjectScript["command"];
   readonly icon: ProjectScript["icon"];
-  readonly runOnWorktreeCreate: ProjectScript["runOnWorktreeCreate"];
-  readonly waitForSetup: boolean;
-  readonly runOnSettle: boolean;
   readonly previewUrl: Exclude<ProjectScript["previewUrl"], undefined> | null;
   readonly autoOpenPreview: boolean;
 }
@@ -24,29 +21,12 @@ export function buildProjectScript(id: string, input: ProjectScriptInput): Proje
     name: input.name,
     command: input.command,
     icon: input.icon,
-    runOnWorktreeCreate: input.runOnWorktreeCreate,
-    ...(input.runOnWorktreeCreate && input.waitForSetup ? { async: false } : {}),
-    ...(input.runOnSettle ? { runOnSettle: true } : {}),
     ...(input.previewUrl === null
       ? {}
       : {
           previewUrl: input.previewUrl,
           autoOpenPreview: input.autoOpenPreview,
         }),
-  };
-}
-
-export function releaseClaimedRoles(
-  script: ProjectScript,
-  saved: ProjectScriptInput,
-): ProjectScript {
-  const releaseSetup = saved.runOnWorktreeCreate && script.runOnWorktreeCreate;
-  const releaseSettle = saved.runOnSettle && script.runOnSettle === true;
-  if (!releaseSetup && !releaseSettle) return script;
-  return {
-    ...script,
-    ...(releaseSetup ? { runOnWorktreeCreate: false } : {}),
-    ...(releaseSettle ? { runOnSettle: false } : {}),
   };
 }
 
@@ -101,6 +81,5 @@ export function nextProjectScriptId(name: string, existingIds: Iterable<string>)
 }
 
 export function primaryProjectScript(scripts: ReadonlyArray<ProjectScript>): ProjectScript | null {
-  const regular = scripts.find((script) => !script.runOnWorktreeCreate && !script.runOnSettle);
-  return regular ?? scripts.find((script) => !script.runOnSettle) ?? null;
+  return scripts[0] ?? null;
 }

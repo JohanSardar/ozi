@@ -1,4 +1,3 @@
-import { applyThreadPullRequestLinkUpdate } from "../threadPullRequests.ts";
 import type {
   OrchestrationV2DomainEvent,
   OrchestrationV2Run,
@@ -65,8 +64,6 @@ function upsertEntity<T extends { readonly id: unknown }>(
 function latestBodies(projection: OrchestrationV2ThreadProjection): DedupedBodySource {
   return {
     messageText: (id) => projection.messages.findLast((message) => message.id === id)?.text,
-    checkpointFiles: (id) =>
-      projection.checkpoints.findLast((checkpoint) => checkpoint.id === id)?.files,
     subagent: (id) => projection.subagents.findLast((subagent) => subagent.id === id),
   };
 }
@@ -267,11 +264,6 @@ export function applyOrchestrationV2ProjectionEvent(
   const latestLocalTurnOrdinal = options?.latestLocalTurnOrdinal;
   const base = { ...projection, updatedAt: event.occurredAt };
   switch (event.type) {
-    case "thread.pull-request-link-updated":
-      return {
-        ...base,
-        thread: applyThreadPullRequestLinkUpdate(projection.thread, event.payload),
-      };
     case "thread.created":
     case "thread.archived":
     case "thread.unarchived":
@@ -286,7 +278,6 @@ export function applyOrchestrationV2ProjectionEvent(
     case "thread.pin-reordered":
     case "thread.active-reordered":
     case "thread.metadata-updated":
-    case "thread.pull-request-synced":
     case "thread.runtime-mode-updated":
     case "thread.interaction-mode-updated":
     case "thread.model-selection-updated":

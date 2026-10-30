@@ -33,10 +33,6 @@ const DEFINITIONS = [
     capabilities: { details: "popover", expanded: "modal", defaultDraftView: "compact" },
   },
   {
-    kind: "review-comment",
-    capabilities: { details: "popover", expanded: "none", defaultDraftView: "compact" },
-  },
-  {
     kind: "mention",
     capabilities: { details: "none", expanded: "none", defaultDraftView: "compact" },
   },

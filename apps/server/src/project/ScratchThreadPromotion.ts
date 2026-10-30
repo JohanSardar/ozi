@@ -67,7 +67,7 @@ const make = Effect.gen(function* () {
     const project = yield* projects
       .getById(thread.projectId)
       .pipe(Effect.mapError(fail("Could not read the thread's project.")));
-    const folder = thread.worktreePath ?? Option.getOrUndefined(project)?.workspaceRoot;
+    const folder = thread.workingDirectory ?? Option.getOrUndefined(project)?.workspaceRoot;
     const scratchRoot = Option.getOrUndefined(yield* managedFolders.scratchRoot);
     const isScratch = yield* managedFolders.isScratchProject(thread.projectId);
     // A thread already rooted at its folder is a partial earlier promotion; finish it.
@@ -85,7 +85,7 @@ const make = Effect.gen(function* () {
     }
 
     const snapshot = yield* Effect.flatten(
-      threads.readShellSnapshot({ worktreePath: folder }),
+      threads.readShellSnapshot({ workingDirectory: folder }),
     ).pipe(Effect.mapError(fail("Could not read the threads in this folder.")));
     const moveSet = new Map<ThreadId, OrchestrationV2ThreadShell>();
     if (isScratch) moveSet.set(thread.id, thread);

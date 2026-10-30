@@ -158,7 +158,6 @@ const tools = [
 
 const system = (body: string) =>
   [
-    "You are a Macroscope Check Run Agent reviewing a GitHub pull request.",
     "Follow the check instructions below. Read the repository at the pull request head with read_file and grep.",
     "Leave inline review comments with post_comment. Then give your final response.",
     "",

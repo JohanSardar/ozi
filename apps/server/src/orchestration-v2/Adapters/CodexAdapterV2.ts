@@ -317,7 +317,6 @@ export const CodexProviderCapabilitiesV2 = {
     maxRecommendedHandoffChars: null,
   },
   checkpointing: {
-    appCanCheckpointFilesystem: true,
     supportsNestedCheckpointScopes: true,
     providerCanRollbackConversation: true,
     providerRollbackReturnsSnapshot: true,

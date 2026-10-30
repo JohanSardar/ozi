@@ -17,14 +17,7 @@ import {
   formatThreadTitleContext,
   type ThreadTitleMessage,
 } from "@t3tools/provider-core/server/threadTitleContext";
-import * as ThreadTitleLinks from "../../apps/server/src/textGeneration/ThreadTitleLinks.ts";
-import * as SourceControlProviderRegistry from "../../apps/server/src/sourceControl/SourceControlProviderRegistry.ts";
-import * as SourceControlBuiltInDrivers from "../../apps/server/src/sourceControl/builtInDrivers.ts";
 import * as ServerSettings from "../../apps/server/src/serverSettings.ts";
-import * as VcsProcess from "../../apps/server/src/vcs/VcsProcess.ts";
-import * as VcsDriverRegistry from "../../apps/server/src/vcs/VcsDriverRegistry.ts";
-import * as VcsProjectConfig from "../../apps/server/src/vcs/VcsProjectConfig.ts";
-import * as GitVcsDriver from "../../apps/server/src/vcs/GitVcsDriver.ts";
 import * as ProcessRunner from "../../apps/server/src/processRunner.ts";
 import * as ServerConfig from "../../apps/server/src/config.ts";
 
@@ -142,11 +135,8 @@ await Effect.runPromise(
       Layer.mergeAll(
         ProcessRunner.layer,
         SourceControlProviderRegistry.layer.pipe(
-          Layer.provide(SourceControlBuiltInDrivers.layer),
           Layer.provide(ServerSettings.layerTest()),
-          Layer.provide(VcsDriverRegistry.layer.pipe(Layer.provide(VcsProjectConfig.layer))),
-          Layer.provide(GitVcsDriver.layer),
-          Layer.provide(VcsProcess.layer),
+          Layer.provide(VcsDriverRegistry.layer),
           Layer.provide(FetchHttpClient.layer),
         ),
       ).pipe(

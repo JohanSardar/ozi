@@ -152,7 +152,6 @@ import {
   ComposerContextActionsContext,
   composerContextRecordsFromDraft,
 } from "../composerContextPresentation";
-import { useOpenPrLink } from "~/lib/openPullRequestLink";
 import {
   collectInlineContextIds,
   type ComposerContextReference,
@@ -166,9 +165,6 @@ import {
   uploadedAttachmentContextRecord,
   previewAnnotationContextId,
   previewAnnotationContextRecord,
-  reviewCommentContextId,
-  reviewCommentContextReference,
-  reviewCommentContextRecord,
   terminalContextReference,
   terminalContextRecord,
   threadContextReference,
@@ -180,7 +176,7 @@ import { useThreadContextDrop, threadContextDropTargetProps } from "./threadCont
 import { readThreadShell } from "~/state/entities";
 import { useLinkedEnvironments } from "~/state/peerLinks";
 import { encodeComposerContextFragment } from "@t3tools/shared/composerContextClipboard";
-import type { ComposerContextRecord, ThreadPullRequestLink } from "@t3tools/contracts";
+import type { ComposerContextRecord } from "@t3tools/contracts";
 import { threadContextAttachment } from "~/lib/threadContextAttachment";
 import {
   type ComposerCommandItem,
@@ -200,7 +196,6 @@ import { ComposerFooterPrimaryActions } from "./ComposerFooterControls";
 import { ComposerPendingUserInputPanel } from "./ComposerPendingUserInputPanel";
 import { ComposerPlanFollowUpBanner } from "./ComposerPlanFollowUpBanner";
 import { resolveComposerMenuActiveItemId } from "./composerMenuHighlight";
-import { buildPullRequestReferenceContext } from "../pullRequest/pullRequestDetail.logic";
 import { getComposerPromptInjectionState, getComposerReasoningStep } from "./composerProviderState";
 import { readPromptUltrathink } from "./TraitsPicker";
 import {
@@ -261,7 +256,6 @@ import { useSoftwareKeyboardOpen } from "../../hooks/useSoftwareKeyboardOpen";
 import { useStableCallback } from "../../hooks/useStableCallback";
 import { usePanelAnimationSettings } from "../../panelAnimations";
 import { readEnvironmentScope } from "../../state/session";
-import type { ReviewCommentContext } from "../../reviewCommentContext";
 import { useComposerRestingTransition } from "./useComposerRestingTransition";
 import { ComposerCommandMenuLayer } from "./ComposerCommandMenuLayer";
 import { useRestingComposerControlsLayout } from "./useRestingComposerControlsLayout";
@@ -324,7 +318,6 @@ export interface ChatComposerHandle {
     files: ComposerFileAttachment[];
     terminalContexts: TerminalContextDraft[];
     previewAnnotations: PreviewAnnotationPayload[];
-    reviewComments: ReviewCommentContext[];
     threadContexts: ThreadContextRecord[];
     environmentContexts: EnvironmentContextRecord[];
     selectedPromptEffort: string | null;
@@ -346,6 +339,7 @@ export interface ChatComposerProps {
   composerDraftTarget: ScopedThreadRef | DraftId;
   environmentId: EnvironmentId;
   canOperateThread: boolean;
+  workingDirectory: string | null;
   attachmentUploadsCapabilityKnown: boolean;
   supportsAttachmentUploads: boolean;
   supportsQuestionAttachments: boolean;
@@ -354,7 +348,6 @@ export interface ChatComposerProps {
   routeThreadRef: ScopedThreadRef;
   draftId: DraftId | null;
   multipleModelSelections: ReadonlyArray<ModelSelection> | null;
-  supportsMultipleModels: boolean;
   onMultipleModelSelectionsChange: React.Dispatch<
     React.SetStateAction<ReadonlyArray<ModelSelection> | null>
   >;
@@ -371,8 +364,6 @@ export interface ChatComposerProps {
   isSendBusy: boolean;
   canResume: boolean;
   isRevertingCheckpoint?: boolean;
-  sendDisabledReason: string | null;
-  isPreparingWorktree: boolean;
   isCompacting: boolean;
   bannerItems: readonly ComposerBannerStackItem[];
   resumeCompactionTokens: number | null;
@@ -431,10 +422,6 @@ export interface ChatComposerProps {
   settings: UnifiedSettings;
   keybindings: ResolvedKeybindingsConfig;
   terminalOpen: boolean;
-  gitCwd: string | null;
-  pullRequestProjectId: ProjectId | null;
-  pullRequestRepository: string | null;
-  threadPullRequests: ReadonlyArray<ThreadPullRequestLink> | undefined;
   onComposerOverlayHeightChange: (height: number) => void;
   /** The new-thread strip names the permissions, so the controls row hides its chip. */
   permissionsShownInStrip: boolean;
@@ -501,6 +488,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     composerDraftTarget,
     environmentId,
     canOperateThread,
+    workingDirectory,
     attachmentUploadsCapabilityKnown,
     supportsAttachmentUploads,
     supportsQuestionAttachments,
@@ -509,7 +497,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     routeThreadRef,
     draftId,
     multipleModelSelections,
-    supportsMultipleModels,
     onMultipleModelSelectionsChange: setMultipleModelSelections,
     activeThreadId,
     activeThread,
@@ -521,8 +508,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     isSendBusy,
     canResume,
     isRevertingCheckpoint = false,
-    sendDisabledReason: externalSendDisabledReason,
-    isPreparingWorktree,
     isCompacting,
     environmentUnavailable,
     activePendingApproval: incomingPendingApproval,
@@ -554,10 +539,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     settings,
     keybindings,
     terminalOpen,
-    gitCwd,
-    pullRequestProjectId,
-    pullRequestRepository,
-    threadPullRequests,
     onComposerOverlayHeightChange,
     promptRef,
     composerRef,
@@ -695,7 +676,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   );
   const composerTerminalContexts = composerDraft.terminalContexts;
   const composerPreviewAnnotations = composerDraft.previewAnnotations;
-  const composerReviewComments = composerDraft.reviewComments;
   const composerThreadContexts = attachmentDraft.threadContexts;
   const composerEnvironmentContexts = composerDraft.environmentContexts;
   const {
@@ -707,12 +687,11 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const preparingComposerImages = usePreparingComposerImages(attachmentTargetKey);
   const nonPersistedComposerImageIds = attachmentDraft.nonPersistedImageIds;
   const uploadsByImageId = useAttachmentUploadStore((state) => state.uploadsByImageId);
-  const openPrLink = useOpenPrLink(routeThreadRef);
   const [previewFileId, setPreviewFileId] = useState<string | null>(null);
   const previewFile = composerFiles.find((file) => file.id === previewFileId);
   const composerContextActions = {
     environmentId,
-    cwd: gitCwd ?? undefined,
+    cwd: workingDirectory ?? undefined,
     expandImage: (imageId: string) => {
       const preview = buildExpandedImagePreview(composerImages, imageId);
       if (preview) onExpandImage(preview);
@@ -739,13 +718,9 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       });
       if (persistedPreview) onExpandImage(persistedPreview);
     },
-    openPullRequest: (event: React.MouseEvent<HTMLElement>, url: string) => {
-      openPrLink(event, url);
-    },
   };
   const composerContextRecords = composerContextRecordsFromDraft({
     terminalContexts: composerTerminalContexts,
-    reviewComments: composerReviewComments,
     previewAnnotations: composerPreviewAnnotations,
     threadContexts: composerThreadContexts,
     environmentContexts: composerEnvironmentContexts,
@@ -796,9 +771,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   );
   const removeComposerDraftPreviewAnnotation = useComposerDraftStore(
     (store) => store.removePreviewAnnotation,
-  );
-  const removeComposerDraftReviewComment = useComposerDraftStore(
-    (store) => store.removeReviewComment,
   );
   const clearComposerDraftPersistedAttachments = useComposerDraftStore(
     (store) => store.clearPersistedAttachments,
@@ -912,7 +884,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     selectedModel,
   );
   const sendDisabledReason =
-    externalSendDisabledReason ??
     (multipleModelSelections?.length === 0 ? "Select at least one model." : null) ??
     (activePendingProgress
       ? attachmentBlockReason
@@ -922,14 +893,14 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const selectedProviderStatus = selectedProviderEntry?.snapshot ?? null;
   const compactCommandAvailable = providerSupportsManualCompaction(selectedProviderEntry);
   const selectedProviderSkills = selectedProviderStatus
-    ? resolveProviderSkillsForCwd(selectedProviderStatus, gitCwd)
+    ? resolveProviderSkillsForCwd(selectedProviderStatus, workingDirectory)
     : NO_PROVIDER_SKILLS;
   const selectedProviderSlashCommands = selectedProviderStatus
-    ? resolveProviderSlashCommandsForCwd(selectedProviderStatus, gitCwd)
+    ? resolveProviderSlashCommandsForCwd(selectedProviderStatus, workingDirectory)
     : NO_PROVIDER_SLASH_COMMANDS;
   const refreshWorkspaceSnapshotOnTyping = useProviderWorkspaceSnapshotRefresh({
+    workingDirectory,
     environmentId,
-    gitCwd,
     instanceId: selectedProviderEntry?.instanceId,
   });
 
@@ -1091,7 +1062,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     prompt,
     imageCount: composerImages.length + composerFiles.length,
     terminalContexts: composerTerminalContexts,
-    elementContextCount: composerPreviewAnnotations.length + composerReviewComments.length,
+    elementContextCount: composerPreviewAnnotations.length,
   });
   const composerTriggerKind = composerTrigger?.kind ?? null;
   const compactSlashCommandAvailable =
@@ -1102,22 +1073,18 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     composerImages.length + composerFiles.length === 0 &&
     composerDraft.persistedAttachments.length === 0 &&
     composerTerminalContexts.length === 0 &&
-    composerPreviewAnnotations.length === 0 &&
-    composerReviewComments.length === 0;
+    composerPreviewAnnotations.length === 0;
   const linkedEnvironments = useLinkedEnvironments(environmentId);
   const {
     items: composerMenuItems,
     isLoading: isComposerMenuLoading,
     emptyState: composerMenuEmptyState,
   } = useComposerMenuItems({
+    workingDirectory,
     composerTrigger,
     environmentId,
     linkedEnvironments,
-    gitCwd,
     activeThreadId,
-    pullRequestProjectId,
-    pullRequestRepository,
-    threadPullRequests,
     planModeUiEnabled,
     compactSlashCommandAvailable,
     selectedProvider,
@@ -1288,8 +1255,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     }
     removeComposerDraftFile(attachmentDraftTarget, fileId);
   };
-
-  const addComposerDraftReviewComment = useComposerDraftStore((store) => store.addReviewComment);
   const addComposerDraftPreviewAnnotation = useComposerDraftStore(
     (store) => store.addPreviewAnnotation,
   );
@@ -1318,9 +1283,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         .map(terminalContextRecord),
       ...composerThreadContexts.filter((record) => wanted.has(record.contextId)),
       ...composerEnvironmentContexts.filter((record) => wanted.has(record.contextId)),
-      ...composerReviewComments
-        .filter((c) => wanted.has(reviewCommentContextId(c.id)))
-        .map(reviewCommentContextRecord),
       ...composerPreviewAnnotations
         .filter((a) => wanted.has(previewAnnotationContextId(a.id)))
         .map((annotation) =>
@@ -1405,7 +1367,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
 
   const providerInputInputs = [
     composerPreviewAnnotations,
-    composerReviewComments,
     composerTerminalContexts,
     prompt,
     selectedModel,
@@ -1690,25 +1651,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     ) {
       setComposerDraftEnvironmentContexts(composerDraftTarget, nextEnvironments);
     }
-
-    for (const comment of composerReviewComments) {
-      const contextId = reviewCommentContextId(comment.id);
-      if (!referenced.has(contextId)) {
-        retained.reviewComments.set(contextId, comment);
-        removeComposerDraftReviewComment(composerDraftTarget, comment.id);
-      }
-    }
-    const liveReviewIds = new Set<string>(
-      composerReviewComments.map((comment) => reviewCommentContextId(comment.id)),
-    );
-    for (const contextId of referenced) {
-      if (liveReviewIds.has(contextId)) continue;
-      const comment = retained.reviewComments.get(contextId);
-      if (comment) {
-        addComposerDraftReviewComment(composerDraftTarget, comment, { appendReference: false });
-      }
-    }
-
     const attachmentChanges = reconcileAttachmentContextReferences({
       referencedContextIds: referenced,
       files: composerFiles,
@@ -1848,7 +1790,8 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     const { snapshot, trigger } = resolveActiveComposerTrigger();
     if (!trigger) return;
     if (item.type === "path") {
-      if (!isPathSuggestionCurrent(item.searchTarget, trigger, environmentId, gitCwd)) return;
+      if (!isPathSuggestionCurrent(item.searchTarget, trigger, environmentId, workingDirectory))
+        return;
       const replacement = `${serializeComposerFileLink(item.path)} `;
       const replacementRangeEnd = extendReplacementRangeForTrailingSpace(
         snapshot.value,
@@ -1922,33 +1865,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         expectedText: snapshot.value.slice(trigger.rangeStart, replacementRangeEnd),
       });
       if (applied) {
-        setComposerHighlightedItemId(null);
-      }
-      return;
-    }
-    if (item.type === "pull-request") {
-      if (
-        trigger.kind !== "pull-request" ||
-        !composerMenuItemsRef.current.some((candidate) => candidate.id === item.id)
-      ) {
-        return;
-      }
-      const comment = buildPullRequestReferenceContext(item.pullRequest);
-      const replacement = `${formatInlineContextReference(
-        reviewCommentContextReference(comment),
-      )} `;
-      const replacementRangeEnd = extendReplacementRangeForTrailingSpace(
-        snapshot.value,
-        trigger.rangeEnd,
-        replacement,
-      );
-      const applied = applyPromptReplacement(trigger.rangeStart, replacementRangeEnd, replacement, {
-        expectedText: snapshot.value.slice(trigger.rangeStart, replacementRangeEnd),
-      });
-      if (applied) {
-        addComposerDraftReviewComment(composerDraftTarget, comment, {
-          appendReference: false,
-        });
         setComposerHighlightedItemId(null);
       }
       return;
@@ -2210,7 +2126,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       composerFilesRef,
       composerTerminalContextsRef,
       composerPreviewAnnotations,
-      composerReviewComments,
       composerEditorRef,
       composerMenuOpenRef,
       composerMenuItemsRef,
@@ -2254,7 +2169,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
     composerMenuOpen,
     isComposerCollapsedMobile,
     composerPreviewAnnotations,
-    composerReviewComments,
     composerThreadContexts,
     attachmentTargetKey,
     isComposerDraftTargetOpen: (key) => composerDraftTargetKeyRef.current === key,
@@ -2336,7 +2250,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       onOpenProviderSetup={onOpenProviderSetup}
       providerCatalogPending={providerCatalogPending}
       isSendBusy={isSendBusy}
-      multipleModelsEnabled={routeKind === "draft" && supportsMultipleModels}
+      multipleModelsEnabled={routeKind === "draft"}
       multipleModelSelections={multipleModelSelections}
       onMultipleModelSelectionsChange={setMultipleModelSelections}
       selectedModelSelection={selectedModelSelection}
@@ -2552,17 +2466,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
   const composerMentionDragHandlers = makeComposerMentionDragHandlers({
     insertMentionAtEnd: (text) =>
       insertComposerTextAtEndStable(text, { ensureLeadingBoundary: true }),
-    insertPullRequestAtEnd: (pullRequest) => {
-      const comment = buildPullRequestReferenceContext(pullRequest);
-      const inserted = insertComposerTextAtEndStable(
-        `${formatInlineContextReference(reviewCommentContextReference(comment))} `,
-        { ensureLeadingBoundary: true },
-      );
-      if (inserted) {
-        addComposerDraftReviewComment(composerDraftTarget, comment, { appendReference: false });
-      }
-      return inserted;
-    },
     setDragActive: setIsDragOverComposer,
     onInsertRejected: () => {
       toastManager.add({
@@ -2944,7 +2847,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
         files: composerFilesRef.current,
         terminalContexts: composerTerminalContextsRef.current,
         previewAnnotations: composerPreviewAnnotations,
-        reviewComments: composerReviewComments,
         threadContexts: composerThreadContexts,
         environmentContexts: composerEnvironmentContexts,
         selectedPromptEffort,
@@ -3000,7 +2902,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
       composerFilesRef,
       composerTerminalContextsRef,
       composerPreviewAnnotations,
-      composerReviewComments,
       composerThreadContexts,
       composerEnvironmentContexts,
       focusComposer,
@@ -3146,7 +3047,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                 {pendingUserInputs.length > 0 ? (
                   <ComposerPendingUserInputPanel
                     pendingUserInputs={pendingUserInputs}
-                    cwd={gitCwd ?? undefined}
+                    cwd={workingDirectory ?? undefined}
                     threadRef={routeThreadRef}
                     disabled={!canOperateThread}
                     respondingRequestIds={
@@ -3282,9 +3183,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
               <div role="status" aria-atomic="true" className="sr-only">
                 {composerSuggestionsVisible && composerMenuItems.length === 0
                   ? isComposerMenuLoading
-                    ? composerTriggerKind === "pull-request"
-                      ? "Finding pull request..."
-                      : "Searching workspace files..."
+                    ? "Searching workspace files..."
                     : composerMenuEmptyState
                   : ""}
               </div>
@@ -3412,7 +3311,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                         noProviderAvailable ||
                         projectSelectionRequired
                       }
-                      isPreparingWorktree={false}
                       hasSendableContent={false}
                       preserveComposerFocusOnPointerDown
                       onPreviousPendingQuestion={onPreviousActivePendingUserInputQuestion}
@@ -3484,7 +3382,6 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                       noProviderAvailable ||
                       projectSelectionRequired
                     }
-                    isPreparingWorktree={isPreparingWorktree}
                     hasSendableContent={composerSendState.hasSendableContent}
                     canResume={showResumeAction}
                     preserveComposerFocusOnPointerDown={isMobileViewport}

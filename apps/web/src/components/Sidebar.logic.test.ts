@@ -61,35 +61,6 @@ describe("deleteSelectedThreadEntries", () => {
   const failure = AsyncResult.failure(Cause.fail(new Error("Delete failed")));
   const interrupted = AsyncResult.failure(Cause.interrupt());
 
-  it("waits for each delete and excludes only earlier successes from worktree checks", async () => {
-    let resolveDelete!: (result: typeof success) => void;
-    const pendingDelete = new Promise<typeof success>((resolve) => {
-      resolveDelete = resolve;
-    });
-    const worktreeChecks: { threadKey: string; deletedThreadKeys: string[] }[] = [];
-    const deletion = deleteSelectedThreadEntries({
-      entries,
-      delete: async ({ threadKey }, deletedThreadKeys) => {
-        worktreeChecks.push({ threadKey, deletedThreadKeys: [...deletedThreadKeys] });
-        return threadKey === "one" ? pendingDelete : success;
-      },
-    });
-
-    expect(worktreeChecks).toEqual([{ threadKey: "one", deletedThreadKeys: [] }]);
-    resolveDelete(success);
-    const outcome = await deletion;
-
-    expect(worktreeChecks).toEqual([
-      { threadKey: "one", deletedThreadKeys: [] },
-      { threadKey: "two", deletedThreadKeys: ["one"] },
-      { threadKey: "three", deletedThreadKeys: ["one", "two"] },
-    ]);
-    expect(outcome).toEqual({
-      deletedThreadKeys: new Set(["one", "two", "three"]),
-      firstFailure: null,
-    });
-  });
-
   it("continues after ordinary failures and keeps the first failure", async () => {
     const laterFailure = AsyncResult.failure(Cause.fail(new Error("Later failure")));
     const deletedKeysAtLastEntry: string[][] = [];
@@ -344,7 +315,6 @@ describe("searchSidebarThreads", () => {
     environmentId: localEnvironmentId,
     id: ThreadId.make(id),
     title,
-    branch: null,
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: latestUserMessageAt,
     latestUserMessageAt,
@@ -613,7 +583,6 @@ function makeProject(overrides: Partial<Project> = {}): Project {
     environmentId: localEnvironmentId,
     title: "Project",
     workspaceRoot: "/tmp/project",
-    repositoryIdentity: null,
     defaultModelSelection: {
       instanceId: ProviderInstanceId.make("codex"),
       model: "gpt-5.4",
@@ -649,8 +618,7 @@ function makeThread(overrides: ThreadFixtureOverrides = {}): Thread {
     deletedAt: null,
     updatedAt: "2026-03-09T10:00:00.000Z",
     latestRun: null,
-    branch: null,
-    worktreePath: null,
+    workingDirectory: null,
     ...overrides,
   });
 }

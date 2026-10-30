@@ -7,11 +7,7 @@ import * as Schema from "effect/Schema";
 import * as Semaphore from "effect/Semaphore";
 import {
   EnvironmentId,
-  PullRequestInvolvement,
-  PullRequestListFilters,
-  PullRequestListState,
   type ProviderInstanceId,
-  type PullRequestMergeMethod,
   type SidebarProjectGroupingMode,
 } from "@t3tools/contracts";
 import type { AndroidNavigationStyle } from "../lib/androidNavigationStyle";
@@ -26,27 +22,11 @@ import { MobileStorageDecodeError, MobileStorageEncodeError } from "./mobile-sto
 const PREFERENCES_KEY = "ozi.preferences";
 const PREFERENCES_FALLBACK_KEY = "ozi.preferences.fallback";
 
-export const PullRequestListControls = Schema.Struct({
-  state: PullRequestListState,
-  involvement: PullRequestInvolvement,
-  filters: PullRequestListFilters,
-  projectId: Schema.optional(Schema.String),
-  projectEnvironmentId: Schema.optional(Schema.String),
-  sort: Schema.Literals(["updated", "created", "oldest"]),
-});
-export type PullRequestListControls = typeof PullRequestListControls.Type;
-
 const ThreadListFilters = Schema.Struct({
   environmentId: Schema.NullOr(EnvironmentId),
   projectKey: Schema.NullOr(Schema.String),
 });
 export type ThreadListFilters = typeof ThreadListFilters.Type;
-
-const PullRequestListPreferences = Schema.Struct({
-  environmentId: Schema.NullOr(Schema.String),
-  controls: Schema.Record(Schema.String, PullRequestListControls),
-});
-export type PullRequestListPreferences = typeof PullRequestListPreferences.Type;
 
 /**
  * The page each workspace tab last showed, reopened when the tab returns with columns. `key` is
@@ -60,16 +40,6 @@ const WorkspaceSelections = Schema.Struct({
       key: Schema.optional(Schema.String),
     }),
   ),
-  pullRequests: Schema.optional(
-    Schema.Struct({
-      environmentId: Schema.String,
-      projectId: Schema.String,
-      repository: Schema.String,
-      number: Schema.Number,
-      host: Schema.optional(Schema.String),
-      key: Schema.optional(Schema.String),
-    }),
-  ),
   settings: Schema.optional(Schema.String),
   settingsKey: Schema.optional(Schema.String),
   /** A draft the threads tab showed after its last chat; only meaningful in its session. */
@@ -79,7 +49,6 @@ export type WorkspaceSelections = typeof WorkspaceSelections.Type;
 
 const isThreadListFilters = Schema.is(ThreadListFilters);
 const isWorkspaceSelections = Schema.is(WorkspaceSelections);
-const isPullRequestListPreferences = Schema.is(PullRequestListPreferences);
 const ThreadProject = Schema.Struct({
   environmentId: Schema.NonEmptyString,
   projectId: Schema.NonEmptyString,
@@ -89,8 +58,6 @@ const isThreadProject = Schema.is(ThreadProject);
 export interface Preferences {
   readonly navigationTabOrder?: readonly string[];
   readonly hiddenNavigationTabs?: readonly string[];
-  readonly pullRequestHideTestFiles?: boolean;
-  readonly pullRequestMergeMethod?: PullRequestMergeMethod;
   readonly liveActivitiesEnabled?: boolean;
   readonly themeId?: MobileThemeId;
   readonly lightThemeId?: MobileThemeId;
@@ -126,7 +93,6 @@ export interface Preferences {
   readonly threadListSnoozedShelfExpanded?: boolean;
   readonly threadListWorkingShelfExpanded?: boolean;
   readonly threadListFilters?: ThreadListFilters;
-  readonly pullRequestListFilters?: PullRequestListPreferences;
   readonly workspaceSelections?: WorkspaceSelections;
 }
 
@@ -171,8 +137,6 @@ function sanitizePreferences(parsed: Preferences): Preferences {
   const preferences: {
     navigationTabOrder?: readonly string[];
     hiddenNavigationTabs?: readonly string[];
-    pullRequestHideTestFiles?: boolean;
-    pullRequestMergeMethod?: PullRequestMergeMethod;
     liveActivitiesEnabled?: boolean;
     themeId?: MobileThemeId;
     lightThemeId?: MobileThemeId;
@@ -203,7 +167,6 @@ function sanitizePreferences(parsed: Preferences): Preferences {
     threadListSnoozedShelfExpanded?: boolean;
     threadListWorkingShelfExpanded?: boolean;
     threadListFilters?: ThreadListFilters;
-    pullRequestListFilters?: PullRequestListPreferences;
     workspaceSelections?: WorkspaceSelections;
   } = {};
 
@@ -217,18 +180,6 @@ function sanitizePreferences(parsed: Preferences): Preferences {
     preferences.navigationTabOrder = parsed.navigationTabOrder.filter(
       (tab): tab is string => typeof tab === "string",
     );
-  }
-
-  if (typeof parsed.pullRequestHideTestFiles === "boolean") {
-    preferences.pullRequestHideTestFiles = parsed.pullRequestHideTestFiles;
-  }
-
-  if (
-    parsed.pullRequestMergeMethod === "squash" ||
-    parsed.pullRequestMergeMethod === "merge" ||
-    parsed.pullRequestMergeMethod === "rebase"
-  ) {
-    preferences.pullRequestMergeMethod = parsed.pullRequestMergeMethod;
   }
 
   if (typeof parsed.liveActivitiesEnabled === "boolean") {
@@ -352,9 +303,6 @@ function sanitizePreferences(parsed: Preferences): Preferences {
   }
   if (isThreadListFilters(parsed.threadListFilters)) {
     preferences.threadListFilters = parsed.threadListFilters;
-  }
-  if (isPullRequestListPreferences(parsed.pullRequestListFilters)) {
-    preferences.pullRequestListFilters = parsed.pullRequestListFilters;
   }
   if (isWorkspaceSelections(parsed.workspaceSelections)) {
     preferences.workspaceSelections = parsed.workspaceSelections;

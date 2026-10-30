@@ -3,7 +3,6 @@ import {
   ComposerContextRecord,
   type ElementContextRecord,
   type PreviewAnnotationContextRecord,
-  ReviewCommentContextRecord,
   type TerminalContextRecord,
 } from "@t3tools/contracts";
 import * as Schema from "effect/Schema";
@@ -24,14 +23,8 @@ const TRAILING_ELEMENT =
   /\n*<element_context>\n((?:(?!\n<\/element_context>)[\s\S])*)\n<\/element_context>\s*$/;
 const TRAILING_PREVIEW =
   /\n*<preview_annotation>\n((?:(?!\n<\/preview_annotation>)[\s\S])*)\n<\/preview_annotation>\s*$/;
-const REVIEW_OR_CONTEXT_BLOCK =
-  /<review_comment\b([^>]*)>|^<(terminal_context|element_context|preview_annotation)>\n[\s\S]*?\n<\/\2>/gm;
-const REVIEW_ATTRIBUTE = /([a-zA-Z][a-zA-Z0-9_-]*)="([^"]*)"/g;
-const REVIEW_FENCE = /(`{3,})([^\s`]*)[^\n]*\n([\s\S]*?)\n\1/g;
-const REVIEW_TOKEN = "\uE000";
 const LEGACY_MARKERS =
   /<(?:terminal_context|element_context|preview_annotation|review_comment)\b|￼/;
-const isReviewCommentContextRecord = Schema.is(ReviewCommentContextRecord);
 const isLegacyContextRecords = Schema.is(
   Schema.Array(ComposerContextRecord).check(Schema.isMaxLength(200)),
 );
@@ -212,51 +205,6 @@ function previewRecord(body: string, index: number): PreviewAnnotationContextRec
   };
 }
 
-function unescapeAttribute(value: string): string {
-  return value
-    .replace(/&lt;/g, "<")
-    .replace(/&gt;/g, ">")
-    .replace(/&quot;/g, '"')
-    .replace(/&amp;/g, "&");
-}
-
-function reviewRecord(
-  rawAttributes: string,
-  rawBody: string,
-  index: number,
-): ReviewCommentContextRecord | null {
-  const attributes: Record<string, string> = {};
-  for (const match of rawAttributes.matchAll(REVIEW_ATTRIBUTE)) {
-    attributes[match[1]!] = unescapeAttribute(match[2] ?? "");
-  }
-  const filePath = attributes.filePath?.trim();
-  const sectionId = attributes.sectionId?.trim();
-  const startIndex = attributes.startIndex;
-  const endIndex = attributes.endIndex;
-  if (!filePath || !sectionId || !/^\d+$/.test(startIndex ?? "") || !/^\d+$/.test(endIndex ?? "")) {
-    return null;
-  }
-  const fences = Array.from(rawBody.matchAll(REVIEW_FENCE));
-  const fence = fences.at(-1);
-  const rangeLabel = attributes.rangeLabel?.trim() || "line";
-  const basename = filePath.split(/[\\/]/).at(-1) ?? filePath;
-  return {
-    version: 1,
-    contextId: legacyId("review-comment", index),
-    kind: "review-comment",
-    label: `${basename} ${rangeLabel}`,
-    sectionId,
-    sectionTitle: attributes.sectionTitle?.trim() || "Review",
-    filePath,
-    startIndex: Math.min(Number(startIndex), Number(endIndex)),
-    endIndex: Math.max(Number(startIndex), Number(endIndex)),
-    rangeLabel,
-    text: rawBody.slice(0, fence?.index ?? rawBody.length).trim(),
-    diff: fence?.[3] ?? "",
-    fenceLanguage: fence?.[2]?.trim() || "diff",
-  };
-}
-
 function stripTrailing(
   text: string,
   pattern: RegExp,
@@ -266,82 +214,13 @@ function stripTrailing(
   return { text: text.slice(0, match.index).replace(/\n+$/, ""), match };
 }
 
-/** Review source can contain literal closing tags inside its dynamically sized code fence. */
-function replaceReviewBlocks(
-  text: string,
-  replace: (whole: string, attributes: string, body: string) => string,
-): string {
-  const parts: string[] = [];
-  const openings = new RegExp(REVIEW_OR_CONTEXT_BLOCK);
-  let consumed = 0;
-  for (let opening = openings.exec(text); opening; opening = openings.exec(text)) {
-    // Other context blocks own their payload, including any review-shaped source text.
-    if (opening[2]) continue;
-    const bodyStart = openings.lastIndex;
-    const boundaries = /^(`{3,})([^\n]*)$|<\/review_comment>/gm;
-    boundaries.lastIndex = bodyStart;
-    let fenceLength = 0;
-    for (let boundary = boundaries.exec(text); boundary; boundary = boundaries.exec(text)) {
-      if (boundary[1]) {
-        if (fenceLength === 0) fenceLength = boundary[1].length;
-        else if (boundary[1].length >= fenceLength && !boundary[2]?.trim()) fenceLength = 0;
-      } else if (fenceLength === 0) {
-        parts.push(text.slice(consumed, opening.index));
-        consumed = boundaries.lastIndex;
-        parts.push(
-          replace(
-            text.slice(opening.index, consumed),
-            opening[1]!,
-            text.slice(bodyStart, boundary.index),
-          ),
-        );
-        openings.lastIndex = consumed;
-        break;
-      }
-    }
-    if (consumed < bodyStart) break;
-  }
-  parts.push(text.slice(consumed));
-  return parts.join("");
-}
-
 export function upgradeLegacyContextMessage(text: string): UpgradedLegacyContext {
   if (!LEGACY_MARKERS.test(text)) return { text, records: [] };
 
   const terminalEntries: ParsedEntry[] = [];
   const elementEntries: ParsedEntry[] = [];
   const previewBodies: string[] = [];
-  const reviews: ReviewCommentContextRecord[] = [];
-
-  // A literal private-use token in the message must never be mistaken for our placeholder.
-  let reviewToken = REVIEW_TOKEN;
-  while (text.includes(reviewToken)) reviewToken += reviewToken;
-  const reviewTokenPattern = new RegExp(`${reviewToken}(\\d+)${reviewToken}`, "g");
-  const trailingReviewTokenPattern = new RegExp(`(?:\\s*${reviewToken}\\d+${reviewToken})+\\s*$`);
-
-  let rest = replaceReviewBlocks(text, (whole, attributes, rawBody) => {
-    const record = reviewRecord(attributes, rawBody, reviews.length + 1);
-    if (!record || !isReviewCommentContextRecord(record)) return whole;
-    reviews.push(record);
-    return `${reviewToken}${reviews.length - 1}${reviewToken}`;
-  });
-
-  // Peel appended blocks in reverse send order. Peel reviews only to expose context blocks, preserving inline prose spacing.
-  const trailingReviewTokens: number[] = [];
-  const tokens = trailingReviewTokenPattern.exec(rest);
-  if (tokens && tokens[0].length > 0) {
-    const preceding = rest.slice(0, tokens.index);
-    if (
-      TRAILING_PREVIEW.test(preceding) ||
-      TRAILING_ELEMENT.test(preceding) ||
-      TRAILING_TERMINAL.test(preceding)
-    ) {
-      trailingReviewTokens.push(
-        ...Array.from(tokens[0].matchAll(reviewTokenPattern), (m) => Number(m[1])),
-      );
-      rest = preceding;
-    }
-  }
+  let rest = text;
   for (;;) {
     const preview = stripTrailing(rest, TRAILING_PREVIEW);
     if (preview) {
@@ -382,11 +261,8 @@ export function upgradeLegacyContextMessage(text: string): UpgradedLegacyContext
     if (record === null) return { text, records: [] };
     previews.push(record);
   }
-  const appendedReviews = trailingReviewTokens.map((index) => reviews[index]!);
 
-  let body = rest.replace(reviewTokenPattern, (_whole, index: string) =>
-    formatComposerContextReference(reviews[Number(index)]!),
-  );
+  let body = rest;
 
   let placeholderIndex = 0;
   body = body.replace(new RegExp(PLACEHOLDER, "g"), () => {
@@ -420,7 +296,6 @@ export function upgradeLegacyContextMessage(text: string): UpgradedLegacyContext
     ...terminals.filter((record) => !placedTerminals.has(record)),
     ...elements,
     ...previews,
-    ...appendedReviews,
   ].map((record) => formatComposerContextReference(record));
   const upgradedText =
     appended.length === 0
@@ -429,7 +304,7 @@ export function upgradeLegacyContextMessage(text: string): UpgradedLegacyContext
         ? `${body}\n\n${appended.join(" ")}`
         : appended.join(" ");
 
-  const records = [...terminals, ...elements, ...previews, ...reviews];
+  const records = [...terminals, ...elements, ...previews];
   // Conversion is atomic: keep the source if any record would be dropped on the wire.
   if (!isLegacyContextRecords(records)) return { text, records: [] };
   return {

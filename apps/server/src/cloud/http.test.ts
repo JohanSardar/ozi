@@ -89,7 +89,7 @@ const layerLinkProofRoutes = HttpApiBuilder.layer(LinkProofTestApi).pipe(
         label: "WSL",
         platform: { os: "linux", arch: "x64" },
         serverVersion: "0.0.0-test",
-        capabilities: { repositoryIdentity: false },
+        capabilities: {},
       }),
     }),
     Layer.mock(ManagedEndpointRuntime.CloudManagedEndpointRuntime)({}),

@@ -362,11 +362,12 @@ export function createEnvironmentThreadDetailAtoms<E>(
       (get) => Option.getOrNull(get(threadStateValueAtomFamily(key)).data)?.updatedAt ?? null,
     ).pipe(Atom.setIdleTTL(0), Atom.withLabel(`environment-thread-updated-at:${key}`)),
   );
-  const worktreePathAtomFamily = Atom.family((key: string) =>
+  const workingDirectoryAtomFamily = Atom.family((key: string) =>
     Atom.make(
       (get) =>
-        Option.getOrNull(get(threadStateValueAtomFamily(key)).data)?.thread.worktreePath ?? null,
-    ).pipe(Atom.setIdleTTL(0), Atom.withLabel(`environment-thread-worktree:${key}`)),
+        Option.getOrNull(get(threadStateValueAtomFamily(key)).data)?.thread.workingDirectory ??
+        null,
+    ).pipe(Atom.setIdleTTL(0), Atom.withLabel(`environment-thread-directory:${key}`)),
   );
   const pendingRequestsAtomFamily = Atom.family((key: string) => {
     let previous: Pick<OrchestrationV2ThreadProjection, "runtimeRequests" | "turnItems"> | null =
@@ -429,7 +430,7 @@ export function createEnvironmentThreadDetailAtoms<E>(
   );
 
   return {
-    worktreePathAtom: (ref: ScopedThreadRef) => worktreePathAtomFamily(threadKey(ref)),
+    workingDirectoryAtom: (ref: ScopedThreadRef) => workingDirectoryAtomFamily(threadKey(ref)),
     updatedAtAtom: (ref: ScopedThreadRef) => updatedAtAtomFamily(threadKey(ref)),
     lastVisitedAtAtom: (ref: ScopedThreadRef) => lastVisitedAtAtomFamily(threadKey(ref)),
     pendingRequestsAtom: (ref: ScopedThreadRef) => pendingRequestsAtomFamily(threadKey(ref)),

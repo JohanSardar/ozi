@@ -5,11 +5,9 @@ import { projectComposerContextForProvider } from "@t3tools/shared/composerConte
 import {
   buildBase,
   buildMessages,
-  failedEarly,
   executeCodex,
   gradeSample,
   makeSample,
-  ranCalls,
   McpToolUseCase,
   mockOutput,
   normalizeToolInput,
@@ -18,9 +16,7 @@ import {
   shellOutput,
   shellRequest,
   summarize,
-  t3SystemAppend,
 } from "./run.ts";
-import { taskPrompt } from "../../apps/server/src/mcp/delegatedTaskModes.ts";
 
 it("grades Codex shell and subagent calls with the shared rules", () => {
   const calls = [
@@ -47,19 +43,6 @@ it("grades Codex shell and subagent calls with the shared rules", () => {
     ),
     ["notCalls Agent", "shellMustNot /sleep/"],
   );
-});
-
-it("accepts any tool listed as an alternative", () => {
-  const expect = { calls: [{ tool: "link_pull_request|watch_pull_request" }] };
-  const run = (tool: string): SampleRun => ({
-    calls: [{ step: 0, tool, input: {} }],
-    text: "",
-    stopReason: "end_turn",
-  });
-  assert.deepEqual(failed(expect, run("watch_pull_request")), []);
-  assert.deepEqual(failed(expect, run("list_thread_pull_requests")), [
-    "calls link_pull_request|watch_pull_request",
-  ]);
 });
 
 it("runs code-mode calls without exposing host capabilities, including after await", async () => {
@@ -233,40 +216,6 @@ const childCase: McpToolUseCase = {
   expect: { calls: [{ tool: "link_pull_request" }], notCalls: ["watch_pull_request"] },
 };
 
-it("rebuilds the template from this checkout and sends a child T3's task prompt", () => {
-  const base = buildBase(template, { model: "claude-sonnet-5-5", keepUserInstructions: false });
-  const system = base.system.map((block) => String(block.text));
-  assert.deepEqual(system.slice(0, 2), [
-    "You are Claude Code.",
-    `Main prompt.\n - Primary working directory: /home/user/app\n\n${t3SystemAppend("claude-sonnet-5-5")}`,
-  ]);
-  assert.equal(base.environment.cwd, "/home/user/app");
-  assert.include(system[2], "model named Sonnet 5.5. The exact model ID is claude-sonnet-5-5.");
-  const deferred = system[2]?.split("Load them first:\n")[1]?.split("\n\n")[0]?.split("\n") ?? [];
-  assert.includeMembers(deferred, ["Monitor", "mcp__t3-code__delegate_task"]);
-  assert.notInclude(deferred, "mcp__t3-code__retired_tool");
-  // A delegated child is never offered the tools T3 hides from subagents.
-  assert.include(deferred, "mcp__t3-code__watch_pull_request");
-  const child = buildBase(template, {
-    model: "claude-sonnet-5-5",
-    keepUserInstructions: false,
-    subagent: true,
-  });
-  assert.notInclude(String(child.system[2]?.text), "mcp__t3-code__watch_pull_request");
-  assert.notInclude(
-    child.t3.map((tool) => tool.name),
-    "mcp__t3-code__unwatch_pull_request",
-  );
-  const reminders = buildMessages(makeSample(childCase, base))[0]?.content.map((b) => b.text);
-  assert.equal(reminders?.[0], "<system-reminder>\n# currentDate\n</system-reminder>");
-  assert.include(reminders?.[1], "Current branch: fix/date-format");
-  assert.notInclude(reminders?.join(), "Codebase and user instructions");
-
-  const prompt = buildMessages(makeSample(childCase, base)).at(-1)?.content.at(-1);
-  assert.equal(prompt?.text, taskPrompt({ task: childCase.prompt, role: "implementation" }));
-  assert.notEqual(prompt?.text, childCase.prompt);
-});
-
 it("lists link tools only while a case turns the beta on, and sends chips as T3 projects them", () => {
   const off = buildBase(template, { model: "claude-sonnet-5-5", keepUserInstructions: false });
   const on = buildBase(template, {
@@ -333,20 +282,6 @@ it("replays earlier capability results with the model under test as the caller",
   assert.include(String(replayed?.content), '"inheritedModel":"claude-opus-5-5"');
 });
 
-it("does not record a deferred tool called before it was loaded", () => {
-  const base = buildBase(template, { model: "claude-sonnet-5-5", keepUserInstructions: false });
-  const sample = makeSample(childCase, base);
-  const use = (name: string) => ({ type: "tool_use" as const, id: name, name, input: {} });
-  const ran = ranCalls(sample, 0, [
-    use("mcp__t3-code__link_pull_request"),
-    use("mcp__host__term_Bash"),
-  ]);
-  assert.deepEqual(
-    ran.map((call) => call.tool),
-    ["Bash"],
-  );
-});
-
 it("answers simple mocked commands itself and gives the simulator the sample's history", () => {
   const sample = makeSample(
     childCase,
@@ -400,18 +335,6 @@ it("reads the tool output from the simulator's JSON reply", () => {
     "https://x/pull/124",
   );
   assert.equal(shellOutput(reply("plain output\n")), "plain output");
-});
-
-it("stops a sample only once a must-not check has failed", () => {
-  const run = (tool: string, text = ""): SampleRun => ({
-    calls: [{ step: 0, tool, input: {} }],
-    text,
-    stopReason: "tool_use",
-  });
-  const expect = { calls: [{ tool: "link_pull_request" }], notCalls: ["watch_pull_request"] };
-  assert.isFalse(failedEarly(expect, run("Bash")));
-  assert.isTrue(failedEarly(expect, run("watch_pull_request")));
-  assert.isTrue(failedEarly({ textMustNot: ["paste"] }, run("Bash", "paste it here")));
 });
 
 it("leaves errored samples out of pass rates and lists them in the summary", () => {

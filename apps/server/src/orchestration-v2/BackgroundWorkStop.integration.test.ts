@@ -173,8 +173,7 @@ const stopEarlierBackgroundWork = ({
           modelSelection,
           runtimeMode: "full-access",
           interactionMode: "default",
-          branch: null,
-          worktreePath: cwd,
+          workingDirectory: cwd,
           createdBy: "user",
           creationSource: "web",
         });
@@ -484,8 +483,7 @@ const stopEarlierBackgroundWork = ({
               modelSelection,
               runtimeMode: "full-access",
               interactionMode: "default",
-              branch: null,
-              worktreePath: cwd,
+              workingDirectory: cwd,
               createdBy: "agent",
               creationSource: "provider",
             });

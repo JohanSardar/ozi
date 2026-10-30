@@ -16,7 +16,6 @@ const items = [
     children: [
       { id: "copy-unavailable", label: "Unavailable copy", disabled: true },
       { id: "path", label: "Path" },
-      { id: "branch", label: "Branch" },
     ],
   },
 ];

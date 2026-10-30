@@ -302,7 +302,7 @@ export function createTerminalSession(
           threadId,
           terminalId,
           cwd: input.cwd,
-          worktreePath: input.worktreePath,
+          workingDirectory: input.workingDirectory,
           cols: input.cols,
           rows: input.rows,
           ...(input.env ? { env: input.env } : {}),

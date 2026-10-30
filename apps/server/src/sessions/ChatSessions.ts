@@ -259,8 +259,7 @@ const make = Effect.gen(function* () {
       modelSelection: selection,
       runtimeMode: source?.thread.runtimeMode ?? "full-access",
       interactionMode: source?.thread.interactionMode ?? "default",
-      branch: null,
-      worktreePath: null,
+      workingDirectory: null,
       createdBy: "user",
       creationSource: "server",
       ...(sessionFile === undefined

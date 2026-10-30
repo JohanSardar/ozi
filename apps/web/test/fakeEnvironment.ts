@@ -56,7 +56,7 @@ const descriptor = {
   // A matching version, since a mismatch adds an update banner a typical user never sees.
   serverVersion: APP_VERSION,
   orchestrationProtocolVersion: ORCHESTRATION_PROTOCOL_VERSION,
-  capabilities: { repositoryIdentity: true },
+  capabilities: {},
 };
 const auth = {
   policy: "loopback-browser",
@@ -105,7 +105,6 @@ const project: OrchestrationProjectShell = {
   id: PROJECT_ID,
   title: "render",
   workspaceRoot: "/workspace/render",
-  repositoryIdentity: null,
   defaultModelSelection: null,
   scripts: [],
   createdAt: "2026-03-17T19:12:28.000Z",
@@ -220,8 +219,7 @@ function shellOf(thread: FakeThread): OrchestrationV2ThreadShell {
     modelSelection: MODEL,
     runtimeMode: "full-access",
     interactionMode: "default",
-    branch: "main",
-    worktreePath: null,
+    workingDirectory: null,
     activeProviderThreadId: null,
     lineage: { rootThreadId: thread.id, parentThreadId: null, relationshipToParent: null },
     forkedFrom: null,
@@ -267,8 +265,7 @@ function projectionOf(thread: FakeThread): OrchestrationV2ThreadProjection {
       modelSelection: shell.modelSelection,
       runtimeMode: shell.runtimeMode,
       interactionMode: shell.interactionMode,
-      branch: shell.branch,
-      worktreePath: shell.worktreePath,
+      workingDirectory: shell.workingDirectory,
       activeProviderThreadId: null,
       lineage: shell.lineage,
       forkedFrom: null,

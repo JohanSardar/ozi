@@ -5,9 +5,7 @@ import {
   createContext,
   use,
   useCallback,
-  useEffect,
   useMemo,
-  useRef,
   useState,
   useSyncExternalStore,
   type PropsWithChildren,
@@ -21,8 +19,6 @@ import {
 } from "../workspace/workspace-selection-store";
 import { T3KeyboardCommands } from "../../native/T3KeyboardCommands";
 import { useThreadShell } from "../../state/entities";
-import type { GitActionProgress } from "../../state/use-vcs-action-state";
-import { GitActionProgressOverlay } from "../threads/GitActionProgressOverlay";
 import { CommandPalette } from "./CommandPalette";
 import {
   dispatchHardwareKeyboardCommand,
@@ -33,13 +29,6 @@ import {
   type HardwareKeyboardCommand,
 } from "./hardwareKeyboardCommands";
 import { selectWorkspaceDetail } from "../workspace/workspace-detail-selection";
-
-const EMPTY_COPY_FEEDBACK: GitActionProgress = {
-  phase: "idle",
-  label: null,
-  description: null,
-};
-const COPY_FEEDBACK_DISMISS_MS = 3_000;
 
 const CommandPaletteContext = createContext<ReactNode>(null);
 
@@ -64,40 +53,8 @@ export function HardwareKeyboardCommandProvider({
         : resolveThreadReferenceCopyTarget({
             threadRef: activeThreadRef,
             title: activeThread?.title ?? "",
-            pullRequests: activeThread?.pullRequests,
-            linkedPullRequestUrl:
-              (activeThread?.linkedPullRequest ?? activeThread?.branchPullRequest)?.url ?? null,
           }),
     [activeThread, activeThreadRef],
-  );
-  const [copyFeedback, setCopyFeedback] = useState<GitActionProgress>(EMPTY_COPY_FEEDBACK);
-  const copyRequestIdRef = useRef(0);
-  const copyFeedbackTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const dismissCopyFeedback = useCallback(() => {
-    if (copyFeedbackTimerRef.current !== null) {
-      clearTimeout(copyFeedbackTimerRef.current);
-      copyFeedbackTimerRef.current = null;
-    }
-    setCopyFeedback(EMPTY_COPY_FEEDBACK);
-  }, []);
-  const showCopyFeedback = useCallback((feedback: GitActionProgress) => {
-    if (copyFeedbackTimerRef.current !== null) {
-      clearTimeout(copyFeedbackTimerRef.current);
-    }
-    setCopyFeedback(feedback);
-    copyFeedbackTimerRef.current = setTimeout(() => {
-      copyFeedbackTimerRef.current = null;
-      setCopyFeedback(EMPTY_COPY_FEEDBACK);
-    }, COPY_FEEDBACK_DISMISS_MS);
-  }, []);
-  // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- clears the copy feedback timer on unmount
-  useEffect(
-    () => () => {
-      if (copyFeedbackTimerRef.current !== null) {
-        clearTimeout(copyFeedbackTimerRef.current);
-      }
-    },
-    [],
   );
   const registrationVersion = useSyncExternalStore(
     subscribeToHardwareKeyboardCommandRegistrations,
@@ -134,23 +91,7 @@ export function HardwareKeyboardCommandProvider({
 
       if (command === "copyThreadReference") {
         if (copyTarget === null) return;
-        const requestId = ++copyRequestIdRef.current;
-        void copyThreadReference(copyTarget).then((didCopy) => {
-          if (requestId !== copyRequestIdRef.current) return;
-          showCopyFeedback(
-            didCopy
-              ? {
-                  phase: "success",
-                  label: copyTarget.successTitle,
-                  description: copyTarget.description,
-                }
-              : {
-                  phase: "error",
-                  label: copyTarget.failureTitle,
-                  description: "Try again.",
-                },
-          );
-        });
+        void copyThreadReference(copyTarget);
         return;
       }
 
@@ -178,11 +119,8 @@ export function HardwareKeyboardCommandProvider({
       if (command === "terminal" && !/\/terminal(?:\/|$)/.test(pathname)) {
         navigation.navigate("ThreadTerminal", thread);
       }
-      if (command === "review" && !/\/review(?:\/|$)/.test(pathname)) {
-        navigation.navigate("ThreadReview", thread);
-      }
     },
-    [copyTarget, navigation, pathname, showCopyFeedback],
+    [copyTarget, navigation, pathname],
   );
 
   const palette = useMemo(
@@ -198,7 +136,6 @@ export function HardwareKeyboardCommandProvider({
       <T3KeyboardCommands enabledCommands={enabledCommands} onCommand={onCommand}>
         {children}
       </T3KeyboardCommands>
-      <GitActionProgressOverlay progress={copyFeedback} onDismiss={dismissCopyFeedback} />
     </CommandPaletteContext>
   );
 }

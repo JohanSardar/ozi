@@ -24,7 +24,7 @@ import {
   releaseClaimedAttachments,
 } from "./AttachmentClaims.ts";
 
-const layerTest = Layer.mergeAll(NodeServices.layer).pipe(
+const layerTest = NodeServices.layer.pipe(
   Layer.provideMerge(ServerConfig.layerTest(process.cwd(), { prefix: "t3-attachment-claims-" })),
   Layer.provideMerge(DocumentText.layer.pipe(Layer.provideMerge(NodeServices.layer))),
 );

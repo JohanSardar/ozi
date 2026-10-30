@@ -55,8 +55,7 @@ const creation: QueuedThreadMessage = {
   creation: {
     projectId: ProjectId.make("project-1"),
     workspaceMode: "local",
-    branch: "main",
-    worktreePath: null,
+    workingDirectory: null,
   },
   createdAt: "2026-08-24T12:00:00.000Z",
 };

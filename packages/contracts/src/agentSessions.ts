@@ -23,12 +23,6 @@ export type AgentSessionImportSource = typeof AgentSessionImportSource.Type;
 export const AgentSessionScanInput = Schema.Struct({});
 export type AgentSessionScanInput = typeof AgentSessionScanInput.Type;
 
-export const AgentSessionProjectGit = Schema.Struct({
-  remoteKey: Schema.NullOr(Schema.String),
-  repository: Schema.NullOr(Schema.String),
-});
-export type AgentSessionProjectGit = typeof AgentSessionProjectGit.Type;
-
 export const AgentSessionProjectCandidate = Schema.Struct({
   path: TrimmedNonEmptyString,
   title: TrimmedNonEmptyString,
@@ -37,7 +31,6 @@ export const AgentSessionProjectCandidate = Schema.Struct({
   threadCount: NonNegativeInt,
   lastActiveAt: Schema.NullOr(IsoDateTime),
   alreadyImported: Schema.Boolean,
-  git: Schema.optionalKey(Schema.NullOr(AgentSessionProjectGit)),
 });
 export type AgentSessionProjectCandidate = typeof AgentSessionProjectCandidate.Type;
 

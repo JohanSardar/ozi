@@ -27,79 +27,7 @@ const decodeServerSettingsPatch = Schema.decodeUnknownSync(ServerSettingsPatch);
 const encodeServerSettings = Schema.encodeSync(ServerSettings);
 const decodeClaudeSettings = Schema.decodeUnknownSync(ClaudeSettings);
 
-describe("storage cleanup settings", () => {
-  it("keeps cleanup disabled for existing installations", () => {
-    expect(decodeServerSettings({}).worktreeCleanup).toBeNull();
-    expect(decodeServerSettings({}).storageCleanup).toEqual({
-      worktreeAfterDays: null,
-      worktreeSettledAfterDays: null,
-      worktreeOnMerge: false,
-      worktreeOnDelete: false,
-      worktreeUnchanged: false,
-      worktreeKeepWhen: "uncommitted-changes",
-      browserArtifactsAfterDays: null,
-      logsAfterDays: null,
-    });
-  });
-
-  it("accepts partial custom patches but requires complete stored project rules", () => {
-    expect(
-      decodeServerSettingsPatch({
-        worktreeCleanup: { mode: "custom", rules: { worktreeAfterDays: 8 } },
-      }),
-    ).toEqual({ worktreeCleanup: { mode: "custom", rules: { worktreeAfterDays: 8 } } });
-    expect(() =>
-      decodeServerSettings({
-        projectSettingsOverrides: {
-          project: { worktreeCleanup: { mode: "custom", rules: { worktreeAfterDays: 8 } } },
-        },
-      }),
-    ).toThrow();
-    expect(
-      decodeServerSettings({
-        projectSettingsOverrides: {
-          project: {
-            worktreeCleanup: {
-              mode: "custom",
-              rules: {
-                worktreeAfterDays: null,
-                worktreeOnMerge: false,
-                worktreeOnDelete: false,
-                worktreeUnchanged: false,
-              },
-            },
-          },
-        },
-      }).projectSettingsOverrides[ProjectId.make("project")]?.worktreeCleanup,
-    ).toMatchObject({
-      mode: "custom",
-      rules: { worktreeSettledAfterDays: null, worktreeKeepWhen: "uncommitted-changes" },
-    });
-  });
-
-  it("decodes older custom rules with the default local-file policy", () => {
-    const settings = decodeServerSettings({
-      worktreeCleanup: {
-        mode: "custom",
-        rules: {
-          worktreeAfterDays: 8,
-          worktreeOnMerge: false,
-          worktreeOnDelete: false,
-          worktreeUnchanged: false,
-        },
-      },
-    });
-    expect(settings.worktreeCleanup).toMatchObject({
-      rules: { worktreeKeepWhen: "uncommitted-changes" },
-    });
-    expect(
-      decodeServerSettingsPatch({ storageCleanup: { worktreeKeepWhen: "tracked-changes" } }),
-    ).toEqual({ storageCleanup: { worktreeKeepWhen: "tracked-changes" } });
-    expect(() =>
-      decodeServerSettingsPatch({ storageCleanup: { worktreeKeepWhen: "unknown" } }),
-    ).toThrow();
-  });
-});
+describe("storage cleanup settings", () => {});
 
 describe("ServerSettings usage price overrides", () => {
   const prices = { inputCostPerMillionTokens: 2, outputCostPerMillionTokens: 8 };
@@ -230,55 +158,6 @@ describe("provider enabled defaults", () => {
     expect(
       resolveProviderInstanceEnabled({ driver: codex, enabled: false, config: { enabled: true } }),
     ).toBe(false);
-  });
-});
-
-describe("ServerSettings worktree defaults", () => {
-  it("defaults the thread env mode to inherit and keeps stored values", () => {
-    expect(decodeServerSettings({}).defaultThreadEnvMode).toBeNull();
-    expect(decodeServerSettings({ defaultThreadEnvMode: "worktree" }).defaultThreadEnvMode).toBe(
-      "worktree",
-    );
-    expect(
-      decodeServerSettings({ defaultThreadEnvMode: "remote" }).defaultThreadEnvMode,
-    ).toBeNull();
-    expect(
-      decodeServerSettingsPatch({ defaultThreadEnvMode: null }).defaultThreadEnvMode,
-    ).toBeNull();
-  });
-
-  it("keeps an inherited thread env mode off the wire for older clients", () => {
-    const encode = Schema.encodeSync(ServerSettings);
-    expect("defaultThreadEnvMode" in encode(decodeServerSettings({}))).toBe(false);
-    expect(
-      encode(decodeServerSettings({ defaultThreadEnvMode: "worktree" })).defaultThreadEnvMode,
-    ).toBe("worktree");
-  });
-});
-
-describe("ServerSettings.sourceControlWritingStyle", () => {
-  it.each([
-    { legacy: "", mode: "repo_conventions", customInstructions: "" },
-    { legacy: " \t\n ", mode: "repo_conventions", customInstructions: "" },
-    {
-      legacy: "  Prefer concise wording.\nKeep issue references.  ",
-      mode: "custom",
-      customInstructions: "Prefer concise wording.\nKeep issue references.",
-    },
-  ])("normalizes legacy writing style $legacy in snapshots only", ({ legacy, ...expected }) => {
-    const style = { ...expected, followChangeRequestTemplates: true };
-    for (const [input, normalized] of [
-      [{ sourceControlWritingStyle: legacy }, { sourceControlWritingStyle: style }],
-      [
-        { projectSettingsOverrides: { project: { sourceControlWritingStyle: legacy } } },
-        { projectSettingsOverrides: { project: { sourceControlWritingStyle: style } } },
-      ],
-    ] as const) {
-      const settings = decodeServerSettings(input);
-      expect(settings).toMatchObject(normalized);
-      expect(encodeServerSettings(settings)).toMatchObject(normalized);
-      expect(() => decodeServerSettingsPatch(input)).toThrow();
-    }
   });
 });
 

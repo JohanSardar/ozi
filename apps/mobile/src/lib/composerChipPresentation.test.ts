@@ -8,31 +8,29 @@ import {
   type MobileThemeVariables,
 } from "./mobileTheme";
 
-const CHIP_ACCENTS = [
-  ...new Set(
-    [
-      ...[
-        "image",
-        "video",
-        "file",
-        "mention",
-        "terminal",
-        "element",
-        "review-comment",
-        "pull-request",
-        "skill",
-        "thread",
-        "environment",
-      ].map((kind) => contextChipPresentation(kind)),
-      ...[
-        { state: "open", isDraft: false },
-        { state: "open", isDraft: true },
-        { state: "merged", isDraft: false },
-        { state: "closed", isDraft: false },
-      ].map((pullRequest) => contextChipPresentation("pull-request", { pullRequest })),
-    ].flatMap(({ accent }) => (accent ? [accent] : [])),
-  ),
-];
+const CHIP_ACCENTS = new Set(
+  [
+    ...[
+      "image",
+      "video",
+      "file",
+      "mention",
+      "terminal",
+      "element",
+      "review-comment",
+      "pull-request",
+      "skill",
+      "thread",
+      "environment",
+    ].map((kind) => contextChipPresentation(kind)),
+    ...[
+      { state: "open", isDraft: false },
+      { state: "open", isDraft: true },
+      { state: "merged", isDraft: false },
+      { state: "closed", isDraft: false },
+    ].map(() => contextChipPresentation("pull-request", {})),
+  ].flatMap(({ accent }) => (accent ? [accent] : [])),
+);
 
 function relativeLuminance(hex: string): number {
   const [red = 0, green = 0, blue = 0] = [1, 3, 5].map((offset) => {

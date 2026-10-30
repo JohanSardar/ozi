@@ -165,7 +165,6 @@ const OpenCode2ProviderCapabilities = {
     maxRecommendedHandoffChars: null,
   },
   checkpointing: {
-    appCanCheckpointFilesystem: true,
     supportsNestedCheckpointScopes: true,
     providerCanRollbackConversation: true,
     providerRollbackReturnsSnapshot: true,

@@ -32,13 +32,11 @@ const pendingRpcAckRequests = new Map<string, PendingRpcAckRequest>();
 const untrackedRpcAckMethods = new Set<string>([
   WS_METHODS.serverGetUsageSummary,
   WS_METHODS.serverReportClientActivity,
-  WS_METHODS.sourceControlSignInWait,
 ]);
 const longRunningRpcAckMethods = new Set<string>([
   WS_METHODS.serverUpdateProvider,
   WS_METHODS.serverRefreshProviders,
   WS_METHODS.serverUpdateServer,
-  WS_METHODS.vcsRefreshStatus,
 ]);
 
 const slowRpcAckRequestsAtom = Atom.make<ReadonlyArray<SlowRpcAckRequest>>([]).pipe(
@@ -55,11 +53,7 @@ function getSlowRpcAckRequestsValue(): ReadonlyArray<SlowRpcAckRequest> {
 }
 
 function shouldTrackRpcAck(method: string): boolean {
-  return (
-    !method.includes("subscribe") &&
-    !method.startsWith("pullRequests.") &&
-    !untrackedRpcAckMethods.has(method)
-  );
+  return !method.includes("subscribe") && !untrackedRpcAckMethods.has(method);
 }
 
 function rpcAckThresholdMs(method: string): number {

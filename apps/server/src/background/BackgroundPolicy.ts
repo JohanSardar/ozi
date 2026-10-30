@@ -50,9 +50,6 @@ function scopeKey(scope: BackgroundScope): string {
       return scope.type;
     case "provider-status":
       return scope.instanceId ? `${scope.type}:${scope.instanceId}` : scope.type;
-    case "vcs-status":
-    case "git-refs":
-      return `${scope.type}:${scope.cwd}`;
     case "thread":
       return `${scope.type}:${scope.threadId}`;
   }

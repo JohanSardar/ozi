@@ -1,8 +1,7 @@
+import { resolveCodeThemeName } from "~/lib/syntaxHighlighting";
 import { getFiletypeFromFileName } from "@pierre/diffs";
 import type { ProjectContentMatch } from "@t3tools/contracts";
 import { memo, Suspense, use, type CSSProperties } from "react";
-
-import { resolveDiffThemeName } from "~/lib/diffRendering";
 import { getSyntaxHighlighterPromise } from "~/lib/syntaxHighlighting";
 
 import { RenderErrorBoundary } from "../RenderErrorBoundary";
@@ -132,7 +131,7 @@ function firstLineTokens(
   theme: "light" | "dark",
 ) {
   try {
-    return highlighter.codeToTokens(line, { lang: language, theme: resolveDiffThemeName(theme) })
+    return highlighter.codeToTokens(line, { lang: language, theme: resolveCodeThemeName(theme) })
       .tokens[0];
   } catch {
     return undefined;

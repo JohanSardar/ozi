@@ -1715,7 +1715,7 @@ it.layer(
           type: "snapshot",
           snapshot: {
             cwd: opened.cwd,
-            worktreePath: opened.worktreePath,
+            workingDirectory: opened.workingDirectory,
             pid: opened.pid,
             history: "existing history\n",
           },

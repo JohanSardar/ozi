@@ -1,8 +1,6 @@
 import type {
-  CheckpointId,
   MessageId,
   NodeId,
-  OrchestrationV2Checkpoint,
   OrchestrationV2DomainEvent,
   OrchestrationV2ContextHandoff,
   OrchestrationV2Subagent,
@@ -278,11 +276,9 @@ export function makeLiveBodyDeduper(): (
   item: OrchestrationV2ThreadStreamItem,
 ) => OrchestrationV2ThreadStreamItem {
   const messageText = new Map<MessageId, string>();
-  const checkpointFiles = new Map<CheckpointId, OrchestrationV2Checkpoint["files"]>();
   const subagents = new Map<NodeId, Pick<OrchestrationV2Subagent, "prompt" | "result">>();
   const source = {
     messageText: (id: MessageId) => messageText.get(id),
-    checkpointFiles: (id: CheckpointId) => checkpointFiles.get(id),
     subagent: (id: NodeId) => subagents.get(id),
   };
   const rememberSubagent = ({ id, prompt, result }: OrchestrationV2Subagent) =>
@@ -290,10 +286,8 @@ export function makeLiveBodyDeduper(): (
   return (item) => {
     if (item.kind === "snapshot") {
       // The client now holds exactly these records; their bodies are never blanked.
-      const { messages, checkpoints, subagents: records } = item.projection;
+      const { messages, subagents: records } = item.projection;
       for (const message of messages) remember(messageText, message.id, message.text);
-      for (const checkpoint of checkpoints)
-        remember(checkpointFiles, checkpoint.id, checkpoint.files);
       for (const subagent of records) rememberSubagent(subagent);
       return item;
     }
@@ -302,9 +296,6 @@ export function makeLiveBodyDeduper(): (
     switch (event.type) {
       case "message.updated":
         remember(messageText, event.payload.id, event.payload.text);
-        return item;
-      case "checkpoint.captured":
-        remember(checkpointFiles, event.payload.id, event.payload.files);
         return item;
       case "subagent.updated": {
         const payload = dedupeSubagentBodies(event.payload, subagents.get(event.payload.id));

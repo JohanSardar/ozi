@@ -49,16 +49,6 @@ const thread = {
   name: "Thread",
   params: { environmentId: "environment-a", threadId: "thread-a" },
 } as const;
-const pullRequest = {
-  name: "PullRequest",
-  params: {
-    environmentId: "environment-a",
-    projectId: "project-a",
-    repository: "owner/repository",
-    number: 42,
-    host: "github.com",
-  },
-} as const;
 
 function apply(
   state: ReturnType<typeof router.getInitialState>,
@@ -76,7 +66,6 @@ function withThread() {
 function legacyHistory() {
   let state = router.getInitialState(options);
   state = apply(state, StackActions.push(thread.name, thread.params));
-  state = apply(state, StackActions.push(pullRequest.name, pullRequest.params));
   return state;
 }
 
@@ -247,13 +236,5 @@ describe("Android Settings tab", () => {
     const back = apply(settings, StackActions.pop());
     expect(names(back)).toEqual(["Home"]);
     expect(back.routes[0]?.key).toBe(previous.routes[0]?.key);
-  });
-
-  it("stays selected under a settings page until a list tab returns to Home", () => {
-    const previous = legacyHistory();
-    const usage = apply(openTab(previous, "settings"), StackActions.push("SettingsUsage"));
-    const list = openTab(usage, "pullRequests");
-    expect(names(list)).toEqual(["Home"]);
-    expect(list.routes[0]?.key).toBe(previous.routes[0]?.key);
   });
 });

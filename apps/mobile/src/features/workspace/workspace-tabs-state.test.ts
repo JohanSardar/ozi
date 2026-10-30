@@ -2,11 +2,8 @@ import { describe, expect, it } from "vite-plus/test";
 import {
   initialWorkspaceTabsState,
   workspaceTabsReducer,
-  workspaceTabForNativeSlot,
-  resolveWorkspaceTabOrder,
   workspaceSearchBottomClearance,
   workspaceDockBottomClearance,
-  workspaceUsesColumns,
 } from "./workspace-tabs-state";
 
 describe("compact list clearance", () => {
@@ -49,51 +46,6 @@ describe("Duo list clearance", () => {
 });
 
 describe("workspace root navigation", () => {
-  it("pairs Settings, chats and pull requests with a detail column, and keeps Usage one page", () => {
-    expect(workspaceUsesColumns("usage")).toBe(false);
-    expect(workspaceUsesColumns("usage", true)).toBe(true);
-    expect(workspaceUsesColumns("threads")).toBe(true);
-    expect(workspaceUsesColumns("pullRequests")).toBe(true);
-  });
-
-  it("keeps the registered defaults while customization is unavailable", () => {
-    expect(resolveWorkspaceTabOrder(undefined)).toEqual(["threads", "pullRequests", "usage"]);
-    expect(resolveWorkspaceTabOrder(["home", "usage", "issues", "threads"])).toEqual(
-      resolveWorkspaceTabOrder(undefined),
-    );
-  });
-
-  it("retains separate queries and positions across tabs, and cancels only the current search", () => {
-    let state = initialWorkspaceTabsState();
-    state = workspaceTabsReducer(state, { type: "scroll", tab: "threads", offset: 640 });
-    state = workspaceTabsReducer(state, { type: "search" });
-    state = workspaceTabsReducer(state, { type: "query", query: "keyboard" });
-    state = workspaceTabsReducer(state, { type: "scroll", tab: "threads", offset: 160 });
-    state = workspaceTabsReducer(state, { type: "expand" });
-    state = workspaceTabsReducer(state, { type: "select", tab: "pullRequests" });
-    expect(state.tabs.pullRequests.query).toBe("");
-    state = workspaceTabsReducer(state, { type: "scroll", tab: "pullRequests", offset: 240 });
-    state = workspaceTabsReducer(state, { type: "search" });
-    state = workspaceTabsReducer(state, { type: "query", query: "navigation" });
-    state = workspaceTabsReducer(state, { type: "select", tab: "threads" });
-    expect(state.tabs.threads).toMatchObject({
-      query: "keyboard",
-      scrollOffset: 160,
-      searchMode: "expanded",
-    });
-    state = workspaceTabsReducer(state, { type: "cancel" });
-    expect(state.tabs.threads).toMatchObject({
-      query: "",
-      scrollOffset: 640,
-      searchMode: "resting",
-    });
-    expect(state.tabs.pullRequests).toMatchObject({
-      query: "navigation",
-      scrollOffset: 240,
-      searchMode: "active",
-    });
-  });
-
   it("clear keeps search active without losing the position cancel restores", () => {
     let state = initialWorkspaceTabsState();
     state = workspaceTabsReducer(state, { type: "scroll", tab: "threads", offset: 500 });
@@ -129,16 +81,6 @@ describe("workspace root navigation", () => {
     state = workspaceTabsReducer(state, { type: "cancel" });
     expect(workspaceTabsReducer(state, { type: "expand" })).toBe(state);
   });
-
-  it("a blur from the previous native tab cannot open search in the selected tab", () => {
-    let state = workspaceTabsReducer(initialWorkspaceTabsState(), { type: "search" });
-    state = workspaceTabsReducer(state, { type: "query", query: "keyboard" });
-    state = workspaceTabsReducer(state, { type: "select", tab: "pullRequests" });
-    state = workspaceTabsReducer(state, { type: "expand", tab: "threads" });
-    expect(state.tabs.threads).toMatchObject({ query: "keyboard", searchMode: "expanded" });
-    expect(state.tabs.pullRequests.searchMode).toBe("resting");
-    expect(workspaceTabsReducer(state, { type: "select", tab: "pullRequests" })).toBe(state);
-  });
   it("returns from Usage without losing list state", () => {
     let state = workspaceTabsReducer(initialWorkspaceTabsState(), {
       type: "query",
@@ -152,12 +94,5 @@ describe("workspace root navigation", () => {
     }
     state = workspaceTabsReducer(state, { type: "select", tab: "threads" });
     expect(state.tabs.threads.query).toBe("retained");
-  });
-  it("opens Settings on native reselection instead of selecting its overflow section", () => {
-    const order = ["threads", "pullRequests", "usage"] as const;
-    expect(workspaceTabForNativeSlot(order, "settings")).toBe("settings");
-    expect(workspaceTabForNativeSlot(order, "first")).toBe("threads");
-    expect(workspaceTabForNativeSlot(order, "third")).toBe("usage");
-    expect(workspaceTabForNativeSlot(order, "removed")).toBeNull();
   });
 });

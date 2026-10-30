@@ -10,8 +10,8 @@ import { beforeEach, describe, expect, it } from "vite-plus/test";
 import { type ClosedViewEntry, useClosedViewStore } from "./closedViewStore";
 
 const refA = scopeThreadRef("env-1" as EnvironmentId, ThreadId.make("thread-A"));
-const diff = (threadRef: typeof refA) =>
-  ({ kind: "panel-tab", threadRef, surface: { kind: "diff", id: "diff" } }) as const;
+const files = (threadRef: typeof refA) =>
+  ({ kind: "panel-tab", threadRef, surface: { kind: "files", id: "files" } }) as const;
 
 beforeEach(() => {
   useClosedViewStore.setState({ entries: [] });
@@ -30,7 +30,7 @@ const snapshot: PreviewSessionSnapshot = {
 describe("closedViewStore", () => {
   it("keeps private tabs available in memory without saving their metadata", async () => {
     const store = useClosedViewStore.getState();
-    const publicId = store.remember(diff(refA));
+    const publicId = store.remember(files(refA));
     const privateId = store.remember({ kind: "browser", threadRef: refA, snapshot });
     expect(useClosedViewStore.getState().entries.map((entry) => entry.id)).toEqual([
       privateId,
@@ -46,7 +46,7 @@ describe("closedViewStore", () => {
 
   it("removes private metadata and malformed entries from history saved by earlier versions", async () => {
     const store = useClosedViewStore.getState();
-    const publicId = store.remember(diff(refA));
+    const publicId = store.remember(files(refA));
     const browserId = store.remember({
       kind: "browser",
       threadRef: refA,

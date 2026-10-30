@@ -14,7 +14,6 @@ import {
   projectComposerContextForProvider,
   threadContextRecord,
   threadContextsOutsideEnvironment,
-  toComposerContextId,
   toKindScopedComposerContextId,
 } from "./composerContextReferences.ts";
 
@@ -365,22 +364,6 @@ describe("toComposerContextId", () => {
   it("keeps same-kind raw IDs distinct when one contains the namespace prefix", () => {
     expect(toKindScopedComposerContextId("image", "x")).toBe("image_x");
     expect(toKindScopedComposerContextId("image", "image_x")).toBe("image_image_x");
-  });
-  it("keeps ids that already fit the grammar and folds the rest deterministically", () => {
-    expect(toComposerContextId("file-comment-1700-1")).toBe("file-comment-1700-1");
-    const folded = toComposerContextId("pull-request-selection:src/a.ts:4-9");
-    expect(folded).toMatch(/^pull-request-selection-src-a-ts-4-9-[0-9a-f]{16}$/);
-    expect(toComposerContextId("pull-request-selection:src/a.ts:4-9")).toBe(folded);
-    expect(toComposerContextId("pull-request-selection:src/b.ts:4-9")).not.toBe(folded);
-    expect(toComposerContextId("::")).toMatch(/^ctx-[0-9a-f]{16}$/);
-  });
-  it("tells apart producer ids that agree past the slug's truncation point", () => {
-    const shared = `pull-request-finding:${"a".repeat(60)}`;
-    const first = toComposerContextId(`${shared}:1`);
-    const second = toComposerContextId(`${shared}:2`);
-
-    expect(first).not.toBe(second);
-    expect(first.length).toBeLessThanOrEqual(128);
   });
 });
 

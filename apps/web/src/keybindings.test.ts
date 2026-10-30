@@ -107,7 +107,7 @@ const DEFAULT_BINDINGS = compile([
   },
   {
     shortcut: modShortcut("d"),
-    command: "diff.toggle",
+    command: "preview.toggle",
     whenAst: whenNot(whenIdentifier("terminalFocus")),
   },
   {
@@ -288,7 +288,7 @@ describe("shortcutLabelForCommand", () => {
 
   it("respects when-context while resolving labels", () => {
     const bindings = compile([
-      { shortcut: modShortcut("d"), command: "diff.toggle" },
+      { shortcut: modShortcut("d"), command: "preview.toggle" },
       {
         shortcut: modShortcut("d"),
         command: "terminal.split",
@@ -297,14 +297,14 @@ describe("shortcutLabelForCommand", () => {
     ]);
 
     assert.strictEqual(
-      shortcutLabelForCommand(bindings, "diff.toggle", {
+      shortcutLabelForCommand(bindings, "preview.toggle", {
         platform: "Linux",
         context: { terminalFocus: false },
       }),
       "Ctrl+D",
     );
     assert.isNull(
-      shortcutLabelForCommand(bindings, "diff.toggle", {
+      shortcutLabelForCommand(bindings, "preview.toggle", {
         platform: "Linux",
         context: { terminalFocus: true },
       }),
@@ -639,7 +639,7 @@ describe("resolveShortcutCommand", () => {
 
   it("matches punctuation shortcuts by physical key across keyboard layouts", () => {
     const keybindings = compile([
-      { shortcut: modShortcut("'", { shiftKey: true }), command: "diff.toggle" },
+      { shortcut: modShortcut("'", { shiftKey: true }), command: "preview.toggle" },
     ]);
 
     assert.strictEqual(
@@ -648,7 +648,7 @@ describe("resolveShortcutCommand", () => {
         keybindings,
         { platform: "MacIntel" },
       ),
-      "diff.toggle",
+      "preview.toggle",
     );
     assert.isNull(
       resolveShortcutCommand(
@@ -661,7 +661,7 @@ describe("resolveShortcutCommand", () => {
 
   it("does not let a punctuation position shadow a Latin layout key", () => {
     const keybindings = compile([
-      { shortcut: modShortcut("m"), command: "diff.toggle" },
+      { shortcut: modShortcut("m"), command: "preview.toggle" },
       { shortcut: modShortcut(";"), command: "sidebar.toggle" },
     ]);
 
@@ -669,7 +669,7 @@ describe("resolveShortcutCommand", () => {
       resolveShortcutCommand(event({ key: "m", code: "Semicolon", metaKey: true }), keybindings, {
         platform: "MacIntel",
       }),
-      "diff.toggle",
+      "preview.toggle",
     );
   });
 
@@ -685,18 +685,18 @@ describe("resolveShortcutCommand", () => {
   });
 
   it("matches non-Latin layout letters using the physical key code", () => {
-    const keybindings = compile([{ shortcut: modShortcut("d"), command: "diff.toggle" }]);
+    const keybindings = compile([{ shortcut: modShortcut("d"), command: "preview.toggle" }]);
 
     assert.strictEqual(
       resolveShortcutCommand(event({ key: "в", code: "KeyD", metaKey: true }), keybindings, {
         platform: "MacIntel",
       }),
-      "diff.toggle",
+      "preview.toggle",
     );
   });
 
   it("ignores the physical key code when the layout types a different Latin letter", () => {
-    const keybindings = compile([{ shortcut: modShortcut("d"), command: "diff.toggle" }]);
+    const keybindings = compile([{ shortcut: modShortcut("d"), command: "preview.toggle" }]);
 
     assert.isNull(
       resolveShortcutCommand(event({ key: "a", code: "KeyD", metaKey: true }), keybindings, {
@@ -707,7 +707,7 @@ describe("resolveShortcutCommand", () => {
       resolveShortcutCommand(event({ key: "d", code: "KeyL", metaKey: true }), keybindings, {
         platform: "MacIntel",
       }),
-      "diff.toggle",
+      "preview.toggle",
     );
   });
 });
@@ -741,32 +741,6 @@ describe("isRichTextBoldShortcut", () => {
 });
 
 describe("composer and pull request shortcuts", () => {
-  it("fills missing number shortcuts without replacing the saved URL binding", () => {
-    const olderServerBindings = DEFAULT_RESOLVED_KEYBINDINGS.filter(
-      (binding) =>
-        binding.command !== "pullRequest.copyNumber" && binding.command !== "thread.copyReference",
-    );
-    const bindings = mergeWithDefaultKeybindings([
-      ...olderServerBindings,
-      ...compileResolvedKeybindingsConfig([
-        { key: "mod+shift+8", command: "thread.copyReference", when: "!terminalFocus" },
-      ]),
-    ]);
-    for (const [key, command] of [
-      ["k", "pullRequest.copyNumber"],
-      ["8", "thread.copyReference"],
-      ["c", null],
-      ["y", null],
-    ] as const) {
-      assert.strictEqual(
-        resolveShortcutCommand(event({ key, metaKey: true, shiftKey: true }), bindings, {
-          platform: "MacIntel",
-        }),
-        command,
-      );
-    }
-  });
-
   it.each(["MacIntel", "Win32", "Linux"])(
     "reserves the alternate send chord for the focused composer on %s",
     (platform) => {

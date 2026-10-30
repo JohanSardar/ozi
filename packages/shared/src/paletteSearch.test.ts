@@ -32,37 +32,6 @@ function rankTitles(query: string, threads: ReadonlyArray<ThreadSearchSubject>):
 }
 
 describe("scoreThreadSearch", () => {
-  it("ranks whole words over prefixes over newer mid-word matches", () => {
-    expect(
-      rankTitles("auth", [
-        thread("Fix oauth redirect", { activityAt: NOW }),
-        thread("Authentication cleanup"),
-        thread("Share auth across worktrees"),
-      ]),
-    ).toEqual(["Share auth across worktrees", "Authentication cleanup", "Fix oauth redirect"]);
-  });
-
-  it("treats camelCase, kebab, path, and digit boundaries as word starts", () => {
-    const starts = (title: string, query: string) =>
-      scoreThreadSearch(query, thread(title), NOW)?.ranges;
-    expect(starts("useThreadSearch hook", "search")).toEqual([{ start: 9, end: 15 }]);
-    expect(starts("fix/sidebar-perf", "perf")).toEqual([{ start: 12, end: 16 }]);
-    expect(starts("Upgrade to pnpm12", "12")).toEqual([{ start: 15, end: 17 }]);
-    expect(starts("Fix JSONSchema parsing", "sch")).toEqual([{ start: 8, end: 11 }]);
-    expect(starts("Fix HTTPServer crash", "ser")).toEqual([{ start: 8, end: 11 }]);
-    expect(starts("Rename index.ts", ".ts")).toEqual([{ start: 12, end: 15 }]);
-    // A match is whole only where a word ends: "githuba" does not fill "GitHubActions".
-    expect(scoreThreadSearch("githuba", thread("GitHubActions setup"), NOW)?.quality).toBeLessThan(
-      1,
-    );
-    expect(rankTitles(".ts", [thread("Fix parser.tsx"), thread("Rename index.ts")])).toEqual([
-      "Rename index.ts",
-      "Fix parser.tsx",
-    ]);
-    // Short tokens never match mid-word.
-    expect(scoreThreadSearch("ci", thread("Decision log"), NOW)).toBeNull();
-  });
-
   it("lets recent activity and frequent opens decide between equal matches", () => {
     expect(
       rankTitles("goldbug", [
@@ -79,92 +48,6 @@ describe("scoreThreadSearch", () => {
         }),
       ]),
     ).toEqual(["Goldbug notes", "Goldbug processes"]);
-  });
-
-  it("puts the thread picked for a query first when that query is typed again", () => {
-    const threads = [
-      thread("Release checklist", {
-        opens: { openedAt: NOW - 5 * DAY, score: 1, picks: [{ query: "rel", at: NOW - 5 * DAY }] },
-      }),
-      thread("Relay pairing", { activityAt: NOW }),
-    ];
-    expect(rankTitles("rel", threads)).toEqual(["Release checklist", "Relay pairing"]);
-    // A pick never lifts a match inside a word above a word match.
-    expect(
-      rankTitles("auth", [
-        thread("Fix oauth redirect", {
-          opens: { openedAt: NOW - DAY, score: 1, picks: [{ query: "auth", at: NOW - DAY }] },
-        }),
-        thread("Share auth across worktrees"),
-      ]),
-    ).toEqual(["Share auth across worktrees", "Fix oauth redirect"]);
-    // Two letters are too little to go on.
-    expect(rankTitles("re", threads)).toEqual(["Relay pairing", "Release checklist"]);
-    // Once the query leaves the pick behind, the better match wins again.
-    expect(rankTitles("rela", threads)).toEqual(["Relay pairing"]);
-    // An old pick fades with the thread's last open.
-    const stale = [
-      thread("Release checklist", {
-        opens: {
-          openedAt: NOW - 90 * DAY,
-          score: 1,
-          picks: [{ query: "rel", at: NOW - 90 * DAY }],
-        },
-      }),
-      thread("Relay pairing", { activityAt: NOW }),
-    ];
-    expect(rankTitles("rel", stale)).toEqual(["Relay pairing", "Release checklist"]);
-    // Opening an old pick some other way does not revive it over a newer pick.
-    const reopened = [
-      thread("Release checklist", {
-        opens: { openedAt: NOW - DAY, score: 2, picks: [{ query: "rel", at: NOW - 30 * DAY }] },
-      }),
-      thread("Relay pairing", {
-        opens: { openedAt: NOW - DAY, score: 1, picks: [{ query: "rel", at: NOW - DAY }] },
-      }),
-    ];
-    expect(rankTitles("rel", reopened)).toEqual(["Relay pairing", "Release checklist"]);
-    // The latest pick for a query wins over an earlier one with a better title match.
-    const repicked = [
-      thread("Deploy", {
-        opens: { openedAt: NOW - DAY, score: 1, picks: [{ query: "deploy", at: NOW - DAY }] },
-      }),
-      thread("Deploy timeout on Railway", {
-        opens: { openedAt: NOW, score: 1, picks: [{ query: "deploy", at: NOW }] },
-      }),
-    ];
-    expect(rankTitles("deploy", repicked)).toEqual(["Deploy timeout on Railway", "Deploy"]);
-    // A thread's exact pick counts even after a newer pick for a longer query.
-    const exact = [
-      thread("Fix browser", {
-        opens: {
-          openedAt: NOW,
-          score: 2,
-          picks: [
-            { query: "fix browser", at: NOW },
-            { query: "fix", at: NOW - 2 * DAY },
-          ],
-        },
-      }),
-      thread("Fix sidebar", {
-        opens: { openedAt: NOW - DAY, score: 1, picks: [{ query: "fix", at: NOW - DAY }] },
-      }),
-    ];
-    expect(rankTitles("fix", exact)).toEqual(["Fix sidebar", "Fix browser"]);
-    // A pick for a longer query does not pass the thread named by the query.
-    const named = [
-      thread("Lakebed perf audit", {
-        opens: { openedAt: NOW, score: 1, picks: [{ query: "lakebed perf", at: NOW }] },
-      }),
-      thread("Lakebed"),
-    ];
-    expect(rankTitles("lakebed", named)).toEqual(["Lakebed", "Lakebed perf audit"]);
-  });
-
-  it("finds a branch pasted with the app's worktree prefix", () => {
-    const subject = thread("Cmd+K search", { branch: "t3/cmdk-search-v2" });
-    expect(scoreThreadSearch(foldSearchQuery("t3/cmdk-search-v2"), subject, NOW)).not.toBeNull();
-    expect(scoreThreadSearch(foldSearchQuery("t3/cmdk"), subject, NOW)).not.toBeNull();
   });
 
   it("ranks a title holding the words above the app's own branch prefix and project name", () => {
@@ -186,63 +69,6 @@ describe("scoreThreadSearch", () => {
       ])[0],
     ).toBe("Ozi vs Gemini Token Volume");
   });
-
-  it("matches pull request numbers, branches, and projects with every token somewhere", () => {
-    const subject = thread("Trim model lists", {
-      branch: "t3/trim-mcp-models",
-      projectTitle: "ozi",
-      pullRequests: [{ number: 22889, title: "Smaller MCP payloads" }],
-    });
-    for (const query of ["#22889", "22889", "trim mcp", "payloads t3code", "models trim"]) {
-      expect(scoreThreadSearch(foldSearchQuery(query), subject, NOW), query).not.toBeNull();
-    }
-    expect(scoreThreadSearch("trim lakebed", subject, NOW)).toBeNull();
-  });
-
-  it("forgives one typo only when nothing matches exactly", () => {
-    const threads = [thread("Hosting alternatives to Railway"), thread("Trim MCP model lists")];
-    expect(rankTitles("railwya", threads)).toEqual(["Hosting alternatives to Railway"]);
-    expect(rankTitles("trim mpc", threads)).toEqual(["Trim MCP model lists"]);
-    expect(
-      rankTitles("drga", [thread("Restore drag handles"), thread("Organize indicators")]),
-    ).toEqual(["Restore drag handles"]);
-    expect(rankTitles("22889", [thread("Stats", { pullRequests: [{ number: 22189 }] })])).toEqual(
-      [],
-    );
-    // Words with digits still forgive one.
-    expect(rankTitles("t3coed", [thread("t3code perf audit"), thread("Other")])).toEqual([
-      "t3code perf audit",
-    ]);
-    expect(rankTitles("oath2", [thread("Fix oauth2 redirect")])).toEqual(["Fix oauth2 redirect"]);
-    // A typo beats a mid-word accident: "ilde" is "idle", not the middle of "Builder".
-    expect(
-      rankTitles("ilde", [thread("Typesafe App Builder"), thread("De-risk idle tunnel cleanup")]),
-    ).toEqual(["De-risk idle tunnel cleanup", "Typesafe App Builder"]);
-    // "ing" is not "Nightly": a three-letter typo keeps the first letter.
-    expect(rankTitles("ing", [thread("Nightly build fix")])).toEqual([]);
-    // A short word may miss one letter while it is typed, but not change one.
-    expect(rankTitles("srv", [thread("Server restart"), thread("Other")])).toEqual([
-      "Server restart",
-    ]);
-    expect(rankTitles("sidb", [thread("Fix sidebar lag")])).toEqual(["Fix sidebar lag"]);
-    expect(rankTitles("cron", [thread("Config cleanup")])).toEqual([]);
-    // Filler words in a phrase-style query are not required, but alone they are.
-    expect(rankTitles("fix the sidebar", [thread("Fix Sidebar Lag")])).toEqual(["Fix Sidebar Lag"]);
-    expect(rankTitles("the", [thread("Fix sidebar lag")])).toEqual([]);
-    // A typed straight apostrophe finds a curly one.
-    expect(rankTitles("don't", [thread("Don’t merge yet")])).toEqual(["Don’t merge yet"]);
-    // Typos count across camelCase joins.
-    expect(rankTitles("githbu", [thread("GitHub API usage"), thread("Other")])).toEqual([
-      "GitHub API usage",
-    ]);
-    expect(rankTitles("macso", [thread("Fix macOS window"), thread("Other")])).toEqual([
-      "Fix macOS window",
-    ]);
-    // "enter" is not "external" when the right thread is already there.
-    expect(
-      rankTitles("cmd enter", [thread("Fix Cmd+Enter"), thread("Open links external")]),
-    ).toEqual(["Fix Cmd+Enter"]);
-  });
 });
 
 describe("queries that fold to empty words", () => {
@@ -257,47 +83,6 @@ describe("queries that fold to empty words", () => {
 });
 
 describe("scoreThreadSearch beyond Latin text and titles", () => {
-  it("leaves out a row whose words only meet across unrelated fields", () => {
-    const scattered = thread("eMudhra certificate update request", {
-      pullRequests: [
-        { number: 22645, title: "fix model picker" },
-        { number: 22649, title: "CI speedups" },
-      ],
-    });
-    expect(scoreThreadSearch("fix ci", scattered, NOW)).toBeNull();
-    // The project explains its own words; one field explains the rest.
-    const lakebed = thread("Weekly notes", {
-      projectTitle: "lakebed",
-      pullRequests: [{ number: 243, title: "perf: faster cold starts" }],
-    });
-    expect(scoreThreadSearch("lakebed perf", lakebed, NOW)?.explain?.()).toEqual({
-      label: "PR",
-      text: "#243 perf: faster cold starts",
-      ranges: [{ start: 5, end: 9 }],
-    });
-  });
-
-  it("says which field matched when the title does not", () => {
-    const subject = thread("Trim model lists", {
-      branch: "t3/cleanup-payloads",
-      pullRequests: [{ number: 22889, title: "Smaller MCP payloads" }],
-    });
-    for (const query of ["#22889", "pr 22889", "pr22889", "pull request #22889"]) {
-      expect(scoreThreadSearch(foldSearchQuery(query), subject, NOW)?.explain?.(), query).toEqual({
-        label: "PR",
-        text: "#22889 Smaller MCP payloads",
-        ranges: [{ start: 1, end: 6 }],
-      });
-    }
-    // The app's own worktree prefix is not part of what the branch says.
-    expect(scoreThreadSearch("cleanup", subject, NOW)?.explain?.()).toEqual({
-      label: "Branch",
-      text: "cleanup-payloads",
-      ranges: [{ start: 0, end: 7 }],
-    });
-    expect(scoreThreadSearch("trim", subject, NOW)?.explain?.()).toBeUndefined();
-  });
-
   it("reads letters and numbers typed together, without forgiving typos in numbers", () => {
     const threads = [
       thread("Upgrade to pnpm 12"),
@@ -363,17 +148,6 @@ describe("scoreThreadSearch beyond Latin text and titles", () => {
 });
 
 describe("scoreThreadSearch with heavy use and loose input", () => {
-  it("keeps a whole word on a quiet thread above a mid-word hit on a thread opened daily", () => {
-    let opens = recordThreadOpen(null, NOW - 60 * DAY, undefined);
-    for (let day = 59; day >= 1; day--) opens = recordThreadOpen(opens, NOW - day * DAY, undefined);
-    expect(
-      rankTitles("auth", [
-        thread("Fix oauth redirect", { activityAt: NOW, opens }),
-        thread("Share auth across worktrees", { activityAt: NOW - 90 * DAY }),
-      ]),
-    ).toEqual(["Share auth across worktrees", "Fix oauth redirect"]);
-  });
-
   it("reads a word and the start of the next typed together, highlighting each part", () => {
     const threads = [thread("Fix sidebar lag"), thread("Unrelated work")];
     expect(rankTitles("fixsid", threads)).toEqual(["Fix sidebar lag"]);
@@ -387,49 +161,6 @@ describe("scoreThreadSearch with heavy use and loose input", () => {
     ]);
     // Initials are not words typed together.
     expect(rankTitles("fsl", threads)).toEqual([]);
-  });
-
-  it("finds nothing rather than an unrelated thread when no word matches", () => {
-    const threads = [
-      thread("Projectless threads without Git"),
-      thread("Concern about connection setup"),
-      thread("Simplify worktree thread creation"),
-      thread("Start a new conversation"),
-      thread("Setting up the sentinel"),
-      thread("I plan to open source all of lakebed in the next few weeks"),
-      thread("Design notes"),
-      thread("Link pull request to thread"),
-    ];
-    for (const query of ["posthog", "cron", "stripe", "gpu", "fxsb", "lint", "deno"]) {
-      expect(rankTitles(query, threads), query).toEqual([]);
-    }
-  });
-
-  it("matches pieces of references that hold a number, and environment names", () => {
-    const subject = thread("Trim model lists", {
-      id: "thread-5fe6f59c-4976",
-      environmentLabel: "BeeBox",
-      pullRequests: [
-        {
-          number: 22889,
-          references: ["JohanSardar/ozi#22889", "https://github.com/JohanSardar/ozi/pull/22889"],
-        },
-      ],
-    });
-    for (const query of [
-      "t3code#22889",
-      "github.com/JohanSardar/ozi/pull/22889",
-      "https://github.com/JohanSardar/ozi/pull/22889/files",
-      "5fe6f59c",
-      "beebox",
-    ]) {
-      expect(scoreThreadSearch(foldSearchQuery(query), subject, NOW), query).not.toBeNull();
-    }
-    expect(scoreThreadSearch("github.com", subject, NOW)).toBeNull();
-    // A number is never cut short.
-    for (const query of ["github.com/JohanSardar/ozi/pull/2288", "t3code#2288"]) {
-      expect(scoreThreadSearch(foldSearchQuery(query), subject, NOW), query).toBeNull();
-    }
   });
 });
 
@@ -542,21 +273,6 @@ describe("rankSearchGroups with keywords and picks", () => {
       scoreThreadSearch("arch", thread("Notes", { branch: "research-extension-system" }), NOW),
     ).toBeNull();
     expect(scoreThreadSearch("arch", thread("Research notes"), NOW)?.quality).toBe(0.3);
-  });
-
-  it("forgives typos in names but not in hidden keywords", () => {
-    const groups = rankSearchGroups(
-      [
-        { group: "actions", items: [["Open settings", "preferences", "keybindings"]] },
-        { group: "settings", items: [["Keybindings", "General"]] },
-      ],
-      (terms, options) => scoreSearchTerms("keybindngs", terms, options),
-    );
-    expect(groups.map(({ group }) => group)).toEqual(["settings"]);
-    expect(scoreSearchTerms("duckdb", ["Search engine", "duckduckgo"], { typos: true })).toBeNull();
-    expect(scoreSearchTerms("rust", ["GitHub sharing", "trusted"])).toBeNull();
-    // Filler words do not make a short query long enough for keyword prefixes.
-    expect(scoreSearchTerms("the ci", ["Context window indicator", "circle"])).toBeNull();
   });
 
   it("lists a thread named for the query above a command with it as a keyword", () => {

@@ -1735,57 +1735,6 @@ describe("mobile composer drafts", () => {
     }
   });
 
-  it("hydrates selector state even when the message content is empty", () => {
-    const hydrated = Object.entries(
-      decodePersistedComposerState({
-        schemaVersion: 1,
-        drafts: {
-          "new-task:environment-1:project-1": {
-            text: "",
-            attachments: [],
-            modelSelection: {
-              instanceId: "codex",
-              model: "gpt-5.4",
-              options: [{ id: "reasoningEffort", value: "xhigh" }],
-            },
-            runtimeMode: "approval-required",
-            interactionMode: "plan",
-            workspaceSelection: {
-              mode: "worktree",
-              branch: "main",
-              worktreePath: null,
-            },
-          },
-        },
-      }).drafts,
-    );
-    expect(hydrated).toHaveLength(1);
-    const [key, draft] = hydrated[0]!;
-
-    expect(key).toMatch(/^new-task:[0-9a-z-]+$/);
-    expect(draft).toEqual({
-      text: "",
-      attachments: [],
-      modelSelection: {
-        instanceId: "codex",
-        model: "gpt-5.4",
-        options: [{ id: "reasoningEffort", value: "xhigh" }],
-      },
-      runtimeMode: "approval-required",
-      interactionMode: "plan",
-      workspaceSelection: {
-        mode: "worktree",
-        branch: "main",
-        worktreePath: null,
-      },
-      project: {
-        environmentId: "environment-1",
-        projectId: "project-1",
-        createdAt: expect.any(String),
-      },
-    });
-  });
-
   it("keeps share-import receipts on otherwise contentless new-task drafts", () => {
     const receiptDraft: ComposerDraft = {
       text: "",
@@ -1888,39 +1837,6 @@ describe("mobile composer drafts", () => {
     clearComposerDraftContent(first, { clearModelSelection: true, clearWorkspaceSelection: true });
     expect(appAtomRegistry.get(composerDraftsAtom)[first]).toBeUndefined();
     expect(getComposerDraftSnapshot(second).text).toBe("second idea");
-  });
-
-  it("retargets a new-task draft to another project without losing its text", () => {
-    const from = {
-      environmentId: EnvironmentId.make("environment-1"),
-      projectId: ProjectId.make("project-1"),
-    };
-    const to = {
-      environmentId: EnvironmentId.make("environment-2"),
-      projectId: ProjectId.make("project-2"),
-    };
-    const key = createNewTaskDraft(from);
-    setComposerDraftText(key, "moving house");
-    appAtomRegistry.set(composerDraftsAtom, {
-      ...appAtomRegistry.get(composerDraftsAtom),
-      [key]: {
-        ...getComposerDraftSnapshot(key),
-        runtimeMode: "approval-required",
-        workspaceSelection: { mode: "worktree", branch: "feature/a", worktreePath: null },
-      },
-    });
-    const createdAt = getComposerDraftSnapshot(key).project?.createdAt;
-
-    retargetNewTaskDraft(key, to);
-
-    const moved = getComposerDraftSnapshot(key);
-    expect(moved.text).toBe("moving house");
-    expect(moved.runtimeMode).toBe("approval-required");
-
-    expect(moved.workspaceSelection).toBeUndefined();
-    expect(moved.project).toEqual({ ...to, createdAt });
-    expect(findNewTaskDraftKeys(appAtomRegistry.get(composerDraftsAtom), from)).toEqual([]);
-    expect(findNewTaskDraftKeys(appAtomRegistry.get(composerDraftsAtom), to)).toEqual([key]);
   });
 
   it("merges persisted option memory without replacing newer choices", async () => {
@@ -2067,34 +1983,6 @@ describe("mobile composer drafts", () => {
       stickyModelSelection: {
         instanceId: "codex",
         model: "gpt-5.6-sol",
-      },
-    });
-  });
-
-  it("clears sent content without clearing the selected model or workspace", () => {
-    const draftKey = "environment-1:thread-1";
-    const draft: ComposerDraft = {
-      text: "send this",
-      attachments: [],
-      importedShareIds: ["share-1"],
-      modelSelection: {
-        instanceId: ProviderInstanceId.make("codex"),
-        model: "gpt-5.4",
-        options: [{ id: "reasoningEffort", value: "xhigh" }],
-      },
-      workspaceSelection: {
-        mode: "worktree",
-        branch: "main",
-        worktreePath: null,
-      },
-    };
-
-    expect(clearComposerDraftContentState({ [draftKey]: draft }, draftKey)).toEqual({
-      [draftKey]: {
-        modelSelection: draft.modelSelection,
-        workspaceSelection: draft.workspaceSelection,
-        text: "",
-        attachments: [],
       },
     });
   });

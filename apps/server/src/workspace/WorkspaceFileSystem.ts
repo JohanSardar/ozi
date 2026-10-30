@@ -28,12 +28,6 @@ import { fileHeaderMimeType } from "./fileHeaderMimeType.ts";
 
 const PROJECT_READ_FILE_MAX_BYTES = 1024 * 1024;
 
-// NTFS reaches .git through trailing dots/spaces, stream suffixes and GIT~1; compare uppercased names.
-const isGitMetadataName = (segment: string) => {
-  const name = (segment.split(":")[0] ?? "").replace(/[. ]+$/, "").toUpperCase();
-  return name === ".GIT" || name === "GIT~1";
-};
-
 export class WorkspaceFileSystemOperationError extends Schema.TaggedError<WorkspaceFileSystemOperationError>()(
   "WorkspaceFileSystemOperationError",
   {
@@ -136,6 +130,26 @@ export class WorkspaceFileSystem extends Context.Service<
 export const make = Effect.gen(function* () {
   const fileSystem = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
+  const isGitMetadataName = (segment: string) => {
+    const name = (segment.split(":")[0] ?? "").replace(/[. ]+$/, "").toUpperCase();
+    return name === ".GIT" || name === "GIT~1";
+  };
+  const isInGitFolder = async (absolutePath: string) => {
+    if (absolutePath.split(path.sep).some(isGitMetadataName)) return true;
+    for (let folder = path.dirname(absolutePath); ; folder = path.dirname(folder)) {
+      const [head, commondir, objects, refs, dotGit] = await Promise.all(
+        ["HEAD", "commondir", "objects", "refs", ".git"].map((name) =>
+          NodeFSP.lstat(path.join(folder, name)).catch((error: NodeJS.ErrnoException) => {
+            if (error.code === "ENOENT" || error.code === "ENOTDIR") return null;
+            throw error;
+          }),
+        ),
+      );
+
+      if (head && (commondir || (objects && refs))) return true;
+      if (dotGit?.isFile() || path.dirname(folder) === folder) return false;
+    }
+  };
   const workspacePaths = yield* WorkspacePaths.WorkspacePaths;
   const knownWorkspaces = yield* KnownWorkspaces.KnownWorkspaces;
   const workspaceEntries = yield* WorkspaceEntries.WorkspaceEntries;
@@ -193,26 +207,6 @@ export const make = Effect.gen(function* () {
       relative === ".." ||
       path.isAbsolute(relative)
     );
-  };
-
-  // Reject Git folders, including renamed bare repos whose config/hooks can execute; paths must be normalized.
-  // Stop at linked worktrees' .git files since worktrees can sit inside bare repos.
-  const isInGitFolder = async (absolutePath: string) => {
-    if (absolutePath.split(path.sep).some(isGitMetadataName)) return true;
-    for (let folder = path.dirname(absolutePath); ; folder = path.dirname(folder)) {
-      const [head, commondir, objects, refs, dotGit] = await Promise.all(
-        ["HEAD", "commondir", "objects", "refs", ".git"].map((name) =>
-          NodeFSP.lstat(path.join(folder, name)).catch((error: NodeJS.ErrnoException) => {
-            // Any other failure leaves the folder unknown, so the write is refused.
-            if (error.code === "ENOENT" || error.code === "ENOTDIR") return null;
-            throw error;
-          }),
-        ),
-      );
-      // Git recognizes HEAD with commondir or objects/refs as a repository.
-      if (head && (commondir || (objects && refs))) return true;
-      if (dotGit?.isFile() || path.dirname(folder) === folder) return false;
-    }
   };
 
   /**
@@ -510,6 +504,7 @@ export const make = Effect.gen(function* () {
           }),
       }),
     );
+
     if (
       !isInsideRealRoot(realWorkspaceRoot, realTargetPath) ||
       (yield* inGitFolder(realTargetPath)) ||

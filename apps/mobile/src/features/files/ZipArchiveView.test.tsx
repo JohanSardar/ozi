@@ -9,7 +9,7 @@ import type { ZipTreeRow } from "./zipTree";
 const files = vi.hoisted(() => new Map<string, Uint8Array>());
 const navigation = vi.hoisted(() => ({ remove: null as (() => void) | null }));
 const server = vi.hoisted(() => ({
-  capabilities: { repositoryIdentity: false } as ServerConfig["environment"]["capabilities"],
+  capabilities: {} as ServerConfig["environment"]["capabilities"],
   refresh: vi.fn(async () => "file:///first.zip"),
 }));
 
@@ -148,7 +148,6 @@ vi.mock("../settings/appearance/AppearancePreferencesProvider", () => ({
 }));
 
 import { ZipArchiveView } from "./ZipArchiveView";
-import { AttachmentFileScreen } from "./AttachmentFileScreen";
 import { appAtomRegistry } from "../../state/atom-registry";
 import { composerDraftsAtom } from "../../state/use-composer-drafts";
 
@@ -157,7 +156,7 @@ function setup() {
   vi.useFakeTimers({ toFake: ["setImmediate", "clearImmediate"] });
   files.clear();
   navigation.remove = null;
-  server.capabilities = { repositoryIdentity: false };
+  server.capabilities = {};
   server.refresh.mockClear();
   appAtomRegistry.set(composerDraftsAtom, {});
   files.set(
@@ -205,49 +204,6 @@ function setup() {
     },
   };
 }
-
-it("opens a ZIP chat attachment as a browsable archive on the attachment file screen", async () => {
-  const screen = setup();
-  server.capabilities = {
-    repositoryIdentity: false,
-    attachmentUploads: true,
-    fileAttachments: { maxUploadBytes: 1024 },
-  };
-  const { fetch } = await import("expo/fetch");
-  vi.mocked(fetch, { partial: true }).mockImplementation(async () => ({
-    ok: true,
-    body: new Response(Uint8Array.from(files.get("file:///first.zip")!)).body,
-  }));
-  await act(async () =>
-    screen.root.render(
-      <AttachmentFileScreen
-        route={{
-          params: {
-            environmentId: "environment-1",
-            threadId: "thread-1",
-            attachmentId: "attachment-1",
-            name: "archive.zip",
-            mimeType: "application/zip",
-            sizeBytes: "200",
-          },
-        }}
-      />,
-    ),
-  );
-  await screen.settle(() =>
-    expect(screen.container.querySelector('[aria-label="first.txt"]')).not.toBeNull(),
-  );
-  await act(async () =>
-    screen.container.querySelector<HTMLButtonElement>('[aria-label="first.txt"]')!.click(),
-  );
-  await screen.settle(() =>
-    expect(screen.container.querySelector("pre")?.textContent).toBe("First archive contents"),
-  );
-  const add = Array.from(screen.container.querySelectorAll("button")).find(
-    (button) => button.textContent === "Add to chat",
-  );
-  expect(add?.disabled).toBe(false);
-});
 
 it("keeps the ZIP filter and archive open when native Back closes a selected entry", async () => {
   const screen = setup();

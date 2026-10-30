@@ -57,60 +57,7 @@ function withFakeAcpGrok<A, E, R>(
   }).pipe(Effect.scoped);
 }
 
-function readJsonRpcRequests(
-  filePath: string,
-): ReadonlyArray<{ readonly method?: string; readonly params?: Record<string, unknown> }> {
-  return NodeFS.readFileSync(filePath, "utf8")
-    .trim()
-    .split("\n")
-    .filter((line) => line.length > 0)
-    .map((line) => JSON.parse(line) as { method?: string; params?: Record<string, unknown> });
-}
-
 it.layer(layerGrokTextGenerationTest)("GrokTextGeneration", (it) => {
-  it.effect("uses ACP with disabled tool capabilities and forwards the requested model id", () => {
-    const requestLogDir = NodeFS.mkdtempSync(NodePath.join(NodeOS.tmpdir(), "ozi-grok-text-log-"));
-    const requestLogPath = NodePath.join(requestLogDir, "requests.ndjson");
-
-    return withFakeAcpGrok(
-      {
-        OZI_ACP_REQUEST_LOG_PATH: requestLogPath,
-        OZI_ACP_PROMPT_RESPONSE_TEXT: JSON.stringify({
-          subject: "Add Grok provider",
-          body: "Wire up the ACP runtime and headless text generation path.",
-        }),
-      },
-      (textGeneration) =>
-        Effect.gen(function* () {
-          const generated = yield* textGeneration.generateCommitMessage({
-            cwd: process.cwd(),
-            branch: "feature/grok",
-            stagedSummary: "M apps/server/src/provider/Drivers/GrokDriver.ts",
-            stagedPatch: "diff --git a/.../GrokDriver.ts b/.../GrokDriver.ts",
-            modelSelection: createModelSelection(ProviderInstanceId.make("grok"), "grok-mock-alt"),
-          });
-
-          expect(generated.subject).toBe("Add Grok provider");
-          expect(generated.body).toBe("Wire up the ACP runtime and headless text generation path.");
-
-          const requests = readJsonRpcRequests(requestLogPath);
-          expect(
-            requests.find((request) => request.method === "initialize")?.params?.clientCapabilities,
-          ).toMatchObject({
-            fs: { readTextFile: false, writeTextFile: false },
-            terminal: false,
-          });
-          expect(
-            requests.some(
-              (request) =>
-                request.method === "session/set_model" &&
-                request.params?.modelId === "grok-mock-alt",
-            ),
-          ).toBe(true);
-        }),
-    );
-  });
-
   it.effect("extracts the JSON object when Grok wraps it in conversational text", () =>
     withFakeAcpGrok(
       {

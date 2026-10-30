@@ -172,11 +172,8 @@ export const make = Effect.gen(function* () {
     id: row.projectId,
     title: row.title,
     workspaceRoot: row.workspaceRoot,
-    repositoryIdentity: enrichment?.repositoryIdentity ?? null,
     faviconPath: row.faviconPath ?? enrichment?.faviconPath ?? null,
     defaultModelSelection: row.defaultModelSelection,
-    defaultThreadEnvMode: row.defaultThreadEnvMode,
-    autoPull: row.autoPull,
     projectIcon: row.projectIcon,
     scripts: row.scripts,
     createdAt: row.createdAt,
@@ -379,12 +376,8 @@ export const make = Effect.gen(function* () {
         ...(input.defaultModelSelection === undefined
           ? {}
           : { defaultModelSelection: input.defaultModelSelection }),
-        ...(input.autoPull === undefined ? {} : { autoPull: input.autoPull }),
         ...(input.projectIcon === undefined ? {} : { projectIcon: input.projectIcon }),
         ...(input.faviconPath === undefined ? {} : { faviconPath: input.faviconPath }),
-        ...(input.defaultThreadEnvMode === undefined
-          ? {}
-          : { defaultThreadEnvMode: input.defaultThreadEnvMode }),
         ...(input.scripts === undefined ? {} : { scripts: input.scripts }),
       });
       if (workspaceRoot !== previousRoot) {
@@ -521,9 +514,8 @@ export const make = Effect.gen(function* () {
 
   const enrichShell = (shell: OrchestrationProjectShell) =>
     projectEnrichment.getAvailable(shell.workspaceRoot).pipe(
-      Effect.map((enrichment) => ({
+      Effect.map(() => ({
         ...shell,
-        repositoryIdentity: enrichment.repositoryIdentity,
       })),
     );
 
@@ -571,16 +563,7 @@ export const make = Effect.gen(function* () {
   const listPage: ProjectService["Service"]["listPage"] = Effect.fn("ProjectService.listPage")(
     function* ({ cursor, limit }) {
       const rows = (yield* snapshot).projects.filter((project) => project.deletedAt === null);
-      const projects = yield* Effect.forEach(
-        rows.slice(cursor, cursor + limit),
-        (project) =>
-          project.repositoryIdentity !== null
-            ? Effect.succeed(project)
-            : projectEnrichment
-                .readRepositoryIdentity(project.workspaceRoot)
-                .pipe(Effect.map((repositoryIdentity) => ({ ...project, repositoryIdentity }))),
-        { concurrency: 8 },
-      );
+      const projects = rows.slice(cursor, cursor + limit);
       return { projects, nextCursor: cursor + limit < rows.length ? cursor + limit : null };
     },
   );

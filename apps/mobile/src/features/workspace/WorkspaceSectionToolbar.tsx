@@ -12,8 +12,6 @@ import { useWorkspaceTabs } from "./WorkspaceTabsContext";
 import { useSelectWorkspaceTab } from "./useSelectWorkspaceTab";
 import { useCompactWorkspaceTabs, useSidebarWorkspaceTabs } from "./useSystemWorkspaceTabBar";
 
-const PULL_REQUEST_ICON = require("../../../assets/icons/pull-request.png");
-
 export function WorkspaceTabToolbarButtons() {
   const order = useNavigationTabOrder();
   const hidden = useHiddenNavigationTabs();
@@ -33,11 +31,7 @@ export function WorkspaceTabToolbarButtons() {
           key={tab}
           identifier={`workspace-tab-${tab}`}
           accessibilityLabel={WORKSPACE_TAB_LABELS[tab]}
-          icon={
-            tab === "pullRequests"
-              ? { type: "image", source: PULL_REQUEST_ICON, tinted: true }
-              : NAVIGATION_TAB_ICONS[tab]
-          }
+          icon={NAVIGATION_TAB_ICONS[tab]}
           tintColor={selected === tab ? selectedTint : undefined}
           onPress={() => selectTab(tab)}
         />

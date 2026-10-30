@@ -191,10 +191,6 @@ const opening: ReadonlyArray<ProviderReplayEntry> = [
   out("model.list", "<any>"),
   reply("model.list", modelCatalog),
 ];
-const directoryModels = (directory: string): ReadonlyArray<ProviderReplayEntry> => [
-  out("model.list", { "location[directory]": directory }),
-  reply("model.list", { ...modelCatalog, location: { directory } }),
-];
 
 const bigPickle: ModelSelection = { instanceId, model: "opencode/big-pickle" };
 const policy = (runtimeMode: "full-access" | "approval-required" = "full-access") => ({
@@ -1724,26 +1720,6 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
         threadId,
         modelSelection: bigPickle,
         runtimePolicy: policy(),
-      });
-    }).pipe(Effect.scoped),
-  );
-
-  it.effect("moves the session when the thread's worktree changed", () =>
-    Effect.gen(function* () {
-      const runtime = yield* openCode2ReplayRuntimeWithInstructions([
-        ...opening,
-        ...directoryModels("/work/opencode2-feature"),
-        out("session.get", { sessionID: SESSION }),
-        replyData("session.get", sessionInfo()),
-        ...noOpenRequests,
-        out("session.move", { sessionID: SESSION, directory: "/work/opencode2-feature" }),
-        reply("session.move", null),
-      ]);
-      yield* runtime.resumeThread({
-        providerThread: providerThread(yield* DateTime.now),
-        threadId,
-        modelSelection: bigPickle,
-        runtimePolicy: { ...policy(), cwd: "/work/opencode2-feature" },
       });
     }).pipe(Effect.scoped),
   );
@@ -3862,35 +3838,6 @@ it.layer(McpProviderSessions.layer)("OpenCode2 adapter", (it) => {
         })
         .pipe(Effect.flip);
       assert.equal(refused._tag, "ProviderAdapterProtocolError");
-    }).pipe(Effect.scoped),
-  );
-
-  it.effect("moves a fork into its target thread's worktree before the first prompt", () =>
-    Effect.gen(function* () {
-      const FORK = "ses_f1484db83ffeLGtrRCFimo1H0e";
-      const target = "/work/opencode2-fork-target";
-      const { runtime, thread } = yield* resumed([
-        out("session.fork", { sessionID: SESSION }),
-        replyData("session.fork", sessionInfo({ id: FORK })),
-        out("session.update", {
-          sessionID: FORK,
-          permissions: [
-            { action: "*", resource: "*", effect: "allow" },
-            { action: "t3-code-*", resource: "*", effect: "deny" },
-            { action: "t3-code-thread_opencode2-adapter_fork_*", resource: "*", effect: "allow" },
-          ],
-        }),
-        reply("session.update", null),
-        // OpenCode makes the fork where its source runs; the target thread runs elsewhere.
-        out("session.move", { sessionID: FORK, directory: target }),
-        reply("session.move", null),
-      ]);
-      const forked = yield* runtime.forkThread({
-        sourceProviderThread: thread,
-        targetThreadId: ThreadId.make("thread:opencode2-adapter:fork"),
-        runtimePolicy: { ...policy(), cwd: target },
-      });
-      assert.equal(forked.nativeThreadRef?.nativeId, FORK);
     }).pipe(Effect.scoped),
   );
 

@@ -1,14 +1,10 @@
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import {
   DEFAULT_SERVER_SETTINGS,
-  ModelSelection,
-  ProjectId,
-  ProjectScript,
   ProviderDriverKind,
   ProviderInstanceId,
   resolveProviderInstanceEnabled,
   ServerSettings,
-  UsageLimitSourceId,
 } from "@t3tools/contracts";
 import { createModelSelection } from "@t3tools/shared/model";
 import { assert, it } from "@effect/vitest";
@@ -24,7 +20,6 @@ import * as Schema from "effect/Schema";
 import * as Stream from "effect/Stream";
 import * as SqlClient from "effect/sql/SqlClient";
 import * as ServerSecretStore from "./auth/ServerSecretStore.ts";
-import { sourceControlHostSecretName } from "./sourceControl/sourceControlHostSecrets.ts";
 import * as ServerConfig from "./config.ts";
 import * as SqlitePersistence from "./persistence/Sqlite.ts";
 import { writeFileStringAtomically } from "@t3tools/shared/atomicWrite";
@@ -37,19 +32,6 @@ const decodeServerSettingsJson = Schema.decodeUnknownEffect(Schema.fromJsonStrin
 const layerServerSettings = () =>
   ServerSettingsModule.layer.pipe(
     Layer.provide(ServerSecretStore.layer),
-    Layer.provideMerge(Layer.fresh(SqlitePersistence.layerMemory)),
-    Layer.provideMerge(
-      Layer.fresh(
-        ServerConfig.layerTest(process.cwd(), {
-          prefix: "ozi-server-settings-test-",
-        }),
-      ),
-    ),
-  );
-
-const layerServerSettingsWithSecrets = () =>
-  ServerSettingsModule.layer.pipe(
-    Layer.provideMerge(ServerSecretStore.layer),
     Layer.provideMerge(Layer.fresh(SqlitePersistence.layerMemory)),
     Layer.provideMerge(
       Layer.fresh(
@@ -175,41 +157,6 @@ it.layer(NodeServices.layer)("server settings", (it) => {
         assert.deepEqual(migrated.providerModelPreferences, {});
       }),
     ).pipe(Effect.provide(layerServerSettings())),
-  );
-  it.effect("migrates saved token delivery to paragraph buffering without resetting settings", () =>
-    Effect.gen(function* () {
-      const config = yield* ServerConfig.ServerConfig;
-      const fs = yield* FileSystem.FileSystem;
-      const service = yield* ServerSettingsModule.ServerSettingsService;
-      yield* fs.writeFileString(
-        config.settingsPath,
-        `{
-          "responseStreamingMode": "token",
-          "enableAgentBrowserAccess": false,
-          "projectSettingsOverrides": {
-            "legacy": { "responseStreamingMode": "token", "defaultAutoPull": true },
-            "buffered": { "responseStreamingMode": "turn" },
-            "inherited": { "defaultAutoPull": false }
-          }
-        }`,
-      );
-
-      const settings = yield* service.getSettings;
-      assert.equal(settings.responseStreamingMode, "paragraph");
-      assert.isFalse(settings.enableAgentBrowserAccess);
-      assert.deepEqual(settings.projectSettingsOverrides, {
-        [ProjectId.make("legacy")]: { responseStreamingMode: "paragraph", defaultAutoPull: true },
-        [ProjectId.make("buffered")]: { responseStreamingMode: "turn" },
-        [ProjectId.make("inherited")]: { defaultAutoPull: false },
-      });
-
-      yield* service.updateSettings({ responseStreamingMode: "turn" });
-      const persisted = yield* decodeServerSettingsJson(
-        yield* fs.readFileString(config.settingsPath),
-      );
-      assert.equal(persisted.responseStreamingMode, "turn");
-      assert.deepEqual(persisted.projectSettingsOverrides, settings.projectSettingsOverrides);
-    }).pipe(Effect.provide(layerServerSettings())),
   );
 
   it.effect("moves an idle compaction mode saved in the legacy switch to its own field", () =>
@@ -497,54 +444,6 @@ it.layer(NodeServices.layer)("server settings", (it) => {
     ).pipe(Effect.provide(layerServerSettings())),
   );
 
-  it.effect("preserves saved usage settings during cleanup edits and removes custom prices", () =>
-    Effect.scoped(
-      Effect.gen(function* () {
-        const serverConfig = yield* ServerConfig.ServerConfig;
-        const fileSystem = yield* FileSystem.FileSystem;
-        const serverSettings = yield* ServerSettingsModule.ServerSettingsService;
-        const prices = {
-          inputCostPerMillionTokens: 2,
-          outputCostPerMillionTokens: 8,
-          cacheReadCostPerMillionTokens: 0,
-        };
-        const readPersisted = fileSystem
-          .readFileString(serverConfig.settingsPath)
-          .pipe(Effect.flatMap(Schema.decodeUnknownEffect(Schema.fromJsonString(ServerSettings))));
-
-        yield* serverSettings.updateSettings({ usagePriceOverrides: { "example-model": prices } });
-        const usageModelAliases = { "example-preview": "example-model" };
-        const sourceId = UsageLimitSourceId.make("hub");
-        const usageLimitSources = {
-          [sourceId]: {
-            kind: "cliproxy" as const,
-            url: "https://hub.example.test",
-            managementKey: "",
-            enabled: true,
-          },
-        };
-        const saved = yield* serverSettings.updateSettings({
-          usageModelAliases,
-          usageLimitSources,
-        });
-        const updated = yield* serverSettings.updateSettings({
-          storageCleanup: { worktreeSettledAfterDays: 0, worktreeKeepWhen: "any-local-files" },
-        });
-        assert.deepStrictEqual(updated.usageLimitSources, saved.usageLimitSources);
-        const persisted = yield* readPersisted;
-        assert.deepStrictEqual(persisted.usagePriceOverrides, { "example-model": prices });
-        assert.deepStrictEqual(persisted.usageModelAliases, usageModelAliases);
-        assert.deepStrictEqual(persisted.usageLimitSources, usageLimitSources);
-        assert.equal(persisted.storageCleanup.worktreeSettledAfterDays, 0);
-        assert.equal(persisted.storageCleanup.worktreeKeepWhen, "any-local-files");
-
-        yield* serverSettings.updateSettings({ usagePriceOverrides: { "example-model": null } });
-        const restored = yield* readPersisted;
-        assert.deepStrictEqual(restored.usagePriceOverrides, {});
-      }),
-    ).pipe(Effect.provide(layerServerSettings())),
-  );
-
   it.effect("preserves model when switching providers via textGenerationModelSelection", () =>
     Effect.gen(function* () {
       const serverSettings = yield* ServerSettingsModule.ServerSettingsService;
@@ -731,72 +630,6 @@ it.layer(NodeServices.layer)("server settings", (it) => {
       });
       assert.equal(builtIn.textGenerationModelSelection.model, "claude-haiku-5-5");
     }).pipe(Effect.provide(layerServerSettings())),
-  );
-
-  it.effect(
-    "preserves the source control writer selection when its provider instance is disabled",
-    () =>
-      Effect.gen(function* () {
-        const serverSettings = yield* ServerSettingsModule.ServerSettingsService;
-        const serverConfig = yield* ServerConfig.ServerConfig;
-        const fileSystem = yield* FileSystem.FileSystem;
-        const instanceId = ProviderInstanceId.make("codex_writer");
-        const sourceControlWriterModelSelection = {
-          instanceId,
-          model: "gpt-5.4-mini",
-        };
-
-        yield* serverSettings.updateSettings({
-          providerInstances: {
-            [instanceId]: {
-              driver: ProviderDriverKind.make("codex"),
-              enabled: true,
-              config: {},
-            },
-          },
-          sourceControlWriterModelSelection,
-        });
-
-        const next = yield* serverSettings.updateSettings({
-          providerInstances: {
-            [instanceId]: {
-              driver: ProviderDriverKind.make("codex"),
-              enabled: false,
-              config: {},
-            },
-          },
-        });
-
-        assert.deepEqual(next.sourceControlWriterModelSelection, sourceControlWriterModelSelection);
-        assert.deepEqual(
-          ServerSettingsModule.resolveSourceControlWriterModelSelection(next, undefined, null),
-          next.textGenerationModelSelection,
-        );
-        assert.deepEqual(
-          (yield* serverSettings.getSettings).sourceControlWriterModelSelection,
-          sourceControlWriterModelSelection,
-        );
-
-        const raw = yield* fileSystem.readFileString(serverConfig.settingsPath);
-        assert.deepEqual(
-          JSON.parse(raw).sourceControlWriterModelSelection,
-          sourceControlWriterModelSelection,
-        );
-
-        const restored = yield* serverSettings.updateSettings({
-          providerInstances: {
-            [instanceId]: {
-              driver: ProviderDriverKind.make("codex"),
-              enabled: true,
-              config: {},
-            },
-          },
-        });
-        assert.deepEqual(
-          ServerSettingsModule.resolveSourceControlWriterModelSelection(restored, undefined, null),
-          sourceControlWriterModelSelection,
-        );
-      }).pipe(Effect.provide(layerServerSettings())),
   );
 
   it.effect("moves customized legacy provider settings into default instances on load", () =>
@@ -1154,130 +987,6 @@ it.layer(NodeServices.layer)("server settings", (it) => {
       }).pipe(Effect.provide(layerServerSettings())),
   );
 
-  it.effect(
-    "uses the same secret lifecycle for provider config, environment, host tokens, and quota keys",
-    () =>
-      Effect.gen(function* () {
-        const service = yield* ServerSettingsModule.ServerSettingsService;
-        const config = yield* ServerConfig.ServerConfig;
-        const fs = yield* FileSystem.FileSystem;
-        const store = yield* ServerSecretStore.ServerSecretStore;
-        const instanceId = ProviderInstanceId.make("antigravity_secrets");
-        const saved = yield* service.updateSettings({
-          providerInstances: {
-            [instanceId]: {
-              driver: ProviderDriverKind.make("antigravity"),
-              config: { apiKey: "config-secret" },
-              environment: [
-                { name: "API_TOKEN", value: "env-secret", sensitive: true },
-                { name: "BASE_URL", value: "https://example.test", sensitive: false },
-              ],
-            },
-          },
-          sourceControlHosts: {
-            github: { tokens: { "github.com": "github-secret" } },
-            bitbucket: { email: "me@example.test", accessToken: "bitbucket-secret" },
-            gitcafe: { token: "gitcafe-secret" },
-          },
-          usageLimitSources: {
-            [UsageLimitSourceId.make("hub")]: {
-              kind: "cliproxy",
-              url: "https://hub.example.test",
-              managementKey: "quota-secret",
-              enabled: true,
-            },
-          },
-        });
-        const values = [
-          "config-secret",
-          "env-secret",
-          "github-secret",
-          "bitbucket-secret",
-          "gitcafe-secret",
-          "quota-secret",
-          "expo-secret",
-        ];
-        const client = ServerSettingsModule.redactServerSettingsForClient(saved);
-        const disk = yield* fs.readFileString(config.settingsPath);
-        for (const value of values) {
-          assert.include(JSON.stringify(saved), value);
-          assert.notInclude(JSON.stringify(client), value);
-          assert.notInclude(disk, value);
-        }
-        assert.include(JSON.stringify(client), "https://example.test");
-        assert.include(JSON.stringify(client), "me@example.test");
-        const echoed = yield* service.updateSettings({
-          providerInstances: client.providerInstances,
-          sourceControlHosts: client.sourceControlHosts,
-          usageLimitSources: client.usageLimitSources,
-        });
-        for (const value of values) assert.include(JSON.stringify(echoed), value);
-        const renamed = yield* service.updateProviderInstance({
-          operation: "upsert",
-          instanceId,
-          instance: { ...client.providerInstances[instanceId]!, displayName: "Renamed" },
-        });
-        assert.propertyVal(
-          renamed.providerInstances[instanceId]?.config,
-          "apiKey",
-          "config-secret",
-        );
-
-        for (const apiKey of ["replacement-secret", ""]) {
-          const changed = yield* service.updateProviderInstance({
-            operation: "upsert",
-            instanceId,
-            instance: { ...client.providerInstances[instanceId]!, config: { apiKey } },
-          });
-          assert.propertyVal(changed.providerInstances[instanceId]?.config, "apiKey", apiKey);
-          const redacted = ServerSettingsModule.redactServerSettingsForClient(changed);
-          assert.propertyVal(
-            redacted.providerInstances[instanceId]?.config,
-            "apiKey",
-            apiKey ? "••••••" : "",
-          );
-        }
-
-        yield* service.updateProviderInstance({
-          operation: "upsert",
-          instanceId,
-          instance: saved.providerInstances[instanceId]!,
-        });
-
-        const secretNames = [
-          "provider-config-YW50aWdyYXZpdHlfc2VjcmV0cw-YW50aWdyYXZpdHk-YXBpS2V5",
-          "provider-env-YW50aWdyYXZpdHlfc2VjcmV0cw-QVBJX1RPS0VO",
-          sourceControlHostSecretName({
-            kind: "github",
-            field: "tokens",
-            serverHost: "github.com",
-          }),
-          sourceControlHostSecretName({
-            kind: "bitbucket",
-            field: "accessToken",
-            serverHost: null,
-          }),
-          sourceControlHostSecretName({ kind: "gitcafe", field: "token", serverHost: null }),
-          "usage-limit-source-aHVi",
-        ];
-        for (const name of secretNames) {
-          assert.isTrue(Option.isSome(yield* store.get(name)), name);
-        }
-        yield* service.updateSettings({
-          providerInstances: {},
-          sourceControlHosts: {
-            github: { tokens: {} },
-            bitbucket: { accessToken: "" },
-            gitcafe: { token: "" },
-          },
-          usageLimitSources: { [UsageLimitSourceId.make("hub")]: null },
-        });
-        for (const name of secretNames) {
-          assert.isTrue(Option.isNone(yield* store.get(name)));
-        }
-      }).pipe(Effect.provide(layerServerSettingsWithSecrets())),
-  );
-
   it.effect("moves saved provider credentials to the secret store when settings load", () =>
     Effect.gen(function* () {
       const service = yield* ServerSettingsModule.ServerSettingsService;
@@ -1328,68 +1037,6 @@ it.layer(NodeServices.layer)("server settings", (it) => {
     }).pipe(Effect.provide(layerServerSettings())),
   );
 
-  it.effect(
-    "keeps source control host secrets in the secret store and tells clients only that one is set",
-    () =>
-      Effect.gen(function* () {
-        const serverSettings = yield* ServerSettingsModule.ServerSettingsService;
-        const secrets = yield* ServerSecretStore.ServerSecretStore;
-        const serverConfig = yield* ServerConfig.ServerConfig;
-        const fileSystem = yield* FileSystem.FileSystem;
-
-        const saved = yield* serverSettings.updateSettings({
-          sourceControlHosts: {
-            bitbucket: { email: "me@example.com", accessToken: "bb-access" },
-            github: { tokens: { "github.com": "ghp_dotcom", "ghe.acme.test": "ghp_ghe" } },
-          },
-        });
-        assert.deepEqual(saved.sourceControlHosts.bitbucket, {
-          email: "me@example.com",
-          accessToken: "bb-access",
-        });
-        const raw = yield* fileSystem.readFileString(serverConfig.settingsPath);
-        for (const secret of ["bb-access", "ghp_dotcom", "ghp_ghe"]) assert.notInclude(raw, secret);
-        assert.include(raw, "me@example.com");
-
-        const forClient =
-          ServerSettingsModule.redactServerSettingsForClient(saved).sourceControlHosts;
-        assert.equal(forClient.bitbucket?.email, "me@example.com");
-        assert.notInclude(String(forClient.bitbucket?.accessToken), "bb-access");
-        assert.isAbove(String(forClient.bitbucket?.accessToken).length, 0);
-
-        yield* serverSettings.updateSettings({ sourceControlHosts: forClient });
-        yield* serverSettings.updateSettings({
-          sourceControlHosts: { bitbucket: { email: "other@example.com" } },
-        });
-        const kept = (yield* serverSettings.getSettings).sourceControlHosts;
-        assert.deepEqual(kept.bitbucket, { email: "other@example.com", accessToken: "bb-access" });
-        assert.deepEqual(kept.github?.tokens, {
-          "github.com": "ghp_dotcom",
-          "ghe.acme.test": "ghp_ghe",
-        });
-
-        const cleared = yield* serverSettings.updateSettings({
-          sourceControlHosts: {
-            bitbucket: { accessToken: "" },
-            github: {
-              tokens: {
-                "github.com": "",
-                "ghe.acme.test": (forClient.github!.tokens as Record<string, string>)[
-                  "ghe.acme.test"
-                ],
-              },
-            },
-          },
-        });
-        assert.equal(cleared.sourceControlHosts.bitbucket?.accessToken, "");
-        const stored = (kind: string, field: string, serverHost: string | null) =>
-          secrets.get(sourceControlHostSecretName({ kind, field, serverHost }));
-        assert.isTrue(Option.isNone(yield* stored("bitbucket", "accessToken", null)));
-        assert.isTrue(Option.isNone(yield* stored("github", "tokens", "github.com")));
-        assert.isTrue(Option.isSome(yield* stored("github", "tokens", "ghe.acme.test")));
-      }).pipe(Effect.provide(layerServerSettingsWithSecrets())),
-  );
-
   it.effect("keeps the retired keys for another load when a token cannot be copied", () => {
     const cause = new ServerSecretStore.SecretStoreReadError({
       resource: "bitbucket-access-token",
@@ -1426,63 +1073,6 @@ it.layer(NodeServices.layer)("server settings", (it) => {
       assert.equal(yield* fileSystem.readFileString(serverConfig.settingsPath), legacy);
     }).pipe(Effect.provide(layerSettings));
   });
-
-  it.effect("moves the retired bitbucket and github keys and their secrets on load", () =>
-    Effect.gen(function* () {
-      const serverConfig = yield* ServerConfig.ServerConfig;
-      const fileSystem = yield* FileSystem.FileSystem;
-      const secrets = yield* ServerSecretStore.ServerSecretStore;
-      const serverSettings = yield* ServerSettingsModule.ServerSettingsService;
-      const marker = "\u2022\u2022\u2022\u2022\u2022\u2022";
-      yield* secrets.set("bitbucket-access-token", new TextEncoder().encode("bb-saved"));
-      yield* secrets.set(
-        `github-token-${Buffer.from("github.com", "utf8").toString("base64url")}`,
-        new TextEncoder().encode("ghp_saved"),
-      );
-      yield* fileSystem.writeFileString(
-        serverConfig.settingsPath,
-        JSON.stringify({
-          bitbucket: { email: "me@example.com", accessToken: marker },
-          github: {
-            hosts: { "github.com": { account: "work" } },
-            tokens: { "github.com": marker },
-          },
-        }),
-      );
-
-      const loaded = (yield* serverSettings.getSettings).sourceControlHosts;
-
-      assert.deepEqual(loaded.bitbucket, { email: "me@example.com", accessToken: "bb-saved" });
-      assert.deepEqual(loaded.github?.tokens, { "github.com": "ghp_saved" });
-      assert.deepEqual(loaded.github?.hosts, { "github.com": { account: "work" } });
-      const raw = yield* fileSystem.readFileString(serverConfig.settingsPath);
-      assert.notInclude(raw, '"bitbucket":{"email"');
-      assert.include(raw, "sourceControlHosts");
-      assert.isTrue(Option.isNone(yield* secrets.get("bitbucket-access-token")));
-    }).pipe(Effect.provide(layerServerSettingsWithSecrets())),
-  );
-
-  it.effect(
-    "moves a hand-edited source control token into the secret store when settings load",
-    () =>
-      Effect.gen(function* () {
-        const serverConfig = yield* ServerConfig.ServerConfig;
-        const fileSystem = yield* FileSystem.FileSystem;
-        const serverSettings = yield* ServerSettingsModule.ServerSettingsService;
-        yield* fileSystem.writeFileString(
-          serverConfig.settingsPath,
-          '{"sourceControlHosts":{"bitbucket":{"accessToken":"hand-edited-token"}}}',
-        );
-
-        const loaded = yield* serverSettings.getSettings;
-
-        assert.equal(loaded.sourceControlHosts.bitbucket?.accessToken, "hand-edited-token");
-        assert.notInclude(
-          yield* fileSystem.readFileString(serverConfig.settingsPath),
-          "hand-edited-token",
-        );
-      }).pipe(Effect.provide(layerServerSettingsWithSecrets())),
-  );
 
   it.effect("materializes provider secrets for terminal environment resolution", () =>
     Effect.gen(function* () {
@@ -1707,113 +1297,5 @@ it.layer(NodeServices.layer)("server settings", (it) => {
         );
       }).pipe(Effect.provide(layerSettings));
     },
-  );
-
-  it.effect("folds legacy project overrides into projectSettingsOverrides once", () =>
-    Effect.gen(function* () {
-      const serverConfig = yield* ServerConfig.ServerConfig;
-      const fileSystem = yield* FileSystem.FileSystem;
-      const sql = yield* SqlClient.SqlClient;
-      const serverSettings = yield* ServerSettingsModule.ServerSettingsService;
-      const legacyProject = ProjectId.make("project-legacy");
-      const scriptedProject = ProjectId.make("project-scripted");
-      const script: ProjectScript = {
-        id: "check",
-        name: "Check",
-        command: "npm test",
-        icon: "play",
-        runOnWorktreeCreate: false,
-      };
-      const model = createModelSelection(ProviderInstanceId.make("codex"), "gpt-5.5");
-      const encodeModelSelection = Schema.encodeEffect(Schema.fromJsonString(ModelSelection));
-
-      const modelJson = yield* encodeModelSelection(model);
-      const encodeProjectScripts = Schema.encodeEffect(
-        Schema.fromJsonString(Schema.Array(ProjectScript)),
-      );
-
-      const scriptsJson = yield* encodeProjectScripts([script]);
-      for (const [projectId, modelColumn, envMode, autoPull, scripts] of [
-        [legacyProject, modelJson, "worktree", 1, scriptsJson],
-        [scriptedProject, null, null, 0, scriptsJson],
-      ] as const) {
-        yield* sql`
-          INSERT INTO projection_projects (
-            project_id, title, workspace_root, default_model_selection_json,
-            default_thread_env_mode, auto_pull, scripts_json, created_at, updated_at
-          )
-          VALUES (
-            ${projectId}, ${"Project"}, ${`/tmp/${projectId}`}, ${modelColumn},
-            ${envMode}, ${autoPull}, ${scripts},
-            ${"2026-08-25T00:00:00.000Z"}, ${"2026-08-25T00:00:00.000Z"}
-          )
-        `;
-      }
-      yield* fileSystem.writeFileString(
-        serverConfig.settingsPath,
-        `{"projectAgentBrowserAccessOverrides":{"${legacyProject}":false},"projectAutoPullOverrides":{"${scriptedProject}":true},"projectScriptOverrides":{"${legacyProject}":null}}`,
-      );
-
-      const settings = yield* serverSettings.getSettings;
-      assert.isTrue(settings.projectSettingsFolded);
-      assert.deepEqual<ServerSettings["projectSettingsOverrides"]>(
-        settings.projectSettingsOverrides,
-        {
-          [legacyProject]: {
-            enableAgentBrowserAccess: false,
-            defaultModelSelection: model,
-            defaultThreadEnvMode: "worktree",
-            defaultAutoPull: true,
-          },
-          [scriptedProject]: { defaultAutoPull: true, defaultProjectScripts: [script] },
-        },
-      );
-
-      assert.deepEqual<ServerSettings["projectAutoPullOverrides"]>(
-        settings.projectAutoPullOverrides,
-        {
-          [legacyProject]: true,
-          [scriptedProject]: true,
-        },
-      );
-      assert.deepEqual<ServerSettings["projectScriptOverrides"]>(settings.projectScriptOverrides, {
-        [scriptedProject]: [script],
-      });
-
-      yield* serverSettings.updateSettings({
-        projectSettingsOverrides: { [legacyProject]: null },
-      });
-      const raw = yield* fileSystem.readFileString(serverConfig.settingsPath);
-      const persisted = yield* decodeServerSettings(JSON.parse(raw));
-      assert.isTrue(persisted.projectSettingsFolded);
-      assert.isUndefined(persisted.projectSettingsOverrides[legacyProject]);
-    }).pipe(Effect.provide(layerServerSettings())),
-  );
-
-  it.effect("leaves an unreadable settings.json untouched instead of folding over it", () =>
-    Effect.gen(function* () {
-      const serverConfig = yield* ServerConfig.ServerConfig;
-      const fileSystem = yield* FileSystem.FileSystem;
-      const sql = yield* SqlClient.SqlClient;
-      const serverSettings = yield* ServerSettingsModule.ServerSettingsService;
-      yield* sql`
-        INSERT INTO projection_projects (
-          project_id, title, workspace_root, auto_pull, scripts_json, created_at, updated_at
-        )
-        VALUES (
-          ${"project-broken"}, ${"Project"}, ${"/tmp/project-broken"}, ${1}, ${"[]"},
-          ${"2026-08-25T00:00:00.000Z"}, ${"2026-08-25T00:00:00.000Z"}
-        )
-      `;
-      const broken = '{"defaultAutoPull": tru';
-      yield* fileSystem.writeFileString(serverConfig.settingsPath, broken);
-
-      const settings = yield* serverSettings.getSettings;
-      assert.isFalse(settings.projectSettingsFolded);
-      assert.isFalse(settings.continueThreadsAfterServerUpdate);
-      assert.deepEqual(settings.projectSettingsOverrides, {});
-
-      assert.equal(yield* fileSystem.readFileString(serverConfig.settingsPath), broken);
-    }).pipe(Effect.provide(layerServerSettings())),
   );
 });

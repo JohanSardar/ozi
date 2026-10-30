@@ -6,18 +6,10 @@ import { useAtomValue } from "@effect/atom-react";
 import { useState } from "react";
 import type {
   EnvironmentId,
-  ProjectId,
   ProviderDriverKind,
-  PullRequestListInput,
   ServerProvider,
   ThreadId,
-  ThreadPullRequestLink,
 } from "@t3tools/contracts";
-import {
-  composerPullRequestsFromLinks,
-  filterComposerPullRequestMatches,
-  withLinkedComposerPullRequestsFirst,
-} from "@t3tools/shared/composerPullRequestMatches";
 import { formatProviderSkillDisplayName } from "@t3tools/shared/inlineSkills";
 
 import type { ComposerTrigger } from "../../composer-logic";
@@ -31,38 +23,20 @@ import { searchProviderSkills } from "../../providerSkillSearch";
 import { useThreadShells } from "~/state/entities";
 import { useEnvironmentIdentities, useEnvironmentMachines } from "~/state/environments";
 import { offersLinkedEnvironmentsAtom } from "~/state/peerLinks";
-import {
-  pullRequestEnvironment,
-  usePullRequestList,
-  type EnvironmentQueryTarget,
-} from "~/state/pullRequests";
-import { useEnvironmentQuery } from "~/state/query";
-import { useComposerPathSearch, useDebouncedValue, useThreadSearch } from "~/state/queries";
-import {
-  matchesPullRequestQuery,
-  rankPullRequestMatches,
-} from "../pullRequest/pullRequestList.logic";
+import { useComposerPathSearch, useThreadSearch } from "~/state/queries";
 import type { ComposerCommandItem } from "./ComposerCommandMenu";
 import {
   searchSlashCommandItems,
   slashCommandItemsForPromptPosition,
 } from "./composerSlashCommandSearch";
 
-const COMPOSER_PULL_REQUEST_LIST_LIMIT = 99;
-const COMPOSER_PULL_REQUEST_RESULT_LIMIT = 12;
-const EMPTY_PULL_REQUEST_LIST_TARGETS: ReadonlyArray<EnvironmentQueryTarget<PullRequestListInput>> =
-  [];
-
 /** Builds the @, /, $ and # suggestion lists, running the searches each trigger needs. */
 export function useComposerMenuItems({
   composerTrigger,
+  workingDirectory,
   environmentId,
   linkedEnvironments,
-  gitCwd,
   activeThreadId,
-  pullRequestProjectId,
-  pullRequestRepository,
-  threadPullRequests,
   planModeUiEnabled,
   compactSlashCommandAvailable,
   selectedProvider,
@@ -72,13 +46,10 @@ export function useComposerMenuItems({
   questionAttachmentTarget,
 }: {
   readonly composerTrigger: ComposerTrigger | null;
+  readonly workingDirectory: string | null;
   readonly environmentId: EnvironmentId;
   readonly linkedEnvironments: ReadonlyMap<EnvironmentId, string>;
-  readonly gitCwd: string | null;
   readonly activeThreadId: ThreadId | null;
-  readonly pullRequestProjectId: ProjectId | null;
-  readonly pullRequestRepository: string | null;
-  readonly threadPullRequests: ReadonlyArray<ThreadPullRequestLink> | undefined;
   readonly planModeUiEnabled: boolean;
   readonly compactSlashCommandAvailable: boolean;
   readonly selectedProvider: ProviderDriverKind;
@@ -91,17 +62,6 @@ export function useComposerMenuItems({
   const [now] = useState(() => Date.now());
   const composerTriggerKind = composerTrigger?.kind ?? null;
   const pathTriggerQuery = composerTrigger?.kind === "path" ? composerTrigger.query : "";
-  const pullRequestTriggerQuery =
-    composerTrigger?.kind === "pull-request" ? composerTrigger.query : "";
-  const pullRequestTextQuery =
-    composerTriggerKind === "pull-request" &&
-    pullRequestTriggerQuery.length > 0 &&
-    !/^\d+$/u.test(pullRequestTriggerQuery)
-      ? pullRequestTriggerQuery
-      : null;
-  const debouncedPullRequestTextQuery = useDebouncedValue(pullRequestTextQuery, 180);
-  const settledPullRequestTextQuery =
-    pullRequestTextQuery === debouncedPullRequestTextQuery ? pullRequestTextQuery : null;
   const isPathTrigger = composerTriggerKind === "path";
   const environmentThreadShells = useThreadShells(isPathTrigger);
   // Mounts older settled threads matching the mention, which shells may leave out.
@@ -116,67 +76,9 @@ export function useComposerMenuItems({
   }));
   const workspaceEntries = useComposerPathSearch({
     environmentId,
-    cwd: isPathTrigger ? gitCwd : null,
+    cwd: isPathTrigger ? workingDirectory : null,
     query: isPathTrigger ? pathTriggerQuery : null,
   });
-
-  const pullRequestListTargets =
-    composerTriggerKind !== "pull-request" ||
-    pullRequestProjectId === null ||
-    (pullRequestTextQuery !== null && settledPullRequestTextQuery === null)
-      ? EMPTY_PULL_REQUEST_LIST_TARGETS
-      : [
-          {
-            environmentId,
-            input: {
-              state: "all" as const,
-              projectId: pullRequestProjectId,
-              limit: COMPOSER_PULL_REQUEST_LIST_LIMIT,
-              ...(settledPullRequestTextQuery === null
-                ? {}
-                : { query: settledPullRequestTextQuery }),
-            },
-          },
-        ];
-  const pullRequestLookup = usePullRequestList(pullRequestListTargets);
-  const pullRequestTriggerNumber = (() => {
-    if (composerTrigger?.kind !== "pull-request" || composerTrigger.query.length === 0) {
-      return null;
-    }
-    const number = Number(composerTrigger.query);
-    return Number.isSafeInteger(number) && number > 0 ? number : null;
-  })();
-  const debouncedPullRequestNumber = useDebouncedValue(pullRequestTriggerNumber, 180);
-  const settledPullRequestNumber =
-    pullRequestTriggerNumber === debouncedPullRequestNumber ? pullRequestTriggerNumber : null;
-  const recentHasExactPullRequest =
-    settledPullRequestNumber !== null &&
-    pullRequestLookup.data?.entries.some(
-      (entry) =>
-        entry.projectId === pullRequestProjectId &&
-        entry.repository.trim().toLowerCase() === pullRequestRepository?.trim().toLowerCase() &&
-        entry.number === settledPullRequestNumber,
-    ) === true;
-  const exactPullRequestLookup = useEnvironmentQuery(
-    settledPullRequestNumber === null ||
-      pullRequestProjectId === null ||
-      pullRequestRepository === null ||
-      recentHasExactPullRequest
-      ? null
-      : pullRequestEnvironment.detail({
-          environmentId,
-          input: {
-            projectId: pullRequestProjectId,
-            repository: pullRequestRepository,
-            number: settledPullRequestNumber,
-          },
-        }),
-  );
-
-  const linkedPullRequests =
-    pullRequestProjectId === null
-      ? []
-      : composerPullRequestsFromLinks(threadPullRequests ?? [], pullRequestProjectId);
 
   const items = ((): ComposerCommandItem[] => {
     if (!composerTrigger) return [];
@@ -286,95 +188,13 @@ export function useComposerMenuItems({
           (skill.scope ? `${skill.scope} skill` : "Run provider skill"),
       }));
     }
-    if (
-      composerTrigger.kind === "pull-request" &&
-      pullRequestProjectId !== null &&
-      pullRequestRepository !== null
-    ) {
-      const exactPullRequest =
-        exactPullRequestLookup.data?.number === pullRequestTriggerNumber
-          ? [exactPullRequestLookup.data]
-          : [];
-      const matches = /^\d*$/u.test(composerTrigger.query)
-        ? filterComposerPullRequestMatches({
-            entries: [...exactPullRequest, ...(pullRequestLookup.data?.entries ?? [])],
-            linked: linkedPullRequests,
-            projectId: pullRequestProjectId,
-            repository: pullRequestRepository,
-            query: composerTrigger.query,
-            limit: COMPOSER_PULL_REQUEST_RESULT_LIMIT,
-          })
-        : withLinkedComposerPullRequestsFirst({
-            matches: rankPullRequestMatches(
-              (pullRequestLookup.data?.entries ?? []).filter((entry) => {
-                if (
-                  entry.projectId !== pullRequestProjectId ||
-                  entry.repository.trim().toLowerCase() !==
-                    pullRequestRepository.trim().toLowerCase()
-                ) {
-                  return false;
-                }
-                const provider = pullRequestLookup.data?.providers.find(
-                  (candidate) => candidate.host === entry.host,
-                );
-                return (
-                  provider?.searchesOnHost === true ||
-                  matchesPullRequestQuery(entry, composerTrigger.query)
-                );
-              }),
-              composerTrigger.query,
-            ),
-            linked: linkedPullRequests,
-            query: composerTrigger.query,
-            limit: COMPOSER_PULL_REQUEST_RESULT_LIMIT,
-          });
-      return matches.map((pullRequest) => ({
-        id: `pull-request:${pullRequest.projectId}:${pullRequest.repository}:${pullRequest.number}`,
-        type: "pull-request",
-        pullRequest: {
-          number: pullRequest.number,
-          title: pullRequest.title,
-          url: pullRequest.url,
-          headBranch: pullRequest.headBranch,
-          baseBranch: pullRequest.baseBranch,
-          state: pullRequest.state,
-          isDraft: pullRequest.isDraft,
-        },
-        label: `#${pullRequest.number}`,
-        description:
-          pullRequest.repository.trim().toLowerCase() === pullRequestRepository.trim().toLowerCase()
-            ? pullRequest.title
-            : `${pullRequest.repository} · ${pullRequest.title}`,
-      }));
-    }
     return [];
   })();
   const isLoading =
-    (composerTriggerKind === "path" && pathTriggerQuery.length > 0 && workspaceEntries.isPending) ||
-    (composerTriggerKind === "pull-request" &&
-      pullRequestProjectId !== null &&
-      pullRequestRepository !== null &&
-      (pullRequestLookup.isPending ||
-        pullRequestTextQuery !== debouncedPullRequestTextQuery ||
-        pullRequestTriggerNumber !== debouncedPullRequestNumber ||
-        exactPullRequestLookup.isPending));
+    composerTriggerKind === "path" && pathTriggerQuery.length > 0 && workspaceEntries.isPending;
   const emptyState = (() => {
     if (composerTriggerKind === "skill") {
       return "No skills found. Try / to browse provider commands.";
-    }
-    if (composerTriggerKind === "pull-request") {
-      if (pullRequestProjectId === null || pullRequestRepository === null) {
-        return "Pull requests are not available for this project.";
-      }
-      if (
-        pullRequestLookup.error !== null ||
-        pullRequestLookup.data?.errors.some((error) => error.projectId === pullRequestProjectId)
-      ) {
-        return "Pull requests could not be read for this project.";
-      }
-      return composerTrigger?.query
-        ? `No pull request matches ${composerTrigger.query}.`
-        : "No pull requests found in this repository.";
     }
     return composerTriggerKind === "path"
       ? "No matching files or folders."

@@ -150,8 +150,7 @@ export function useDraftEnvironmentRouting(input: DraftEnvironmentRoutingInput) 
     setDraftThreadContext(draftId, {
       environmentSelection: "auto",
       loadBalancedEnvironmentId: null,
-      branch: null,
-      worktreePath: null,
+      workingDirectory: null,
     });
   };
   const onAutoEnvironmentStable = useStableCallback(onAutoEnvironment);

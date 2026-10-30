@@ -4,8 +4,6 @@ import {
   type EditorId,
   type EnvironmentId,
 } from "@t3tools/contracts";
-
-import { resolveDiffPathForWorkspace } from "./diffFileActions";
 import {
   revealInFileExplorerLabelForKind,
   revealInFileExplorerLabelForOs,
@@ -34,11 +32,7 @@ export interface FileContextMenuTarget {
 }
 
 export function resolveFileContextMenuAbsolutePath(target: FileContextMenuTarget): string | null {
-  const workspaceFilePath = resolveDiffPathForWorkspace({
-    filePath: target.filePath,
-    workspaceRoot: target.workspaceRoot,
-    repositoryRoot: target.repositoryRoot,
-  });
+  const workspaceFilePath = target.filePath;
   if (workspaceFilePath === null) return null;
   if (target.workspaceRoot === undefined) {
     return workspaceFilePath.startsWith("/") || /^[a-zA-Z]:/.test(workspaceFilePath)
@@ -160,12 +154,5 @@ export function useFileContextMenu(environmentId: EnvironmentId | null) {
     capabilities,
     activate,
     show,
-  };
-}
-
-export function useFileContextMenuHandler(environmentId: EnvironmentId | null) {
-  const contextMenu = useFileContextMenu(environmentId);
-  return (target: FileContextMenuTarget, event?: { clientX: number; clientY: number }) => {
-    void contextMenu.show(target, event ? { x: event.clientX, y: event.clientY } : undefined);
   };
 }

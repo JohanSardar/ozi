@@ -2541,65 +2541,6 @@ describe("UsageService", () => {
     }).pipe(Effect.scoped),
   );
 
-  it.live.each(["network", "http", "invalidJson", "empty"] as const)(
-    "recovers pricing through the GitHub API after a %s failure",
-    (failure) =>
-      Effect.gen(function* () {
-        const { transcript, settings, home } = yield* setup;
-        yield* Effect.promise(() => NodeFSP.writeFile(transcript, claudeLine(1, 5)));
-        const requests: HttpClientRequest.HttpClientRequest[] = [];
-        const ratesDocument = {
-          "claude-fable-5": { input_cost_per_token: 1e-5, output_cost_per_token: 5e-5 },
-        };
-        const serviceLayer = layerService({
-          prefix: `usage-service-rates-fallback-${failure}-test`,
-          home,
-          settings,
-          onRatesFetch: (request) => requests.push(request),
-          ratesResponse: (request) => {
-            if (request.url.startsWith("https://api.github.com/")) {
-              return Effect.succeed(Response.json(ratesDocument));
-            }
-            if (failure === "network") {
-              return Effect.fail(
-                new HttpClientError.HttpClientError({
-                  reason: new HttpClientError.TransportError({
-                    request,
-                    cause: new Error("getaddrinfo ENOTFOUND raw.githubusercontent.com"),
-                  }),
-                }),
-              );
-            }
-            return Effect.succeed(
-              failure === "invalidJson"
-                ? new Response("not JSON")
-                : Response.json({}, { status: failure === "http" ? 503 : 200 }),
-            );
-          },
-        });
-        const service = yield* UsageService.make.pipe(Effect.provide(serviceLayer));
-
-        const summary = yield* service.readSummary(WINDOW);
-        assert.strictEqual(summary.pricing.status, "fresh");
-        assert.strictEqual(summary.pricing.knownModels, 1);
-        assert.closeTo(summary.buckets[0]?.costUsd ?? -1, 0.00035, 1e-12);
-        assert.deepStrictEqual(
-          requests.map((request) => request.url),
-          [
-            "https://raw.githubusercontent.com/BerriAI/litellm/main/model_prices_and_context_window.json",
-            "https://api.github.com/repos/BerriAI/litellm/contents/model_prices_and_context_window.json?ref=main",
-          ],
-        );
-        assert.strictEqual(requests[1]?.headers.accept, "application/vnd.github.raw+json");
-
-        const restarted = yield* UsageService.make.pipe(Effect.provide(serviceLayer));
-        const cached = yield* restarted.readSummary(WINDOW);
-        assert.strictEqual(cached.pricing.status, "cached");
-        assert.deepStrictEqual(cached.buckets, summary.buckets);
-        assert.strictEqual(requests.length, 2);
-      }).pipe(Effect.scoped),
-  );
-
   it.live("does not orphan an in-flight scan when its first caller is interrupted", () =>
     Effect.gen(function* () {
       const { settings, home } = yield* setup;

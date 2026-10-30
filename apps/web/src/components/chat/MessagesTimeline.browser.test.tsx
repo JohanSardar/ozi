@@ -75,10 +75,8 @@ function baseProps(): Omit<TimelineProps, "timelineEntries"> {
     isWorking: false,
     listRef: createRef<LegendListRef | null>(),
     latestRun: null,
-    turnDiffSummaries: [],
     runs: [],
     routeThreadKey: `environment-local:thread-${Math.random().toString(36).slice(2)}`,
-    onOpenTurnDiff: () => {},
     onOpenThread: () => {},
     onForkFromRun: async () => {},
     supportsConversationRollback: false,
@@ -494,33 +492,6 @@ describe("MessagesTimeline citations", () => {
 });
 
 describe("MessagesTimeline automation prompts", () => {
-  it("folds an automation prompt into a bubble titled by its task", async () => {
-    setup({ scheduledTasks: [{ id: TASK_ID, title: "Nightly triage" }] });
-    await using screen = await renderTimeline([
-      message(AUTOMATION_PROMPT, { scheduledTaskId: TASK_ID }),
-    ]);
-    const row = screen.button(/^Automation/);
-    expect(row.textContent).toContain("Nightly triage");
-    expect(row.getAttribute("aria-expanded")).toBe("false");
-    expect(screen.text()).not.toContain("close duplicates");
-
-    await click(row);
-    expect(screen.text()).toContain("Label every new issue and close duplicates.");
-    const link = [...screen.container.querySelectorAll("a")].find(
-      (anchor) => anchor.textContent === "Open automation",
-    );
-    expect(link?.getAttribute("href")).toContain(`taskId=${TASK_ID}`);
-    expect(screen.buttons(/copy/i)).not.toHaveLength(0);
-  });
-
-  it("falls back to the prompt's first line without a task title", async () => {
-    setup();
-    await using screen = await renderTimeline([
-      message(AUTOMATION_PROMPT, { scheduledTaskId: TASK_ID }),
-    ]);
-    expect(screen.button(/^Automation/).textContent).toContain("Triage the inbox");
-  });
-
   it("leaves ordinary user messages as full bubbles", async () => {
     setup();
     await using screen = await renderTimeline([message(AUTOMATION_PROMPT)]);
@@ -564,17 +535,6 @@ describe("MessagesTimeline automation prompts", () => {
       {
         supportsConversationRollback: true,
         threadStartCheckpointReady: true,
-        turnDiffSummaries: [
-          {
-            runId,
-            checkpointTurnCount: 1,
-            checkpointRef: "checkpoint-1" as never,
-            status: "ready",
-            files: [],
-            assistantMessageId: MessageId.make("assistant-1"),
-            completedAt: CREATED_AT,
-          },
-        ],
       },
     );
     expect(screen.buttons("Edit from here")).toHaveLength(0);

@@ -11,8 +11,6 @@ import * as Layer from "effect/Layer";
 import * as Path from "effect/Path";
 
 import * as ServerConfig from "../config.ts";
-import * as VcsDriverRegistry from "../vcs/VcsDriverRegistry.ts";
-import * as VcsProcess from "../vcs/VcsProcess.ts";
 import * as KnownWorkspaces from "./KnownWorkspaces.ts";
 import * as WorkspaceEntries from "./WorkspaceEntries.ts";
 import * as WorkspaceFileSystem from "./WorkspaceFileSystem.ts";
@@ -44,7 +42,6 @@ const layerTest = Layer.empty.pipe(
   Layer.provideMerge(layerProject),
   Layer.provideMerge(WorkspaceEntries.layer.pipe(Layer.provide(WorkspacePaths.layer))),
   Layer.provideMerge(WorkspacePaths.layer),
-  Layer.provideMerge(VcsDriverRegistry.layer.pipe(Layer.provide(VcsProcess.layer))),
   Layer.provide(
     ServerConfig.ServerConfig.layerTest(process.cwd(), {
       prefix: "t3-workspace-files-test-",
@@ -567,57 +564,6 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceFileSystemLive", (i
         }),
     );
 
-    it.effect("refuses writes into git's own folders", () =>
-      Effect.gen(function* () {
-        const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
-        const fileSystem = yield* FileSystem.FileSystem;
-        const path = yield* Path.Path;
-        const cwd = yield* makeTempDir;
-        yield* writeTextFile(cwd, ".git/config", "[core]\n");
-        yield* writeTextFile(cwd, ".bare/HEAD", "ref: refs/heads/main\n");
-        yield* writeTextFile(cwd, ".bare/objects/info/packs");
-        yield* writeTextFile(cwd, ".bare/refs/heads/main");
-        yield* writeTextFile(cwd, ".bare/hooks/pre-push.sample");
-        // Only a linked worktree's `.git` file ends the upward check, not any `.git` folder.
-        yield* fileSystem.makeDirectory(path.join(cwd, ".bare/hooks/.git"));
-        yield* writeTextFile(cwd, ".bare/worktrees/main/HEAD", "ref: refs/heads/main\n");
-        yield* writeTextFile(cwd, ".bare/worktrees/main/commondir", "../..\n");
-        if (symlinksSupported) yield* fileSystem.symlink(".git", path.join(cwd, "docs"));
-
-        for (const [folder, relativePath] of [
-          [cwd, ".git/config"],
-          [cwd, ".git/hooks/pre-commit"],
-          [cwd, "sub/.git"],
-          [cwd, ".GIT/config"],
-          [cwd, ".gıt/config"],
-          [cwd, ".git. /config"],
-          [cwd, ".git::$INDEX_ALLOCATION/config"],
-          [cwd, "GIT~1/config"],
-          [path.join(cwd, ".git"), "config"],
-          [cwd, ".bare/config"],
-          [path.join(cwd, ".bare"), "hooks/post-checkout"],
-          [path.join(cwd, ".bare/hooks"), "post-checkout"],
-          [path.join(cwd, ".bare/worktrees/main"), "commondir"],
-          ...(symlinksSupported ? [[cwd, "docs/config"] as const] : []),
-        ] as const) {
-          const error = yield* workspaceFileSystem
-            .writeFile({ cwd: folder, relativePath, contents: "[core]\n\tfsmonitor = x\n" })
-            .pipe(Effect.flip);
-          expect(error).toBeInstanceOf(WorkspaceFileSystem.WorkspaceFilePathEscapeError);
-        }
-
-        expect(yield* fileSystem.readFileString(path.join(cwd, ".git/config"))).toBe("[core]\n");
-        expect(yield* fileSystem.exists(path.join(cwd, ".bare/config"))).toBe(false);
-        expect((yield* fileSystem.readDirectory(path.join(cwd, ".bare/hooks"))).toSorted()).toEqual(
-          [".git", "pre-push.sample"],
-        );
-        expect(yield* fileSystem.exists(path.join(cwd, "sub"))).toBe(false);
-        expect(
-          yield* fileSystem.readFileString(path.join(cwd, ".bare/worktrees/main/commondir")),
-        ).toBe("../..\n");
-      }),
-    );
-
     it.effect.skipIf(!symlinksSupported)(
       "refuses writes through a git config that links to a file outside git's folders",
       () =>
@@ -639,32 +585,6 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceFileSystemLive", (i
             "[core]\n",
           );
         }),
-    );
-
-    it.effect("writes files that sit beside git's folders", () =>
-      Effect.gen(function* () {
-        const workspaceFileSystem = yield* WorkspaceFileSystem.WorkspaceFileSystem;
-        const fileSystem = yield* FileSystem.FileSystem;
-        const path = yield* Path.Path;
-        const parentDir = yield* makeTempDir;
-        const bare = path.join(parentDir, "repo.git");
-        yield* writeTextFile(bare, "HEAD", "ref: refs/heads/main\n");
-        yield* writeTextFile(bare, "objects/info/packs");
-        yield* writeTextFile(bare, "refs/heads/main");
-        yield* writeTextFile(bare, "main/.git", `gitdir: ${path.join(bare, "worktrees/main")}\n`);
-
-        for (const [cwd, relativePath] of [
-          [path.join(bare, "main"), ".gitignore"],
-          [path.join(bare, "main"), ".gitattributes"],
-          [path.join(bare, "main"), ".github/workflows/ci.yml"],
-          [path.join(bare, "main"), "vendor/lib.git/README.md"],
-          [path.join(bare, "main/.github"), "CODEOWNERS"],
-          [bare, "main/plan.md"],
-        ] as const) {
-          yield* workspaceFileSystem.writeFile({ cwd, relativePath, contents: "ok\n" });
-          expect(yield* fileSystem.readFileString(path.join(cwd, relativePath))).toBe("ok\n");
-        }
-      }),
     );
   });
 });

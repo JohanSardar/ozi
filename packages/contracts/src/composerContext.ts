@@ -6,7 +6,6 @@ import {
   GuestMessageId,
   GuestShareId,
   NonNegativeInt,
-  PositiveInt,
   ThreadId,
   TrimmedNonEmptyString,
 } from "./baseSchemas.ts";
@@ -21,7 +20,6 @@ export const COMPOSER_CONTEXT_KINDS = [
   "terminal",
   "element",
   "preview-annotation",
-  "review-comment",
   "mention",
   "skill",
   "thread",
@@ -39,8 +37,6 @@ export const COMPOSER_CONTEXT_LABEL_MAX_CHARS = 200;
 export const COMPOSER_CONTEXT_TERMINAL_TEXT_MAX_CHARS = 64_000;
 const COMPOSER_CONTEXT_ELEMENT_HTML_MAX_CHARS = 8_000;
 const COMPOSER_CONTEXT_ELEMENT_STYLES_MAX_CHARS = 8_000;
-export const COMPOSER_CONTEXT_REVIEW_TEXT_MAX_CHARS = 16_000;
-export const COMPOSER_CONTEXT_REVIEW_DIFF_MAX_CHARS = 32_000;
 const COMPOSER_CONTEXT_PREVIEW_COMMENT_MAX_CHARS = 8_000;
 
 export const ComposerContextId = TrimmedNonEmptyString.check(
@@ -69,17 +65,6 @@ const ContextLabel = Schema.String.check(Schema.isMaxLength(COMPOSER_CONTEXT_LAB
 const BoundedString = (max: number) => Schema.String.check(Schema.isMaxLength(max));
 const ShortString = BoundedString(2_048);
 const NullableShortString = Schema.NullOr(ShortString);
-
-export const PullRequestContextMetadata = Schema.Struct({
-  number: PositiveInt,
-  title: ShortString,
-  url: ShortString,
-  headBranch: ShortString,
-  baseBranch: ShortString,
-  state: Schema.Literals(["open", "closed", "merged"]),
-  isDraft: Schema.Boolean,
-});
-export type PullRequestContextMetadata = typeof PullRequestContextMetadata.Type;
 
 const recordBase = {
   version: Schema.Literal(1),
@@ -175,22 +160,6 @@ export const PreviewAnnotationContextRecord = Schema.Struct({
 });
 export type PreviewAnnotationContextRecord = typeof PreviewAnnotationContextRecord.Type;
 
-export const ReviewCommentContextRecord = Schema.Struct({
-  ...recordBase,
-  kind: Schema.Literal("review-comment"),
-  sectionId: TrimmedNonEmptyString.check(Schema.isMaxLength(255)),
-  sectionTitle: ShortString,
-  filePath: TrimmedNonEmptyString.check(Schema.isMaxLength(2_048)),
-  startIndex: NonNegativeInt,
-  endIndex: NonNegativeInt,
-  rangeLabel: ShortString,
-  text: BoundedString(COMPOSER_CONTEXT_REVIEW_TEXT_MAX_CHARS),
-  diff: BoundedString(COMPOSER_CONTEXT_REVIEW_DIFF_MAX_CHARS),
-  fenceLanguage: Schema.optionalKey(BoundedString(64)),
-  pullRequest: Schema.optionalKey(PullRequestContextMetadata),
-}).check(Schema.makeFilter((record) => record.endIndex >= record.startIndex));
-export type ReviewCommentContextRecord = typeof ReviewCommentContextRecord.Type;
-
 export const MentionContextRecord = Schema.Struct({
   ...recordBase,
   kind: Schema.Literal("mention"),
@@ -262,7 +231,6 @@ export const KnownComposerContextRecord = Schema.Union([
   TerminalContextRecord,
   ElementContextRecord,
   PreviewAnnotationContextRecord,
-  ReviewCommentContextRecord,
   MentionContextRecord,
   SkillContextRecord,
   ThreadContextRecord,

@@ -126,30 +126,10 @@ function selectOpenCodeRuntimeTextGeneration(
   v2: ProviderTextGeneration,
 ): ProviderTextGeneration {
   return {
-    generateCommitMessage: (input) =>
-      byOpenCodeRuntime(probe.get, {
-        v1: v1.generateCommitMessage(input),
-        v2: v2.generateCommitMessage(input),
-      }),
-    generatePrContent: (input) =>
-      byOpenCodeRuntime(probe.get, {
-        v1: v1.generatePrContent(input),
-        v2: v2.generatePrContent(input),
-      }),
-    generateBranchName: (input) =>
-      byOpenCodeRuntime(probe.get, {
-        v1: v1.generateBranchName(input),
-        v2: v2.generateBranchName(input),
-      }),
     generateThreadTitle: (input) =>
       byOpenCodeRuntime(probe.get, {
         v1: v1.generateThreadTitle(input),
         v2: v2.generateThreadTitle(input),
-      }),
-    generateReviewGuide: (input) =>
-      byOpenCodeRuntime(probe.get, {
-        v1: v1.generateReviewGuide(input),
-        v2: v2.generateReviewGuide(input),
       }),
   };
 }

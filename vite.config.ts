@@ -35,11 +35,6 @@ const RESTRICTED_IMPORT_PATHS = [
       "Import from an explicit @t3tools/client-runtime/* subpath. The package has no root export.",
   },
   {
-    name: "@pierre/diffs/react",
-    importNames: ["CodeView"],
-    message: "Use StyledDiffCodeView so web diff surfaces share styling and virtualized geometry.",
-  },
-  {
     name: "react-native-screens",
     importNames: ["ScrollViewMarker"],
     message:
@@ -55,28 +50,6 @@ const RESTRICTED_UI_VARIANT_PATTERNS = [
       "Render the components/ui export instead of borrowing its class recipe (render={<Button …/>}, SelectButton, ToggleGroup).",
   },
 ];
-
-const RESTRICTED_PULL_REQUEST_GLYPH_IMPORTS = {
-  name: "lucide-react",
-  importNames: [
-    "GitMerge",
-    "GitMergeIcon",
-    "GitPullRequest",
-    "GitPullRequestIcon",
-    "GitPullRequestArrow",
-    "GitPullRequestArrowIcon",
-    "GitPullRequestClosed",
-    "GitPullRequestClosedIcon",
-    "GitPullRequestDraft",
-    "GitPullRequestDraftIcon",
-    "GitPullRequestCreate",
-    "GitPullRequestCreateIcon",
-    "GitPullRequestCreateArrow",
-    "GitPullRequestCreateArrowIcon",
-  ],
-  message:
-    "Pick a glyph by meaning from PullRequestGlyph in apps/web/src/components/pullRequest/pullRequestIcons.tsx so every surface draws the same pull request the same way.",
-};
 
 // Vite+ supports remote configuration before its published types include it.
 const cacheUrl = remoteCacheUrl(import.meta.dirname);
@@ -169,7 +142,6 @@ export default defineConfig({
       "*.tsbuildinfo",
       "**/routeTree.gen.ts",
       "**/*.graphql.ts",
-      "packages/source-control-github/schema/**",
       "apps/server/schema/**",
       "apps/mobile/android/**",
       "apps/mobile/ios/**",
@@ -201,7 +173,6 @@ export default defineConfig({
       "*.tsbuildinfo",
       "**/routeTree.gen.ts",
       "**/*.graphql.ts",
-      "packages/source-control-github/schema/**",
       "apps/server/schema/**",
       "apps/mobile/android/**",
       "apps/mobile/ios/**",
@@ -276,10 +247,7 @@ export default defineConfig({
       "typescript/require-array-sort-compare": "off",
       "typescript/restrict-template-expressions": "off",
       "typescript/unbound-method": "off",
-      "eslint/no-restricted-imports": [
-        "error",
-        { paths: [...RESTRICTED_IMPORT_PATHS, RESTRICTED_PULL_REQUEST_GLYPH_IMPORTS] },
-      ],
+      "eslint/no-restricted-imports": ["error", { paths: RESTRICTED_IMPORT_PATHS }],
       "t3code/no-global-process-runtime": "error",
       "t3code/no-inline-schema-compile": "error",
       "t3code/no-low-value-comments": "error",
@@ -388,76 +356,13 @@ export default defineConfig({
           "eslint/no-restricted-imports": [
             "error",
             {
-              paths: [...RESTRICTED_IMPORT_PATHS, RESTRICTED_PULL_REQUEST_GLYPH_IMPORTS],
+              paths: RESTRICTED_IMPORT_PATHS,
               patterns: RESTRICTED_UI_VARIANT_PATTERNS,
             },
           ],
         },
       },
-      {
-        files: ["apps/web/src/components/pullRequest/pullRequestIcons.tsx"],
-        rules: { "eslint/no-restricted-imports": ["error", { paths: RESTRICTED_IMPORT_PATHS }] },
-      },
-      {
-        // The server and every client load a forge's shared definition, so a UI runtime
-        // imported there would break the server; client-only forge code goes in `src/client/`.
-        files: ["packages/source-control-*/src/shared/**"],
-        rules: {
-          "eslint/no-restricted-imports": [
-            "error",
-            {
-              paths: [...RESTRICTED_IMPORT_PATHS, RESTRICTED_PULL_REQUEST_GLYPH_IMPORTS],
-              patterns: [
-                {
-                  group: [
-                    "react",
-                    "react/*",
-                    "react-*",
-                    "expo",
-                    "expo-*",
-                    "lucide-react",
-                    "@t3tools/client-runtime",
-                    "@t3tools/client-runtime/*",
-                    "../client/*",
-                    "../server/*",
-                    "../../client/*",
-                    "../../server/*",
-                    "../../../client/*",
-                    "../../../server/*",
-                    "@t3tools/source-control-*/client/*",
-                    "@t3tools/source-control-*/server/*",
-                  ],
-                  message:
-                    "Shared forge definitions load on the server and every client; keep UI and server code out.",
-                },
-              ],
-            },
-          ],
-        },
-      },
-      {
-        files: ["apps/server/src/**", "packages/source-control-*/src/server/**"],
-        rules: {
-          "eslint/no-restricted-imports": [
-            "error",
-            {
-              paths: [...RESTRICTED_IMPORT_PATHS, RESTRICTED_PULL_REQUEST_GLYPH_IMPORTS],
-              patterns: [
-                {
-                  group: [
-                    "@t3tools/source-control-*/client/*",
-                    "../client/*",
-                    "../../client/*",
-                    "../../../client/*",
-                  ],
-                  message:
-                    "A forge's client entry is UI-only; the server reads its `shared/definition`.",
-                },
-              ],
-            },
-          ],
-        },
-      },
+
       {
         files: ["apps/mobile/src/**"],
         rules: {
@@ -465,15 +370,7 @@ export default defineConfig({
           "t3code/require-registered-list-scroll": "error",
         },
       },
-      {
-        files: ["apps/mobile/src/**"],
-        excludeFiles: [
-          "apps/mobile/src/components/ui/AppSymbol.tsx",
-          "apps/mobile/src/components/ui/AppSymbol.ios.tsx",
-          "apps/mobile/src/features/pull-requests/pullRequestGlyphs.ts",
-        ],
-        rules: { "t3code/no-mobile-pull-request-glyph-literals": "error" },
-      },
+
       {
         files: ["apps/mobile/src/**"],
         excludeFiles: ["**/*.test.{ts,tsx}"],

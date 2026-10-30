@@ -27,7 +27,6 @@ import {
   buildProjectScript,
   commandForProjectScript,
   nextProjectScriptId,
-  releaseClaimedRoles,
 } from "../../projectScripts";
 import { useProjects } from "../../state/entities";
 import { serverEnvironment } from "../../state/server";
@@ -196,9 +195,7 @@ export function useProjectScriptSettings(
     const next = buildProjectScript(id, input);
     return persist(
       (current) => {
-        const updated = current.map((script) =>
-          script.id === id ? next : releaseClaimedRoles(script, input),
-        );
+        const updated = current.map((script) => (script.id === id ? next : script));
         return scriptId === null ? [...updated, next] : updated;
       },
       id,

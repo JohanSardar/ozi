@@ -14,8 +14,6 @@ import type {
   ProjectEntry,
   ProjectListEntriesInput,
   ProjectListEntriesResult,
-  ProjectListIgnoredFilesInput,
-  ProjectListIgnoredFilesResult,
   ProjectSearchContentsInput,
   ProjectSearchContentsResult,
   ProjectSearchEntriesInput,
@@ -26,7 +24,6 @@ import { isExplicitRelativePath, isWindowsAbsolutePath } from "@t3tools/shared/p
 import { normalizeSearchQuery } from "@t3tools/shared/searchRanking";
 
 import { expandHomePath } from "@t3tools/provider-core/server/pathExpansion";
-import * as VcsProcess from "../vcs/VcsProcess.ts";
 import * as WorkspacePaths from "./WorkspacePaths.ts";
 import * as WorkspaceSearchIndex from "./WorkspaceSearchIndex.ts";
 
@@ -101,21 +98,12 @@ export class WorkspaceEntries extends Context.Service<
     readonly search: (
       input: ProjectSearchEntriesInput,
     ) => Effect.Effect<ProjectSearchEntriesResult, WorkspaceEntriesError>;
-    readonly listIgnoredFiles: (
-      input: ProjectListIgnoredFilesInput,
-    ) => Effect.Effect<ProjectListIgnoredFilesResult, WorkspaceEntriesError>;
     readonly searchContents: (
       input: ProjectSearchContentsInput,
     ) => Effect.Effect<ProjectSearchContentsResult, WorkspaceEntriesError>;
     readonly refresh: (cwd: string) => Effect.Effect<void>;
   }
 >()("ozi/workspace/WorkspaceEntries") {}
-
-/** Ignored files offered for copying; more than this is a build folder, not config. */
-const IGNORED_FILES_LIMIT = 200;
-
-/** Paths sent to one `git check-ignore` call when labelling a folder's children. */
-const IGNORE_CHECK_CHUNK_SIZE = 1000;
 
 const resolveBrowseTarget = Effect.fn("WorkspaceEntries.resolveBrowseTarget")(function* (
   input: FilesystemBrowseInput,
@@ -150,7 +138,6 @@ export const make = Effect.gen(function* () {
   const path = yield* Path.Path;
   const workspacePaths = yield* WorkspacePaths.WorkspacePaths;
   const workspaceSearchIndexes = yield* WorkspaceSearchIndex.WorkspaceSearchIndexMap;
-  const vcsProcess = yield* VcsProcess.VcsProcess;
 
   const normalizeWorkspaceRoot = Effect.fn("WorkspaceEntries.normalizeWorkspaceRoot")(function* (
     cwd: string,
@@ -303,7 +290,7 @@ export const make = Effect.gen(function* () {
                   relativePath: directoryPath,
                 })
                 .pipe(Effect.mapError(toError));
-        const { entries, throughSymlink } = yield* Effect.tryPromise({
+        const { entries } = yield* Effect.tryPromise({
           try: async () => {
             const root = await NodeFSP.realpath(normalizedCwd);
             const directory = await NodeFSP.realpath(target.absolutePath);
@@ -334,48 +321,7 @@ export const make = Effect.gen(function* () {
           },
           catch: toError,
         });
-        // stdin avoids argument limits; ignore classification is optional without git/repositories.
-        const checkIgnore = (paths: ReadonlyArray<string>) =>
-          vcsProcess
-            .run({
-              operation: "WorkspaceEntries.list",
-              command: "git",
-              args: ["-c", "core.fsmonitor=false", "check-ignore", "-z", "--stdin"],
-              cwd: normalizedCwd,
-              stdin: `${paths.join("\0")}\0`,
-              allowNonZeroExit: true,
-              timeoutMs: 10_000,
-              maxOutputBytes: 16 * 1024 * 1024,
-            })
-            .pipe(Effect.orElseSucceed(() => undefined));
-        // Check ignored folders once to avoid child index lookups; exit 0 guarantees no tracked descendants.
-        // Symlinks and pathspec magic still need per-child checks.
-        if (
-          entries.length > IGNORE_CHECK_CHUNK_SIZE &&
-          target.relativePath !== "" &&
-          !throughSymlink &&
-          !/^:|[*?[\\]/.test(target.relativePath) &&
-          (yield* checkIgnore([target.relativePath]))?.exitCode === 0
-        ) {
-          return {
-            entries: entries.map((entry) => ({ ...entry, ignored: true })),
-            truncated: false,
-          };
-        }
-        const ignored = new Set<string>();
-        for (let offset = 0; offset < entries.length; offset += IGNORE_CHECK_CHUNK_SIZE) {
-          const result = yield* checkIgnore(
-            entries.slice(offset, offset + IGNORE_CHECK_CHUNK_SIZE).map((entry) => entry.path),
-          );
-          if (!result || (result.exitCode !== 0 && result.exitCode !== 1)) break;
-          for (const ignoredPath of result.stdout.split("\0")) ignored.add(ignoredPath);
-        }
-        return {
-          entries: entries.map((entry) =>
-            ignored.has(entry.path) ? { ...entry, ignored: true } : entry,
-          ),
-          truncated: false,
-        };
+        return { entries, truncated: false };
       }
       return yield* Effect.gen(function* () {
         const searchIndex = yield* WorkspaceSearchIndex.WorkspaceSearchIndex;
@@ -390,59 +336,9 @@ export const make = Effect.gen(function* () {
     },
   );
 
-  const listIgnoredFiles: WorkspaceEntries["Service"]["listIgnoredFiles"] = Effect.fn(
-    "WorkspaceEntries.listIgnoredFiles",
-  )(function* (input) {
-    const normalizedCwd = yield* normalizeWorkspaceRoot(input.cwd);
-    // `--directory` reports a folder holding nothing but ignored files as one
-    // `name/` entry, which is how `node_modules` and build output drop out.
-    const result = yield* vcsProcess
-      .run({
-        operation: "WorkspaceEntries.listIgnoredFiles",
-        command: "git",
-        args: [
-          "-c",
-          "core.fsmonitor=false",
-          "ls-files",
-          "--others",
-          "--ignored",
-          "--exclude-standard",
-          "--directory",
-          "--no-empty-directory",
-          "-z",
-        ],
-        cwd: normalizedCwd,
-        allowNonZeroExit: true,
-        timeoutMs: 10_000,
-        maxOutputBytes: 4 * 1024 * 1024,
-      })
-      .pipe(Effect.orElseSucceed(() => undefined));
-    if (!result || result.exitCode !== 0) return { files: [], truncated: false };
-    const paths = result.stdout
-      .split("\0")
-      .filter((entry) => entry.length > 0 && !entry.endsWith("/"))
-      .toSorted();
-    const files = yield* Effect.promise(() =>
-      Promise.all(
-        paths.slice(0, IGNORED_FILES_LIMIT).map(async (relativePath) => {
-          // lstat: a symlink usually points outside the workspace, where reads refuse to go.
-          const stat = await NodeFSP.lstat(path.join(normalizedCwd, relativePath)).catch(
-            () => null,
-          );
-          return stat?.isFile() ? { path: relativePath, byteLength: stat.size } : null;
-        }),
-      ),
-    );
-    return {
-      files: files.filter((file) => file !== null),
-      truncated: paths.length > IGNORED_FILES_LIMIT,
-    };
-  });
-
-  return WorkspaceEntries.of({ browse, list, listIgnoredFiles, refresh, search, searchContents });
+  return WorkspaceEntries.of({ browse, list, refresh, search, searchContents });
 });
 
 export const layer = Layer.effect(WorkspaceEntries, make).pipe(
   Layer.provide(WorkspaceSearchIndex.WorkspaceSearchIndexMap.layer),
-  Layer.provide(VcsProcess.layer),
 );

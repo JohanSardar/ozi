@@ -75,14 +75,6 @@ function restingComposerControlsWidth(
   );
 }
 
-/** Reserve natural composer width to prevent strip labels from repeatedly expanding into space vacated by
- * hidden controls. */
-export function resolveRestingComposerControlsNaturalWidth(
-  input: RestingComposerControlsMeasurement,
-): number {
-  return restingComposerControlsWidth(input, 0);
-}
-
 const RESTING_CONTROLS_SLACK_PX = 1;
 
 export function resolveRestingComposerControlsLayout(

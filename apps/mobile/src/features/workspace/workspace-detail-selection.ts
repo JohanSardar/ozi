@@ -11,15 +11,10 @@ import { workspaceRoutesOf } from "../layout/workspace-overlay-routes";
 type RootParams = ReactNavigation.RootParamList;
 
 /** A page the workspace's detail column shows on its own: what a list row selects. */
-export type WorkspaceDetail =
-  | { readonly name: "Thread"; readonly params: RootParams["Thread"] }
-  | { readonly name: "PullRequest"; readonly params: RootParams["PullRequest"] };
+export type WorkspaceDetail = { readonly name: "Thread"; readonly params: RootParams["Thread"] };
 
 /** Android opens the reviewers sheet over the pull request in the same step. */
-export type WorkspaceDetailSheet = {
-  readonly name: "PullRequestReviewers";
-  readonly params: RootParams["PullRequestReviewers"];
-};
+export type WorkspaceDetailSheet = never;
 
 const SELECT_WORKSPACE_DETAIL = "SELECT_WORKSPACE_DETAIL";
 
@@ -41,7 +36,6 @@ export function selectWorkspaceDetail(
 
 const IDENTITY = {
   Thread: ["environmentId", "threadId"],
-  PullRequest: ["environmentId", "projectId", "repository", "number", "host"],
 } as const;
 
 type RouteLike = { readonly name: string; readonly key?: string; readonly params?: object };
@@ -109,6 +103,5 @@ export function workspaceDetailLinkAction(
   const pages = state.routes.filter((route) => route.name !== "Home");
   const [page] = pages;
   if (pages.length !== 1 || !page || page.state) return undefined;
-  if (page.name !== "Thread" && page.name !== "PullRequest") return undefined;
   return selectWorkspaceDetail({ name: page.name, params: page.params } as WorkspaceDetail);
 }

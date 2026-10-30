@@ -4,7 +4,6 @@ import {
   type OrchestrationV2ThreadDetailSnapshot,
   type ServerConfig,
   type ThreadId,
-  type VcsListRefsResult,
 } from "@t3tools/contracts";
 import * as Context from "effect/Context";
 import * as Effect from "effect/Effect";
@@ -12,7 +11,6 @@ import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 
 import type { ConnectionRegistration } from "../connection/catalog.ts";
-import type { DeferredShellSnapshot } from "../state/shellPullRequests.ts";
 import type { ConnectionTarget, PersistedConnectionTarget } from "../connection/model.ts";
 
 export class ConnectionPersistenceError extends Schema.TaggedError<ConnectionPersistenceError>()(
@@ -82,7 +80,7 @@ export class EnvironmentCacheStore extends Context.Service<
   {
     readonly loadShell: (
       environmentId: EnvironmentId,
-    ) => Effect.Effect<Option.Option<DeferredShellSnapshot>, ConnectionPersistenceError>;
+    ) => Effect.Effect<Option.Option<OrchestrationV2ShellSnapshot>, ConnectionPersistenceError>;
     readonly saveShell: (
       environmentId: EnvironmentId,
       snapshot: OrchestrationV2ShellSnapshot,
@@ -108,30 +106,6 @@ export class EnvironmentCacheStore extends Context.Service<
     readonly saveServerConfig: (
       environmentId: EnvironmentId,
       config: ServerConfig,
-    ) => Effect.Effect<void, ConnectionPersistenceError>;
-    /**
-     * Query-specific lists are not cached because they are incomplete and unsafe
-     * to present as a full picker.
-     */
-    readonly loadVcsRefs: (
-      environmentId: EnvironmentId,
-      cwd: string,
-    ) => Effect.Effect<Option.Option<VcsListRefsResult>, ConnectionPersistenceError>;
-    readonly saveVcsRefs: (
-      environmentId: EnvironmentId,
-      cwd: string,
-      refs: VcsListRefsResult,
-    ) => Effect.Effect<void, ConnectionPersistenceError>;
-    readonly removeVcsRefs: (
-      environmentId: EnvironmentId,
-      cwd: string,
-    ) => Effect.Effect<void, ConnectionPersistenceError>;
-    /**
-     * Git ref mutations are repository-wide, and linked worktrees may have
-     * cached the same refs under different working-directory keys.
-     */
-    readonly clearVcsRefs: (
-      environmentId: EnvironmentId,
     ) => Effect.Effect<void, ConnectionPersistenceError>;
     readonly clear: (
       environmentId: EnvironmentId,

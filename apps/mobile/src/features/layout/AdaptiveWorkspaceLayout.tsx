@@ -1,3 +1,4 @@
+import { useThreadCwd } from "../../state/use-thread-directory";
 import {
   WorkspaceColumnsRendererContext,
   WorkspacePresentationHostContext,
@@ -41,7 +42,6 @@ import { scopedThreadKey } from "../../lib/scopedEntities";
 import type { ThreadListFilters } from "../../persistence/mobile-preferences";
 import { appAtomRegistry } from "../../state/atom-registry";
 import { useProjects } from "../../state/entities";
-import { useThreadCwd } from "../../state/use-selected-thread-worktree";
 import { environmentThreadShells } from "../../state/threads";
 import { mobilePreferencesAtom } from "../../state/preferences";
 import {
@@ -73,7 +73,6 @@ import { HomeListOptionsProvider } from "../home/home-list-options";
 import { newTaskDestination } from "../threads/new-task-project-selection";
 import { usePendingTaskListActions } from "../home/usePendingTaskListActions";
 import { ThreadNavigationSidebar } from "../threads/ThreadNavigationSidebar";
-import { useOpenThreadPullRequests } from "../threads/use-open-thread-pull-requests";
 import { RenderErrorBoundary, RenderFailureView } from "../../components/RenderErrorBoundary";
 import { WORKSPACE_PANE_TIMING } from "./workspace-pane-animation";
 import { WorkspaceInspectorPane } from "./workspace-inspector-pane";
@@ -143,7 +142,6 @@ export function AdaptiveWorkspaceLayout(props: {
   readonly workspaceRouteKey: string | undefined;
   readonly workspaceRouteName: string | undefined;
   readonly workspaceRouteKeys: ReadonlyArray<string>;
-  readonly selectedPullRequestKey?: string | null;
 }) {
   const preferencesResult = useAtomValue(mobilePreferencesAtom);
   if (!AsyncResult.isSuccess(preferencesResult)) {
@@ -171,7 +169,6 @@ function AdaptiveWorkspaceLayoutContent(
     readonly workspaceRouteKey: string | undefined;
     readonly workspaceRouteName: string | undefined;
     readonly workspaceRouteKeys: ReadonlyArray<string>;
-    readonly selectedPullRequestKey?: string | null;
   } & {
     readonly projectGroupingMode: SidebarProjectGroupingMode;
     readonly savedThreadListFilters?: ThreadListFilters | undefined;
@@ -537,7 +534,7 @@ function AdaptiveWorkspaceLayoutContent(
       if (layout.primarySidebarOverlaysContent) setPrimarySidebarVisible(false);
       workspace?.dispatch({
         type: "select",
-        tab: detail.name === "Thread" ? "threads" : "pullRequests",
+        tab: "threads",
       });
       startOpeningDetail(detail);
       navigation.dispatch(selectWorkspaceDetail(detail, sheet));
@@ -594,22 +591,8 @@ function AdaptiveWorkspaceLayoutContent(
   const handleOpenEnvironmentSettings = () => {
     openSettings(navigation, "SettingsEnvironments");
   };
-
-  const handleOpenThreadPullRequests = useOpenThreadPullRequests();
   const { openPendingTask: handleOpenPendingTask } =
     usePendingTaskListActions(handleSelectThreadRoute);
-
-  const handleNewThreadOnBranch = (thread: EnvironmentThreadShell) => {
-    handleSelectThreadRoute({
-      draft: {
-        requestId: uuidv4(),
-        environmentId: String(thread.environmentId),
-        projectId: String(thread.projectId),
-        branch: thread.branch,
-        worktreePath: thread.worktreePath,
-      },
-    });
-  };
 
   const handleNewThreadInProject = (project: EnvironmentProject) => {
     handleSelectThreadRoute({
@@ -883,10 +866,7 @@ function AdaptiveWorkspaceLayoutContent(
                 />
               )}
             >
-              <AndroidWorkspaceSidebar
-                onRequestVisibility={revealPrimarySidebar}
-                selectedPullRequestKey={props.selectedPullRequestKey ?? null}
-              >
+              <AndroidWorkspaceSidebar onRequestVisibility={revealPrimarySidebar}>
                 <AndroidHomeFabLayout
                   sidebar
                   disabled={workspacePage}
@@ -901,10 +881,8 @@ function AdaptiveWorkspaceLayoutContent(
                     onOpenSettings={handleOpenSettings}
                     onOpenEnvironmentSettings={handleOpenEnvironmentSettings}
                     onNewThreadInProject={handleNewThreadInProject}
-                    onNewThreadOnBranch={handleNewThreadOnBranch}
                     onOpenPendingTask={handleOpenPendingTask}
                     onSelectThread={handleSelectThread}
-                    onOpenThreadPullRequests={handleOpenThreadPullRequests}
                     onSearchQueryChange={setPrimarySidebarSearchQuery}
                     searchQuery={primarySidebarSearchQuery}
                   />

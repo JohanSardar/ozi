@@ -50,7 +50,6 @@ interface MultipleModelSendInput {
   readonly composerRef: ComposerHandleRef;
   readonly promptRef: { current: string };
   readonly runtimeMode: RuntimeMode;
-  readonly startFromOrigin: boolean;
   readonly resetLocalDispatch: ReturnType<typeof useLocalDispatchState>["resetLocalDispatch"];
   readonly setThreadError: ReturnType<typeof makeThreadErrorSetter>;
 }
@@ -70,7 +69,6 @@ export function useMultipleModelSend(input: MultipleModelSendInput) {
     composerRef,
     promptRef,
     runtimeMode,
-    startFromOrigin,
     resetLocalDispatch,
     setThreadError,
   } = input;
@@ -86,7 +84,6 @@ export function useMultipleModelSend(input: MultipleModelSendInput) {
   return async ({
     threadId,
     project,
-    branch,
     selections,
     targets,
     sendSnapshot,
@@ -99,7 +96,6 @@ export function useMultipleModelSend(input: MultipleModelSendInput) {
   }: {
     readonly threadId: ThreadId;
     readonly project: EnvironmentProject;
-    readonly branch: string;
     readonly selections: ReadonlyArray<ModelSelection>;
     readonly targets: ReadonlyArray<MultipleModelTarget>;
     readonly sendSnapshot: ComposerSendSnapshot;
@@ -182,17 +178,9 @@ export function useMultipleModelSend(input: MultipleModelSendInput) {
                       modelSelection: target.selection,
                       runtimeMode,
                       interactionMode: target.interactionMode,
-                      branch,
-                      worktreePath: null,
+                      workingDirectory: null,
                       createdAt: createdAt,
                     },
-                    prepareWorktree: {
-                      projectCwd: project.workspaceRoot,
-                      baseBranch: branch,
-                      requireWorktree: true,
-                      ...(startFromOrigin ? { startFromOrigin: true } : {}),
-                    },
-                    runSetupScript: true,
                   },
                   createdAt: createdAt,
                 },

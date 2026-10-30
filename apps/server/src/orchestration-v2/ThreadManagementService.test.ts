@@ -51,8 +51,7 @@ it("stamps authoritative provenance on commands that create threads or messages"
     },
     runtimeMode: "full-access",
     interactionMode: "default",
-    branch: null,
-    worktreePath: null,
+    workingDirectory: null,
     // A client cannot claim a linked environment's origin, or a parent there.
     linkOrigin: { sessionId: "forged", label: "Somewhere else" },
     delegatedFrom: {

@@ -1,8 +1,3 @@
-import { describe, expect, it } from "vite-plus/test";
-
-import { ThreadId, TurnItemId, type OrchestrationV2TurnItem } from "@t3tools/contracts";
-import * as DateTime from "effect/DateTime";
-
 import {
   resolveWorkEntryToolPresentation,
   toolItemForDisplay,
@@ -10,6 +5,10 @@ import {
   workEntryIndicatesToolFailure,
   workEntryDisplayIndicatesToolFailure,
 } from "./presentation.js";
+import { describe, expect, it } from "vite-plus/test";
+
+import { ThreadId, TurnItemId, type OrchestrationV2TurnItem } from "@t3tools/contracts";
+import * as DateTime from "effect/DateTime";
 
 function commandItem(
   fields: Partial<Extract<OrchestrationV2TurnItem, { type: "command_execution" }>> = {},
@@ -157,19 +156,6 @@ describe("resolveWorkEntryToolPresentation", () => {
       resolveWorkEntryToolPresentation({ ...entry, toolLifecycleStatus: "failed" }, "completed")
         ?.displayName,
     ).toBe("Failed to click in the preview browser");
-  });
-
-  it.each([
-    ["https://github.com/acme/web/pull/7", "PR #7"],
-    ["https://gitlab.com/acme/web/-/merge_requests/7", "MR #7"],
-  ])("names a linked change request with its host's term (%s)", (url, target) => {
-    expect(
-      resolveWorkEntryToolPresentation({
-        label: "T3-code.link_pull_request",
-        toolLifecycleStatus: "completed",
-        toolData: { arguments: { url } },
-      })?.displayName,
-    ).toMatch(new RegExp(` ${target}$`));
   });
 
   it("does not brand unknown tools or another server's matching tool name", () => {

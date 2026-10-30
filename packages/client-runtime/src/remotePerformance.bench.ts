@@ -49,7 +49,7 @@ const responses = {
     label: target.label,
     platform: { os: "linux", arch: "x64" },
     serverVersion: "0.0.0-test",
-    capabilities: { repositoryIdentity: true },
+    capabilities: {},
   },
   "/api/auth/websocket-ticket": { ticket: "test-ticket", expiresAt: timestamp },
   "/api/orchestration/threads/thread-v2/bounded": {

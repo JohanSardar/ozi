@@ -16,8 +16,7 @@ export function draftThreadShell(input: {
   readonly modelSelection: ModelSelection;
   readonly runtimeMode: RuntimeMode;
   readonly interactionMode: ProviderInteractionMode;
-  readonly branch: string | null;
-  readonly worktreePath: string | null;
+  readonly workingDirectory: string | null;
   readonly createdAt: string;
 }) {
   const timestamp = DateTime.makeUnsafe(input.createdAt);
@@ -29,11 +28,7 @@ export function draftThreadShell(input: {
     modelSelection: input.modelSelection,
     runtimeMode: input.runtimeMode,
     interactionMode: input.interactionMode,
-    branch: input.branch,
-    pullRequests: [],
-    worktreePath: input.worktreePath,
-    linkedPullRequest: null,
-    branchPullRequest: null,
+    workingDirectory: input.workingDirectory,
     lineage: { rootThreadId: input.threadId, parentThreadId: null, relationshipToParent: null },
     forkedFrom: null,
     createdBy: "user",

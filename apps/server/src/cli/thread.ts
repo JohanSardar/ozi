@@ -519,23 +519,6 @@ const titleFromMessage = (message: string) => {
     : firstLine;
 };
 
-const launchWorkspaceStrategy = (input: {
-  readonly worktree: Option.Option<string>;
-  readonly branch: Option.Option<string>;
-}) =>
-  Option.match(input.worktree, {
-    onNone: () =>
-      Option.isSome(input.branch)
-        ? Effect.fail(new ThreadUsageError({ detail: "--branch needs --worktree <base-ref>." }))
-        : Effect.void,
-    onSome: (baseRef) =>
-      Effect.succeed({
-        type: "worktree" as const,
-        baseRef,
-        ...Option.match(input.branch, { onNone: () => ({}), onSome: (branch) => ({ branch }) }),
-      }),
-  });
-
 const jsonFlag = Flag.Boolean("json").pipe(
   Flag.withDescription("Print JSON instead of text."),
   Flag.withDefault(false),
@@ -612,16 +595,6 @@ const threadStartCommand = Command.make("start", {
     Flag.withDescription("Model slug. Defaults to the project's default model."),
     Flag.optional,
   ),
-  worktree: Flag.String("worktree").pipe(
-    Flag.withDescription(
-      "Run in a new git worktree based on this branch, tag, or commit, instead of the project folder.",
-    ),
-    Flag.optional,
-  ),
-  branch: Flag.String("branch").pipe(
-    Flag.withDescription("Branch name for the new worktree."),
-    Flag.optional,
-  ),
   wait: waitFlag,
   json: jsonFlag,
 }).pipe(
@@ -629,7 +602,6 @@ const threadStartCommand = Command.make("start", {
   Command.withHandler((flags) =>
     Effect.gen(function* () {
       const message = yield* readMessageArgument(flags.message);
-      const workspaceStrategy = yield* launchWorkspaceStrategy(flags);
       if (Option.isSome(flags.provider) !== Option.isSome(flags.model)) {
         return yield* new ThreadUsageError({ detail: "--provider and --model go together." });
       }
@@ -646,7 +618,6 @@ const threadStartCommand = Command.make("start", {
               projectId: project.id,
               title,
               message,
-              ...(workspaceStrategy === undefined ? {} : { workspaceStrategy }),
               ...(Option.isSome(flags.provider) && Option.isSome(flags.model)
                 ? {
                     modelSelection: {
@@ -759,8 +730,8 @@ const threadShowCommand = Command.make("show", {
               "  ",
             ),
           );
-          if (thread.worktreePath !== null) {
-            yield* Console.log(`${thread.branch ?? "(no branch)"}  ${thread.worktreePath}`);
+          if (thread.workingDirectory !== null) {
+            yield* Console.log(thread.workingDirectory);
           }
           if (thread.pendingRequestCount > 0) {
             yield* Console.log(`Waiting for ${thread.pendingRequestCount} answer(s).`);
@@ -774,6 +745,33 @@ const threadShowCommand = Command.make("show", {
   ),
 );
 
+const threadWaitCommand = Command.make("wait", {
+  ...projectLocationFlags,
+  thread: threadArgument,
+  json: jsonFlag,
+}).pipe(
+  Command.withDescription("Wait for the latest run and print its reply."),
+  Command.withHandler((flags) =>
+    Effect.gen(function* () {
+      const threadId = yield* decodeThreadId(flags.thread);
+      yield* withThreadTools(
+        flags,
+        Effect.fn("cli.thread.wait")(function* (tools) {
+          const { thread } = yield* tools.call(
+            "t3_thread_read",
+            { threadId, limit: 1, runLimit: 1 },
+            OrchestratorMcpThreadReadResult,
+          );
+          if (thread.latestRunId === null) {
+            return yield* new ThreadUsageError({ detail: "Thread has no run to wait for." });
+          }
+          yield* finishRun(tools, { threadId, runId: thread.latestRunId, json: flags.json });
+        }),
+      );
+    }).pipe(reportThreadErrors),
+  ),
+);
+
 export const threadCommand = Command.make("thread").pipe(
   Command.withDescription("Start, message, and read threads on the running server."),
   Command.withSubcommands([
@@ -781,5 +779,6 @@ export const threadCommand = Command.make("thread").pipe(
     threadStartCommand,
     threadSendCommand,
     threadShowCommand,
+    threadWaitCommand,
   ]),
 );

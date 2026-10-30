@@ -1,11 +1,14 @@
-import { ThreadLinkedPullRequest, ThreadPullRequestLink } from "@t3tools/contracts";
 import { legacyThreadPullRequestKey } from "./legacyThreadPullRequestKey.ts";
 import * as Effect from "effect/Effect";
 import * as Schema from "effect/Schema";
 import * as SqlClient from "effect/sql/SqlClient";
 
-const decodeLegacyLink = Schema.decodeEffect(Schema.fromJsonString(ThreadLinkedPullRequest));
-const encodeLinks = Schema.encodeSync(Schema.fromJsonString(Schema.Array(ThreadPullRequestLink)));
+const decodeLegacyLink = Schema.decodeEffect(
+  Schema.fromJsonString(
+    Schema.Struct({ repository: Schema.String, number: Schema.Number, url: Schema.String }),
+  ),
+);
+const encodeLinks = JSON.stringify;
 const linksJson = Effect.fnUntraced(function* (linkedPullRequestJson: string, linkedAt: string) {
   const linked = yield* decodeLegacyLink(linkedPullRequestJson);
   return encodeLinks([

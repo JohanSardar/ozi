@@ -71,24 +71,6 @@ describe("draft deep links", () => {
     });
   });
 
-  it.each([
-    ["environment", "NewTaskEnvironment"],
-    ["branch", "NewTaskBranch"],
-    ["files", "NewTaskFiles"],
-    ["files/src/index.ts", "NewTaskFile"],
-    ["attachments/attachment-1", "NewTaskAttachment"],
-    ["settings", "NewTaskThreadSettings"],
-  ])("restores a draft beneath its %s screen", (path, name) => {
-    const params = { environmentId: "env-1", projectId: "project-1" };
-    const target = { name, params };
-    expect(
-      restoreDraftLinkState({ routes: [{ name: "Home" }, target] }, `/new/draft/${path}`),
-    ).toEqual({
-      index: 2,
-      routes: [{ name: "Home" }, { name: "Thread", params: { draft: params } }, target],
-    });
-  });
-
   it("leaves live-thread and project-selection links unchanged", () => {
     const state = { routes: [{ name: "Thread", params: { threadId: "thread-1" } }] };
     expect(restoreDraftLinkState(state, "/threads/env-1/thread-1")).toBe(state);

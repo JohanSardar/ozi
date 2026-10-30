@@ -179,14 +179,6 @@ function setup() {
     environmentId,
     title: "Shared repo",
     workspaceRoot: `/work/${environmentId}`,
-    repositoryIdentity: {
-      canonicalKey: "github.com/example/shared-repo",
-      locator: {
-        source: "git-remote",
-        remoteName: "origin",
-        remoteUrl: "https://github.com/example/shared-repo.git",
-      },
-    },
     defaultModelSelection: { instanceId, model: "gpt-5-codex" },
     createdAt: "2026-01-01T00:00:00.000Z",
     updatedAt: "2026-01-01T00:00:00.000Z",

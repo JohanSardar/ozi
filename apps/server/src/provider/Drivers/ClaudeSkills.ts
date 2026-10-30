@@ -142,7 +142,7 @@ function skillOverrideSettingsPaths(
   ];
 }
 
-const findRepositoryRoot = Effect.fn("findRepositoryRoot")(function* (
+const findClaudeConfigurationRoot = Effect.fn("findClaudeConfigurationRoot")(function* (
   cwd: string,
 ): Effect.fn.Return<string | undefined, never, FileSystem.FileSystem | Path.Path> {
   const fileSystem = yield* FileSystem.FileSystem;
@@ -150,7 +150,7 @@ const findRepositoryRoot = Effect.fn("findRepositoryRoot")(function* (
   let current = path.resolve(cwd);
   while (true) {
     const isRoot = yield* fileSystem
-      .exists(path.join(current, ".git"))
+      .exists(path.join(current, ".claude"))
       .pipe(Effect.orElseSucceed(() => false));
     if (isRoot) {
       return current;
@@ -161,43 +161,6 @@ const findRepositoryRoot = Effect.fn("findRepositoryRoot")(function* (
     }
     current = parent;
   }
-});
-
-const findPluginRepositoryRoot = Effect.fn("findPluginRepositoryRoot")(function* (cwd: string) {
-  const fileSystem = yield* FileSystem.FileSystem;
-  const path = yield* Path.Path;
-  const root = yield* findRepositoryRoot(cwd);
-  if (root === undefined) return undefined;
-  const gitFile = yield* fileSystem
-    .readFileString(path.join(root, ".git"))
-    .pipe(Effect.orElseSucceed(() => ""));
-  if (!gitFile.trim().startsWith("gitdir:")) return root;
-  const gitDirectory = path.resolve(root, gitFile.trim().slice(7).trim());
-  const commonFile = yield* fileSystem
-    .readFileString(path.join(gitDirectory, "commondir"))
-    .pipe(Effect.orElseSucceed(() => ""));
-  const worktreeFile = yield* fileSystem
-    .readFileString(path.join(gitDirectory, "gitdir"))
-    .pipe(Effect.orElseSucceed(() => ""));
-  if (!commonFile.trim() || !worktreeFile.trim()) return root;
-  const commonDirectory = path.resolve(gitDirectory, commonFile.trim());
-  const backlinkPath = yield* fileSystem
-    .realPath(path.resolve(gitDirectory, worktreeFile.trim()))
-    .pipe(Effect.orElseSucceed(() => undefined));
-  const worktreeGitPath = yield* fileSystem
-    .realPath(path.join(root, ".git"))
-    .pipe(Effect.orElseSucceed(() => undefined));
-  if (
-    path.dirname(gitDirectory) !== path.join(commonDirectory, "worktrees") ||
-    backlinkPath === undefined ||
-    backlinkPath !== worktreeGitPath
-  ) {
-    return root;
-  }
-  // Claude shares plugin install records across linked worktrees, using their common repository.
-  return path.basename(commonDirectory) === ".git"
-    ? path.dirname(commonDirectory)
-    : commonDirectory;
 });
 
 /**
@@ -245,7 +208,7 @@ const readSkillSettings = Effect.fn("readSkillSettings")(function* (
   const platform = yield* HostProcess.Platform;
   const overridesByName = new Map<string, SkillOverride>();
   const enabledPlugins = new Map<string, boolean>();
-  const repositoryRoot = cwd === undefined ? undefined : yield* findRepositoryRoot(cwd);
+  const repositoryRoot = cwd === undefined ? undefined : yield* findClaudeConfigurationRoot(cwd);
 
   for (const settingsPath of skillOverrideSettingsPaths(
     path,
@@ -336,7 +299,7 @@ const discoverPluginSkillRoots = Effect.fn("discoverPluginSkillRoots")(function*
       ? undefined
       : yield* fileSystem.realPath(cwd).pipe(Effect.orElseSucceed(() => path.resolve(cwd)));
   const repositoryRoot =
-    workspace === undefined ? undefined : yield* findPluginRepositoryRoot(workspace);
+    workspace === undefined ? undefined : yield* findClaudeConfigurationRoot(workspace);
 
   for (const [key, entries] of Object.entries(installed.plugins).sort()) {
     if (enabledPlugins.get(key) !== true) continue;
@@ -349,7 +312,7 @@ const discoverPluginSkillRoots = Effect.fn("discoverPluginSkillRoots")(function*
           if (path.resolve(record.projectPath) === workspace) return true;
           return (
             repositoryRoot !== undefined &&
-            (yield* findPluginRepositoryRoot(record.projectPath)) === repositoryRoot
+            (yield* findClaudeConfigurationRoot(record.projectPath)) === repositoryRoot
           );
         }),
     );

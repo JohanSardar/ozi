@@ -39,10 +39,6 @@ import * as EnvironmentSupervisor from "./supervisor.ts";
 import * as ConnectionDriver from "./driver.ts";
 import * as ConnectionWakeups from "./wakeups.ts";
 import {
-  PullRequestRoutingPermissions,
-  pullRequestRoutingConnectionKey,
-} from "./pullRequestRoutingPermissions.ts";
-import {
   RELAY_ROUTE_ID,
   connectionRouteId,
   connectionRoutes,
@@ -57,17 +53,6 @@ import {
 } from "./routes.ts";
 
 const isSshConnectionProfile = Schema.is(SshConnectionProfile);
-
-function unsupportedState(
-  entry: ConnectionCatalogEntry,
-): Pick<ConnectionCatalogEntry, "unsupportedReason" | "serverUpdateRequired"> {
-  return {
-    ...(entry.unsupportedReason === undefined
-      ? {}
-      : { unsupportedReason: entry.unsupportedReason }),
-    ...(entry.serverUpdateRequired === true ? { serverUpdateRequired: true } : {}),
-  };
-}
 
 export class EnvironmentNotRegisteredError extends Schema.TaggedError<EnvironmentNotRegisteredError>()(
   "EnvironmentNotRegisteredError",
@@ -215,7 +200,6 @@ export const make = Effect.gen(function* () {
   const ownedDataCleanup = yield* Persistence.EnvironmentOwnedDataCleanup;
   const profiles = yield* ConnectionProfileStore.ConnectionProfileStore;
   const credentials = yield* ConnectionCredentialStore.ConnectionCredentialStore;
-  const pullRequestRoutingPermissions = yield* PullRequestRoutingPermissions;
   const connectivity = yield* Connectivity.Connectivity;
   const driver = yield* ConnectionDriver.ConnectionDriver;
   const wakeups = yield* ConnectionWakeups.ConnectionWakeups;
@@ -511,20 +495,6 @@ export const make = Effect.gen(function* () {
     yield* createServiceScope(entry);
   });
 
-  const forgetRoutingTrust = (
-    environmentId: EnvironmentId,
-    operation: "register-connection" | "set-connection-routes",
-  ) =>
-    pullRequestRoutingPermissions.forget(environmentId).pipe(
-      Effect.mapError(
-        (error) =>
-          new Persistence.ConnectionPersistenceError({
-            operation,
-            message: error.message,
-          }),
-      ),
-    );
-
   const persistedRoutes = (entry: ConnectionCatalogEntry) =>
     connectionRoutes(entry).map((route) => route.target as PersistedConnectionTarget);
 
@@ -534,9 +504,6 @@ export const make = Effect.gen(function* () {
    */
   const withRoutes = (previous: ConnectionCatalogEntry, routes: ReadonlyArray<ConnectionRoute>) => {
     const next = entryWithRoutes(previous, routes);
-    if (pullRequestRoutingConnectionKey(previous) === pullRequestRoutingConnectionKey(next)) {
-      return { entry: next, addressesChanged: false };
-    }
     const { unsupportedReason: _reason, serverUpdateRequired: _update, ...rest } = next;
     return { entry: rest, addressesChanged: true };
   };
@@ -585,9 +552,6 @@ export const make = Effect.gen(function* () {
               connectionRouteId(existing.target) === connectionRouteId(route.target),
           );
           const next = withRoutes(previous, upsertRoute(routes, route));
-          if (next.addressesChanged) {
-            yield* forgetRoutingTrust(environmentId, "register-connection");
-          }
           entry = next.entry;
         }
         yield* registrations.register(registration, persistedRoutes(entry));
@@ -606,9 +570,6 @@ export const make = Effect.gen(function* () {
   ) {
     const environmentId = previous.target.environmentId;
     const next = withRoutes(previous, routes);
-    if (next.addressesChanged) {
-      yield* forgetRoutingTrust(environmentId, "set-connection-routes");
-    }
     yield* registrations.setRoutes(environmentId, persistedRoutes(next.entry));
     yield* installEntryLocked(next.entry);
   });
@@ -629,33 +590,8 @@ export const make = Effect.gen(function* () {
       yield* withLeaseLock(
         target.environmentId,
         Effect.gen(function* () {
-          const previous = (yield* SubscriptionRef.get(entries)).get(target.environmentId);
-          const entry: ConnectionCatalogEntry =
-            previous?.unsupportedReason !== undefined &&
-            pullRequestRoutingConnectionKey(previous) ===
-              pullRequestRoutingConnectionKey(registered)
-              ? { ...registered, ...unsupportedState(previous) }
-              : registered;
+          const entry: ConnectionCatalogEntry = registered;
           const persisted = (yield* Ref.get(persistedEnvironmentIds)).has(target.environmentId);
-          if (
-            persisted ||
-            (previous !== undefined &&
-              pullRequestRoutingConnectionKey(previous) !== pullRequestRoutingConnectionKey(entry))
-          ) {
-            const revoked = yield* pullRequestRoutingPermissions.forget(target.environmentId).pipe(
-              Effect.tapError((error) =>
-                Effect.logWarning(
-                  "Could not clear pull request routing permission for a platform environment.",
-                  {
-                    environmentId: target.environmentId,
-                    error,
-                  },
-                ),
-              ),
-              Effect.exit,
-            );
-            if (Exit.isFailure(revoked)) return;
-          }
           yield* Ref.update(platformEnvironmentIds, (current) => {
             const next = new Set(current);
             next.add(target.environmentId);
@@ -748,78 +684,9 @@ export const make = Effect.gen(function* () {
     },
   );
 
-  const removePlatformEnvironment = Effect.fn("EnvironmentRegistry.removePlatformEnvironment")(
-    function* (environmentId: EnvironmentId) {
-      yield* withLeaseLock(
-        environmentId,
-        Effect.gen(function* () {
-          const entry = (yield* SubscriptionRef.get(entries)).get(environmentId);
-          const revoked = yield* pullRequestRoutingPermissions.forget(environmentId).pipe(
-            Effect.tapError((error) =>
-              Effect.logWarning(
-                "Could not clear pull request routing permission after platform removal.",
-                {
-                  environmentId,
-                  error,
-                },
-              ),
-            ),
-            Effect.exit,
-          );
-          if (Exit.isFailure(revoked)) return;
-          yield* Ref.update(platformEnvironmentIds, (current) => {
-            const next = new Set(current);
-            next.delete(environmentId);
-            return next;
-          });
-          yield* closeServiceScope(environmentId);
-          yield* SubscriptionRef.update(entries, (current) => {
-            const next = new Map(current);
-            next.delete(environmentId);
-            return next;
-          });
-          if (entry !== undefined && entry.target._tag === "BearerConnectionTarget") {
-            yield* credentials.remove(entry.target.connectionId).pipe(
-              Effect.catch((error) =>
-                Effect.logWarning("Could not clear the platform bearer credential.", {
-                  environmentId,
-                  error,
-                }),
-              ),
-            );
-          }
-          yield* Effect.all(
-            [
-              cache.clear(environmentId).pipe(
-                Effect.catch((error) =>
-                  Effect.logWarning("Could not clear cached environment data after removal.", {
-                    environmentId,
-                    error,
-                  }),
-                ),
-              ),
-              ownedDataCleanup.clear(environmentId),
-            ],
-            { concurrency: "unbounded", discard: true },
-          );
-        }),
-      );
-    },
-  );
-
   const reconcilePlatform = Effect.fn("EnvironmentRegistry.reconcilePlatform")(function* (
     platformRegistrations: ReadonlyArray<PlatformConnectionRegistration>,
   ) {
-    const desiredIds = new Set(
-      platformRegistrations.map((registration) => registration.target.environmentId),
-    );
-    const currentPlatformIds = yield* Ref.get(platformEnvironmentIds);
-    yield* Effect.forEach(
-      currentPlatformIds,
-      (environmentId) =>
-        desiredIds.has(environmentId) ? Effect.void : removePlatformEnvironment(environmentId),
-      { discard: true },
-    );
     yield* Effect.forEach(platformRegistrations, installPlatformRegistration, { discard: true });
   });
 
@@ -833,8 +700,6 @@ export const make = Effect.gen(function* () {
       });
     }
     const entry = yield* getEntry(environmentId);
-
-    yield* pullRequestRoutingPermissions.forget(environmentId);
     yield* registrations.remove(environmentId);
     yield* Ref.update(persistedEnvironmentIds, (current) => {
       const next = new Set(current);

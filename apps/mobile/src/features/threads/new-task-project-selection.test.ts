@@ -24,16 +24,6 @@ function makeProject(
     id: ProjectId.make(id),
     title: options.title ?? id,
     workspaceRoot: options.workspaceRoot ?? `/work/${id}`,
-    repositoryIdentity: options.repositoryKey
-      ? {
-          canonicalKey: options.repositoryKey,
-          locator: {
-            source: "git-remote",
-            remoteName: "origin",
-            remoteUrl: `https://${options.repositoryKey}.git`,
-          },
-        }
-      : null,
     defaultModelSelection: null,
     scripts: [],
     createdAt: "2026-07-01T00:00:00.000Z",

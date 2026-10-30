@@ -261,7 +261,7 @@ export interface ShellCandidate {
 
 interface TerminalStartInput {
   readonly cwd: string;
-  readonly worktreePath?: string | null;
+  readonly workingDirectory?: string | null;
   readonly cols: number;
   readonly rows: number;
 }
@@ -270,7 +270,7 @@ interface TerminalSessionState {
   threadId: string;
   terminalId: string;
   cwd: string;
-  worktreePath: string | null;
+  workingDirectory: string | null;
   status: TerminalSessionStatus;
   pid: number | null;
   history: BoundedTerminalHistory;
@@ -376,7 +376,7 @@ function snapshot(session: TerminalSessionState): TerminalSessionSnapshot {
     threadId: session.threadId,
     terminalId: session.terminalId,
     cwd: session.cwd,
-    worktreePath: session.worktreePath,
+    workingDirectory: session.workingDirectory,
     status: session.status,
     pid: session.pid,
     history: session.history.value(),
@@ -395,7 +395,7 @@ function summary(session: TerminalSessionState): TerminalSummary {
     threadId: session.threadId,
     terminalId: session.terminalId,
     cwd: session.cwd,
-    worktreePath: session.worktreePath,
+    workingDirectory: session.workingDirectory,
     status: session.status,
     pid: session.pid,
     exitCode: session.exitCode,
@@ -2401,7 +2401,7 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     yield* modifyManagerState((state) => {
       session.status = "starting";
       session.cwd = input.cwd;
-      session.worktreePath = input.worktreePath ?? null;
+      session.workingDirectory = input.workingDirectory ?? null;
       session.cols = input.cols;
       session.rows = input.rows;
       session.exitCode = null;
@@ -2843,7 +2843,7 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
         threadId: input.threadId,
         terminalId,
         cwd: input.cwd,
-        worktreePath: input.worktreePath ?? null,
+        workingDirectory: input.workingDirectory ?? null,
         status: "starting",
         pid: null,
         history,
@@ -2879,7 +2879,9 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
         session,
         {
           cwd: input.cwd,
-          ...(input.worktreePath !== undefined ? { worktreePath: input.worktreePath } : {}),
+          ...(input.workingDirectory !== undefined
+            ? { workingDirectory: input.workingDirectory }
+            : {}),
           cols,
           rows,
         },
@@ -2889,22 +2891,21 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
     }
 
     const liveSession = existing.value;
+    const nextWorkingDirectory = input.workingDirectory ?? null;
     const nextRuntimeEnv = normalizedRuntimeEnv(input.env);
     const currentRuntimeEnv = liveSession.runtimeEnv;
     const targetCols = input.cols ?? liveSession.cols;
     const targetRows = input.rows ?? liveSession.rows;
     const runtimeEnvChanged = !Equal.equals(currentRuntimeEnv, nextRuntimeEnv);
-    const nextWorktreePath =
-      input.worktreePath !== undefined ? (input.worktreePath ?? null) : liveSession.worktreePath;
     const launchContextChanged =
       liveSession.cwd !== input.cwd ||
       runtimeEnvChanged ||
-      liveSession.worktreePath !== nextWorktreePath;
+      liveSession.workingDirectory !== nextWorkingDirectory;
 
     if (launchContextChanged) {
       yield* stopProcess(liveSession);
       liveSession.cwd = input.cwd;
-      liveSession.worktreePath = nextWorktreePath;
+      liveSession.workingDirectory = nextWorkingDirectory;
       liveSession.runtimeEnv = nextRuntimeEnv;
       liveSession.history.clear();
       liveSession.pendingHistoryControlSequence = "";
@@ -2914,7 +2915,7 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
       yield* persistHistory(liveSession.threadId, liveSession.terminalId, liveSession.history);
     } else if (liveSession.status === "exited" || liveSession.status === "error") {
       liveSession.runtimeEnv = nextRuntimeEnv;
-      liveSession.worktreePath = nextWorktreePath;
+      liveSession.workingDirectory = nextWorkingDirectory;
       liveSession.history.clear();
       liveSession.pendingHistoryControlSequence = "";
       liveSession.pendingProcessEvents = [];
@@ -2928,7 +2929,7 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
         liveSession,
         {
           cwd: input.cwd,
-          worktreePath: liveSession.worktreePath,
+          workingDirectory: liveSession.workingDirectory,
           cols: targetCols,
           rows: targetRows,
         },
@@ -2946,7 +2947,7 @@ export const makeWithOptions = Effect.fn("TerminalManager.makeWithOptions")(func
 
   const openLocked = (input: TerminalOpenInput) =>
     withWorkspaceLease(
-      path.resolve(input.worktreePath ?? input.cwd),
+      path.resolve(input.workingDirectory ?? input.cwd),
       openWithWorkspaceLease(input),
     );
 

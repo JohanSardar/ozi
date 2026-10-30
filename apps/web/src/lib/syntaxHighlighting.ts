@@ -5,7 +5,11 @@ import {
   type SupportedLanguages,
 } from "@pierre/diffs";
 
-import { DIFF_THEME_NAMES } from "./diffRendering";
+import { READABLE_LIGHT_THEME_NAME } from "./readableSyntaxTheme";
+const CODE_THEME_NAMES = { light: READABLE_LIGHT_THEME_NAME, dark: "pierre-dark" } as const;
+export function resolveCodeThemeName(theme: "light" | "dark") {
+  return CODE_THEME_NAMES[theme];
+}
 
 /**
  * Highlights' hand-written WASM lexers tokenize large files 10-40x faster than
@@ -22,7 +26,7 @@ export function getSyntaxHighlighterPromise(language: string): Promise<DiffsHigh
 
   const promise = getSharedHighlighter({
     // Both palettes, so switching appearance never needs a new highlighter.
-    themes: Object.values(DIFF_THEME_NAMES),
+    themes: Object.values(CODE_THEME_NAMES),
     langs: [language as SupportedLanguages],
     preferredHighlighter: PREFERRED_HIGHLIGHTER,
   }).catch((error) => {
@@ -34,4 +38,14 @@ export function getSyntaxHighlighterPromise(language: string): Promise<DiffsHigh
   });
   highlighterPromiseCache.set(language, promise);
   return promise;
+}
+
+export type CodeThemeName = (typeof CODE_THEME_NAMES)[keyof typeof CODE_THEME_NAMES];
+export function fnv1a32(input: string): number {
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < input.length; index += 1) {
+    hash ^= input.charCodeAt(index);
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+  }
+  return hash >>> 0;
 }

@@ -1,3 +1,4 @@
+import { resolveCodeThemeName } from "~/lib/syntaxHighlighting";
 import { documentChipKindForFileName } from "~/pierre-icons";
 import { isProviderSkillUserInvocable } from "@t3tools/client-runtime/providerSkills";
 import { formatProviderSkillDisplayName } from "@t3tools/shared/inlineSkills";
@@ -102,7 +103,6 @@ import {
   markAsClipboardEdit,
 } from "~/composer-undo-grouping";
 import { collectInlineContextIds } from "~/lib/composerContextReferences";
-import { resolveDiffThemeName } from "~/lib/diffRendering";
 import { cn, isMacPlatform } from "~/lib/utils";
 import { basenameOfPath } from "~/pierre-icons";
 import { WorkspaceEntryTooltip } from "./chat/WorkspaceEntryIcon";
@@ -831,7 +831,7 @@ function createComposerExtensions(richText: boolean) {
           }),
           composerCodeBlockHighlight({
             resolveTheme: () =>
-              resolveDiffThemeName(
+              resolveCodeThemeName(
                 document.documentElement.classList.contains("dark") ? "dark" : "light",
               ),
           }),

@@ -68,21 +68,6 @@ const SETTINGS_SEARCH_TERMS = {
     "login",
     "auth",
   ],
-  SettingsEnvironmentSourceControl: [
-    "git",
-    "pull requests",
-    "co-authors",
-    "agent credits",
-    "default branch",
-    "automatically pull",
-  ],
-  SettingsWorktrees: [
-    "worktree",
-    "branch naming",
-    "branch prefix",
-    "submodules",
-    "start from remote",
-  ],
   SettingsLabs: ["legacy", "plan mode", "beta", "linked environments", "link machine"],
   SettingsEnvironmentMaintenance: ["updates", "provider updates", "restart", "manage environments"],
   SettingsAbout: [

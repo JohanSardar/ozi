@@ -1,3 +1,4 @@
+import { resolveEnvironmentOptionLabel } from "~/components/environmentOptions";
 import { useScopedSettings, useUpdateScopedSettings } from "./useScopedSettings";
 import { ScopedSwitch } from "./ScopedSwitch";
 import {
@@ -37,7 +38,6 @@ import { MoreVertical, Plus as PlusIcon } from "lucide-react";
 import { useRef, useState } from "react";
 
 import { ScreenRotationIcon } from "~/browser/ScreenRotationIcon";
-import { resolveEnvironmentOptionLabel } from "~/components/BranchToolbar.logic";
 import { previewBridge } from "~/components/preview/previewBridge";
 import { cn, randomUUID } from "~/lib/utils";
 import { useEnvironments, usePrimaryEnvironment } from "~/state/environments";
@@ -742,35 +742,6 @@ function BrowserSearchEngineSetting() {
         />
       ) : null}
     </>
-  );
-}
-
-export function PullRequestLinksOpenInAppSetting() {
-  const openInApp = useClientSettings((settings) => settings.pullRequestLinksOpenInApp);
-  const updateSettings = useUpdatePrimarySettings();
-
-  return (
-    <SettingsRow
-      {...searchableSetting("pull-request-links-open-in-app")}
-      description="Clicking a pull request link opens it in Ozi. Turn off to open pull request links like any other link, on your git host."
-      resetAction={
-        openInApp ? null : (
-          <SettingResetButton
-            label="open pull requests in Ozi"
-            onClick={() => updateSettings({ pullRequestLinksOpenInApp: true })}
-          />
-        )
-      }
-      control={
-        <Switch
-          checked={openInApp}
-          onCheckedChange={(checked) =>
-            updateSettings({ pullRequestLinksOpenInApp: Boolean(checked) })
-          }
-          aria-label="Open pull requests in Ozi"
-        />
-      }
-    />
   );
 }
 

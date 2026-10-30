@@ -41,11 +41,8 @@ import {
   type ThreadContextRecord,
   type EnvironmentContextRecord,
   type ThreadId,
-  type ThreadLinkedPullRequest,
   type RunId,
-  type WorktreeSetupSnapshot,
 } from "@t3tools/contracts";
-import { worktreeSetupAgentStarted } from "@t3tools/client-runtime/worktree-setup";
 import * as DateTime from "effect/DateTime";
 import { resolveAssetUrl } from "@t3tools/client-runtime/state/assets";
 import {
@@ -59,13 +56,7 @@ import {
   type CodexArtifactTemplate,
 } from "@t3tools/shared/codexArtifactTemplates";
 import { presentThreadShell } from "@t3tools/client-runtime/state/shell";
-import {
-  type ChatMessage,
-  isImageAttachment,
-  type SessionPhase,
-  type Thread,
-  type TurnDiffSummary,
-} from "../types";
+import { type ChatMessage, isImageAttachment, type SessionPhase, type Thread } from "../types";
 import {
   type ComposerFileAttachment,
   type ComposerImageAttachment,
@@ -87,13 +78,10 @@ import {
 } from "~/lib/composerContextReferences";
 import {
   previewAnnotationContextLabel,
-  reviewCommentContextLabel,
   terminalContextReference,
 } from "../lib/composerContextRecords";
 import type { ComposerDispatchMode } from "@t3tools/client-runtime/state/composer-dispatch";
-import type { DraftThreadEnvMode } from "../composerDraftStore";
 import { collapseExpandedComposerCursor, type ComposerSubmissionIntent } from "../composer-logic";
-import type { ReviewCommentContext } from "../reviewCommentContext";
 import { derivePhase, type TimelineEntry } from "../session-logic";
 import type { PreviewMiniPlayerSource } from "../previewMiniPlayerStore";
 import type { DesktopPreviewOverlay } from "../previewStateStore";
@@ -146,100 +134,6 @@ export function shouldRenderPreviewMiniPlayer(
   );
 }
 
-export function shouldOpenProactivePullRequest(
-  previousTargetKey: string | null | undefined,
-  targetKey: string | null,
-): boolean {
-  return targetKey !== null && targetKey !== previousTargetKey;
-}
-
-interface ProactivePanelObservation {
-  threadKey: string;
-  runningTurnId: RunId | null | undefined;
-  targetKey: string | null | undefined;
-  userActionTurnId: RunId | null;
-  userActionRevision: number;
-}
-
-export function observeProactivePanelUserChoice(
-  previous: ProactivePanelObservation | null,
-  input: { threadKey: string; runningTurnId: RunId | null; userActionRevision: number },
-): ProactivePanelObservation {
-  const sameThread = previous?.threadKey === input.threadKey;
-  const newTurn =
-    sameThread && input.runningTurnId !== null && input.runningTurnId !== previous.userActionTurnId;
-  return {
-    threadKey: input.threadKey,
-    runningTurnId: sameThread ? previous.runningTurnId : undefined,
-    targetKey: sameThread ? previous.targetKey : undefined,
-    userActionTurnId: input.runningTurnId ?? (sameThread ? previous.userActionTurnId : null),
-    userActionRevision:
-      !sameThread || newTurn ? input.userActionRevision : previous.userActionRevision,
-  };
-}
-
-export function shouldRetargetThreadPullRequestPanel(
-  previous: ThreadLinkedPullRequest | null,
-  current: ThreadLinkedPullRequest | null,
-  surface: RightPanelSurface | null,
-): boolean {
-  if (previous === null || current === null || surface?.kind !== "pull-request") return false;
-  const previousRepository = previous.repository.toLowerCase();
-  return (
-    (previous.projectId !== current.projectId ||
-      previousRepository !== current.repository.toLowerCase() ||
-      previous.number !== current.number) &&
-    surface.projectId === previous.projectId &&
-    surface.repository.toLowerCase() === previousRepository &&
-    surface.number === previous.number
-  );
-}
-
-export function shouldOpenProactiveTurnDiff(input: {
-  previousRunningTurnId: RunId | null | undefined;
-  runningTurnId: RunId | null;
-  settledTurnId: RunId | null;
-  turnCompleted: boolean;
-}): boolean {
-  return (
-    input.runningTurnId === null &&
-    input.turnCompleted &&
-    input.settledTurnId !== null &&
-    (input.previousRunningTurnId === undefined ||
-      input.settledTurnId === input.previousRunningTurnId)
-  );
-}
-
-export function resolveProactiveTurnDiffAction(input: {
-  checkpoint: Pick<TurnDiffSummary, "status" | "files"> | undefined;
-  isGitRepo: boolean | undefined;
-}): "defer" | "ignore" | "open" {
-  if (input.checkpoint === undefined || input.checkpoint.status === "missing") return "defer";
-  if (input.isGitRepo === undefined) return "defer";
-  if (
-    !input.isGitRepo ||
-    input.checkpoint.status !== "ready" ||
-    input.checkpoint.files.length === 0
-  ) {
-    return "ignore";
-  }
-  const changedLines = input.checkpoint.files.reduce(
-    (total, file) => total + file.additions + file.deletions,
-    0,
-  );
-  return input.checkpoint.files.length >= 3 || changedLines >= 50 ? "open" : "ignore";
-}
-
-/** Mark reactivated Diff tabs to preserve review scope. Already-active tabs must not leave a marker for
- * the next open. */
-export function resolveExplicitDiffOpenOnActivate(input: {
-  readonly surfaceKind: RightPanelSurface["kind"];
-  readonly diffOpen: boolean;
-  readonly activeThreadRef: ScopedThreadRef;
-}): ScopedThreadRef | null {
-  return input.surfaceKind === "diff" && !input.diffOpen ? input.activeThreadRef : null;
-}
-
 export function codexArtifactTemplatePromptToAppend(
   currentDraft: string,
   template: CodexArtifactTemplate,
@@ -288,38 +182,13 @@ export function shouldReleaseTimelineAnchorForToolActivity(input: {
   });
 }
 
-export { resolveVisibleWorktreeSetup } from "@t3tools/client-runtime/worktree-setup";
-
-export function resolveWorktreeSetupProgress(input: {
-  threadId: ThreadId;
-  localPreparing: boolean;
-  runStatus: NonNullable<Thread["latestRun"]>["status"] | undefined;
-  latest: WorktreeSetupSnapshot | null | undefined;
-  held: WorktreeSetupSnapshot | null;
-}) {
-  const latest = input.latest?.threadId === input.threadId ? input.latest : null;
-  const held = input.held?.threadId === input.threadId ? input.held : null;
-  const snapshot = latest && (!held || latest.sequence >= held.sequence) ? latest : held;
-  return {
-    snapshot,
-    isPreparingWorktree:
-      input.localPreparing ||
-      input.runStatus === "preparing" ||
-      (snapshot?.phase === "running" && !worktreeSetupAgentStarted(snapshot)),
-  };
-}
-
 export function resolveDraftHeroState(input: {
   isLocalDraftThread: boolean;
   hasTimelineEntries: boolean;
   isWorking: boolean;
   draftHeroDockRequested: boolean;
   backgroundSubmissionPending: boolean;
-  hasWorktreeSetupCard?: boolean;
 }): boolean {
-  if (input.hasWorktreeSetupCard) {
-    return false;
-  }
   if (input.backgroundSubmissionPending) {
     return true;
   }
@@ -414,28 +283,11 @@ export function startNewThreadForProject(
 export function resolveThreadMetadataUpdateForNextTurn(input: {
   currentModelSelection: ModelSelection;
   nextModelSelection?: ModelSelection;
-  currentBranch: string | null;
-  nextBranch?: string;
-}): {
-  modelSelection?: ModelSelection;
-  branch?: string;
-  worktreePath?: null;
-} | null {
-  const nextModelSelection = input.nextModelSelection;
-  const modelSelectionChanged =
-    nextModelSelection !== undefined &&
-    (nextModelSelection.model !== input.currentModelSelection.model ||
-      nextModelSelection.instanceId !== input.currentModelSelection.instanceId ||
-      JSON.stringify(nextModelSelection.options ?? null) !==
-        JSON.stringify(input.currentModelSelection.options ?? null));
-  const branchChanged = input.nextBranch !== undefined && input.nextBranch !== input.currentBranch;
-  if (!modelSelectionChanged && !branchChanged) {
-    return null;
-  }
-  return {
-    ...(modelSelectionChanged ? { modelSelection: nextModelSelection } : {}),
-    ...(branchChanged ? { branch: input.nextBranch, worktreePath: null } : {}),
-  };
+}): { modelSelection: ModelSelection } | null {
+  const next = input.nextModelSelection;
+  return next !== undefined && JSON.stringify(next) !== JSON.stringify(input.currentModelSelection)
+    ? { modelSelection: next }
+    : null;
 }
 
 export function buildLocalDraftThread(
@@ -452,8 +304,7 @@ export function buildLocalDraftThread(
     modelSelection: fallbackModelSelection,
     runtimeMode: draftThread.runtimeMode,
     interactionMode: draftThread.interactionMode,
-    branch: draftThread.branch,
-    worktreePath: draftThread.worktreePath,
+    workingDirectory: draftThread.workingDirectory,
     activeProviderThreadId: null,
     lineage: { rootThreadId: threadId, parentThreadId: null, relationshipToParent: null },
     forkedFrom: null,
@@ -608,17 +459,6 @@ export function reconcileMountedTerminalThreadIds(input: {
   return nextThreadIds;
 }
 
-// Null identifies the project checkout when a launch or session is known.
-export function resolveTerminalWorktreePath(input: {
-  launchContext: { readonly worktreePath: string | null } | null;
-  summary: { readonly worktreePath: string | null } | null;
-  threadWorktreePath: string | null;
-}): string | null {
-  if (input.launchContext !== null) return input.launchContext.worktreePath;
-  if (input.summary !== null) return input.summary.worktreePath;
-  return input.threadWorktreePath;
-}
-
 export async function resolveFileAttachmentUrl(input: {
   attachment: ChatFileAttachment;
   environmentId: EnvironmentId;
@@ -704,26 +544,6 @@ export function collectUserMessageBlobPreviewUrls(message: ChatMessage): string[
 
 export { readFileAsDataUrl } from "../lib/imageCompression";
 
-export { resolveSendEnvMode } from "@t3tools/shared/projectSettings";
-
-export function resolveBackgroundDraftWorkspaceOptions(input: {
-  envMode: DraftThreadEnvMode;
-  branch: string | null;
-  startFromOrigin: boolean;
-}): {
-  envMode: DraftThreadEnvMode;
-  branch: string | null;
-  worktreePath: null;
-  startFromOrigin: boolean;
-} {
-  return {
-    envMode: input.envMode,
-    branch: input.branch,
-    worktreePath: null,
-    startFromOrigin: input.envMode === "worktree" && input.startFromOrigin,
-  };
-}
-
 export function cloneComposerImageForRetry(
   image: ComposerImageAttachment,
 ): ComposerImageAttachment {
@@ -786,29 +606,6 @@ export function buildExpiredTerminalContextToastCopy(
   };
 }
 
-export function branchMismatchKey(
-  threadId: string | null,
-  mismatch: { threadBranch: string; currentBranch: string } | null,
-): string | null {
-  if (!threadId || !mismatch) {
-    return null;
-  }
-  return `${threadId}:${mismatch.threadBranch}:${mismatch.currentBranch}`;
-}
-
-// Composer autofocus makes focus unreliable as draft intent.
-export function shouldShowBranchMismatchBanner(input: {
-  hasMismatch: boolean;
-  isDismissed: boolean;
-  composerHasContent: boolean;
-  wasShownForCurrentMismatch: boolean;
-}): boolean {
-  if (!input.hasMismatch || input.isDismissed) {
-    return false;
-  }
-  return input.composerHasContent || input.wasShownForCurrentMismatch;
-}
-
 export function shouldShowPlanFollowUpPrompt(input: {
   pendingUserInputCount: number;
   interactionMode: ProviderInteractionMode;
@@ -828,16 +625,6 @@ export function shouldShowPlanFollowUpPrompt(input: {
 // A typed `/compact`, with or without instructions, is already the compaction. Queueing a
 // bare one ahead of it would run an uninstructed compaction first and charge for two.
 const COMPACT_COMMAND_PATTERN = /^\/compact(?:\s|$)/i;
-
-const sessionDismissedBranchMismatchKeys = new Set<string>();
-
-export function dismissBranchMismatchForSession(key: string): void {
-  sessionDismissedBranchMismatchKeys.add(key);
-}
-
-export function isBranchMismatchDismissedForSession(key: string | null): boolean {
-  return key !== null && sessionDismissedBranchMismatchKeys.has(key);
-}
 
 // Remember non-Git checkouts to avoid flashing the branch strip before delayed Git status arrives.
 const sessionCheckoutIsRepo = new Map<string, boolean>();
@@ -1029,7 +816,6 @@ export async function waitForRevertedMessage(
 
 export interface LocalDispatchSnapshot {
   startedAt: string;
-  preparingWorktree: boolean;
   submissionIntent: ComposerSubmissionIntent;
   latestUserMessageId: ChatMessage["id"] | null;
   latestRunId: RunId | null;
@@ -1043,7 +829,6 @@ export interface LocalDispatchSnapshot {
 export function createLocalDispatchSnapshot(
   activeThread: Thread | undefined,
   options?: {
-    preparingWorktree?: boolean;
     latestUserMessageId?: ChatMessage["id"] | null;
     submissionIntent?: ComposerSubmissionIntent;
   },
@@ -1052,7 +837,6 @@ export function createLocalDispatchSnapshot(
   const runtime = activeThread?.runtime ?? null;
   return {
     startedAt: new Date().toISOString(),
-    preparingWorktree: Boolean(options?.preparingWorktree),
     submissionIntent: options?.submissionIntent ?? "foreground",
     latestUserMessageId: options?.latestUserMessageId ?? null,
     latestRunId: latestRun?.runId ?? null,
@@ -1164,7 +948,6 @@ export function shouldRefocusComposerOnWindowFocus(
 export interface PlanFollowUpComposerSnapshot {
   readonly prompt: string;
   readonly terminalContexts: ReadonlyArray<TerminalContextDraft>;
-  readonly reviewComments: ReadonlyArray<ReviewCommentContext>;
   readonly previewAnnotations: ReadonlyArray<PreviewAnnotationPayload>;
   readonly threadContexts: ReadonlyArray<ThreadContextRecord>;
   readonly environmentContexts: ReadonlyArray<EnvironmentContextRecord>;
@@ -1174,7 +957,6 @@ export function restorePlanFollowUpComposer(input: {
   readonly snapshot: PlanFollowUpComposerSnapshot;
   readonly writePrompt: (prompt: string) => void;
   readonly writeTerminalContexts: (contexts: ReadonlyArray<TerminalContextDraft>) => void;
-  readonly writeReviewComments: (comments: ReadonlyArray<ReviewCommentContext>) => void;
   readonly writePreviewAnnotations: (annotations: ReadonlyArray<PreviewAnnotationPayload>) => void;
   readonly writeThreadContexts: (records: ReadonlyArray<ThreadContextRecord>) => void;
   readonly writeEnvironmentContexts: (records: ReadonlyArray<EnvironmentContextRecord>) => void;
@@ -1186,7 +968,6 @@ export function restorePlanFollowUpComposer(input: {
 }): void {
   input.writePrompt(input.snapshot.prompt);
   input.writeTerminalContexts(input.snapshot.terminalContexts);
-  input.writeReviewComments(input.snapshot.reviewComments);
   input.writePreviewAnnotations(input.snapshot.previewAnnotations);
   input.writeThreadContexts(input.snapshot.threadContexts);
   input.writeEnvironmentContexts(input.snapshot.environmentContexts);
@@ -1264,10 +1045,6 @@ export type LocalThreadErrorEntry = {
   readonly message: string | null;
   readonly at: number;
 };
-
-export function chatActionErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "An error occurred.";
-}
 
 export function releaseChatTimelineAnchor<T extends { readonly messageId: MessageId | null }>(
   current: T,
@@ -1347,7 +1124,6 @@ export interface ComposerSendContents {
   readonly terminalContexts: ReadonlyArray<TerminalContextDraft>;
   readonly sendableTerminalContexts: ReadonlyArray<TerminalContextDraft>;
   readonly previewAnnotations: ReadonlyArray<PreviewAnnotationPayload>;
-  readonly reviewComments: ReadonlyArray<ReviewCommentContext>;
   readonly threadContexts: ReadonlyArray<ThreadContextRecord>;
   readonly environmentContexts: ReadonlyArray<EnvironmentContextRecord>;
 }
@@ -1367,7 +1143,6 @@ export function snapshotComposerSend(contents: ComposerSendContents) {
     attachments: [...images, ...files],
     terminalContexts,
     previewAnnotations: [...contents.previewAnnotations],
-    reviewComments: [...contents.reviewComments],
     threadContexts: [...contents.threadContexts],
     environmentContexts: [...contents.environmentContexts],
     messageText: contents.terminalContexts
@@ -1389,18 +1164,12 @@ export function planComposerTurn(input: {
   readonly sendQueuesBehindSetup: boolean;
   readonly isServerThread: boolean;
   readonly activeMessageCount: number;
-  readonly sendEnvMode: DraftThreadEnvMode;
-  readonly worktreePath: string | null;
-  readonly activeThreadBranch: string | null;
+  readonly workingDirectory: string | null;
   readonly resumeCompactionTokens: number | null;
   readonly keepFullHistory: boolean;
   readonly phase: SessionPhase;
   readonly dispatchMode: ComposerDispatchMode;
 }) {
-  const isFirstMessage =
-    !input.sendQueuesBehindSetup && (!input.isServerThread || input.activeMessageCount === 0);
-  const shouldCreateWorktree =
-    isFirstMessage && input.sendEnvMode === "worktree" && !input.worktreePath;
   // A stale Claude session compacts before this message so the turn does not re-read the
   // old history. The message queues behind the /compact run, since steering into it is
   // rejected.
@@ -1409,10 +1178,6 @@ export function planComposerTurn(input: {
     !input.keepFullHistory &&
     !COMPACT_COMMAND_PATTERN.test(input.messageText);
   return {
-    // In worktree mode, require an explicit base branch so we don't silently
-    // fall back to local execution when branch selection is missing.
-    missingWorktreeBaseBranch: shouldCreateWorktree && !input.activeThreadBranch,
-    baseBranchForWorktree: shouldCreateWorktree ? input.activeThreadBranch : null,
     compactBeforeSend,
     turnDispatchMode:
       compactBeforeSend || input.sendQueuesBehindSetup ? ("queue" as const) : input.dispatchMode,
@@ -1475,11 +1240,10 @@ export function optimisticMessageAttachments(
 /** Fallback title sources for a message with no text of its own. */
 export function sendTitleFallbackLabels(snapshot: ComposerSendSnapshot) {
   const terminalContext = snapshot.terminalContexts[0];
-  const reviewComment = snapshot.reviewComments[0];
   const previewAnnotation = snapshot.previewAnnotations[0];
   return [
     terminalContext ? formatTerminalContextLabel(terminalContext) : undefined,
-    reviewComment ? `Review: ${reviewCommentContextLabel(reviewComment)}` : undefined,
+    undefined,
     previewAnnotation ? previewAnnotationContextLabel(previewAnnotation) : undefined,
   ];
 }
@@ -1547,16 +1311,13 @@ export function deriveThreadPendingBackgroundTasks(projection: ThreadStructure |
   const latestRun =
     usageLimitRunPresentedAsLatest(projection.runs, projection.turnItems, sessionError) ??
     latestUnheldRun(projection.runs);
-  return [
-    ...derivePendingBackgroundWork({
-      latestRun,
-      providerThreads: projection.providerThreads,
-      turnItems: projection.turnItems,
-      activeProviderThreadId: projection.thread.activeProviderThreadId,
-      runs: projection.runs,
-      pullRequests: projection.thread.pullRequests,
-    }),
-  ];
+  return derivePendingBackgroundWork({
+    latestRun,
+    providerThreads: projection.providerThreads,
+    turnItems: projection.turnItems,
+    activeProviderThreadId: projection.thread.activeProviderThreadId,
+    runs: projection.runs,
+  });
 }
 
 /**
@@ -1624,4 +1385,32 @@ export function deriveWorkspaceMutationId(
   return itemId === null && latestCheckpointCompletedAt === null
     ? null
     : JSON.stringify([itemId, latestCheckpointCompletedAt]);
+}
+
+export function shouldShowEnvironmentIndicator(input: {
+  activeEnvironment: { isPrimary: boolean } | null;
+  canPickEnvironment: boolean;
+}): boolean {
+  return (
+    input.canPickEnvironment ||
+    (input.activeEnvironment !== null && !input.activeEnvironment.isPrimary)
+  );
+}
+export function shouldShowComposerContextStrip(input: {
+  isDraftHeroState: boolean;
+  hasActiveProject: boolean;
+  showEnvironmentIndicator: boolean;
+}): boolean {
+  return input.hasActiveProject && (input.isDraftHeroState || input.showEnvironmentIndicator);
+}
+export function resolveTerminalWorkingDirectory(input: {
+  launchContext: { readonly workingDirectory: string | null } | null;
+  summary: { readonly workingDirectory: string | null } | null;
+  threadWorkingDirectory?: string | null;
+}): string | null {
+  return input.launchContext !== null
+    ? input.launchContext.workingDirectory
+    : input.summary !== null
+      ? input.summary.workingDirectory
+      : (input.threadWorkingDirectory ?? null);
 }

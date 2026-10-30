@@ -93,9 +93,7 @@ function grokAcpRuntimeProcessOwnership(
     processGroupPlatform,
   };
 }
-
-// Grok Ctrl+C blocks stale background wakes until the next genuine user turn.
-export const GROK_ACP_CANCEL_META = { cancelTrigger: "ctrl_c" } as const;
+const GROK_ACP_CANCEL_META = { cancelTrigger: "ctrl_c" } as const;
 
 // generic silently denies Auto refusals; extension prompts without persistent command grants.
 export const GROK_ACP_INITIALIZE_META = { clientType: "extension" } as const;

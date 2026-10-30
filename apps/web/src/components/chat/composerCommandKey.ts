@@ -18,7 +18,6 @@ import {
 } from "../../composer-logic";
 import { type PendingUserInput } from "../../session-logic";
 import { type PreviewAnnotationPayload } from "@t3tools/contracts";
-import { type ReviewCommentContext } from "../../reviewCommentContext";
 import { composerTargetKey } from "../../composerDraftStore";
 import { listContinuationForEnter, listIndentForTab } from "../../composer-list-continuation";
 import type { Dispatch, RefObject, SetStateAction } from "react";
@@ -50,7 +49,6 @@ export function composerCommandKeyHandler(input: {
   readonly composerFilesRef: ChatComposerProps["composerFilesRef"];
   readonly composerTerminalContextsRef: ChatComposerProps["composerTerminalContextsRef"];
   readonly composerPreviewAnnotations: ReadonlyArray<PreviewAnnotationPayload>;
-  readonly composerReviewComments: ReadonlyArray<ReviewCommentContext>;
   readonly composerEditorRef: RefObject<ComposerPromptEditorHandle | null>;
   readonly composerMenuOpenRef: RefObject<boolean>;
   readonly composerMenuItemsRef: RefObject<ComposerCommandItem[]>;
@@ -99,7 +97,6 @@ export function composerCommandKeyHandler(input: {
     composerFilesRef,
     composerTerminalContextsRef,
     composerPreviewAnnotations,
-    composerReviewComments,
     composerEditorRef,
     composerMenuOpenRef,
     composerMenuItemsRef,
@@ -143,11 +140,9 @@ export function composerCommandKeyHandler(input: {
       composerImagesRef.current.length > 0 ||
       composerFilesRef.current.length > 0 ||
       composerTerminalContextsRef.current.length > 0 ||
-      composerPreviewAnnotations.length > 0 ||
-      composerReviewComments.length > 0
-    ) {
+      composerPreviewAnnotations.length > 0
+    )
       return false;
-    }
     const recalled = promptHistoryPositionRef.current;
     const position = recalled?.targetKey === promptHistoryTargetKey ? recalled.position : null;
     if (position === null && promptRef.current.length > 0) {

@@ -2,9 +2,7 @@ import {
   CommandId,
   DEFAULT_MODEL,
   DEFAULT_PROVIDER_INTERACTION_MODE,
-  DEFAULT_SERVER_SETTINGS,
   type ModelSelection,
-  type Project,
   ProjectId,
   ProviderInstanceId,
   ThreadId,
@@ -38,8 +36,6 @@ import * as ProviderSessionManager from "./orchestration-v2/ProviderSessionManag
 import * as ThreadLaunch from "./orchestration-v2/ThreadLaunchService.ts";
 import * as ThreadManagement from "./orchestration-v2/ThreadManagementService.ts";
 import * as ProjectService from "./project/ProjectService.ts";
-import * as GitVcsDriver from "./vcs/GitVcsDriver.ts";
-import * as ProjectStore from "./orchestration-v2/ProjectStore.ts";
 import * as AgentAwarenessRelay from "./relay/AgentAwarenessRelay.ts";
 import * as ServerLifecycleEvents from "./serverLifecycleEvents.ts";
 import * as ServerSettings from "./serverSettings.ts";
@@ -187,66 +183,6 @@ interface AutoBootstrapWelcomeTargets {
   readonly bootstrapProjectId?: ProjectId;
   readonly bootstrapThreadId?: ThreadId;
 }
-
-export const autoPullProjects = Effect.fn("autoPullProjects")(function* (
-  projects: ReadonlyArray<Pick<Project, "id" | "workspaceRoot" | "autoPull">>,
-  settings = DEFAULT_SERVER_SETTINGS,
-) {
-  const git = yield* GitVcsDriver.GitVcsDriver;
-  const workspaceRoots = [
-    ...new Set(
-      projects
-        .filter((project) => resolveProjectSettings(settings, project.id).settings.defaultAutoPull)
-        .map((project) => project.workspaceRoot),
-    ),
-  ];
-
-  yield* Effect.forEach(
-    workspaceRoots,
-    (cwd) =>
-      Effect.gen(function* () {
-        const status = yield* git.statusDetails(cwd);
-        if (
-          !status.isRepo ||
-          !status.isDefaultBranch ||
-          !status.hasUpstream ||
-          status.hasWorkingTreeChanges ||
-          status.aheadCount > 0
-        ) {
-          yield* Effect.logDebug("Skipped automatic project pull", {
-            cwd,
-            reason: !status.isRepo
-              ? "not-a-repository"
-              : !status.isDefaultBranch
-                ? "not-on-default-branch"
-                : !status.hasUpstream
-                  ? "no-upstream"
-                  : status.hasWorkingTreeChanges
-                    ? "working-tree-changes"
-                    : "local-commits",
-          });
-          return;
-        }
-
-        if (status.behindCount <= 0) return;
-
-        const result = yield* git.pullCurrentBranch(cwd);
-        yield* Effect.logDebug("Automatic project pull completed", {
-          cwd,
-          status: result.status,
-          refName: result.refName,
-        });
-      }).pipe(
-        Effect.catch((cause) =>
-          Effect.logWarning("Automatic project pull failed", {
-            cwd,
-            cause,
-          }),
-        ),
-      ),
-    { concurrency: 4, discard: true },
-  );
-});
 
 const resolveWelcomeBase = Effect.gen(function* () {
   const serverConfig = yield* ServerConfig.ServerConfig;
@@ -564,21 +500,6 @@ const make = Effect.fn("serverRuntimeStartup.make")(function* (options?: Startup
       ).pipe(Effect.map((targets): AutoBootstrapWelcomeTargets => targets)),
     });
     yield* Effect.logInfo("V2 orchestration recovery completed", recovery);
-    // Runs after activation: the status check fetches every enabled project's
-    // remote, and awaiting it here held command readiness for that long.
-    yield* runStartupPhase(
-      "projects.auto-pull",
-      Effect.gen(function* () {
-        const projects = yield* (yield* ProjectStore.ProjectStoreV2).listShells();
-        const settings = yield* serverSettings.getSettings;
-        yield* autoPullProjects(projects, settings);
-      }),
-    ).pipe(
-      Effect.catch((cause) =>
-        Effect.logWarning("Failed to load projects for automatic pull", { cause }),
-      ),
-      forkParked,
-    );
 
     const importPendingTranscripts = legacyV1ThreadImporter.importPendingTranscripts.pipe(
       Effect.tap((summary) =>

@@ -11,7 +11,6 @@ import {
   type OrchestrationV2DomainEvent,
   type OrchestrationV2ExecutionNode,
   type OrchestrationV2ProviderThread,
-  type OrchestrationV2ProviderTurn,
   type OrchestrationV2Run,
   type OrchestrationV2RunAttempt,
   type OrchestrationV2Subagent,
@@ -67,7 +66,7 @@ const layerRunExecutionTest = RunExecutionService.layer.pipe(
     Layer.mergeAll(
       McpAppModelContext.layerEmpty,
       PreviewAgentActivity.layer,
-      Layer.mock(CheckpointService.CheckpointServiceV2)({ captureBaseline: () => Effect.void }),
+      Layer.mock(CheckpointService.CheckpointServiceV2)({}),
       layerTurnItemPositionsTest,
       Layer.mock(EventSink.EventSinkV2)({}),
       IdAllocator.layer,
@@ -892,9 +891,7 @@ it.effect("passes the thread's MCP app context to the provider under a safe key"
                   },
                 ]),
             }),
-            Layer.mock(CheckpointService.CheckpointServiceV2)({
-              captureBaseline: () => Effect.void,
-            }),
+            Layer.mock(CheckpointService.CheckpointServiceV2)({}),
             layerTurnItemPositionsTest,
             Layer.mock(EventSink.EventSinkV2)({}),
             IdAllocator.layer,
@@ -923,7 +920,7 @@ it.effect("fails the run when its ownership check cannot be read before calling 
         Layer.mergeAll(
           McpAppModelContext.layerEmpty,
           PreviewAgentActivity.layer,
-          Layer.mock(CheckpointService.CheckpointServiceV2)({ captureBaseline: () => Effect.void }),
+          Layer.mock(CheckpointService.CheckpointServiceV2)({}),
           layerTurnItemPositionsTest,
           Layer.mock(EventSink.EventSinkV2)({
             writeIfRunCurrent: (input) =>
@@ -1125,16 +1122,7 @@ it.effect("starts the provider when checkpoint baseline capture fails", () =>
         Layer.mergeAll(
           McpAppModelContext.layerEmpty,
           PreviewAgentActivity.layer,
-          Layer.mock(CheckpointService.CheckpointServiceV2)({
-            captureBaseline: () =>
-              Effect.fail(
-                new CheckpointService.CheckpointBaselineCaptureError({
-                  scopeId: checkpointScope.id,
-                  ordinalWithinScope: 0,
-                  cause: new Error("VCS process timed out"),
-                }),
-              ),
-          }),
+          Layer.mock(CheckpointService.CheckpointServiceV2)({}),
           layerTurnItemPositionsTest,
           Layer.mock(EventSink.EventSinkV2)({
             writeWithEffects: (input) =>
@@ -1245,10 +1233,7 @@ it.effect.each(["failure", "interruption", "stale-attempt", "start-guard"] as co
           Layer.mergeAll(
             McpAppModelContext.layerEmpty,
             PreviewAgentActivity.layer,
-            Layer.mock(CheckpointService.CheckpointServiceV2)({
-              captureBaseline: () =>
-                scenario === "start-guard" ? Effect.void : Effect.die("not reached"),
-            }),
+            Layer.mock(CheckpointService.CheckpointServiceV2)({}),
             layerTurnItemPositionsTest,
             Layer.mock(EventSink.EventSinkV2)({
               writeIfRunCurrent: (input) =>
@@ -1285,7 +1270,6 @@ it.effect.each(["failure", "interruption", "stale-attempt", "start-guard"] as co
                 }),
             Layer.succeed(RunFinalizationService.RunFinalizationObserver, {
               refresh: () => Effect.void,
-              refreshAfterTurn: () => Ref.update(refreshes, (count) => count + 1),
             }),
           ),
         ),
@@ -1417,7 +1401,7 @@ it.effect("ingests new member threads of an owned child after the root turn term
         Layer.mergeAll(
           McpAppModelContext.layerEmpty,
           PreviewAgentActivity.layer,
-          Layer.mock(CheckpointService.CheckpointServiceV2)({ captureBaseline: () => Effect.void }),
+          Layer.mock(CheckpointService.CheckpointServiceV2)({}),
           layerTurnItemPositionsTest,
           Layer.mock(EventSink.EventSinkV2)({
             write: () => Effect.succeed([]),
@@ -1666,7 +1650,7 @@ it.effect("ends a nested native subagent and its thread when the root run is int
         Layer.mergeAll(
           McpAppModelContext.layerEmpty,
           PreviewAgentActivity.layer,
-          Layer.mock(CheckpointService.CheckpointServiceV2)({ captureBaseline: () => Effect.void }),
+          Layer.mock(CheckpointService.CheckpointServiceV2)({}),
           layerTurnItemPositionsTest,
           Layer.mock(EventSink.EventSinkV2)({
             write: () => Effect.succeed([]),
@@ -2009,9 +1993,7 @@ it.effect(
           Layer.mergeAll(
             McpAppModelContext.layerEmpty,
             PreviewAgentActivity.layer,
-            Layer.mock(CheckpointService.CheckpointServiceV2)({
-              captureBaseline: () => Effect.void,
-            }),
+            Layer.mock(CheckpointService.CheckpointServiceV2)({}),
             layerTurnItemPositionsTest,
             Layer.mock(EventSink.EventSinkV2)({
               write: () => Effect.succeed([]),
@@ -2449,30 +2431,6 @@ it.effect("omits interrupt results and subagent cascade for a superseded attempt
   }),
 );
 
-it.effect("emits run_interrupt_result when superseded attempt still has a hard-stop request", () =>
-  Effect.gen(function* () {
-    const { written, observed } = yield* captureRootRunTermination({
-      key: "stop-then-steer-supersede",
-      shouldFinalizeRun: () => Effect.succeed(false),
-      hasUnpairedRunInterruptRequest: () => Effect.succeed(true),
-    });
-    assert.deepEqual(
-      written.map((item) => item.type),
-      ["run_interrupt_result"],
-    );
-    assert.deepEqual(observed, ["pull-requests-refreshed"]);
-    const ids = backgroundScenarioIds("stop-then-steer-supersede");
-    const expectedRequestId = yield* Effect.gen(function* () {
-      const idAllocator = yield* IdAllocator.IdAllocatorV2;
-      return idAllocator.derive.runSignalTurnItem({
-        runId: ids.runId,
-        signal: "interrupt-request",
-      });
-    }).pipe(Effect.provide(IdAllocator.layer));
-    assert.equal(written[0]?.parentItemId, expectedRequestId);
-  }),
-);
-
 it.effect("does not overwrite Stop when ownership changes after the finalization read", () =>
   Effect.gen(function* () {
     const { written, observed, submittedEffects, committedEffects } =
@@ -2491,24 +2449,6 @@ it.effect("does not overwrite Stop when ownership changes after the finalization
   }),
 );
 
-it.effect("emits run_interrupt_result when hard-stop finalizes the active attempt", () =>
-  Effect.gen(function* () {
-    const { written, observed, committedEffects } = yield* captureRootRunTermination({
-      key: "hard-stop",
-      shouldFinalizeRun: () => Effect.succeed(true),
-    });
-    assert.deepEqual(
-      written.map((item) => item.type),
-      ["run_interrupt_result"],
-    );
-    assert.deepEqual(observed, ["run:interrupted", "pull-requests-refreshed"]);
-    assert.deepEqual(
-      committedEffects.map((effect) => effect.request.type),
-      ["checkpoint.capture"],
-    );
-  }),
-);
-
 it.effect("records a finished run as failed when its ownership check cannot be read", () =>
   Effect.gen(function* () {
     const { observed } = yield* captureRootRunTermination({
@@ -2523,298 +2463,6 @@ it.effect("records a finished run as failed when its ownership check cannot be r
       events: (ids) => Stream.make(rootTerminalEvent(ids, "completed")),
     });
     assert.include(observed, "run:failed");
-  }),
-);
-
-it.effect("does not refresh pull requests for auxiliary or stale provider terminals", () =>
-  Effect.gen(function* () {
-    const { observed } = yield* captureRootRunTermination({
-      key: "pull-request-refresh:auxiliary",
-      shouldFinalizeRun: () => Effect.succeed(true),
-      events: (ids) =>
-        Stream.fromIterable([
-          rootTerminalEvent(
-            { ...ids, rootProviderTurnId: ProviderTurnId.make("turn:child") },
-            "completed",
-          ),
-          rootTerminalEvent(
-            { ...ids, rootProviderTurnId: ProviderTurnId.make("turn:previous") },
-            "interrupted",
-          ),
-          rootTerminalEvent(ids, "cancelled"),
-        ]),
-    });
-    assert.deepEqual(observed, ["run:cancelled", "pull-requests-refreshed"]);
-  }),
-);
-
-it.effect("refreshes pull requests after a provider stream exits with an error", () =>
-  Effect.gen(function* () {
-    const { written, observed } = yield* captureRootRunTermination({
-      key: "pull-request-refresh:stream-error",
-      shouldFinalizeRun: () => Effect.succeed(true),
-      events: () =>
-        Stream.fail(
-          new ProviderAdapter.ProviderAdapterEventStreamError({
-            driver,
-            providerSessionId: ProviderSessionId.make("session:exited"),
-            cause: "provider process exited",
-          }),
-        ),
-    });
-    assert.deepEqual(observed, ["run:failed", "pull-requests-refreshed"]);
-    assert.deepEqual(
-      written.map((item) => item.type),
-      ["error"],
-    );
-    const error = written.find((item) => item.type === "error");
-    assert.include(error?.failure.message ?? "", "provider event stream closed unexpectedly");
-  }),
-);
-
-it.effect.each(["failure", "defect", "interrupt-failure", "ownership-lost"] as const)(
-  "stops the live provider and background work before settling an ingestion %s",
-  (failureMode) =>
-    Effect.gen(function* () {
-      const started = yield* Deferred.make<void>();
-      const stopped = yield* Deferred.make<void>();
-      const backgroundWorkRunning = yield* Ref.make(true);
-      const backgroundWorkAtFinalization = yield* Ref.make<boolean | null>(null);
-      const now = yield* DateTime.now;
-      const interrupts = yield* Ref.make<
-        ReadonlyArray<ProviderAdapter.ProviderAdapterV2InterruptInput>
-      >([]);
-      const ids = backgroundScenarioIds(`ingestion:${failureMode}`);
-      const { observed, finalEvents } = yield* captureRootRunTermination({
-        key: `ingestion:${failureMode}`,
-        initialProviderTurnId: null,
-        rejectTerminalWrite: failureMode === "ownership-lost",
-        shouldFinalizeRun: () => Effect.succeed(true),
-        startTurn: () =>
-          Deferred.succeed(started, undefined).pipe(Effect.andThen(Deferred.await(stopped))),
-        events: () =>
-          Stream.unwrap(
-            Deferred.await(started).pipe(
-              Effect.as(
-                Stream.make({
-                  type: "provider_turn.updated" as const,
-                  driver,
-                  providerTurn: {
-                    id: ids.rootProviderTurnId,
-                    providerThreadId: ids.providerThreadId,
-                    nodeId: ids.rootNodeId,
-                    runAttemptId: ids.attemptId,
-                    nativeTurnRef: null,
-                    ordinal: 1,
-                    status: "running" as const,
-                    startedAt: now,
-                    completedAt: null,
-                  },
-                }),
-              ),
-            ),
-          ),
-        ingestNormalized: () => {
-          const error = new ProviderEventIngestor.ProviderEventPublishError({
-            providerSessionId: ProviderSessionId.make(`session:${failureMode}`),
-            eventCount: 1,
-            cause: new Error("SQLITE_FULL: database or disk is full"),
-          });
-          return failureMode === "defect" ? Effect.die(error) : Effect.fail(error);
-        },
-        interruptTurn: (input) =>
-          Ref.update(interrupts, (current) => [...current, input]).pipe(
-            Effect.andThen(
-              input.requestRuntimeRestart === true && failureMode !== "interrupt-failure"
-                ? Ref.set(backgroundWorkRunning, false)
-                : Effect.void,
-            ),
-            Effect.andThen(Deferred.succeed(stopped, undefined)),
-            Effect.andThen(
-              failureMode === "interrupt-failure"
-                ? Effect.fail(
-                    new ProviderAdapter.ProviderAdapterInterruptError({
-                      driver,
-                      providerThreadId: input.providerThread.id,
-                      providerTurnId: input.providerTurnId,
-                      cause: "provider already exited",
-                    }),
-                  )
-                : Effect.void,
-            ),
-          ),
-        beforeTerminalWrite: () =>
-          Effect.gen(function* () {
-            const calls = yield* Ref.get(interrupts);
-            assert.equal(calls.length, 1);
-            assert.equal(calls[0]?.providerTurnId, ids.rootProviderTurnId);
-            assert.equal(calls[0]?.providerThread.id, ids.providerThreadId);
-            yield* Ref.set(backgroundWorkAtFinalization, yield* Ref.get(backgroundWorkRunning));
-            return true;
-          }),
-      });
-      if (failureMode === "ownership-lost") {
-        assert.deepEqual(finalEvents, []);
-        assert.deepEqual(observed, []);
-      } else {
-        assert.equal(
-          yield* Ref.get(backgroundWorkAtFinalization),
-          failureMode === "interrupt-failure",
-        );
-        assert.deepEqual(observed, ["run:failed", "pull-requests-refreshed"]);
-        const repaired = finalEvents.find((event) => event.type === "provider-turn.updated");
-        if (failureMode === "interrupt-failure") {
-          assert.isUndefined(repaired);
-        } else {
-          assert.equal(repaired?.payload.id, ids.rootProviderTurnId);
-          assert.equal(repaired?.payload.status, "interrupted");
-          assert.isNotNull(repaired?.payload.completedAt);
-        }
-      }
-    }),
-);
-
-it.effect.each([
-  { status: "completed", failure: "later-stream", interrupt: "succeeds" },
-  { status: "failed", failure: "later-stream", interrupt: "succeeds" },
-  { status: "completed", failure: "terminal-ingest", interrupt: "succeeds" },
-  { status: "completed", failure: "terminal-ingest", interrupt: "fails" },
-] as const)(
-  "stores a $status root provider turn snapshot after a $failure failure only if the interrupt succeeds (it $interrupt)",
-  ({ status, failure, interrupt }) =>
-    Effect.gen(function* () {
-      const now = yield* DateTime.now;
-      const terminalAt = DateTime.subtract(now, { seconds: 1 });
-      const key = `terminal-snapshot:${status}:${failure}:${interrupt}`;
-      const durableTurns = yield* Ref.make<
-        ReadonlyMap<ProviderTurnId, OrchestrationV2ProviderTurn>
-      >(new Map());
-      const persist = (turn: OrchestrationV2ProviderTurn) =>
-        Ref.update(durableTurns, (current) => new Map(current).set(turn.id, turn));
-      const interrupts = yield* Ref.make<
-        ReadonlyArray<ProviderAdapter.ProviderAdapterV2InterruptInput>
-      >([]);
-      const ids = backgroundScenarioIds(key);
-      const rootTurn = (
-        turnStatus: OrchestrationV2ProviderTurn["status"],
-        completedAt: DateTime.Utc | null,
-      ) => ({
-        type: "provider_turn.updated" as const,
-        driver,
-        providerTurn: {
-          id: ids.rootProviderTurnId,
-          providerThreadId: ids.providerThreadId,
-          nodeId: ids.rootNodeId,
-          runAttemptId: ids.attemptId,
-          nativeTurnRef: null,
-          ordinal: 1,
-          status: turnStatus,
-          startedAt: terminalAt,
-          completedAt,
-        },
-      });
-      const { observed, finalEvents } = yield* captureRootRunTermination({
-        key,
-        shouldFinalizeRun: () => Effect.succeed(true),
-        events: () =>
-          Stream.make(rootTurn("running", null), rootTurn(status, terminalAt)).pipe(
-            Stream.concat(
-              failure === "later-stream"
-                ? Stream.fail(
-                    new ProviderAdapter.ProviderAdapterEventStreamError({
-                      driver,
-                      providerSessionId: ProviderSessionId.make(`session:${key}`),
-                      cause: "provider process exited",
-                    }),
-                  )
-                : Stream.empty,
-            ),
-          ),
-        ingestNormalized: ({ event }) =>
-          event.type !== "provider_turn.updated"
-            ? Effect.succeed([])
-            : failure === "terminal-ingest" && event.providerTurn.status !== "running"
-              ? Effect.fail(
-                  new ProviderEventIngestor.ProviderEventPublishError({
-                    providerSessionId: ProviderSessionId.make(`session:${key}`),
-                    eventCount: 1,
-                    cause: new Error("SQLITE_FULL: database or disk is full"),
-                  }),
-                )
-              : persist(event.providerTurn).pipe(Effect.as([])),
-        interruptTurn: (input) =>
-          Ref.update(interrupts, (current) => [...current, input]).pipe(
-            Effect.andThen(
-              interrupt === "fails"
-                ? Effect.fail(
-                    new ProviderAdapter.ProviderAdapterInterruptError({
-                      driver,
-                      providerThreadId: input.providerThread.id,
-                      providerTurnId: input.providerTurnId,
-                      cause: "provider already exited",
-                    }),
-                  )
-                : Effect.void,
-            ),
-          ),
-        beforeTerminalWrite: (request) =>
-          Effect.forEach(request.events, (event) =>
-            event.type === "provider-turn.updated" ? persist(event.payload) : Effect.void,
-          ).pipe(Effect.as(true)),
-      });
-      const calls = yield* Ref.get(interrupts);
-      assert.equal(calls.length, 1);
-      assert.isTrue(calls[0]?.requestRuntimeRestart);
-      assert.deepEqual(observed, ["run:failed", "pull-requests-refreshed"]);
-      assert.isTrue(finalEvents.some((event) => event.type === "run.updated"));
-      const durable = (yield* Ref.get(durableTurns)).get(ids.rootProviderTurnId);
-      // A failed interrupt keeps the stored turn running for the next start to retry.
-      assert.equal(durable?.status, interrupt === "fails" ? "running" : status);
-      assert.deepEqual(durable?.completedAt, interrupt === "fails" ? null : terminalAt);
-    }),
-);
-
-it.effect("does not interrupt an ended provider when its terminal write fails", () =>
-  Effect.gen(function* () {
-    const interrupts = yield* Ref.make(0);
-    const writes = yield* Ref.make(0);
-    const { observed } = yield* captureRootRunTermination({
-      key: "terminal-write-failure",
-      shouldFinalizeRun: () => Effect.succeed(true),
-      events: (ids) => Stream.make(rootTerminalEvent(ids, "completed")),
-      interruptTurn: () => Ref.update(interrupts, (count) => count + 1),
-      beforeTerminalWrite: () =>
-        Effect.gen(function* () {
-          if ((yield* Ref.updateAndGet(writes, (count) => count + 1)) === 1) {
-            return yield* new EventSink.EventSinkWriteError({ eventCount: 1 });
-          }
-          return true;
-        }),
-    });
-    assert.equal(yield* Ref.get(interrupts), 0);
-    assert.deepEqual(observed, ["run:failed", "pull-requests-refreshed"]);
-  }),
-);
-
-it.effect("does not interrupt a provider when ingestion fails before the root turn is known", () =>
-  Effect.gen(function* () {
-    const interrupts = yield* Ref.make(0);
-    const { observed } = yield* captureRootRunTermination({
-      key: "unknown-turn-stream-error",
-      initialProviderTurnId: null,
-      shouldFinalizeRun: () => Effect.succeed(true),
-      events: () =>
-        Stream.fail(
-          new ProviderAdapter.ProviderAdapterEventStreamError({
-            driver,
-            providerSessionId: ProviderSessionId.make("session:unknown-turn"),
-            cause: "provider process exited",
-          }),
-        ),
-      interruptTurn: () => Ref.update(interrupts, (count) => count + 1),
-    });
-    assert.equal(yield* Ref.get(interrupts), 0);
-    assert.deepEqual(observed, ["run:failed", "pull-requests-refreshed"]);
   }),
 );
 
@@ -2907,21 +2555,6 @@ it.effect.each([
   }),
 );
 
-it.effect("fails the run when its event stream ends without a root terminal", () =>
-  Effect.gen(function* () {
-    const { observed, finalEvents } = yield* captureRootRunTermination({
-      key: "stream-end-without-terminal",
-      shouldFinalizeRun: () => Effect.succeed(true),
-      events: () => Stream.empty,
-    });
-    assert.deepEqual(observed, ["run:failed", "pull-requests-refreshed"]);
-    assert.equal(
-      finalEvents.find((event) => event.type === "provider-thread.updated")?.payload.status,
-      "idle",
-    );
-  }),
-);
-
 it.effect("leaves the run to restart recovery when shutdown interrupts its event stream", () =>
   Effect.gen(function* () {
     const { written, observed } = yield* captureRootRunTermination({
@@ -2931,43 +2564,6 @@ it.effect("leaves the run to restart recovery when shutdown interrupts its event
     });
     assert.deepEqual(written, []);
     assert.deepEqual(observed, []);
-  }),
-);
-
-it.effect("does not start a turn whose run settled during the app context read", () =>
-  Effect.gen(function* () {
-    const contextReadStarted = yield* Deferred.make<void>();
-    const runFailed = yield* Deferred.make<void>();
-    const current = yield* Ref.make(true);
-    const providerCalls = yield* Ref.make(0);
-    const { observed } = yield* captureRootRunTermination({
-      key: "stream-end:context-read",
-      shouldStartProviderTurn: () => Ref.get(current),
-      shouldFinalizeRun: () => Ref.get(current),
-      events: () => Stream.unwrap(Deferred.await(contextReadStarted).pipe(Effect.as(Stream.empty))),
-      appContext: Deferred.succeed(contextReadStarted, undefined).pipe(
-        Effect.andThen(Deferred.await(runFailed)),
-        Effect.as([]),
-      ),
-      refreshAfterTurn: Ref.set(current, false).pipe(
-        Effect.andThen(Deferred.succeed(runFailed, undefined)),
-      ),
-      startTurn: () => Ref.update(providerCalls, (count) => count + 1),
-    });
-    assert.deepEqual(observed, ["run:failed", "pull-requests-refreshed"]);
-    assert.equal(yield* Ref.get(providerCalls), 0);
-  }),
-);
-
-it.effect("keeps completed runs completed when pull request refresh fails", () =>
-  Effect.gen(function* () {
-    const { observed } = yield* captureRootRunTermination({
-      key: "pull-request-refresh:refresh-failure",
-      shouldFinalizeRun: () => Effect.succeed(true),
-      events: (ids) => Stream.make(rootTerminalEvent(ids, "completed")),
-      refreshAfterTurn: Effect.die("refresh failed"),
-    });
-    assert.deepEqual(observed, ["run:waiting", "pull-requests-refreshed"]);
   }),
 );
 
@@ -3038,7 +2634,7 @@ function captureRootRunTermination(input: {
           Layer.mock(McpAppModelContext.McpAppModelContext)({
             forThread: () => input.appContext ?? Effect.succeed([]),
           }),
-          Layer.mock(CheckpointService.CheckpointServiceV2)({ captureBaseline: () => Effect.void }),
+          Layer.mock(CheckpointService.CheckpointServiceV2)({}),
           layerTurnItemPositionsTest,
           Layer.mock(EventSink.EventSinkV2)({
             write: (payload) =>
@@ -3080,10 +2676,6 @@ function captureRootRunTermination(input: {
           ServerSettings.layerTest(),
           Layer.succeed(RunFinalizationService.RunFinalizationObserver, {
             refresh: () => Effect.void,
-            refreshAfterTurn: () =>
-              Ref.update(observed, (current) => [...current, "pull-requests-refreshed"]).pipe(
-                Effect.andThen(input.refreshAfterTurn ?? Effect.void),
-              ),
           }),
         ),
       ),
@@ -3554,7 +3146,7 @@ function runBackgroundItemScenario(
         Layer.mergeAll(
           McpAppModelContext.layerEmpty,
           Layer.succeed(PreviewAgentActivity.PreviewAgentActivity, previewActivity),
-          Layer.mock(CheckpointService.CheckpointServiceV2)({ captureBaseline: () => Effect.void }),
+          Layer.mock(CheckpointService.CheckpointServiceV2)({}),
           layerTurnItemPositionsTest,
           Layer.mock(EventSink.EventSinkV2)({
             write: () => Effect.succeed([]),

@@ -1,6 +1,5 @@
 import {
   AuthOrchestrationOperateScope,
-  AuthSourceControlWriteScope,
   EnvironmentId,
   ProjectId,
   ThreadId,
@@ -25,7 +24,7 @@ const state = vi.hoisted(() => ({
     id: ThreadId;
     projectId: ProjectId;
     title: string;
-    worktreePath: string | null;
+    workingDirectory: string | null;
     session: { status: "ready" | "stopped" } | null;
     latestTurn: null;
   }[],
@@ -55,8 +54,7 @@ vi.mock("../state/use-atom-command", () => ({
     (action: string) =>
     async (request: { environmentId: string; input: { threadId?: string } }) => {
       state.requests.push({ action, ...request });
-      const scope =
-        action === "removeWorktree" ? AuthSourceControlWriteScope : AuthOrchestrationOperateScope;
+      const scope = AuthOrchestrationOperateScope;
       if (!state.scopes.get(request.environmentId)?.has(scope)) {
         return AsyncResult.failure(Cause.fail(new Error("Server denied the request")));
       }
@@ -92,7 +90,7 @@ vi.mock("../state/threads", () => ({
   ),
 }));
 vi.mock("../state/vcs", () => ({
-  vcsEnvironment: { removeWorktree: "removeWorktree", refreshStatus: "refreshStatus" },
+  vcsEnvironment: { refreshStatus: "refreshStatus" },
 }));
 vi.mock("../state/entities", () => ({
   readEnvironmentServerConfigLoaded: () => true,
@@ -215,7 +213,7 @@ beforeEach(() => {
       id: target.threadId,
       projectId: ProjectId.make("project"),
       title: "Thread",
-      worktreePath: null,
+      workingDirectory: null,
       session: null,
       latestTurn: null,
     },
@@ -301,37 +299,5 @@ describe("thread action permissions", () => {
     expect((await useThreadActions().deleteThread(target))._tag).toBe("Failure");
     expect(state.requests.map((request) => request.action)).toEqual(["stopSession"]);
     expect(state.localEffects).toEqual([]);
-  });
-
-  it.each([
-    { reason: "without source-control permission", sessionLookupFails: false },
-    { reason: "when the permission lookup fails", sessionLookupFails: true },
-  ])("deletes a worktree thread and keeps its worktree $reason", async ({ sessionLookupFails }) => {
-    state.scopes.get(secondary)!.add(AuthOrchestrationOperateScope);
-    state.threads[0]!.worktreePath = "/worktrees/thread";
-    state.sessionLookupFails = sessionLookupFails;
-    expect((await useThreadActions().deleteThread(target))._tag).toBe("Success");
-    expect(state.confirm).not.toHaveBeenCalled();
-    expect(state.requests.map((request) => request.action)).toEqual(["stopSession", "delete"]);
-    expect(state.localEffects).toContain("clear-terminal-ui");
-  });
-
-  it("does not request worktree removal after its grant is revoked during delete", async () => {
-    state.scopes
-      .get(secondary)!
-      .add(AuthOrchestrationOperateScope)
-      .add(AuthSourceControlWriteScope);
-    state.threads[0]!.worktreePath = "/worktrees/thread";
-    state.afterRequest = () => state.scopes.get(secondary)!.delete(AuthSourceControlWriteScope);
-    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
-    try {
-      const result = await useThreadActions().deleteThread(target);
-      expect(result._tag).toBe("Success");
-      expect(state.requests.map((request) => request.action)).toEqual(["stopSession", "delete"]);
-      expect(state.toasts).toContain("Failed to delete worktree");
-      expect(state.localEffects).toContain("clear-terminal-ui");
-    } finally {
-      consoleError.mockRestore();
-    }
   });
 });

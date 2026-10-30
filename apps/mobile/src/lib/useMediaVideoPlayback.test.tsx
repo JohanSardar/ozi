@@ -4,7 +4,7 @@ import { act, type ReactNode } from "react";
 import { createRoot } from "react-dom/client";
 import type { AppStateStatus } from "react-native";
 import { expect, it, vi } from "vite-plus/test";
-import { EnvironmentId } from "@t3tools/contracts";
+import { ThreadId, EnvironmentId } from "@t3tools/contracts";
 
 const mocks = vi.hoisted(() => ({
   focused: true,
@@ -114,11 +114,6 @@ import {
   ThreadMarkdownVideo,
   ThreadMediaVisibleContext,
 } from "../features/threads/ThreadMarkdownVideo";
-import {
-  PullRequestMedia,
-  PullRequestMediaContext,
-  PullRequestMediaVisibleContext,
-} from "../features/pull-requests/PullRequestMedia";
 
 function createPlayer() {
   let playing = false;
@@ -149,7 +144,7 @@ function createPlayer() {
   };
 }
 
-function setup(kind: "thread" | "PR", compact = false) {
+function setup(_kind: "thread") {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
   mocks.focused = true;
   mocks.appState = "active";
@@ -169,7 +164,7 @@ function setup(kind: "thread" | "PR", compact = false) {
       act(() =>
         root.render(
           <RegistryContext.Provider value={registry}>
-            {kind === "thread" ? (
+            {
               <ThreadMediaVisibleContext value={visible}>
                 <ThreadMarkdownVideo
                   source={{
@@ -178,24 +173,14 @@ function setup(kind: "thread" | "PR", compact = false) {
                     mimeType: "video/mp4",
                     environmentId,
                     resource: {
-                      _tag: "github-media",
-                      cwd: "/project",
-                      url: "https://github.com/user-attachments/assets/video",
+                      _tag: "media-file",
+                      threadId: ThreadId.make("video-thread"),
+                      path: "clip.mp4",
                     },
                   }}
                 />
               </ThreadMediaVisibleContext>
-            ) : (
-              <PullRequestMediaContext value={{ environmentId, cwd: "/project" }}>
-                <PullRequestMediaVisibleContext value={visible}>
-                  <PullRequestMedia
-                    url="https://github.com/user-attachments/assets/video"
-                    kind="video"
-                    compact={compact}
-                  />
-                </PullRequestMediaVisibleContext>
-              </PullRequestMediaContext>
-            )}
+            }
           </RegistryContext.Provider>,
         ),
       );
@@ -227,7 +212,7 @@ function setup(kind: "thread" | "PR", compact = false) {
   };
 }
 
-it.each(["thread", "PR"] as const)(
+it.each(["thread"] as const)(
   "retains the %s player and position while hidden and requires deliberate resume",
   async (kind) => {
     using screen = setup(kind);
@@ -245,7 +230,7 @@ it.each(["thread", "PR"] as const)(
   },
 );
 
-it.each(["thread", "PR"] as const)(
+it.each(["thread"] as const)(
   "does not start a hidden %s video when signing or native loading finishes late",
   async (kind) => {
     using screen = setup(kind);
@@ -268,9 +253,9 @@ it.each(["thread", "PR"] as const)(
 );
 
 it.each([false, true])(
-  "stops inactive PR thumbnail requests (compact: %s) and restarts on return",
-  async (compact) => {
-    using screen = setup("PR", compact);
+  "stops inactive thread thumbnail requests (compact: %s) and restarts on return",
+  async () => {
+    using screen = setup("thread");
     mocks.thumbnail.mockReturnValue(new Promise(() => {}));
     screen.render(false);
     expect(mocks.thumbnail).not.toHaveBeenCalled();
@@ -308,7 +293,7 @@ it("pauses on screen blur and app inactivity without resuming on return", async 
   expect(player.replaceAsync).toHaveBeenCalledTimes(1);
 });
 
-it.each(["thread", "PR"] as const)(
+it.each(["thread"] as const)(
   "keeps the %s play request cancelled when loading finishes after returning",
   async (kind) => {
     using screen = setup(kind);

@@ -9,14 +9,11 @@ import type {
 
 import type { DraftId } from "../../composerDraftStore";
 import { useT3ProjectFileScripts } from "../../hooks/useT3ProjectFileScripts";
-import { type EnvMode, type EnvironmentOption } from "../BranchToolbar.logic";
-import { BranchToolbar } from "../BranchToolbar";
-import BaseGitActionsControl from "../GitActionsControl";
 import ProjectScriptsControl, {
   type NewProjectScriptInput,
   type ProjectScriptActionResult,
 } from "../ProjectScriptsControl";
-import { memo, useState, type ComponentProps } from "react";
+import { useState, type ComponentProps } from "react";
 import { ThreadDetailsCard } from "./ThreadDetailsCard";
 import { OpenInPicker } from "./OpenInPicker";
 import { ThreadDetailsSection } from "./ThreadDetailsSection";
@@ -36,17 +33,13 @@ import {
 } from "./threadDetailsPanelStyles";
 import { Menu, MenuPopup } from "../ui/menu";
 
-const GitActionsControl = memo(BaseGitActionsControl);
-
 interface ThreadDetailsPanelProps extends Pick<
   ComponentProps<typeof ThreadDetailsCard>,
   "anchor" | "handle"
 > {
-  forceNewWorktree?: boolean;
   environmentId: EnvironmentId;
   threadId: ThreadId;
   projectId: ProjectId;
-  worktreePath: string | null;
   isServerThread: boolean;
   draftId?: DraftId;
   activeProjectName: string | undefined;
@@ -56,22 +49,8 @@ interface ThreadDetailsPanelProps extends Pick<
   availableEditors: ReadonlyArray<EditorId>;
   showOpenInPicker: boolean;
   openInShortcutEnabled: boolean;
-  gitCwd: string | null;
-  isGitRepo: boolean;
-  envLocked: boolean;
-  availableEnvironments: readonly EnvironmentOption[];
-  autoEnvironmentLabel?: string | undefined;
-  onAutoEnvironment?: (() => void) | undefined;
-  onEnvironmentChange?: (environmentId: EnvironmentId) => void;
-  onEnvModeChange: (mode: EnvMode) => void;
-  envMode: EnvMode;
-  activeThreadBranchOverride?: string | null;
-  onActiveThreadBranchOverrideChange?: (branch: string | null) => void;
-  startFromOrigin: boolean;
-  onStartFromOriginChange: (startFromOrigin: boolean) => void;
-  onCheckoutPullRequestRequest?: (reference: string) => void;
+  workingDirectory: string | null;
   onComposerFocusRequest: () => void;
-  onOpenChanges?: () => void;
   onRunProjectScript: (script: ProjectScript) => void;
   onAddProjectScript: (input: NewProjectScriptInput) => Promise<ProjectScriptActionResult>;
   onUpdateProjectScript: (
@@ -87,34 +66,8 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
   const [menuPosition, setMenuPosition] = useState<{ x: number; y: number } | null>(null);
   const fileScripts = useT3ProjectFileScripts(
     props.environmentId,
-    props.activeProjectScripts && visible.scripts ? props.gitCwd : null,
+    props.activeProjectScripts && visible.scripts ? props.workingDirectory : null,
   );
-  const activeThreadRef = { environmentId: props.environmentId, threadId: props.threadId };
-  const branchToolbarProps = {
-    showGitControls: props.isGitRepo,
-    environmentId: props.environmentId,
-    threadId: props.threadId,
-    projectId: props.projectId,
-    worktreePath: props.worktreePath,
-    isServerThread: props.isServerThread,
-    ...(props.draftId ? { draftId: props.draftId } : {}),
-    onEnvModeChange: props.onEnvModeChange,
-    startFromOrigin: props.startFromOrigin,
-    onStartFromOriginChange: props.onStartFromOriginChange,
-    envMode: props.envMode,
-    ...(props.activeThreadBranchOverride !== undefined
-      ? { activeThreadBranchOverride: props.activeThreadBranchOverride }
-      : {}),
-    ...(props.onActiveThreadBranchOverrideChange
-      ? { onActiveThreadBranchOverrideChange: props.onActiveThreadBranchOverrideChange }
-      : {}),
-    envLocked: props.envLocked,
-    forceNewWorktree: props.forceNewWorktree ?? false,
-    onComposerFocusRequest: props.onComposerFocusRequest,
-    ...(props.onCheckoutPullRequestRequest
-      ? { onCheckoutPullRequestRequest: props.onCheckoutPullRequestRequest }
-      : {}),
-  };
 
   return (
     <ThreadDetailsCard
@@ -146,19 +99,13 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
       {(density) => {
         // Section flags follow the rows that will render, so no empty section steals the divider rule.
         const show = {
-          environment: density === "full" && visible.environment,
           openIn: density !== "essential" && visible.openIn && props.showOpenInPicker,
           scripts: visible.scripts && props.activeProjectScripts !== undefined,
-          branch: props.gitCwd !== null && props.isGitRepo && visible.branch,
-          git:
-            props.gitCwd !== null &&
-            props.activeProjectName !== undefined &&
-            (visible.gitActions || (visible.changes && props.isGitRepo)),
         };
         return (
           <>
             <div className="group/details-items">
-              {show.environment || show.openIn || show.scripts ? (
+              {show.openIn || show.scripts ? (
                 <ThreadDetailsSection
                   headingId="thread-details-workspace-heading"
                   title="Workspace"
@@ -166,26 +113,12 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
                   showHeading={false}
                 >
                   <div className="flex flex-col">
-                    {show.environment ? (
-                      <BranchToolbar
-                        layout="panel"
-                        panelSection="workspace"
-                        availableEnvironments={props.availableEnvironments}
-                        {...(props.onEnvironmentChange
-                          ? { onEnvironmentChange: props.onEnvironmentChange }
-                          : {})}
-                        autoEnvironmentLabel={props.autoEnvironmentLabel}
-                        onAutoEnvironment={props.onAutoEnvironment}
-                        {...branchToolbarProps}
-                      />
-                    ) : null}
-
                     {show.openIn ? (
                       <OpenInPicker
                         keybindings={props.keybindings}
                         environmentId={props.environmentId}
                         availableEditors={props.availableEditors}
-                        openInCwd={props.gitCwd}
+                        openInCwd={props.workingDirectory}
                         enableShortcut={props.openInShortcutEnabled}
                         displayMode="panel"
                       />
@@ -202,32 +135,6 @@ export function ThreadDetailsPanel(props: ThreadDetailsPanelProps) {
                         onAddScript={props.onAddProjectScript}
                         onUpdateScript={props.onUpdateProjectScript}
                         onDeleteScript={props.onDeleteProjectScript}
-                      />
-                    ) : null}
-                  </div>
-                </ThreadDetailsSection>
-              ) : null}
-
-              {props.gitCwd && (show.branch || show.git) ? (
-                <ThreadDetailsSection
-                  headingId="thread-details-version-control-heading"
-                  title="Version Control"
-                  showHeading={false}
-                  separated={density === "full"}
-                >
-                  <div className="flex flex-col">
-                    {show.branch ? (
-                      <BranchToolbar layout="panel" panelSection="branch" {...branchToolbarProps} />
-                    ) : null}
-                    {show.git ? (
-                      <GitActionsControl
-                        compact={density !== "full"}
-                        showActions={visible.gitActions}
-                        showChanges={visible.changes}
-                        gitCwd={props.gitCwd}
-                        activeThreadRef={activeThreadRef}
-                        {...(props.draftId ? { draftId: props.draftId } : {})}
-                        {...(props.onOpenChanges ? { onOpenChanges: props.onOpenChanges } : {})}
                       />
                     ) : null}
                   </div>

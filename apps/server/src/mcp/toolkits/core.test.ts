@@ -3,19 +3,15 @@ import * as NodeCrypto from "@effect/platform-node/NodeCrypto";
 import * as NodeServices from "@effect/platform-node/NodeServices";
 import { expect, it } from "@effect/vitest";
 import {
-  DEFAULT_SERVER_SETTINGS,
   ChatImageAttachment,
   CommandId,
   EnvironmentId,
   NodeId,
-  OrchestratorMcpThreadReadResult,
-  ProviderDriverKind,
   ProviderInstanceId,
   RunId,
   RuntimeRequestId,
   ThreadId,
   TurnItemId,
-  type OrchestrationV2ProjectedTurnItem,
   type OrchestrationV2ThreadShell,
 } from "@t3tools/contracts";
 import * as McpProviderSessions from "@t3tools/provider-core/server/McpProviderSessions";
@@ -38,7 +34,6 @@ import * as ServerSecretStore from "../../auth/ServerSecretStore.ts";
 import * as ServerConfig from "../../config.ts";
 import * as ProviderAdapterRegistry from "../../orchestration-v2/ProviderAdapterRegistry.ts";
 import * as ThreadLaunchService from "../../orchestration-v2/ThreadLaunchService.ts";
-import * as GitVcsDriver from "../../vcs/GitVcsDriver.ts";
 import * as ThreadManagement from "../../orchestration-v2/ThreadManagementService.ts";
 import * as ThreadSearch from "../../orchestration-v2/ThreadSearch.ts";
 import * as PreviewBrowser from "../../preview/PreviewBrowser.ts";
@@ -53,7 +48,6 @@ import * as McpInvocationContext from "../McpInvocationContext.ts";
 import * as McpToolAccessTestkit from "../McpToolAccess.testkit.ts";
 import * as AnalyticsService from "../../telemetry/AnalyticsService.ts";
 import { dispatchFailure } from "../threadAccess.ts";
-import * as EnvironmentHandlers from "./environment/handlers.ts";
 import * as AttachmentHandlers from "./attachment/handlers.ts";
 import * as PeerForwarding from "../../peer/PeerForwarding.ts";
 import * as PeerLinkRequests from "../../peer/PeerLinkRequests.ts";
@@ -61,7 +55,6 @@ import * as PeerLinks from "../../peer/PeerLinks.ts";
 
 const layerOrchestratorToolkit = McpHttpServer.layerOrchestratorToolkit.pipe(
   Layer.provide(Layer.mock(ThreadLaunchService.ThreadLaunchService)({})),
-  Layer.provide(Layer.mock(GitVcsDriver.GitVcsDriver)({})),
 );
 
 const declaredFailure = (result: McpSchema.CallToolResult) => {
@@ -71,7 +64,6 @@ const declaredFailure = (result: McpSchema.CallToolResult) => {
 import { htmlRenderFromToolItem } from "@t3tools/shared/toolOutput";
 
 const decodeMcpAttachmentInput = Schema.decodeUnknownEffect(McpAttachmentInput);
-const decodeThreadReadResult = Schema.decodeUnknownEffect(OrchestratorMcpThreadReadResult);
 
 const layerThreadToolkit = McpHttpServer.layerThreadToolkit.pipe(
   Layer.provide(Layer.mock(ThreadSearch.ThreadSearch)({})),
@@ -379,24 +371,6 @@ it.effect("keeps unexpected handler defects private through the production regis
   ),
 );
 
-it("keeps MCP preference output allowlisted and Unicode-bounded", () => {
-  const settings = {
-    ...DEFAULT_SERVER_SETTINGS,
-    privateCredential: "must-not-escape",
-    sourceControlWritingStyle: {
-      ...DEFAULT_SERVER_SETTINGS.sourceControlWritingStyle,
-      customInstructions: "🙂".repeat(4001),
-    },
-  };
-  const result = EnvironmentHandlers.preferences(settings);
-  expect(result).not.toHaveProperty("privateCredential");
-  expect(result).not.toHaveProperty("providers");
-  expect(result.sourceControlWritingStyle).toMatchObject({
-    customInstructions: "🙂".repeat(4000),
-    truncated: true,
-  });
-});
-
 it.effect("resolves reused attachment references from stored metadata", () =>
   Effect.gen(function* () {
     const stored = ChatImageAttachment.make({
@@ -438,7 +412,7 @@ const clientScope = (
   thread: undefined,
   client: { sessionId: "session-1", label: "Claude Code", access },
   issuedAt: 0,
-  capabilities: new Set(["orchestration", "worktree", "pull-requests"]),
+  capabilities: new Set(["orchestration"]),
 });
 
 it.effect("a client caller targets any thread within its ceiling and cannot act as a thread", () =>
@@ -762,102 +736,6 @@ it.effect.each(["t3_thread_interrupt", "t3_workflow_stop"])(
       ),
     ),
 );
-
-it.effect("discovers workflow stop targets and requires orchestration capability", () => {
-  const threadId = ThreadId.make("workflow-parent");
-  const shell = McpToolAccessTestkit.liveThreadShell(threadId);
-  const subagentId = NodeId.make("workflow-coordinator");
-  const itemId = TurnItemId.make("workflow-coordinator-activity");
-  const row: OrchestrationV2ProjectedTurnItem = {
-    position: 0,
-    visibility: "local",
-    sourceThreadId: threadId,
-    sourceItemId: itemId,
-    item: {
-      id: itemId,
-      threadId,
-      runId: shell.activeRunId,
-      nodeId: subagentId,
-      providerThreadId: null,
-      providerTurnId: null,
-      nativeItemRef: null,
-      parentItemId: null,
-      ordinal: 0,
-      status: "running",
-      title: "Workflow: checkout review",
-      startedAt: shell.createdAt,
-      completedAt: null,
-      updatedAt: shell.updatedAt,
-      type: "subagent",
-      subagentId,
-      origin: "provider_native",
-      driver: ProviderDriverKind.make("claudeAgent"),
-      providerInstanceId: ProviderInstanceId.make("claudeAgent"),
-      childThreadId: ThreadId.make("workflow-child"),
-      prompt: "Review checkout",
-      result: null,
-    },
-  };
-  const stopped: Array<{ readonly threadId: ThreadId; readonly subagentId: string }> = [];
-  return Effect.gen(function* () {
-    const server = yield* McpServer.McpServer;
-    const scope = clientScope("full-access");
-    const read = yield* server
-      .callTool({ name: "t3_thread_read", arguments: { threadId, view: "activity" } })
-      .pipe(
-        Effect.provideService(McpInvocationContext.McpInvocationContext, scope),
-        Effect.provideService(McpSchema.McpServerClient, client),
-      );
-    expect(read.isError).toBe(false);
-    const result = yield* decodeThreadReadResult(read.structuredContent);
-    expect(result.items[0]?.subagentId).toBe(subagentId);
-    const call = (invocation: McpInvocationContext.McpInvocationScope) =>
-      server
-        .callTool({
-          name: "t3_workflow_stop",
-          arguments: { threadId, subagentId: result.items[0]?.subagentId },
-        })
-        .pipe(
-          Effect.provideService(McpInvocationContext.McpInvocationContext, invocation),
-          Effect.provideService(McpSchema.McpServerClient, client),
-        );
-    const denied = yield* call({ ...scope, capabilities: new Set(["worktree"]) });
-    expect(declaredFailure(denied)).toMatchObject({ code: "capability_denied" });
-    expect(stopped).toEqual([]);
-    const allowed = yield* call(scope);
-    expect(allowed.isError).toBe(false);
-    expect(stopped).toEqual([{ threadId: "workflow-parent", subagentId: "workflow-coordinator" }]);
-  }).pipe(
-    Effect.provide(
-      layerOrchestratorToolkit.pipe(
-        Layer.provideMerge(McpServer.McpServer.layer),
-        Layer.provide(NodeCrypto.layer),
-        Layer.provide(
-          Layer.mock(ThreadManagement.ThreadManagementService)({
-            getThreadShell: (id) => Effect.succeed(McpToolAccessTestkit.liveThreadShell(id)),
-            getProjectThreadRecords: () =>
-              Effect.succeed(McpToolAccessTestkit.idleThreadProjection(shell)),
-            getTimelinePage: () => Effect.succeed({ items: [row], totalItems: 1, hasMore: false }),
-            stopWorkflow: (input) =>
-              Effect.sync(() => {
-                stopped.push(input);
-              }),
-          }),
-        ),
-        Layer.provide(ServerSettings.layerTest()),
-        Layer.provide(Layer.mock(ProviderRegistry.ProviderRegistry)({})),
-        Layer.provide(Layer.mock(ProviderAdapterRegistry.ProviderAdapterRegistryV2)({})),
-        Layer.provide(Layer.mock(ScheduledTaskService.ScheduledTaskService)({})),
-        Layer.provide(Layer.mock(PeerForwarding.PeerForwarding)({})),
-        Layer.provide(Layer.mock(PeerLinkRequests.PeerLinkRequests)({})),
-        Layer.provide(Layer.mock(PeerLinks.PeerLinks)({})),
-        Layer.provide(Layer.mock(ProjectService.ProjectService)({})),
-        Layer.provide(Layer.mock(SecretRequests.SecretRequests)({})),
-        Layer.provide(Layer.mock(RemoteDelegation.RemoteDelegation)({})),
-      ),
-    ),
-  );
-});
 
 it.effect("only the caller that prepared a pending upload can discard it", () =>
   Effect.gen(function* () {

@@ -6,7 +6,6 @@ import {
   StoredProjectIcon,
   ProjectId,
   ProjectScript,
-  ThreadEnvMode,
 } from "@t3tools/contracts";
 import * as Context from "effect/Context";
 import * as NodeSqliteClient from "@t3tools/shared/nodeSqliteClient";
@@ -34,8 +33,6 @@ export const ProjectRow = Schema.Struct({
   title: Schema.String,
   workspaceRoot: Schema.String,
   defaultModelSelection: Schema.NullOr(ModelSelection),
-  defaultThreadEnvMode: Schema.NullOr(ThreadEnvMode),
-  autoPull: Schema.Boolean,
   faviconPath: Schema.NullOr(Schema.String),
   projectIcon: Schema.NullOr(StoredProjectIcon),
   scripts: Schema.Array(ProjectScript),
@@ -48,7 +45,6 @@ export type ProjectRow = typeof ProjectRow.Type;
 const ProjectDbRow = Schema.Struct({
   ...ProjectRow.fields,
   defaultModelSelection: Schema.NullOr(Schema.fromJsonString(ModelSelection)),
-  autoPull: Schema.BooleanFromBit,
   projectIcon: Schema.NullOr(Schema.fromJsonString(StoredProjectIcon)),
   scripts: Schema.fromJsonString(Schema.Array(ProjectScript)),
 });
@@ -58,10 +54,7 @@ function toShell(row: ProjectRow): OrchestrationProjectShell {
     id: row.projectId,
     title: row.title,
     workspaceRoot: row.workspaceRoot,
-    repositoryIdentity: null,
     defaultModelSelection: row.defaultModelSelection,
-    defaultThreadEnvMode: row.defaultThreadEnvMode,
-    autoPull: row.autoPull,
     faviconPath: row.faviconPath,
     projectIcon: row.projectIcon,
     scripts: row.scripts,
@@ -115,8 +108,6 @@ export const make = Effect.gen(function* () {
         title,
         workspace_root AS "workspaceRoot",
         default_model_selection_json AS "defaultModelSelection",
-        default_thread_env_mode AS "defaultThreadEnvMode",
-        auto_pull AS "autoPull",
         favicon_path AS "faviconPath",
         project_icon_json AS "projectIcon",
         scripts_json AS "scripts",
@@ -145,8 +136,6 @@ export const make = Effect.gen(function* () {
             title,
             workspace_root,
             default_model_selection_json,
-            default_thread_env_mode,
-            auto_pull,
             favicon_path,
             project_icon_json,
             scripts_json,
@@ -159,8 +148,6 @@ export const make = Effect.gen(function* () {
             ${encoded.title},
             ${encoded.workspaceRoot},
             ${encoded.defaultModelSelection},
-            ${encoded.defaultThreadEnvMode},
-            ${encoded.autoPull},
             ${encoded.faviconPath},
             ${encoded.projectIcon},
             ${encoded.scripts},
@@ -173,8 +160,6 @@ export const make = Effect.gen(function* () {
             title = excluded.title,
             workspace_root = excluded.workspace_root,
             default_model_selection_json = excluded.default_model_selection_json,
-            default_thread_env_mode = excluded.default_thread_env_mode,
-            auto_pull = excluded.auto_pull,
             favicon_path = excluded.favicon_path,
             project_icon_json = excluded.project_icon_json,
             scripts_json = excluded.scripts_json,
@@ -221,8 +206,6 @@ export const make = Effect.gen(function* () {
           title: payload.title,
           workspaceRoot: payload.workspaceRoot,
           defaultModelSelection: payload.defaultModelSelection,
-          defaultThreadEnvMode: payload.defaultThreadEnvMode ?? null,
-          autoPull: false,
           faviconPath: payload.faviconPath ?? null,
           projectIcon: payload.projectIcon ?? null,
           scripts: payload.scripts,
@@ -249,10 +232,6 @@ export const make = Effect.gen(function* () {
         ...(payload.defaultModelSelection === undefined
           ? {}
           : { defaultModelSelection: payload.defaultModelSelection }),
-        ...(payload.defaultThreadEnvMode === undefined
-          ? {}
-          : { defaultThreadEnvMode: payload.defaultThreadEnvMode }),
-        ...(payload.autoPull === undefined ? {} : { autoPull: payload.autoPull }),
         ...(payload.faviconPath === undefined ? {} : { faviconPath: payload.faviconPath }),
         ...(payload.projectIcon === undefined ? {} : { projectIcon: payload.projectIcon }),
         ...(payload.scripts === undefined ? {} : { scripts: payload.scripts }),

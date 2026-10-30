@@ -265,7 +265,7 @@ it.layer(NodeServices.layer)("SessionStore.layer", (it) => {
     Effect.gen(function* () {
       const sessions = yield* SessionStore.SessionStore;
       const secrets = yield* ServerSecretStore.ServerSecretStore;
-      const legacyScopes = ["orchestration:read", "terminal:operate", "review:write"] as const;
+      const legacyScopes = ["orchestration:read", "terminal:operate", "filesystem:read"] as const;
       const issued = yield* sessions.issue({ subject: "one-time-token", scopes: legacyScopes });
       const [encodedPayload] = issued.token.split(".");
       const currentClaims = base64UrlDecodeUtf8(encodedPayload!);

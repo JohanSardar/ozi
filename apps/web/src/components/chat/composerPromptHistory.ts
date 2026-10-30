@@ -6,7 +6,6 @@ import {
 import { PLAN_IMPLEMENTATION_PROMPT_PREFIX } from "../../proposedPlan";
 
 const CLAUDE_ULTRATHINK_PREFIX = "Ultrathink:\n";
-const REVIEW_COMMENT_BLOCK_PATTERN = /<review_comment\b[^>]*>[\s\S]*?<\/review_comment>/g;
 const TRAILING_LEGACY_CONTEXT =
   /\n*<(terminal_context|element_context|preview_annotation)>\n([\s\S]*?)\n<\/\1>\s*$/;
 
@@ -38,16 +37,6 @@ interface ComposerPromptHistoryStep {
   readonly prompt: string;
 }
 
-function stripTrailingReviewComments(prompt: string): string {
-  let cut = prompt.length;
-  for (const match of [...prompt.matchAll(REVIEW_COMMENT_BLOCK_PATTERN)].toReversed()) {
-    const blockEnd = match.index + match[0].length;
-    if (prompt.slice(blockEnd, cut).trim().length > 0) break;
-    cut = match.index;
-  }
-  return cut === prompt.length ? prompt : prompt.slice(0, cut).trimEnd();
-}
-
 function escapeRegExp(value: string): string {
   return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -77,11 +66,6 @@ export function recallableComposerPrompt(messageText: string): string {
   }
 
   while (prompt.length > 0) {
-    const withoutReviewComments = stripTrailingReviewComments(prompt);
-    if (withoutReviewComments !== prompt) {
-      prompt = withoutReviewComments;
-      continue;
-    }
     const legacy = TRAILING_LEGACY_CONTEXT.exec(prompt);
     if (legacy) {
       if (

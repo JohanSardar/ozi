@@ -177,7 +177,6 @@ const PiProviderCapabilitiesV2 = {
     maxRecommendedHandoffChars: null,
   },
   checkpointing: {
-    appCanCheckpointFilesystem: true,
     supportsNestedCheckpointScopes: false,
     providerCanRollbackConversation: true,
     // CommandPolicy requires a snapshot for rollback; rollbackThread returns the updated provider thread.

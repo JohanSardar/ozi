@@ -151,7 +151,6 @@ export const CursorProviderCapabilitiesV2 = {
     maxRecommendedHandoffChars: null,
   },
   checkpointing: {
-    appCanCheckpointFilesystem: true,
     supportsNestedCheckpointScopes: true,
     providerCanRollbackConversation: false,
     providerRollbackReturnsSnapshot: false,

@@ -1,8 +1,5 @@
 import { isDraftThreadRoute } from "./features/threads/thread-route-state";
 import { ComponentCatalogScreen } from "./features/development/ComponentCatalogScreen";
-import { PullRequestGuideStopScreen } from "./features/pull-requests/guide/PullRequestGuideScreen";
-import { PullRequestInlineCommentScreen } from "./features/pull-requests/PullRequestInlineCommentScreen";
-import { PullRequestDiscussionScreen } from "./features/pull-requests/PullRequestDiscussionScreen";
 import { createWorkspaceStackNavigator } from "./features/layout/createWorkspaceStackNavigator";
 import {
   createPathConfigForStaticNavigation,
@@ -16,7 +13,7 @@ import {
   type NativeStackNavigationOptions,
 } from "@react-navigation/native-stack";
 import type { ReactNode } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, useWindowDimensions } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet } from "react-native";
 import { useResolveClassNames } from "uniwind";
 
 import { AppText as Text } from "./components/ui/AppText";
@@ -31,16 +28,6 @@ import {
 } from "./features/home/home-route-visibility";
 import { AndroidWorkspaceTabsProvider } from "./features/workspace/AndroidWorkspaceTabsProvider";
 import {
-  PullRequestRouteScreen,
-  PullRequestFileRouteScreen,
-} from "./features/pull-requests/PullRequestRouteScreen";
-import { PullRequestFilesSheet } from "./features/pull-requests/PullRequestFiles";
-import { PullRequestReviewSheet } from "./features/pull-requests/PullRequestReviewSheet";
-import { PullRequestReviewersScreen } from "./features/pull-requests/PullRequestReviewersScreen";
-import { PullRequestLabelsScreen } from "./features/pull-requests/PullRequestLabelsScreen";
-import { PullRequestEditScreen } from "./features/pull-requests/PullRequestEditScreen";
-import { PullRequestFilterSearchScreen } from "./features/pull-requests/PullRequestFilterSearchScreen";
-import {
   RenderErrorBoundary,
   RenderFailureView,
   type RenderFailureProps,
@@ -50,20 +37,12 @@ import { ConnectOnboardingRouteScreen } from "./features/cloud/ConnectOnboarding
 import { AttachmentFileScreen } from "./features/files/AttachmentFileScreen";
 import { ThreadFilesTreeScreen, ThreadFileScreen } from "./features/files/ThreadFilesRouteScreen";
 import { AdaptiveWorkspaceLayout } from "./features/layout/AdaptiveWorkspaceLayout";
-import { selectedPullRequestKey } from "./features/pull-requests/pullRequestSelection";
 import {
   HardwareKeyboardCommandOverlay,
   HardwareKeyboardCommandProvider,
 } from "./features/keyboard/HardwareKeyboardCommandProvider";
-import { ReviewCommentComposerSheet } from "./features/review/ReviewCommentComposerSheet";
-import { ReviewSheet } from "./features/review/ReviewSheet";
 import { ThreadTerminalRouteScreen } from "./features/terminal/ThreadTerminalRouteScreen";
 import { BrowserPreviewRouteScreen } from "./features/browser/BrowserPreviewRouteScreen";
-import { GitBranchesSheet } from "./features/threads/git/GitBranchesSheet";
-import { GitCommitSheet } from "./features/threads/git/GitCommitSheet";
-import { GitConfirmSheet } from "./features/threads/git/GitConfirmSheet";
-import { GitOverviewSheet } from "./features/threads/git/GitOverviewSheet";
-import { ThreadPullRequestsSheet } from "./features/threads/ThreadPullRequestsSheet";
 import { ThreadAgentsSheet } from "./features/threads/ThreadAgentsSheet";
 import { ThreadBackgroundWorkSheet } from "./features/threads/ThreadBackgroundWorkSheet";
 import { ThreadQueueSheet } from "./features/threads/ThreadQueueControl";
@@ -74,15 +53,10 @@ import {
 import { McpAppFullscreenScreen } from "./features/threads/McpAppFullscreenScreen";
 import { ConnectionsRouteScreen } from "./features/connection/ConnectionsRouteScreen";
 import { ConnectionsNewRouteScreen } from "./features/connection/ConnectionsNewRouteScreen";
-import { AddProjectDestinationRoute } from "./features/projects/AddProjectDestinationRoute";
 import { AddProjectLocalRoute } from "./features/projects/AddProjectLocalRoute";
 import { AddProjectNewRoute } from "./features/projects/AddProjectNewRoute";
-import { AddProjectRepositoryRoute } from "./features/projects/AddProjectRepositoryRoute";
 import { AddProjectSourceRoute } from "./features/projects/AddProjectSourceRoute";
-import {
-  NewTaskBranchPickerRouteScreen,
-  NewTaskEnvironmentPickerRouteScreen,
-} from "./features/threads/NewTaskContextPickerScreens";
+import { NewTaskEnvironmentPickerRouteScreen } from "./features/threads/NewTaskContextPickerScreens";
 import {
   ExistingThreadSettingsRouteScreen,
   NewTaskThreadSettingsRouteScreen,
@@ -102,18 +76,13 @@ import { SettingsFollowUpRouteScreen } from "./features/settings/SettingsFollowU
 import {
   SettingsEnvironmentMaintenanceRouteScreen,
   SettingsThreadsRouteScreen,
-  SettingsWorktreesRouteScreen,
-  SettingsEnvironmentSourceControlRouteScreen,
 } from "./features/settings/SettingsServerControlsRouteScreen";
 import {
   SettingsScheduledTasksRouteScreen,
   SettingsScheduledTaskNewRouteScreen,
   SettingsScheduledTaskEditRouteScreen,
 } from "./features/settings/SettingsScheduledTasksRouteScreen";
-import {
-  ScheduledTaskModelPickerRouteScreen,
-  ScheduledTaskBranchPickerRouteScreen,
-} from "./features/settings/ScheduledTaskPickerScreens";
+import { ScheduledTaskModelPickerRouteScreen } from "./features/settings/ScheduledTaskPickerScreens";
 import { SettingsKeyboardRouteScreen } from "./features/settings/SettingsKeyboardRouteScreen";
 import { SettingsLegalRouteScreen } from "./features/settings/SettingsLegalRouteScreen";
 import { SettingsMicrophoneRouteScreen } from "./features/settings/SettingsMicrophoneRouteScreen";
@@ -142,8 +111,6 @@ import {
   SettingsLegalDocumentExternalHeaderButton,
 } from "./features/settings/components/SettingsLegalDocumentRouteScreen";
 import { NATIVE_LIQUID_GLASS_SUPPORTED } from "./native/native-glass";
-import { deriveLayout } from "./lib/layout";
-import { useNativeLayoutMetrics } from "./native/native-layout-metrics";
 import { nativeHeaderScrollEdgeEffects } from "./native/StackHeader";
 import { HORIZONTAL_FORM_SHEET_OPTIONS, formSheetDetents } from "./native/sheet-surface";
 import { workspaceDetailRouter } from "./features/workspace/workspace-detail-selection";
@@ -261,20 +228,10 @@ const SETTINGS_SCREENS = {
     linking: "settings/new-threads",
     options: { ...SETTINGS_PAGE_OPTIONS, title: "Threads" },
   }),
-  SettingsEnvironmentSourceControl: createNativeStackScreen({
-    screen: SettingsEnvironmentSourceControlRouteScreen,
-    linking: "settings/source-control",
-    options: { ...SETTINGS_PAGE_OPTIONS, title: "Source control" },
-  }),
   SettingsEnvironmentAgentBehavior: createNativeStackScreen({
     screen: SettingsThreadsRouteScreen,
     linking: "settings/agent-behavior",
     options: { ...SETTINGS_PAGE_OPTIONS, title: "Threads" },
-  }),
-  SettingsWorktrees: createNativeStackScreen({
-    screen: SettingsWorktreesRouteScreen,
-    linking: "settings/worktrees",
-    options: { ...SETTINGS_PAGE_OPTIONS, title: "Worktrees" },
   }),
   SettingsLabs: createNativeStackScreen({
     screen: SettingsLabsRouteScreen,
@@ -397,10 +354,6 @@ const SETTINGS_SCREENS = {
   SettingsScheduledTaskEdit: createNativeStackScreen({
     screen: SettingsScheduledTaskEditRouteScreen,
     options: { ...SETTINGS_PAGE_OPTIONS, title: "Edit scheduled task" },
-  }),
-  SettingsScheduledTaskBranch: createNativeStackScreen({
-    screen: ScheduledTaskBranchPickerRouteScreen,
-    options: { ...SETTINGS_PAGE_OPTIONS, title: "Base branch" },
   }),
   SettingsScheduledTaskModel: createNativeStackScreen({
     screen: ScheduledTaskModelPickerRouteScreen,
@@ -536,7 +489,6 @@ function RootStackLayout(props: {
                 workspaceRouteKey={workspaceLocation.routeKey}
                 workspaceRouteName={workspaceLocation.routeName}
                 workspaceRouteKeys={workspaceLocation.routeKeys}
-                selectedPullRequestKey={selectedPullRequestKey(props.state)}
               >
                 {props.children}
                 <HardwareKeyboardCommandOverlay />
@@ -622,104 +574,6 @@ const RootStackConfig = createWorkspaceStackNavigator({
         ...getCompactBrandHeaderOptions(),
       },
     }),
-    PullRequest: createNativeStackScreen({
-      screen: PullRequestRouteScreen,
-      linking: {
-        path: "pull-requests/:environmentId/:projectId/:repository/:number",
-        parse: { number: Number },
-      },
-      options: { ...DETAIL_HEADER_OPTIONS, ...FIXED_DUO_HEADER },
-    }),
-    PullRequestGuideStop: createNativeStackScreen({
-      screen: PullRequestGuideStopScreen,
-      options: DETAIL_HEADER_OPTIONS,
-    }),
-    PullRequestFile: createNativeStackScreen({
-      screen: PullRequestFileRouteScreen,
-      options: DETAIL_HEADER_OPTIONS,
-    }),
-    PullRequestFiles: createNativeStackScreen({
-      screen: PullRequestFilesSheet,
-      options: {
-        ...(Platform.OS === "ios" ? SHEET_GLASS_HEADER_OPTIONS : undefined),
-        ...HORIZONTAL_FORM_SHEET_OPTIONS,
-        sheetAllowedDetents: formSheetDetents(0.6),
-        sheetGrabberVisible: true,
-        sheetCornerRadius: Platform.OS === "android" ? 28 : undefined,
-      },
-    }),
-    PullRequestReviewers: createNativeStackScreen({
-      screen: PullRequestReviewersScreen,
-      options: {
-        ...DETAIL_HEADER_OPTIONS,
-        ...FIXED_DUO_HEADER,
-        ...HORIZONTAL_FORM_SHEET_OPTIONS,
-        sheetAllowedDetents: formSheetDetents(0.75),
-        sheetGrabberVisible: true,
-        headerBackVisible: false,
-      },
-    }),
-    PullRequestLabels: createNativeStackScreen({
-      screen: PullRequestLabelsScreen,
-      // Presented like PullRequestFilterSearch, whose search sheet it shares.
-      options:
-        Platform.OS === "android"
-          ? { presentation: "card", headerShown: false }
-          : {
-              ...DETAIL_HEADER_OPTIONS,
-              ...HORIZONTAL_FORM_SHEET_OPTIONS,
-              sheetAllowedDetents: formSheetDetents(0.75),
-              sheetGrabberVisible: true,
-              headerBackVisible: false,
-            },
-    }),
-    PullRequestFilterSearch: createNativeStackScreen({
-      screen: PullRequestFilterSearchScreen,
-      // Android pushes it like the branch picker; a formSheet there leaves the list's header
-      // peeking above it once the keyboard opens.
-      options:
-        Platform.OS === "android"
-          ? { presentation: "card", headerShown: false }
-          : {
-              ...DETAIL_HEADER_OPTIONS,
-              ...HORIZONTAL_FORM_SHEET_OPTIONS,
-              sheetAllowedDetents: formSheetDetents(0.75),
-              sheetGrabberVisible: true,
-              headerBackVisible: false,
-            },
-    }),
-    PullRequestDiscussion: createNativeStackScreen({
-      screen: PullRequestDiscussionScreen,
-      options: DETAIL_HEADER_OPTIONS,
-    }),
-    PullRequestInlineComment: createNativeStackScreen({
-      screen: PullRequestInlineCommentScreen,
-      options: {
-        ...(Platform.OS === "android"
-          ? { presentation: "fullScreenModal" as const }
-          : { ...SHEET_GLASS_HEADER_OPTIONS, ...HORIZONTAL_FORM_SHEET_OPTIONS }),
-        sheetAllowedDetents: Platform.OS === "android" ? undefined : formSheetDetents(0.75),
-        sheetGrabberVisible: Platform.OS !== "android",
-      },
-    }),
-    PullRequestReview: createNativeStackScreen({
-      screen: PullRequestReviewSheet,
-      options: {
-        ...(Platform.OS === "ios" ? SHEET_GLASS_HEADER_OPTIONS : undefined),
-        ...HORIZONTAL_FORM_SHEET_OPTIONS,
-        sheetAllowedDetents: formSheetDetents(0.75),
-        sheetGrabberVisible: true,
-      },
-    }),
-    PullRequestEdit: createNativeStackScreen({
-      screen: PullRequestEditScreen,
-      options: {
-        ...(Platform.OS === "ios" ? SHEET_GLASS_HEADER_OPTIONS : undefined),
-        ...HORIZONTAL_FORM_SHEET_OPTIONS,
-        sheetAllowedDetents: formSheetDetents(0.75),
-        sheetGrabberVisible: true,
-      },
-    }),
     Thread: createNativeStackScreen({
       screen: ThreadRouteScreen,
       linking: { path: "threads/:environmentId?/:threadId?", alias: ["new/draft"] },
@@ -735,11 +589,6 @@ const RootStackConfig = createWorkspaceStackNavigator({
       screen: NewTaskEnvironmentPickerRouteScreen,
       options: { ...GLASS_HEADER_OPTIONS, title: "Environment" },
     }),
-    NewTaskBranch: createNativeStackScreen({
-      linking: "new/draft/branch",
-      screen: NewTaskBranchPickerRouteScreen,
-      options: { ...GLASS_HEADER_OPTIONS, title: "Branch" },
-    }),
     AddProject: createNativeStackScreen({
       linking: "new/add-project",
       screen: AddProjectSourceRoute,
@@ -748,16 +597,6 @@ const RootStackConfig = createWorkspaceStackNavigator({
         ...GLASS_HEADER_OPTIONS,
         title: "Add project",
       },
-    }),
-    AddProjectRepository: createNativeStackScreen({
-      linking: "new/add-project/repository",
-      screen: AddProjectRepositoryRoute,
-      options: GLASS_HEADER_OPTIONS,
-    }),
-    AddProjectDestination: createNativeStackScreen({
-      linking: "new/add-project/destination",
-      screen: AddProjectDestinationRoute,
-      options: GLASS_HEADER_OPTIONS,
     }),
     AddProjectLocal: createNativeStackScreen({
       linking: "new/add-project/local",
@@ -814,23 +653,6 @@ const RootStackConfig = createWorkspaceStackNavigator({
         presentation: "fullScreenModal",
         headerShown: false,
         gestureEnabled: false,
-      },
-    }),
-    ThreadReview: createNativeStackScreen({
-      screen: ReviewSheet,
-      linking: `${THREAD_LINKING_PREFIX}/review`,
-      options: GLASS_HEADER_OPTIONS,
-    }),
-    ThreadReviewComment: createNativeStackScreen({
-      screen: ReviewCommentComposerSheet,
-      linking: `${THREAD_LINKING_PREFIX}/review-comment`,
-      options: {
-        // Android formSheets cannot host the keyboard-driven comment composer.
-        ...(Platform.OS === "android"
-          ? { presentation: "fullScreenModal" as const }
-          : HORIZONTAL_FORM_SHEET_OPTIONS),
-        sheetAllowedDetents: Platform.OS === "android" ? undefined : formSheetDetents(0.55),
-        sheetGrabberVisible: Platform.OS !== "android",
       },
     }),
     ThreadFiles: createNativeStackScreen({
@@ -896,55 +718,6 @@ const RootStackConfig = createWorkspaceStackNavigator({
         ...HORIZONTAL_FORM_SHEET_OPTIONS,
         headerShown: false,
         sheetAllowedDetents: formSheetDetents(0.5, 0.9),
-        sheetGrabberVisible: true,
-      },
-    }),
-    GitOverview: createNativeStackScreen({
-      screen: GitOverviewSheet,
-      linking: `${THREAD_LINKING_PREFIX}/git`,
-      options: {
-        ...(Platform.OS === "ios" ? SHEET_GLASS_HEADER_OPTIONS : undefined),
-        ...HORIZONTAL_FORM_SHEET_OPTIONS,
-        sheetAllowedDetents: formSheetDetents(0.55),
-        sheetGrabberVisible: true,
-      },
-    }),
-    ThreadPullRequests: createNativeStackScreen({
-      screen: ThreadPullRequestsSheet,
-      linking: `${THREAD_LINKING_PREFIX}/pull-requests`,
-      options: {
-        ...(Platform.OS === "ios" ? SHEET_GLASS_HEADER_OPTIONS : undefined),
-        ...HORIZONTAL_FORM_SHEET_OPTIONS,
-        sheetAllowedDetents: formSheetDetents(0.55),
-        sheetGrabberVisible: true,
-      },
-    }),
-    GitCommit: createNativeStackScreen({
-      screen: GitCommitSheet,
-      linking: `${THREAD_LINKING_PREFIX}/git/commit`,
-      options: {
-        ...(Platform.OS === "ios" ? SHEET_GLASS_HEADER_OPTIONS : undefined),
-        ...HORIZONTAL_FORM_SHEET_OPTIONS,
-        sheetAllowedDetents: formSheetDetents(0.8),
-        sheetGrabberVisible: true,
-      },
-    }),
-    GitBranches: createNativeStackScreen({
-      screen: GitBranchesSheet,
-      linking: `${THREAD_LINKING_PREFIX}/git/branches`,
-      options: {
-        ...(Platform.OS === "ios" ? SHEET_GLASS_HEADER_OPTIONS : undefined),
-        ...HORIZONTAL_FORM_SHEET_OPTIONS,
-        sheetAllowedDetents: formSheetDetents(0.55),
-        sheetGrabberVisible: true,
-      },
-    }),
-    GitConfirm: createNativeStackScreen({
-      screen: GitConfirmSheet,
-      linking: `${THREAD_LINKING_PREFIX}/git-confirm`,
-      options: {
-        ...HORIZONTAL_FORM_SHEET_OPTIONS,
-        sheetAllowedDetents: [0.55, 0.7],
         sheetGrabberVisible: true,
       },
     }),
@@ -1046,17 +819,13 @@ registerPresentedRoutes(
 );
 
 export const RootStack = RootStackConfig.with(function AdaptiveRootStack({ Navigator }) {
-  const { width, height } = useWindowDimensions();
-  const nativeMetrics = useNativeLayoutMetrics();
-  const usesSplitView = deriveLayout({ width, height, nativeMetrics }).usesSplitView;
-
   /* oxlint-disable react/no-unstable-nested-components -- React Navigation invokes screenLayout as a render callback. */
   return (
     <Navigator
       screenLayout={(props) => <GuardedScreenLayout {...props} />}
       screenOptions={({ route }) =>
         Platform.OS === "android"
-          ? { animation: androidWorkspaceDestinationAnimation(route.name, usesSplitView) }
+          ? { animation: androidWorkspaceDestinationAnimation(route.name) }
           : {}
       }
     />

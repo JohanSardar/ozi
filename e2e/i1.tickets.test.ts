@@ -162,8 +162,7 @@ describe("i1.tickets", () => {
           modelSelection: { instanceId: "codex", model: "gpt-5.4" },
           runtimeMode: "full-access",
           interactionMode: "default",
-          branch: null,
-          worktreePath: null,
+          workingDirectory: null,
         });
         await rpc("orchestration.dispatchCommand", {
           type: "message.dispatch",

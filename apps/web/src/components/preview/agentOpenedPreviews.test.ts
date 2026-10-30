@@ -58,23 +58,6 @@ describe("revealServerTabs", () => {
     revealServerTabs(ref, [tab("tab_forced", true)], { autoShowFloatingPreview: false });
     expect(floatingTabId()).toBe("tab_forced");
   });
-
-  it("focuses a tab already in the panel instead of floating it when forced", () => {
-    setup();
-    useRightPanelStore.getState().openBrowser(ref, "tab_a");
-    const browserSurfaceId = useRightPanelStore.getState().byThreadKey[threadKey]?.activeSurfaceId;
-    useRightPanelStore.getState().open(ref, "diff");
-
-    revealServerTabs(ref, [tab("tab_a", false)], { autoShowFloatingPreview: true });
-    expect(useRightPanelStore.getState().byThreadKey[threadKey]?.activeSurfaceId).not.toBe(
-      browserSurfaceId,
-    );
-    revealServerTabs(ref, [tab("tab_a", true)], { autoShowFloatingPreview: true });
-    expect(useRightPanelStore.getState().byThreadKey[threadKey]?.activeSurfaceId).toBe(
-      browserSurfaceId,
-    );
-    expect(floatingTabId()).toBeNull();
-  });
 });
 
 describe("followPreviewSessions", () => {

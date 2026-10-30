@@ -1,7 +1,7 @@
+import { CODE_MONO_FONT_FAMILY, renderVisibleWhitespace } from "./sourceRendering";
 import { settlePromise } from "@t3tools/client-runtime/state/runtime";
 import { useAtomValue } from "@effect/atom-react";
 import { AsyncResult } from "effect/reactivity";
-import type { ComponentType } from "react";
 import { useLayoutEffect, useRef, useState } from "react";
 import {
   FlatList,
@@ -9,30 +9,16 @@ import {
   RefreshControl,
   ScrollView,
   Text as NativeText,
-  useWindowDimensions,
   View,
 } from "react-native";
-import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { AppText as Text } from "../../components/ui/AppText";
 import { LoadingStrip } from "../../components/ui/LoadingStrip";
-import { useNativeColumnLayoutMetrics } from "../../native/native-layout-metrics";
-import {
-  type NativeReviewDiffViewProps,
-  resolveNativeReviewDiffView,
-} from "../diffs/nativeReviewDiffSurface";
-import { createNativeReviewDiffTheme } from "../review/nativeReviewDiffAdapter";
-import { REVIEW_MONO_FONT_FAMILY, renderVisibleWhitespace } from "../review/reviewDiffRendering";
 import type { HighlightedToken } from "../../lib/highlights";
 import { cn } from "../../lib/cn";
 import type { ResolvedMobileCodeSurface } from "../../lib/appearancePreferences";
 import { useAppearanceCodeSurface } from "../settings/appearance/useAppearanceCodeSurface";
 import { useAppearancePreferences } from "../settings/appearance/AppearancePreferencesProvider";
 import { useUniwindTheme } from "../../lib/useUniwindTheme";
-import {
-  buildNativeSourceTokens,
-  NATIVE_SOURCE_CONTENT_WIDTH,
-  nativeSourceRowId,
-} from "./nativeSourceFileAdapter";
 import { SourceText } from "@t3tools/mobile-source-text";
 
 import { boundedSelectableSourceTokens, prepareSourceFileDocument } from "./source-file-document";
@@ -68,7 +54,7 @@ const HighlightedSourceLine = function HighlightedSourceLine(props: {
         className="select-none pr-3 text-right text-foreground-tertiary"
         style={{
           width: props.codeSurface.gutterWidth,
-          fontFamily: REVIEW_MONO_FONT_FAMILY,
+          fontFamily: CODE_MONO_FONT_FAMILY,
           fontSize: props.codeSurface.lineNumberFontSize,
           lineHeight: props.codeSurface.rowHeight,
         }}
@@ -81,7 +67,7 @@ const HighlightedSourceLine = function HighlightedSourceLine(props: {
         numberOfLines={props.wordBreak ? undefined : 1}
         className="flex-1 font-normal text-foreground"
         style={{
-          fontFamily: REVIEW_MONO_FONT_FAMILY,
+          fontFamily: CODE_MONO_FONT_FAMILY,
           fontSize: props.codeSurface.fontSize,
           lineHeight: props.codeSurface.rowHeight,
           minWidth: props.wordBreak ? undefined : 320,
@@ -112,7 +98,7 @@ const HighlightedSourceLine = function HighlightedSourceLine(props: {
                     }
                     style={{
                       color: token.color ?? undefined,
-                      fontFamily: REVIEW_MONO_FONT_FAMILY,
+                      fontFamily: CODE_MONO_FONT_FAMILY,
                       fontWeight,
                       fontStyle,
                     }}
@@ -180,61 +166,6 @@ function useSourceFileRefresh(onRefresh: SourceFileSurfaceProps["onRefresh"]) {
   return { isPullRefreshing, handlePullToRefresh };
 }
 
-function NativeSourceFileSurface(
-  props: SourceFileSurfaceProps & {
-    readonly NativeView: ComponentType<NativeReviewDiffViewProps>;
-  },
-) {
-  const { NativeView, onRefresh } = props;
-  const insets = useSafeAreaInsets();
-  const columnMetrics = useNativeColumnLayoutMetrics();
-  const safeArea = columnMetrics?.safeArea ?? insets;
-  const { codeSurface, codeWordBreak, nativeSourceStyle } = useAppearanceCodeSurface();
-  const { themeAppearance, themeId } = useAppearancePreferences();
-  const appTheme = useUniwindTheme();
-  const { width: viewportWidth } = useWindowDimensions();
-  const { rowsJson, status, targetIndex, tokens } = useSourceFileModel(props);
-  const { isPullRefreshing, handlePullToRefresh } = useSourceFileRefresh(onRefresh);
-  const tokensJson = JSON.stringify(buildNativeSourceTokens(tokens));
-  const selectedRowIdsJson = JSON.stringify(
-    targetIndex === null ? [] : [nativeSourceRowId(targetIndex)],
-  );
-  const themeJson = JSON.stringify(createNativeReviewDiffTheme(themeAppearance, themeId, appTheme));
-  const styleJson = JSON.stringify(nativeSourceStyle);
-  const contentWidth = codeWordBreak
-    ? Math.max(240, viewportWidth - codeSurface.gutterWidth - 24)
-    : NATIVE_SOURCE_CONTENT_WIDTH;
-
-  return (
-    <View className="relative flex-1 bg-sheet">
-      <SourceHighlightStatusView status={status} />
-      <NativeView
-        collapsable={false}
-        testID="source-native-code-view"
-        style={{ flex: 1 }}
-        appearanceScheme={themeAppearance}
-        contentResetKey={props.path}
-        contentWidth={contentWidth}
-        contentInsetTop={props.embedded ? 0 : (props.headerInsetTop ?? safeArea.top)}
-        contentInsetBottom={props.embedded ? 0 : safeArea.bottom + 8}
-        initialRowIndex={targetIndex ?? -1}
-        rowHeight={nativeSourceStyle.rowHeight ?? codeSurface.rowHeight}
-        rowsJson={rowsJson}
-        selectedRowIdsJson={selectedRowIdsJson}
-        styleJson={styleJson}
-        themeJson={themeJson}
-        tokensJson={tokensJson}
-        {...(onRefresh
-          ? {
-              refreshing: isPullRefreshing,
-              onPullToRefresh: () => void handlePullToRefresh(),
-            }
-          : {})}
-      />
-    </View>
-  );
-}
-
 function JavaScriptSourceFileSurface(props: SourceFileSurfaceProps) {
   const usesAutomaticInsets = Platform.OS === "ios" && !props.embedded;
   const foreground = useUniwindTheme()["--color-foreground"];
@@ -277,7 +208,7 @@ function JavaScriptSourceFileSurface(props: SourceFileSurfaceProps) {
       selectionColorClassName={Platform.OS === "android" ? "accent-focus/32" : undefined}
       style={{
         color: foreground,
-        fontFamily: REVIEW_MONO_FONT_FAMILY,
+        fontFamily: CODE_MONO_FONT_FAMILY,
         fontSize: codeSurface.fontSize,
         lineHeight: codeSurface.rowHeight,
       }}
@@ -393,13 +324,5 @@ function JavaScriptSourceFileSurface(props: SourceFileSurfaceProps) {
 }
 
 export function SourceFileSurface(props: SourceFileSurfaceProps) {
-  const NativeView = resolveNativeReviewDiffView();
-  const { codeWordBreak } = useAppearanceCodeSurface();
-  const surface =
-    NativeView && !codeWordBreak && !props.selectable ? (
-      <NativeSourceFileSurface {...props} NativeView={NativeView} />
-    ) : (
-      <JavaScriptSourceFileSurface {...props} />
-    );
-  return surface;
+  return <JavaScriptSourceFileSurface {...props} />;
 }

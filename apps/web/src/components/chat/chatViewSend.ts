@@ -159,7 +159,6 @@ export async function rewindToMessage(input: {
   readonly routeThreadRef: ScopedThreadRef;
   readonly threadId: ThreadId;
   readonly turnCount: number;
-  readonly restoreFiles: boolean;
   readonly checkpoint: ReturnType<typeof findRevertCheckpoint>;
   readonly draftTarget: ScopedThreadRef | DraftId;
   readonly composerHasPendingAttachments: boolean;
@@ -172,7 +171,6 @@ export async function rewindToMessage(input: {
       commandId: CommandId;
       threadId: ThreadId;
       turnCount: number;
-      restoreFiles: boolean;
       checkpointId?: string;
       scopeId?: string;
     };
@@ -210,7 +208,6 @@ export async function rewindToMessage(input: {
           commandId,
           threadId: input.threadId,
           turnCount: input.turnCount,
-          restoreFiles: input.restoreFiles,
           ...(input.checkpoint === undefined
             ? {}
             : { checkpointId: input.checkpoint.id, scopeId: input.checkpoint.scopeId }),
@@ -267,7 +264,6 @@ export function restoreComposerDraft(
   store.addFiles(draftTarget, snapshot.files);
   store.setTerminalContexts(draftTarget, snapshot.terminalContexts);
   store.setPreviewAnnotations(draftTarget, snapshot.previewAnnotations);
-  store.setReviewComments(draftTarget, snapshot.reviewComments);
   store.setThreadContexts(draftTarget, snapshot.threadContexts);
   store.setEnvironmentContexts(draftTarget, snapshot.environmentContexts);
   return images;

@@ -1,35 +1,19 @@
 import { documentChipKindForFileName } from "~/pierre-icons";
 import { isSvgAttachment } from "@t3tools/shared/image";
-import { useRenderedAppearance } from "../../hooks/useTheme";
-import { PullRequestGlyph } from "../pullRequest/pullRequestIcons";
 import { ReadOnlySourcePreview } from "../files/AttachmentFilePreview";
 import { useRightPanelStore } from "~/rightPanelStore";
 import { COMPOSER_CONTEXT_KINDS } from "@t3tools/contracts";
 import { formatAttachmentSize } from "@t3tools/client-runtime/state/attachments";
 import { use, type ReactNode } from "react";
-import { FileDiff } from "@pierre/diffs/react";
-import { DiffWorkerPoolProvider } from "../DiffWorkerPoolProvider";
 import {
   type ChatFileAttachment,
   type ChatImageAttachment,
   isImageAttachment,
   isVideoAttachment,
 } from "../../types";
-import {
-  getRenderablePatch,
-  resolveDiffThemeName,
-  resolveFileDiffPath,
-} from "../../lib/diffRendering";
-import { PREFERRED_HIGHLIGHTER } from "../../lib/syntaxHighlighting";
-import ChatMarkdown from "../ChatMarkdown";
 import { EnvironmentContextChip } from "../EnvironmentContextChip";
 import { ThreadContextChip } from "../ThreadContextChip";
-import {
-  CornerUpLeftIcon,
-  MessageCircleIcon,
-  MousePointerClickIcon,
-  PaintbrushIcon,
-} from "lucide-react";
+import { CornerUpLeftIcon, MousePointerClickIcon, PaintbrushIcon } from "lucide-react";
 import type { ComposerContextId, KnownComposerContextRecord } from "@t3tools/contracts";
 import { buildExpandedImagePreview } from "./ExpandedImagePreview";
 import { WorkspaceEntryIcon, WorkspaceEntryTooltip } from "./WorkspaceEntryIcon";
@@ -39,18 +23,10 @@ import {
   ContextChipPopover as UserMessageContextPopover,
   FileChip,
   ImageChipButton,
-  PULL_REQUEST_CHIP_KINDS,
-  PullRequestChip,
   UnresolvedChip,
 } from "../contextChipParts";
-import {
-  isPullRequestSummaryContext,
-  pullRequestContextDisplayState,
-  pullRequestContextKindLabel,
-  reviewCommentContextLabel,
-} from "~/lib/composerContextRecords";
 import { formatComposerContextReference } from "@t3tools/shared/composerContextReferences";
-import { ContextChip, ContextChipLabel, type ContextChipKind } from "../ContextChip";
+import { ContextChip, ContextChipLabel } from "../ContextChip";
 import { createContextPresentationRegistry } from "../contextPresentationRegistry";
 import type { ChatMarkdownContextReference } from "../ChatMarkdown";
 import {
@@ -58,12 +34,6 @@ import {
   skillInstructionsOpener,
   skillPopoverDescription,
 } from "./SkillInlineText";
-import { formatWorkspaceRelativePath } from "../../filePathDisplay";
-import {
-  buildReviewCommentRenderablePatch,
-  formatReviewCommentFence,
-  type ReviewCommentContext,
-} from "../../reviewCommentContext";
 import { TimelineRowCtx } from "./timelineRowContext";
 
 function UserMessageMentionChip(props: {
@@ -118,27 +88,6 @@ function UserMessageSkillChip(props: {
       description={skill ? skillPopoverDescription(skill) : null}
       copyMarkdown={props.copyMarkdown}
       onViewInstructions={skillInstructionsOpener(threadRef, skill)}
-    />
-  );
-}
-
-function UserMessagePullRequestContextChip(props: {
-  record: Extract<KnownComposerContextRecord, { kind: "review-comment" }>;
-  copyMarkdown: string;
-  kind: ContextChipKind;
-}) {
-  const { activeThreadEnvironmentId, openPullRequest } = use(TimelineRowCtx);
-  const metadata = props.record.pullRequest;
-  if (metadata === undefined) return null;
-  return (
-    <PullRequestChip
-      metadata={metadata}
-      environmentId={activeThreadEnvironmentId}
-      label={reviewCommentContextLabel(props.record)}
-      kindLabel={pullRequestContextKindLabel(props.record)}
-      kind={props.kind}
-      copyMarkdown={props.copyMarkdown}
-      onOpen={openPullRequest}
     />
   );
 }
@@ -456,55 +405,6 @@ const userMessageContextPresentationRegistry = createContextPresentationRegistry
         ),
     },
     {
-      kind: "review-comment",
-      canRender: (record) => record.kind === "review-comment",
-      render: (record, context) => {
-        if (record.kind !== "review-comment") {
-          return <UnavailableUserMessageContextChip {...context} />;
-        }
-        const isPullRequest = isPullRequestSummaryContext(record);
-        const label = reviewCommentContextLabel(record);
-        const kindLabel = isPullRequest ? pullRequestContextKindLabel(record) : "Review comment";
-        const pullRequestState = pullRequestContextDisplayState(record) ?? "unknown";
-        if (isPullRequest && record.pullRequest !== undefined) {
-          return (
-            <UserMessagePullRequestContextChip
-              record={record}
-              copyMarkdown={context.copyMarkdown}
-              kind={PULL_REQUEST_CHIP_KINDS[pullRequestState]}
-            />
-          );
-        }
-        return (
-          <UserMessageContextPopover
-            copyMarkdown={context.copyMarkdown}
-            accessibleLabel={`${kindLabel}, ${label}${record.pullRequest ? `, ${record.pullRequest.title}` : ""}`}
-            kind={isPullRequest ? PULL_REQUEST_CHIP_KINDS[pullRequestState] : "review-comment"}
-            icon={isPullRequest ? <PullRequestGlyph.pullRequest /> : <MessageCircleIcon />}
-            label={label}
-          >
-            <UserMessageReviewCommentCard
-              comment={{
-                id: record.contextId,
-                sectionId: record.sectionId,
-                sectionTitle: record.sectionTitle,
-                filePath: record.filePath,
-                startIndex: record.startIndex,
-                endIndex: record.endIndex,
-                rangeLabel: record.rangeLabel,
-                text: record.text,
-                diff: record.diff,
-                ...(record.fenceLanguage !== undefined
-                  ? { fenceLanguage: record.fenceLanguage }
-                  : {}),
-                ...(record.pullRequest !== undefined ? { pullRequest: record.pullRequest } : {}),
-              }}
-            />
-          </UserMessageContextPopover>
-        );
-      },
-    },
-    {
       kind: "preview-annotation",
       canRender: (record) => record.kind === "preview-annotation",
       render: (record, context) =>
@@ -552,69 +452,4 @@ export function UserMessageContextReferenceChip(props: {
     onExpandVideo: props.onExpandVideo,
     onOpenFile: props.onOpenFile,
   });
-}
-
-function UserMessageReviewCommentCard({ comment }: { comment: ReviewCommentContext }) {
-  const renderedAppearance = useRenderedAppearance();
-  const ctx = use(TimelineRowCtx);
-  const fenceLanguage = comment.fenceLanguage ?? "diff";
-  const renderablePatch = getRenderablePatch(
-    buildReviewCommentRenderablePatch(comment),
-    `review-comment:${comment.id}`,
-  );
-
-  return (
-    <div className="space-y-2 rounded-lg border border-border/70 bg-background/70 p-3">
-      <div className="space-y-1">
-        <div className="text-xs font-medium text-foreground">
-          {formatWorkspaceRelativePath(comment.filePath, ctx.workspaceRoot)}
-        </div>
-        <div className="text-2xs text-muted-foreground">
-          {comment.sectionTitle} · {comment.rangeLabel}
-        </div>
-      </div>
-      {comment.text.length > 0 && (
-        <div className="wrap-break-word text-sm">
-          <ChatMarkdown
-            text={comment.text}
-            cwd={ctx.markdownCwd}
-            threadRef={ctx.threadRef ?? undefined}
-            skills={ctx.skills}
-            parseRawHtml={false}
-            lineBreaks
-          />
-        </div>
-      )}
-      {fenceLanguage !== "diff" && comment.diff.trim().length > 0 && (
-        <ChatMarkdown
-          text={formatReviewCommentFence(fenceLanguage, comment.diff)}
-          cwd={ctx.markdownCwd}
-          threadRef={ctx.threadRef ?? undefined}
-          skills={ctx.skills}
-          className="text-foreground"
-        />
-      )}
-      {renderablePatch?.kind === "files" && (
-        <DiffWorkerPoolProvider>
-          {renderablePatch.files.map((fileDiff) => (
-            <FileDiff
-              key={resolveFileDiffPath(fileDiff)}
-              fileDiff={fileDiff}
-              options={{
-                collapsed: false,
-                diffStyle: "unified",
-                theme: resolveDiffThemeName(renderedAppearance),
-                preferredHighlighter: PREFERRED_HIGHLIGHTER,
-              }}
-            />
-          ))}
-        </DiffWorkerPoolProvider>
-      )}
-      {renderablePatch?.kind === "raw" && (
-        <pre className="overflow-x-auto rounded-md bg-muted/40 p-2 text-xs">
-          {renderablePatch.text}
-        </pre>
-      )}
-    </div>
-  );
 }

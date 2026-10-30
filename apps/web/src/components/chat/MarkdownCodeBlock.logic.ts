@@ -1,7 +1,6 @@
+import { type CodeThemeName, fnv1a32 } from "~/lib/syntaxHighlighting";
 import { Children, isValidElement, type ReactNode } from "react";
 import type { ExtraProps as ReactMarkdownExtraProps } from "react-markdown";
-
-import { fnv1a32, type DiffThemeName } from "../../lib/diffRendering";
 
 const CODE_FENCE_LANGUAGE_REGEX = /(?:^|\s)language-([^\s]+)/;
 
@@ -109,7 +108,7 @@ export function extractCodeBlock(
 export function createHighlightCacheKey(
   code: string,
   language: string,
-  themeName: DiffThemeName,
+  themeName: CodeThemeName,
 ): string {
   return `${fnv1a32(code).toString(36)}:${code.length}:${language}:${themeName}`;
 }

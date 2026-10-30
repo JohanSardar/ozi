@@ -1,9 +1,8 @@
+import type { CodeThemeName } from "~/lib/syntaxHighlighting";
 import { Extension } from "@tiptap/core";
 import { type EditorState, Plugin, PluginKey } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import type { Node as ProseMirrorNode } from "@tiptap/pm/model";
-
-import type { DiffThemeName } from "~/lib/diffRendering";
 import { languageOfInfoString } from "~/composer-code-languages";
 import { getSyntaxHighlighterPromise } from "~/lib/syntaxHighlighting";
 
@@ -24,7 +23,7 @@ const DEFERRED_HIGHLIGHT_DELAY_MS = 300;
 function shouldHighlightCodeBlock(code: string): boolean {
   return code.length <= MAX_HIGHLIGHTED_CODE_BLOCK_LENGTH;
 }
-function blockSignature(node: ProseMirrorNode, theme: DiffThemeName): string {
+function blockSignature(node: ProseMirrorNode, theme: CodeThemeName): string {
   return [theme, String(node.attrs.language ?? ""), node.textContent].join("\u0000");
 }
 
@@ -38,7 +37,7 @@ function collectCodeBlocks(state: EditorState): Array<{ node: ProseMirrorNode; p
 }
 
 export function composerCodeBlockHighlight(options: {
-  resolveTheme: () => DiffThemeName;
+  resolveTheme: () => CodeThemeName;
 }): Extension {
   return Extension.create({
     name: "composerCodeBlockHighlight",
@@ -168,7 +167,7 @@ export function tokenizeBlock(
   highlighter: Highlighter,
   code: string,
   language: string,
-  theme: DiffThemeName,
+  theme: CodeThemeName,
 ): ReadonlyArray<{ from: number; to: number; color: string }> {
   let tokens;
   try {
@@ -196,7 +195,7 @@ export function tokenizeBlock(
 function buildDecorations(
   state: EditorState,
   cache: Map<string, HighlightedBlock>,
-  theme: DiffThemeName,
+  theme: CodeThemeName,
   previous: DecorationSet,
 ): DecorationSet {
   const decorations: Decoration[] = [];

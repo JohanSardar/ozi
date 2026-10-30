@@ -1,7 +1,6 @@
 import { resolveThreadWorkingStartedAt } from "@t3tools/client-runtime/state/models";
 import { isShownUnderParent } from "@t3tools/client-runtime/state/threads";
 import { backgroundWorkHoldsCompletion } from "@t3tools/shared/orchestrationV2PendingBackgroundWork";
-import { threadPullRequestSearchTerms } from "@t3tools/shared/threadPullRequests";
 import * as React from "react";
 import {
   isAtomCommandInterrupted,
@@ -29,7 +28,6 @@ import {
   type ThreadSortInput,
 } from "@t3tools/client-runtime/state/thread-sort";
 import type { SidebarThreadSummary, Thread } from "../types";
-import { normalizeSearchText } from "../lib/utils";
 import { isLatestRunSettled } from "../session-logic";
 import { observeIntersection } from "../lib/observeIntersection";
 import { deadlineAfter, deadlineStore } from "@t3tools/client-runtime/clock";
@@ -144,18 +142,6 @@ export function useSnoozeWakeClock(
     return nextClockMs;
   }
   return clockMs;
-}
-
-export function useRetainedValue<T>(key: string | null, value: T | null): T | null {
-  const [retained, setRetained] = React.useState<{
-    readonly key: string;
-    readonly value: T;
-  } | null>(null);
-  if (key !== null && value !== null && (retained?.key !== key || retained.value !== value)) {
-    setRetained({ key, value });
-  }
-  if (value !== null) return value;
-  return key !== null && retained?.key === key ? retained.value : null;
 }
 
 // Sortable owns drag transforms; replaying committed order would animate drops twice.
@@ -1016,16 +1002,6 @@ export function searchSidebarThreads<
     return thread && !listed.has(thread) ? [thread] : [];
   });
   return { titleMatches, contentMatches };
-}
-
-export function pullRequestMatchesSearchQuery(
-  pullRequest: Parameters<typeof threadPullRequestSearchTerms>[0],
-  query: string,
-): boolean {
-  const normalizedQuery = normalizeSearchText(query);
-  if (normalizedQuery.length === 0) return false;
-  const haystack = normalizeSearchText(threadPullRequestSearchTerms(pullRequest).join(" "));
-  return normalizedQuery.split(" ").every((token) => haystack.includes(token));
 }
 
 export function filterSidebarProjectScopeItems<TItem extends { readonly value: string }>(input: {

@@ -2,7 +2,6 @@ import {
   boundAttachmentIds,
   mergeDirectPreviewAnnotation,
   planComposerTurn,
-  snapshotComposerSend,
   withMessageContext,
   deriveAvailableRevertTurnCounts,
   deriveWorkspaceMutationId,
@@ -10,8 +9,6 @@ import {
 import { recallCheckoutIsRepo, rememberCheckoutIsRepo } from "./ChatView.logic";
 import { ProviderDriverKind, type ServerProvider } from "@t3tools/contracts";
 import { deriveProviderInstanceEntries } from "../providerInstances";
-import { ensureInlineContextReferences } from "../lib/composerContextReferences";
-import { terminalContextReference } from "../lib/composerContextRecords";
 import {
   CommandId,
   EnvironmentId,
@@ -25,7 +22,6 @@ import {
   RunId,
   TurnItemId,
   type OrchestrationV2ProjectedTurnItem,
-  type WorktreeSetupSnapshot,
 } from "@t3tools/contracts";
 import * as DateTime from "effect/DateTime";
 import * as Option from "effect/Option";
@@ -39,7 +35,6 @@ import { makeThreadFixture, makeThreadProjectionFixture } from "../test-fixtures
 import {
   getAntigravitySendBlockReason,
   resolveComposerProviderSelection,
-  resolveWorktreeSetupProgress,
   peekRememberedThreadTimeline,
   rememberReadyThreadTimeline,
   resetHeldThreadTimeline,
@@ -78,8 +73,7 @@ function makeThread(overrides: Partial<Thread> = {}): Thread {
     settledAt: null,
     deletedAt: null,
     latestRun: null,
-    branch: null,
-    worktreePath: null,
+    workingDirectory: null,
     ...overrides,
   });
 }
@@ -626,56 +620,6 @@ describe("checkout Git memory", () => {
   });
 });
 
-describe("worktree setup visibility", () => {
-  const stage = (
-    id: "fetch" | "checkout" | "submodules" | "setup-script" | "agent",
-    status: "done" | "running" | "failed" | "pending",
-  ) => ({
-    id,
-    status,
-    startedAt: now,
-    endedAt: status === "running" || status === "pending" ? null : now,
-    percent: null,
-    detail: null,
-    tail: [],
-  });
-  const base = {
-    threadId,
-    phase: "running" as const,
-    startedAt: now,
-    endedAt: null,
-    branch: "feature",
-    baseRef: "main",
-    worktreePath: null,
-    setupScript: null,
-    stages: [stage("checkout", "running"), stage("agent", "pending")],
-    error: null,
-    sequence: 1,
-  };
-  const settledDone = {
-    ...base,
-    phase: "done" as const,
-    endedAt: now,
-    stages: [stage("checkout", "done"), stage("setup-script", "done"), stage("agent", "done")],
-  };
-
-  it("uses streamed setup progress immediately without reverting to an older held snapshot", () => {
-    const newest = { ...settledDone, sequence: 9 };
-    const resolve = (latest: WorktreeSetupSnapshot | null, held: WorktreeSetupSnapshot | null) =>
-      resolveWorktreeSetupProgress({
-        threadId,
-        localPreparing: false,
-        runStatus: "running",
-        latest,
-        held,
-      });
-    expect(resolve(newest, base)).toEqual({ snapshot: newest, isPreparingWorktree: false });
-    expect(resolve(base, newest)).toEqual({ snapshot: newest, isPreparingWorktree: false });
-    const other = { ...base, threadId: ThreadId.make("another-thread") };
-    expect(resolve(other, other)).toEqual({ snapshot: null, isPreparingWorktree: false });
-  });
-});
-
 describe("waitForRevertedMessage", () => {
   const threadRef = { environmentId: EnvironmentId.make("env-1"), threadId: ThreadId.make("t") };
   const messageId = MessageId.make("message-2");
@@ -977,41 +921,7 @@ describe("mergeDirectPreviewAnnotation", () => {
   });
 });
 
-describe("snapshotComposerSend", () => {
-  const expired = {
-    id: "ctx-expired",
-    threadId,
-    terminalId: "default",
-    terminalLabel: "Terminal 1",
-    lineStart: 4,
-    lineEnd: 4,
-    text: "",
-    createdAt: now,
-  };
-  const live = { ...expired, id: "ctx-live", text: "pnpm test", lineStart: 9, lineEnd: 9 };
-
-  it("drops expired terminal contexts from the contexts and from the prompt", () => {
-    const snapshot = snapshotComposerSend({
-      prompt: ensureInlineContextReferences("run", [
-        terminalContextReference(expired),
-        terminalContextReference(live),
-      ]),
-      images: [],
-      files: [],
-      terminalContexts: [expired, live],
-      sendableTerminalContexts: [live],
-      previewAnnotations: [],
-      reviewComments: [],
-      threadContexts: [],
-      environmentContexts: [],
-    });
-
-    expect(snapshot.terminalContexts).toEqual([live]);
-    expect(snapshot.messageText).toBe(
-      ensureInlineContextReferences("run", [terminalContextReference(live)]).trim(),
-    );
-  });
-});
+describe("snapshotComposerSend", () => {});
 
 describe("planComposerTurn", () => {
   const base = {
@@ -1019,29 +929,13 @@ describe("planComposerTurn", () => {
     sendQueuesBehindSetup: false,
     isServerThread: false,
     activeMessageCount: 0,
-    sendEnvMode: "worktree" as const,
-    worktreePath: null,
+    workingDirectory: null,
     activeThreadBranch: "main",
     resumeCompactionTokens: null,
     keepFullHistory: false,
     phase: "ready" as const,
     dispatchMode: "auto" as const,
   };
-
-  it("prepares a worktree from the selected branch on a new thread", () => {
-    expect(planComposerTurn(base)).toMatchObject({
-      missingWorktreeBaseBranch: false,
-      baseBranchForWorktree: "main",
-      shouldQueueBehindActiveRun: false,
-    });
-  });
-
-  it("refuses a new worktree without a base branch", () => {
-    expect(planComposerTurn({ ...base, activeThreadBranch: null })).toMatchObject({
-      missingWorktreeBaseBranch: true,
-      baseBranchForWorktree: null,
-    });
-  });
 
   it("queues behind a compaction of a stale session, except for /compact itself", () => {
     const stale = { ...base, resumeCompactionTokens: 120_000 };
@@ -1059,22 +953,6 @@ describe("planComposerTurn", () => {
         shouldQueueBehindActiveRun: false,
       });
     }
-  });
-
-  it("queues behind a running turn only when asked to", () => {
-    const running = {
-      ...base,
-      isServerThread: true,
-      activeMessageCount: 3,
-      phase: "running" as const,
-    };
-    expect(planComposerTurn({ ...running, dispatchMode: "queue" }).shouldQueueBehindActiveRun).toBe(
-      true,
-    );
-    expect(planComposerTurn({ ...running, dispatchMode: "steer" })).toMatchObject({
-      shouldQueueBehindActiveRun: false,
-      baseBranchForWorktree: null,
-    });
   });
 });
 

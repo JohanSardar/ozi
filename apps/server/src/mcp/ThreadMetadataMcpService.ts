@@ -88,7 +88,7 @@ function resultFromThread(input: {
   readonly sequence: number;
   readonly thread: Pick<
     OrchestrationV2AppThread,
-    "id" | "title" | "titleRegeneration" | "linkedPullRequest" | "updatedAt"
+    "id" | "title" | "titleRegeneration" | "updatedAt"
   >;
 }): ThreadMetadataMcpUpdateResult {
   return {
@@ -104,7 +104,6 @@ function resultFromThread(input: {
             requestId: input.thread.titleRegeneration.requestId,
             startedAt: DateTime.formatIso(input.thread.titleRegeneration.startedAt),
           },
-    linkedPullRequest: input.thread.linkedPullRequest ?? null,
     updatedAt: DateTime.formatIso(input.thread.updatedAt),
   };
 }

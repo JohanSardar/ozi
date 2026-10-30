@@ -167,10 +167,6 @@
       "types": "./src/server/textGenerationOperations.ts",
       "import": "./src/server/textGenerationOperations.ts"
     },
-    "./server/textGenerationPolicy": {
-      "types": "./src/server/textGenerationPolicy.ts",
-      "import": "./src/server/textGenerationPolicy.ts"
-    },
     "./server/textGenerationPrompts": {
       "types": "./src/server/textGenerationPrompts.ts",
       "import": "./src/server/textGenerationPrompts.ts"

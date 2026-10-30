@@ -30,7 +30,6 @@ export const cases: ReadonlyArray<Case> = [
     type: "real",
     rev: "218e5c09df",
     paths: [
-      "packages/client-runtime/src/state/gitActions.test.ts",
       "apps/web/src/lib/composerContextRecords.test.ts",
       "apps/mobile/src/lib/composerContext.test.ts",
     ],
@@ -148,7 +147,7 @@ export const cases: ReadonlyArray<Case> = [
     source: "#23170 clones retry over HTTPS when the SSH key is refused",
     type: "real",
     rev: "a49d18cf3b",
-    paths: ["apps/server/src/sourceControl/SourceControlRepositoryService.test.ts"],
+    paths: [],
     targets: [],
   },
   {

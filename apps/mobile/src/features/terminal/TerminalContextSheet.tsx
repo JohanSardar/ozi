@@ -9,7 +9,7 @@ import { formatComposerContextReference } from "@t3tools/shared/composerContextR
 import { useState } from "react";
 import { Platform, Pressable, ScrollView, View } from "react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { REVIEW_MONO_FONT_FAMILY } from "../review/reviewDiffRendering";
+import { CODE_MONO_FONT_FAMILY } from "../files/sourceRendering";
 import { AppText as Text } from "../../components/ui/AppText";
 import { Sheet } from "../../components/ui/Sheet";
 import { Button } from "../../components/ui/Button";
@@ -91,13 +91,13 @@ export function TerminalContextSheet(props: {
               >
                 <Text
                   className="w-8 text-right text-sm text-foreground-muted"
-                  style={{ fontFamily: REVIEW_MONO_FONT_FAMILY }}
+                  style={{ fontFamily: CODE_MONO_FONT_FAMILY }}
                 >
                   {index + 1}
                 </Text>
                 <Text
                   className="flex-1 text-sm text-foreground"
-                  style={{ fontFamily: REVIEW_MONO_FONT_FAMILY }}
+                  style={{ fontFamily: CODE_MONO_FONT_FAMILY }}
                 >
                   {line || " "}
                 </Text>

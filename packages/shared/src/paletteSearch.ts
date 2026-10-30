@@ -2,8 +2,6 @@
 
 import type { OrchestrationV2ThreadOpens } from "@t3tools/contracts";
 
-import { WORKTREE_BRANCH_PREFIX } from "./git.ts";
-
 const ALPHANUMERIC = /[\p{L}\p{N}]/u;
 const LOWERCASE = /\p{Ll}/u;
 const UPPERCASE = /\p{Lu}/u;
@@ -774,12 +772,6 @@ export interface ThreadSearchSubject {
   readonly projectTitle?: string | null;
   /** Only set with two or more environments; it tells same-named threads apart. */
   readonly environmentLabel?: string | null;
-  readonly pullRequests?: ReadonlyArray<{
-    readonly number: number;
-    readonly title?: string | null;
-    /** Values such as URLs, matched only by the whole query. */
-    readonly references?: ReadonlyArray<string>;
-  }>;
   /** Latest user activity, in epoch ms. */
   readonly activityAt: number | null;
   readonly opens?: ThreadOpenStats | null;
@@ -808,10 +800,7 @@ function matchReference(
   thread: ThreadSearchSubject,
 ): SearchFieldsMatch | null {
   if (normalizedQuery.length < REFERENCE_PREFIX_MIN) return null;
-  const references = [
-    ...(thread.id ? [thread.id] : []),
-    ...(thread.pullRequests ?? []).flatMap((pullRequest) => pullRequest.references ?? []),
-  ];
+  const references = thread.id ? [thread.id] : [];
   const anywhere = DIGIT.test(normalizedQuery);
   // A number is never cut short: ".../pull/2288" is not pull request 22889.
   const notCut = (text: string, end: number) => !DIGIT.test(text[end] ?? "");
@@ -884,15 +873,6 @@ export interface SearchMatchHint {
   readonly ranges: ReadonlyArray<SearchRange>;
 }
 
-// Most threads' branches start with the app's own worktree prefix ("t3/", and
-// "t3code/" before it), so "t3 connect" would match nearly every thread.
-// Only before more text, so typing "t3/" does not empty the list for a keystroke.
-const WORKTREE_BRANCH_PREFIX_PATTERN = new RegExp(`^(?:${WORKTREE_BRANCH_PREFIX}|t3code)/(?=\\S)`);
-
-function searchableBranch(branch: string | null | undefined): string | null {
-  return branch ? branch.replace(WORKTREE_BRANCH_PREFIX_PATTERN, "") : null;
-}
-
 /**
  * The field that explains a match whose title shows none: the first that holds
  * the whole query, else, past the words the project or environment holds, the
@@ -905,11 +885,6 @@ function matchHint(
   typos: boolean,
 ): SearchMatchHint | undefined {
   const candidates: Array<{ readonly label: string; readonly text: string | null | undefined }> = [
-    ...(thread.pullRequests ?? []).map((pullRequest) => ({
-      label: "PR",
-      text: `#${pullRequest.number}${pullRequest.title ? ` ${pullRequest.title}` : ""}`,
-    })),
-    { label: "Branch", text: searchableBranch(thread.branch) },
     { label: "Project", text: thread.projectTitle },
     { label: "Environment", text: thread.environmentLabel },
   ];
@@ -953,12 +928,6 @@ export function scoreThreadSearch(
   },
 ): ThreadSearchMatch | null {
   const fields: WeightedSearchField[] = [{ value: thread.title, weight: 1, midWord: true }];
-  for (const pullRequest of thread.pullRequests ?? []) {
-    fields.push({ value: `#${pullRequest.number}`, weight: 1 });
-    if (pullRequest.title) fields.push({ value: pullRequest.title, weight: 0.5 });
-  }
-  const branch = searchableBranch(thread.branch);
-  if (branch) fields.push({ value: branch, weight: 0.6 });
   if (thread.projectTitle) {
     fields.push({ value: thread.projectTitle, weight: 0.25, context: true });
   }
@@ -966,10 +935,7 @@ export function scoreThreadSearch(
     fields.push({ value: thread.environmentLabel, weight: 0.25, context: true });
   }
   // Strip pull request prefixes and the worktree prefix so queries match the stored fields.
-  const fieldQuery = normalizedQuery
-    .replace(/^(?:pr|pull request|pull)\s*(?=#?\d)/, "")
-    .replace(/^#\s*/, "")
-    .replace(WORKTREE_BRANCH_PREFIX_PATTERN, "");
+  const fieldQuery = normalizedQuery;
   const fieldMatch = matchSearchFields(fieldQuery, fields, options);
   const referenceMatch = fieldMatch ? null : matchReference(normalizedQuery, thread);
   const match = fieldMatch ?? referenceMatch;

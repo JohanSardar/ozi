@@ -79,29 +79,6 @@ const knownRecords: Record<(typeof COMPOSER_CONTEXT_KINDS)[number], Record<strin
     ],
     screenshotContextId: "ctx_2",
   },
-  "review-comment": {
-    ...base,
-    kind: "review-comment",
-    label: "ChatComposer.tsx L4118",
-    sectionId: "diff-1",
-    sectionTitle: "Changes",
-    filePath: "apps/web/src/ChatComposer.tsx",
-    startIndex: 4118,
-    endIndex: 4118,
-    rangeLabel: "L4118",
-    text: "Why is this here?",
-    diff: "+ const x = 1;",
-    fenceLanguage: "diff",
-    pullRequest: {
-      number: 42,
-      title: "Improve context chips",
-      url: "https://github.com/JohanSardar/ozi/pull/42",
-      headBranch: "feat/context-chips",
-      baseBranch: "main",
-      state: "open",
-      isDraft: false,
-    },
-  },
   mention: { ...base, kind: "mention", label: "@src/index.ts", path: "src/index.ts" },
   skill: { ...base, kind: "skill", label: "$pinchtab", name: "pinchtab" },
   thread: {
@@ -213,29 +190,6 @@ describe("OrchestrationMessageContext", () => {
         })),
       }),
     ).toThrow();
-  });
-
-  it("sends a message without the records the wire cannot carry", () => {
-    const encodeOrchestrationMessageContext = Schema.encodeUnknownSync(
-      Schema.toCodecJson(OrchestrationMessageContext),
-    );
-
-    const wire = encodeOrchestrationMessageContext({
-      version: 1,
-      records: [
-        decodeContext({ version: 1, records: [knownRecords.terminal] }).records[0],
-        {
-          ...base,
-          contextId: "ctx_2",
-          kind: "future-kind",
-          label: "x",
-          payload: { count: Number.NaN },
-        },
-        { ...knownRecords["review-comment"], contextId: "ctx_3", fenceLanguage: undefined },
-        { ...base, contextId: "ctx_4", kind: "future-kind", label: "y", payload: { n: 1n } },
-      ],
-    });
-    expect(decodeContext(wire).records.map((record) => record.contextId)).toEqual(["ctx_1"]);
   });
 
   it("rejects oversized arrays before dropping malformed records", () => {

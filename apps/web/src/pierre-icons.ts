@@ -164,7 +164,6 @@ export const OZI_PIERRE_ICONS = {
     cs: "t3-file-icon-csharp",
     csx: "t3-file-icon-csharp",
     dart: "t3-file-icon-dart",
-    diff: "t3-file-icon-diff",
     patch: "t3-file-icon-diff",
     ex: "t3-file-icon-elixir",
     exs: "t3-file-icon-elixir",

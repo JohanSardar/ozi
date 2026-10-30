@@ -10,7 +10,6 @@ import { vi } from "vite-plus/test";
 
 import * as ServerConfig from "../config.ts";
 import * as HostProcess from "@t3tools/shared/HostProcess";
-import * as VcsProcess from "../vcs/VcsProcess.ts";
 import * as WorkspaceEntries from "./WorkspaceEntries.ts";
 import * as WorkspacePaths from "./WorkspacePaths.ts";
 
@@ -22,7 +21,6 @@ vi.mock("node:fs/promises", async (importOriginal) => {
 const layerTest = Layer.empty.pipe(
   Layer.provideMerge(WorkspaceEntries.layer.pipe(Layer.provide(WorkspacePaths.layer))),
   Layer.provideMerge(WorkspacePaths.layer),
-  Layer.provideMerge(VcsProcess.layer),
   Layer.provide(
     ServerConfig.ServerConfig.layerTest(process.cwd(), {
       prefix: "t3-workspace-entries-test-",
@@ -36,9 +34,6 @@ const makeTempDir = Effect.fn(function* (opts?: { prefix?: string; git?: boolean
   const dir = yield* fileSystem.makeTempDirectoryScoped({
     prefix: opts?.prefix ?? "ozi-workspace-entries-",
   });
-  if (opts?.git) {
-    yield* git(dir, ["init"]);
-  }
   return dir;
 });
 
@@ -55,20 +50,6 @@ function writeTextFile(
     yield* fileSystem.writeFileString(absolutePath, contents);
   });
 }
-
-const git = (cwd: string, args: ReadonlyArray<string>, env?: NodeJS.ProcessEnv) =>
-  Effect.gen(function* () {
-    const process = yield* VcsProcess.VcsProcess;
-    const result = yield* process.run({
-      operation: "WorkspaceEntries.test.git",
-      command: "git",
-      cwd,
-      args,
-      ...(env ? { env } : {}),
-      timeoutMs: 10_000,
-    });
-    return result.stdout.trim();
-  });
 
 const searchWorkspaceEntries = (input: {
   cwd: string;
@@ -94,112 +75,6 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceEntries", (it) => {
   });
 
   describe("list", () => {
-    it.effect("lists immediate children including ignored and empty directories", () =>
-      Effect.gen(function* () {
-        const cwd = yield* makeTempDir({ git: true });
-        const fileSystem = yield* FileSystem.FileSystem;
-        const path = yield* Path.Path;
-        yield* writeTextFile(cwd, "tracked.txt");
-        yield* git(cwd, ["add", "tracked.txt"]);
-        yield* writeTextFile(cwd, ".gitignore", "node_modules/\n.env\ntracked.txt\n");
-        yield* writeTextFile(cwd, ".env", "secret=value");
-        yield* writeTextFile(cwd, "node_modules/pkg/index.js");
-        yield* writeTextFile(cwd, "src/index.ts");
-        yield* fileSystem.makeDirectory(path.join(cwd, "empty"));
-
-        const workspaceEntries = yield* WorkspaceEntries.WorkspaceEntries;
-        const root = yield* workspaceEntries.list({ cwd, directoryPath: "" });
-        expect(root.entries).toEqual(
-          expect.arrayContaining([
-            { path: ".env", kind: "file", ignored: true },
-            { path: "node_modules", kind: "directory", ignored: true },
-            { path: "src", kind: "directory" },
-            { path: "empty", kind: "directory" },
-            { path: "tracked.txt", kind: "file" },
-          ]),
-        );
-        expect(root.entries.some((entry) => entry.path.includes("/"))).toBe(false);
-        expect(root.entries.some((entry) => entry.path === ".git")).toBe(false);
-        expect(root.truncated).toBe(false);
-        expect(yield* workspaceEntries.list({ cwd, directoryPath: "node_modules/pkg" })).toEqual({
-          entries: [{ path: "node_modules/pkg/index.js", kind: "file", ignored: true }],
-          truncated: false,
-        });
-        expect(yield* workspaceEntries.list({ cwd, directoryPath: "empty" })).toEqual({
-          entries: [],
-          truncated: false,
-        });
-      }),
-    );
-
-    it.effect("labels the children of wide folders exactly as git does for each child", () =>
-      Effect.gen(function* () {
-        // Above 1,000 children, listing first asks whether the whole folder is ignored.
-        const cwd = yield* makeTempDir({ git: true });
-        const fileSystem = yield* FileSystem.FileSystem;
-        const path = yield* Path.Path;
-        const platform = yield* HostProcess.Platform;
-        yield* writeTextFile(
-          cwd,
-          ".gitignore",
-          "node_modules/\ndist/\n\\[id\\]/\n*.map\nfoo\n!foo/\n",
-        );
-        yield* Effect.forEach(
-          [
-            "node_modules",
-            "dist",
-            "[id]",
-            "src",
-            ...(platform !== "win32" ? [":foo"] : []),
-          ].flatMap((directory) =>
-            Array.from({ length: 1001 }, (_, index) => `${directory}/pkg-${index}.js`),
-          ),
-          (relativePath) => writeTextFile(cwd, relativePath),
-          { concurrency: 32, discard: true },
-        );
-        for (const relativePath of [
-          "dist/kept.js",
-          "dist/vendored/index.js",
-          "i/page.tsx",
-          "[id]/page.tsx",
-          "src/bundle.map",
-        ]) {
-          yield* writeTextFile(cwd, relativePath);
-        }
-        yield* git(cwd, ["add", "-f", "dist/kept.js", "dist/vendored/index.js", "i/page.tsx"]);
-        if (platform !== "win32") {
-          yield* fileSystem.symlink(path.join(cwd, "src"), path.join(cwd, "node_modules/link"));
-        }
-
-        const workspaceEntries = yield* WorkspaceEntries.WorkspaceEntries;
-        for (const { directoryPath, ignored, except } of [
-          { directoryPath: "node_modules", ignored: true, except: [] },
-          { directoryPath: "dist", ignored: true, except: ["dist/kept.js", "dist/vendored"] },
-          // git reads `[id]/page.tsx` as a pathspec, which matches the tracked `i/page.tsx`.
-          { directoryPath: "[id]", ignored: true, except: ["[id]/page.tsx"] },
-          { directoryPath: "src", ignored: false, except: ["src/bundle.map"] },
-          ...(platform !== "win32"
-            ? [
-                // git refuses to classify paths beyond a symlink, so nothing there is labelled.
-                { directoryPath: "node_modules/link", ignored: false, except: [] },
-                // Leading : is pathspec magic; Git sees foo/pkg-0.js, unignored by !foo/.
-                { directoryPath: ":foo", ignored: false, except: [] },
-              ]
-            : []),
-        ]) {
-          const { entries } = yield* workspaceEntries.list({ cwd, directoryPath });
-          expect(entries.length, directoryPath).toBeGreaterThan(1000);
-          expect(
-            entries
-              .filter((entry) => (entry.ignored === true) !== ignored)
-              .map((entry) => entry.path)
-              .toSorted(),
-            directoryPath,
-          ).toEqual(except);
-        }
-      }),
-    );
-
     it.effect("lists a host folder and its parent, each from its own root", () =>
       Effect.gen(function* () {
         const parent = yield* makeTempDir();
@@ -284,28 +159,7 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceEntries", (it) => {
     );
   });
 
-  describe("listIgnoredFiles", () => {
-    it.effect("lists ignored files with sizes and skips wholly ignored folders", () =>
-      Effect.gen(function* () {
-        const cwd = yield* makeTempDir({ git: true });
-        yield* writeTextFile(cwd, ".gitignore", "node_modules/\n.env*\n");
-        yield* writeTextFile(cwd, ".env", "A=1");
-        yield* writeTextFile(cwd, "apps/web/index.ts", "y");
-        yield* git(cwd, ["add", "apps/web/index.ts"]);
-        yield* writeTextFile(cwd, "apps/web/.env.local", "B=22");
-        yield* writeTextFile(cwd, "node_modules/pkg/index.js", "x");
-
-        const workspaceEntries = yield* WorkspaceEntries.WorkspaceEntries;
-        expect(yield* workspaceEntries.listIgnoredFiles({ cwd })).toEqual({
-          files: [
-            { path: ".env", byteLength: 3 },
-            { path: "apps/web/.env.local", byteLength: 4 },
-          ],
-          truncated: false,
-        });
-      }),
-    );
-  });
+  describe("listIgnoredFiles", () => {});
 
   describe("search", () => {
     it.effect("applies the file filter before limiting search results", () =>
@@ -326,46 +180,6 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceEntries", (it) => {
         expect(result.entries[0]?.kind).toBe("file");
         expect(["src/index.ts", "src/internal.ts"]).toContain(result.entries[0]?.path);
         expect(result.truncated).toBe(true);
-      }),
-    );
-
-    it.effect("excludes gitignored paths for git repositories", () =>
-      Effect.gen(function* () {
-        const cwd = yield* makeTempDir({ prefix: "ozi-workspace-gitignore-", git: true });
-        yield* writeTextFile(cwd, ".gitignore", ".convex/\nconvex/\nignored.txt\n");
-        yield* writeTextFile(cwd, "src/keep.ts", "export {};");
-        yield* writeTextFile(cwd, "ignored.txt", "ignore me");
-        yield* writeTextFile(cwd, ".convex/local-storage/data.json", "{}");
-        yield* writeTextFile(cwd, "convex/UOoS-l/convex_local_storage/modules/data.json", "{}");
-
-        const result = yield* searchWorkspaceEntries({ cwd, query: "", limit: 100 });
-        const paths = result.entries.map((entry) => entry.path);
-
-        expect(paths).toContain("src");
-        expect(paths).toContain("src/keep.ts");
-        expect(paths).not.toContain("ignored.txt");
-        expect(paths.some((entryPath) => entryPath.startsWith(".convex/"))).toBe(false);
-        expect(paths.some((entryPath) => entryPath.startsWith("convex/"))).toBe(false);
-      }),
-    );
-
-    it.effect("excludes tracked paths that match ignore rules", () =>
-      Effect.gen(function* () {
-        const cwd = yield* makeTempDir({
-          prefix: "ozi-workspace-tracked-gitignore-",
-          git: true,
-        });
-        yield* writeTextFile(cwd, ".convex/local-storage/data.json", "{}");
-        yield* writeTextFile(cwd, "src/keep.ts", "export {};");
-        yield* git(cwd, ["add", ".convex/local-storage/data.json", "src/keep.ts"]);
-        yield* writeTextFile(cwd, ".gitignore", ".convex/\n");
-
-        const result = yield* searchWorkspaceEntries({ cwd, query: "", limit: 100 });
-        const paths = result.entries.map((entry) => entry.path);
-
-        expect(paths).toContain("src");
-        expect(paths).toContain("src/keep.ts");
-        expect(paths.some((entryPath) => entryPath.startsWith(".convex/"))).toBe(false);
       }),
     );
   });
@@ -397,28 +211,6 @@ it.layer(layerTest, { excludeTestServices: true })("WorkspaceEntries", (it) => {
         ]);
         expect(result.matches[0]?.matchRanges).toEqual([{ start: 13, end: 19 }]);
         expect(result.truncated).toBe(false);
-      }),
-    );
-
-    it.effect("honors case sensitivity and gitignore rules", () =>
-      Effect.gen(function* () {
-        const cwd = yield* makeTempDir({ prefix: "ozi-workspace-content-ignore-", git: true });
-        yield* writeTextFile(cwd, ".gitignore", "ignored.txt\n");
-        yield* writeTextFile(cwd, "src/keep.ts", "square\nSquare\n");
-        yield* writeTextFile(cwd, "ignored.txt", "Square\n");
-
-        const workspaceEntries = yield* WorkspaceEntries.WorkspaceEntries;
-        const result = yield* workspaceEntries.searchContents({
-          cwd,
-          query: "Square",
-          limit: 100,
-          caseSensitive: true,
-          wholeWord: false,
-          useRegex: false,
-        });
-
-        expect(result.matches).toHaveLength(1);
-        expect(result.matches[0]).toMatchObject({ path: "src/keep.ts", lineNumber: 2 });
       }),
     );
 

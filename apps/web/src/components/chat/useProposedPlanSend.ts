@@ -49,7 +49,6 @@ interface PlanSendBase {
   readonly environmentId: EnvironmentId;
   readonly routeThreadKey: string;
   readonly activeThread: EnvironmentThreadShell | undefined;
-  readonly activeThreadBranch: string | null;
   readonly activeProposedPlan: LatestProposedPlanState | null;
   readonly isServerThread: boolean;
   readonly isSendBusy: boolean;
@@ -60,14 +59,12 @@ interface PlanSendBase {
 
 interface PlanFollowUpSendInput extends PlanSendBase {
   readonly runtimeMode: RuntimeMode;
-  readonly localCheckoutBranchMismatch: { readonly currentBranch: string } | null;
   readonly setOptimisticUserMessages: Dispatch<SetStateAction<ChatMessage[]>>;
   readonly setThreadError: ReturnType<typeof makeThreadErrorSetter>;
   readonly anchorNewTurn: ReturnType<typeof useTimelineFollow>["anchorNewTurn"];
   readonly persistThreadSettingsForNextTurn: (input: {
     threadId: EnvironmentThreadShell["id"];
     createdAt: string;
-    branch?: string;
     runtimeMode: RuntimeMode;
     interactionMode: ProviderInteractionMode;
   }) => Promise<AtomCommandResult<void, unknown>>;
@@ -89,7 +86,6 @@ export function usePlanFollowUpSend(input: PlanFollowUpSendInput) {
     beginLocalDispatch,
     resetLocalDispatch,
     runtimeMode,
-    localCheckoutBranchMismatch,
     setOptimisticUserMessages,
     setThreadError,
     anchorNewTurn,
@@ -144,7 +140,7 @@ export function usePlanFollowUpSend(input: PlanFollowUpSendInput) {
     });
 
     sendInFlightRef.current = true;
-    beginLocalDispatch({ preparingWorktree: false });
+    beginLocalDispatch({});
     setThreadError(threadIdForSend, null);
 
     anchorNewTurn(
@@ -169,7 +165,6 @@ export function usePlanFollowUpSend(input: PlanFollowUpSendInput) {
     const settingsResult = await persistThreadSettingsForNextTurn({
       threadId: threadIdForSend,
       createdAt: messageCreatedAt,
-      ...(localCheckoutBranchMismatch ? { branch: localCheckoutBranchMismatch.currentBranch } : {}),
       runtimeMode,
       interactionMode: nextInteractionMode,
     });
@@ -248,7 +243,6 @@ export function useImplementPlanInNewThread(input: ImplementPlanInNewThreadInput
     environmentId,
     routeThreadKey,
     activeThread,
-    activeThreadBranch,
     activeProposedPlan,
     isServerThread,
     isSendBusy,
@@ -300,7 +294,7 @@ export function useImplementPlanInNewThread(input: ImplementPlanInNewThreadInput
     const nextThreadModelSelection: ModelSelection = sendCtx.selectedModelSelection;
 
     sendInFlightRef.current = true;
-    beginLocalDispatch({ preparingWorktree: false });
+    beginLocalDispatch({});
 
     const createResult = await createThread({
       environmentId,
@@ -311,8 +305,7 @@ export function useImplementPlanInNewThread(input: ImplementPlanInNewThreadInput
         modelSelection: nextThreadModelSelection,
         runtimeMode: defaultRuntimeMode,
         interactionMode: "default",
-        branch: activeThreadBranch,
-        worktreePath: activeThread.worktreePath,
+        workingDirectory: activeThread.workingDirectory,
         createdAt,
       },
     });

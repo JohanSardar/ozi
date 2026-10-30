@@ -3,16 +3,12 @@ import {
   RunId,
   ThreadId,
   TurnItemId,
-  type OrchestrationV2Run,
   type OrchestrationV2TurnItem,
 } from "@t3tools/contracts";
 import * as DateTime from "effect/DateTime";
 import { describe, expect, it } from "vite-plus/test";
 
-import {
-  turnItemIsWorkspacePreparation,
-  workspacePreparationRetryRunIds,
-} from "./turnItemPresentation.ts";
+import { turnItemIsWorkspacePreparation } from "./turnItemPresentation.ts";
 
 function command(input: string): OrchestrationV2TurnItem {
   const now = DateTime.makeUnsafe("2026-08-03T00:00:00.000Z");
@@ -58,18 +54,6 @@ function preparationFailure(
   };
 }
 
-const worktree = { type: "worktree", baseRef: "main" } as const;
-function run(
-  status: OrchestrationV2Run["status"],
-  workspacePreparation?: typeof worktree,
-): Pick<OrchestrationV2Run, "id" | "status" | "workspacePreparation"> {
-  return {
-    id: RunId.make("run-1"),
-    status,
-    ...(workspacePreparation === undefined ? {} : { workspacePreparation }),
-  };
-}
-
 describe("turnItemIsWorkspacePreparation", () => {
   it("hides a preparation failure only once a retry cancelled it", () => {
     expect(turnItemIsWorkspacePreparation(preparationFailure("failed"))).toBe(false);
@@ -78,19 +62,4 @@ describe("turnItemIsWorkspacePreparation", () => {
   });
 });
 
-describe("workspacePreparationRetryRunIds", () => {
-  it("offers a retry while the run still ends in its failed preparation", () => {
-    const failure = [preparationFailure("failed")];
-    expect([...workspacePreparationRetryRunIds([run("failed", worktree)], failure)]).toEqual([
-      RunId.make("run-1"),
-    ]);
-    expect(workspacePreparationRetryRunIds([run("preparing", worktree)], failure).size).toBe(0);
-    expect(workspacePreparationRetryRunIds([run("failed")], failure).size).toBe(0);
-    expect(
-      workspacePreparationRetryRunIds(
-        [run("failed", worktree)],
-        [preparationFailure("failed", "provider_crashed")],
-      ).size,
-    ).toBe(0);
-  });
-});
+describe("workspacePreparationRetryRunIds", () => {});

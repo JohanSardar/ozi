@@ -1,3 +1,4 @@
+import { SplitIcon } from "lucide-react";
 import { ThreadHoverCardPopup } from "../ThreadHoverCard";
 import { AgentElapsed } from "./AgentElapsed";
 import { projectedSubagentsToRuntime } from "@t3tools/client-runtime/state/subagentRuntime";
@@ -40,7 +41,6 @@ import {
   CircleStopIcon,
   ArrowRightLeftIcon,
   ArrowRightIcon,
-  GitForkIcon,
   MessageSquareIcon,
 } from "lucide-react";
 
@@ -90,7 +90,7 @@ export function V2LifecycleRow(props: {
     return (
       <TimelineSystemDivider
         label={item.source.type === "run" ? "Forked from conversation" : "Conversation fork"}
-        icon={GitForkIcon}
+        icon={SplitIcon}
         actionLabel={item.source.type === "run" ? "Open source conversation" : "Open fork"}
         onAction={() => props.onOpenThread(relatedThreadId)}
       />

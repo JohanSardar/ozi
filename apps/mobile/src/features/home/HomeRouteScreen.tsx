@@ -74,17 +74,6 @@ export function HomeRouteScreen() {
     });
   const selectThreadRoute = (params: ReactNavigation.RootParamList["Thread"]) =>
     selectDetail({ name: "Thread", params });
-  const handleNewThreadOnBranch = (thread: EnvironmentThreadShell) => {
-    selectThreadRoute({
-      draft: {
-        requestId: uuidv4(),
-        environmentId: String(thread.environmentId),
-        projectId: String(thread.projectId),
-        branch: thread.branch,
-        worktreePath: thread.worktreePath,
-      },
-    });
-  };
 
   const {
     archiveThread,
@@ -252,7 +241,6 @@ export function HomeRouteScreen() {
           onSelectThread={handleSelectThread}
           onSelectPendingTask={openPendingTask}
           onDeletePendingTask={confirmDeletePendingTask}
-          onNewThreadOnBranch={handleNewThreadOnBranch}
           onNewThreadInProject={(project) => {
             selectThreadRoute({
               draft: {

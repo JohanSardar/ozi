@@ -51,7 +51,6 @@ import {
   makeProviderFailure,
   makeProviderFailureTurnItem,
 } from "@t3tools/provider-core/server/failure";
-import * as RunFinalizationService from "./RunFinalizationService.ts";
 import * as TurnItemPositionStore from "./TurnItemPositionStore.ts";
 
 export interface ProviderEventRoutingState {
@@ -602,7 +601,6 @@ export const layer: Layer.Layer<
   RunExecutionServiceV2,
   Effect.gen(function* () {
     const scope = yield* Effect.scope;
-    const checkpointService = yield* CheckpointService.CheckpointServiceV2;
     const eventSink = yield* EventSink.EventSinkV2;
     const idAllocator = yield* IdAllocator.IdAllocatorV2;
     const providerEventIngestor = yield* ProviderEventIngestor.ProviderEventIngestorV2;
@@ -610,7 +608,6 @@ export const layer: Layer.Layer<
     const mcpAppModelContext = yield* McpAppModelContext.McpAppModelContext;
     const previewAgentActivity = yield* PreviewAgentActivity.PreviewAgentActivity;
     const turnItemPositions = yield* TurnItemPositionStore.TurnItemPositionStoreV2;
-    const finalizationObserver = yield* RunFinalizationService.RunFinalizationObserver;
 
     const writeFinalRunEvents = Effect.fn("RunExecutionService.writeFinalRunEvents")(
       function* (input: {
@@ -628,7 +625,6 @@ export const layer: Layer.Layer<
         readonly terminal: ProviderTerminalEvent;
         readonly completedAt?: DateTime.Utc;
         readonly failureItemPersisted: boolean;
-        readonly refreshAfterTurn: Effect.Effect<void>;
         readonly writeIfRunCurrent?: {
           readonly activeAttemptId: RunAttemptId;
           readonly expectedStatus: OrchestrationV2Run["status"];
@@ -675,7 +671,6 @@ export const layer: Layer.Layer<
                   },
                 ],
               });
-              yield* input.refreshAfterTurn;
             }
           }
           return;
@@ -865,7 +860,6 @@ export const layer: Layer.Layer<
         } else {
           yield* eventSink.writeWithEffects(finalization);
         }
-        yield* input.refreshAfterTurn;
       },
     );
 
@@ -877,18 +871,6 @@ export const layer: Layer.Layer<
           scheduled: input.message.scheduledTaskId !== undefined,
           subagent: input.appThread.lineage.relationshipToParent === "subagent",
         };
-        // Startup failure and stream shutdown can report the same attempt.
-        const refreshAfterTurn = yield* Effect.cached(
-          finalizationObserver.refreshAfterTurn(input.appThread.projectId).pipe(
-            Effect.catchCause((cause) =>
-              Effect.logWarning("failed to refresh pull requests after run termination", {
-                threadId: input.run.threadId,
-                runId: input.run.id,
-                cause,
-              }),
-            ),
-          ),
-        );
         const makeFailedTerminalEvent = (
           failure: OrchestrationV2ProviderFailure,
           failureItemOrdinal: number,
@@ -916,21 +898,6 @@ export const layer: Layer.Layer<
                   .responseStreamingMode,
             ),
           );
-          yield* checkpointService
-            .captureBaseline({
-              scope: input.checkpointScope,
-              ordinalWithinScope: Math.max(0, input.run.ordinal - 1),
-            })
-            .pipe(
-              Effect.catchCauseIf(
-                (cause) => !Cause.hasInterruptsOnly(cause),
-                (_cause) =>
-                  Effect.logWarning(
-                    "orchestration V2 checkpoint baseline capture failed; starting provider without a baseline",
-                    { runId: input.run.id },
-                  ),
-              ),
-            );
           if (
             input.shouldStartProviderTurn !== undefined &&
             !(yield* input.shouldStartProviderTurn())
@@ -963,7 +930,6 @@ export const layer: Layer.Layer<
                   input.providerTurnOrdinal * 100 + 1,
                 ),
                 failureItemPersisted: false,
-                refreshAfterTurn,
                 writeIfRunCurrent: {
                   activeAttemptId: input.attemptId,
                   expectedStatus: "running",
@@ -1072,7 +1038,6 @@ export const layer: Layer.Layer<
             openRunOwnedSubagents: openSubagents,
             terminal,
             failureItemPersisted: terminal.status === "failed",
-            refreshAfterTurn,
           }).pipe(
             Effect.mapError((cause) => new RunExecutionIngestError({ runId: input.run.id, cause })),
           );
@@ -1555,7 +1520,6 @@ export const layer: Layer.Layer<
                     latestItemOrdinal + 1,
                   ),
                   failureItemPersisted: false,
-                  refreshAfterTurn,
                 }).pipe(
                   // Storage failures can be defects; retry both failure channels.
                   Effect.catchCause((writeCause) =>
@@ -1711,7 +1675,6 @@ export const layer: Layer.Layer<
                             latestItemOrdinal + 1,
                           ),
                           failureItemPersisted: false,
-                          refreshAfterTurn,
                         }),
                       ),
                     ),

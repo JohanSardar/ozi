@@ -20,7 +20,6 @@ import {
   isThreadWokeUnseen,
   snoozeWakeLabel,
 } from "@t3tools/client-runtime/state/thread-settled";
-import type { WorktreeSetupCardProps } from "./worktree-setup-card";
 import type { ComposerTextPaste } from "../../native/T3ComposerEditor.types";
 import { type EnvironmentConnectionPhase } from "@t3tools/client-runtime/connection";
 import type { EnvironmentThreadShell } from "@t3tools/client-runtime/state/shell";
@@ -207,7 +206,6 @@ export interface ThreadDetailScreenProps {
     readonly sendBlockedReason: string | null;
     readonly interactionLocked: boolean;
   };
-  readonly worktreeSetup?: WorktreeSetupCardProps | null;
   readonly setupWorkingStartedAt?: string | null;
   readonly canOperateThread: boolean;
   readonly selectedThread: EnvironmentThreadShell;
@@ -229,7 +227,6 @@ export interface ThreadDetailScreenProps {
   readonly creationState:
     | {
         readonly kind: "preparing";
-        readonly preparingWorktree: boolean;
         readonly serverOwned: boolean;
       }
     | { readonly kind: "failed"; readonly reason: string; readonly onEditTask: () => void }
@@ -601,10 +598,9 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
       return null;
     }
     if (props.creationState?.kind === "preparing") {
-      if (props.worktreeSetup) return null;
       return {
         kind: "preparing",
-        label: props.creationState.preparingWorktree ? "Setting up worktree…" : "Starting…",
+        label: "Starting…",
       };
     }
     if (props.creationState?.kind === "failed") {
@@ -1273,8 +1269,6 @@ function ThreadDetailBody(props: ThreadDetailScreenProps) {
               workspaceRoot={props.threadCwd}
               feed={props.selectedThreadFeed}
               pendingHandoff={props.pendingHandoff}
-              worktreeSetup={props.worktreeSetup}
-              setupWorkingStartedAt={props.setupWorkingStartedAt}
               queuedMessages={props.queuedMessages}
               dispatchingMessageId={props.dispatchingMessageId}
               // A native subagent has no composer to edit a pending message in;

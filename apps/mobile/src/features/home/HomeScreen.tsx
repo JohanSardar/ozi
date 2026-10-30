@@ -65,8 +65,6 @@ import {
   ThreadListV2WorkingShelfHeader,
 } from "../threads/thread-list-v2-items";
 import { useThreadRowProviderInstanceResolver } from "../threads/thread-provider-instance";
-import { useOpenThreadPullRequests } from "../threads/use-open-thread-pull-requests";
-import type { ThreadPrPresentation } from "../../state/thread-pr-presentation";
 import {
   threadListV2ListItemsAreEqual,
   THREAD_LIST_V2_SETTLED_INITIAL_COUNT,
@@ -130,7 +128,6 @@ interface HomeScreenProps {
   readonly onRegenerateThreadTitle: (thread: EnvironmentThreadShell) => Promise<boolean>;
   readonly onSelectPendingTask: (pendingTask: PendingNewTask) => void;
   readonly onDeletePendingTask: (pendingTask: PendingNewTask) => void;
-  readonly onNewThreadOnBranch: (thread: EnvironmentThreadShell) => void;
   readonly onNewThreadInProject: (project: EnvironmentProject) => void;
 }
 
@@ -303,14 +300,6 @@ export function HomeScreen(props: HomeScreenProps) {
 
   const handleScrollBeginDrag = () => {
     openSwipeableRef.current?.close();
-  };
-  const openThreadPullRequests = useOpenThreadPullRequests();
-  const handleOpenThreadPullRequests = (
-    thread: EnvironmentThreadShell,
-    pr: ThreadPrPresentation,
-  ) => {
-    openSwipeableRef.current?.close();
-    openThreadPullRequests(thread, pr);
   };
   const onFabScroll = useFabScroll();
   const listRef = useRef<LegendListRef>(null);
@@ -562,7 +551,6 @@ export function HomeScreen(props: HomeScreenProps) {
         pane={primaryColumn ? "sidebar" : "screen"}
         selected={scopedThreadKey(thread.environmentId, thread.id) === selectedThreadKey}
         fullSwipeWidth={fullSwipeWidth}
-        onNewThreadOnBranch={props.onNewThreadOnBranch}
         thread={thread}
         variant={item.item.variant}
         hasQueuedMessages={item.hasQueuedMessages}
@@ -594,7 +582,6 @@ export function HomeScreen(props: HomeScreenProps) {
         }
         searchQuery={threadSearch.query}
         onSelectThread={selectThread}
-        onOpenThreadPullRequests={handleOpenThreadPullRequests}
         onDeleteThread={handleDeleteThread}
         onArchiveThread={props.onArchiveThread}
         onRenameThread={handleRenameThread}

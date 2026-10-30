@@ -2,10 +2,8 @@ import { describe, expect, it } from "vite-plus/test";
 import * as Schema from "effect/Schema";
 
 import {
-  AuthEnvironmentScopes,
   AuthEnvironmentScope,
   authScopeRequiredResponse,
-  AuthGrantScopes,
   AuthStandardClientScopes,
   authScopeResponse,
   AuthSessionState,
@@ -13,16 +11,6 @@ import {
 } from "./auth.ts";
 
 describe("authorization grants", () => {
-  it("decodes legacy review credentials without offering them in new grants", () => {
-    const decodeAuthEnvironmentScopes = Schema.decodeSync(AuthEnvironmentScopes);
-
-    expect(decodeAuthEnvironmentScopes(["review:write"])).toEqual(["review:write"]);
-    const decodeAuthGrantScopes = Schema.decodeUnknownSync(AuthGrantScopes);
-
-    expect(() => decodeAuthGrantScopes(["review:write"])).toThrow();
-    expect(AuthStandardClientScopes).not.toContain("review:write");
-  });
-
   // Keep the pre-granular vocabulary frozen to expose compatibility regressions.
   const oldScopes = Schema.Array(
     Schema.Literals([

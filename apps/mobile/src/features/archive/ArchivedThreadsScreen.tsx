@@ -194,9 +194,7 @@ function ArchivedThreadRow(props: {
     AuthOrchestrationOperateScope,
   );
   const timestamp = relativeTime(props.thread.archivedAt ?? props.thread.updatedAt);
-  const subtitle = [props.environmentLabel, props.thread.branch].filter((part): part is string =>
-    Boolean(part),
-  );
+  const subtitle = [props.environmentLabel].filter((part): part is string => Boolean(part));
   const rowContent = (
     <View
       className={`flex-row items-center gap-3 bg-grouped-card px-4 py-3 ${props.isLast ? "" : "border-b border-separator"}`}
@@ -225,7 +223,7 @@ function ArchivedThreadRow(props: {
         {subtitle.length > 0 ? (
           <View className="flex-row items-center gap-1.5">
             <SymbolView
-              name="arrow.triangle.branch"
+              name="server.rack"
               size={10}
               tintColorClassName="accent-icon-subtle"
               type="monochrome"

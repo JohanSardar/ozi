@@ -113,8 +113,7 @@ describe("i3.inbox", () => {
         modelSelection: { instanceId: "codex", model: "gpt-5.4" },
         runtimeMode: "full-access",
         interactionMode: "default",
-        branch: null,
-        worktreePath: null,
+        workingDirectory: null,
       });
     }
     await ticket(content("Read", "Landlord replied", "dinner-i3"));

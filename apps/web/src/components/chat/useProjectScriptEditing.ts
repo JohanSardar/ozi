@@ -26,7 +26,6 @@ import {
   commandForProjectScript,
   nextProjectScriptId,
   projectScriptIdFromCommand,
-  releaseClaimedRoles,
 } from "../../projectScripts";
 import { appAtomRegistry } from "../../rpc/atomRegistry";
 import { serverEnvironment } from "../../state/server";
@@ -190,10 +189,7 @@ export function useProjectScriptEditing(input: {
       scripts.map((script) => script.id),
     );
     const nextScript = buildProjectScript(nextId, input);
-    const nextScripts = [
-      ...scripts.map((script) => releaseClaimedRoles(script, input)),
-      nextScript,
-    ];
+    const nextScripts = [...scripts.map((script) => script), nextScript];
 
     return persistProjectScripts({
       projectId: project.id,
@@ -217,9 +213,7 @@ export function useProjectScriptEditing(input: {
     }
 
     const updatedScript = buildProjectScript(existingScript.id, input);
-    const nextScripts = scripts.map((script) =>
-      script.id === scriptId ? updatedScript : releaseClaimedRoles(script, input),
-    );
+    const nextScripts = scripts.map((script) => (script.id === scriptId ? updatedScript : script));
 
     return persistProjectScripts({
       projectId: project.id,

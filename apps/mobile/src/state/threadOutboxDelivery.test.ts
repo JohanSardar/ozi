@@ -91,7 +91,7 @@ vi.mock("./server", async () => {
   return { serverEnvironment: { configValueAtom: Atom.family(() => Atom.make(null)) } };
 });
 
-vi.mock("./git", () => ({ gitEnvironment: {} }));
+vi.mock("./git", () => ({}));
 
 vi.mock("./threads", async () => {
   const { Atom } = await import("effect/reactivity");
@@ -691,8 +691,7 @@ describe("thread outbox recovery rollback", () => {
       creation: {
         projectId: ProjectId.make("project-1"),
         workspaceMode: "local",
-        branch: null,
-        worktreePath: null,
+        workingDirectory: null,
       },
     };
     await harness.manager.enqueue(message);

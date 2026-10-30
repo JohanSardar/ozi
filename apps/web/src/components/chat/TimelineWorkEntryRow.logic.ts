@@ -12,13 +12,6 @@ export function toolGroupSummaryIconName(
   kind: Extract<TimelineRow, { kind: "work-toggle" }>["summaryKind"],
 ): WorkEntryIconName {
   switch (kind) {
-    case "pull-request":
-    case "link-pr":
-    case "unlink-pr":
-    case "list-prs":
-    case "watch-pr":
-    case "unwatch-pr":
-      return "pull-request";
     case "read":
       return "eye";
     case "edit":

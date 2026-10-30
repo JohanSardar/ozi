@@ -1,4 +1,3 @@
-import { sourceControlClients } from "@t3tools/client-runtime/source-control-clients";
 import * as Dialog from "../components/ui/Dialog";
 import {
   type EnvironmentProject,
@@ -20,7 +19,6 @@ import {
   type EnvironmentId,
   type MessageId,
 } from "@t3tools/contracts";
-import { buildTemporaryWorktreeBranchName } from "@t3tools/shared/git";
 import * as Cause from "effect/Cause";
 import { AsyncResult, Atom } from "effect/reactivity";
 
@@ -29,7 +27,6 @@ import { scopedThreadKey } from "../lib/scopedEntities";
 import { buildProjectThreadStartTurnInput } from "../lib/projectThreadStartTurn";
 import { serializeComposerMessageForServer, uploadedComposerContext } from "../lib/composerContext";
 import { prepareTurnAttachments, type PreparedTurnAttachments } from "../lib/attachmentUpload";
-import { randomHex } from "../lib/uuid";
 import {
   describeUnavailableModelSelection,
   isModelSelectionUnavailable,
@@ -47,7 +44,6 @@ import {
 } from "./pending-thread-creation";
 import { environmentProjects } from "./projects";
 import { environmentServerConfigsAtom, serverEnvironment } from "./server";
-import { gitEnvironment } from "./git";
 import { environmentSession, readEnvironmentScope, sessionHasScope } from "./session";
 import {
   confirmThreadOutboxMessageQueued,
@@ -448,19 +444,6 @@ export async function restoreRejectedQueuedMessage(
       ...(queuedMessage.modelSelection ? { modelSelection: queuedMessage.modelSelection } : {}),
       ...(queuedMessage.runtimeMode ? { runtimeMode: queuedMessage.runtimeMode } : {}),
       ...(queuedMessage.interactionMode ? { interactionMode: queuedMessage.interactionMode } : {}),
-      ...(queuedMessage.creation
-        ? {
-            workspaceSelection: {
-              mode: queuedMessage.creation.workspaceMode,
-              branch: queuedMessage.creation.branch,
-              worktreePath: queuedMessage.creation.worktreePath,
-              pullRequestReference: queuedMessage.creation.pullRequestReference,
-              ...(queuedMessage.creation.startFromOrigin !== undefined
-                ? { startFromOrigin: queuedMessage.creation.startFromOrigin }
-                : {}),
-            },
-          }
-        : {}),
     });
     const restoredDraft = getComposerDraftSnapshot(draftKey);
     rollback = { snapshot: originalDraft, merged: restoredDraft };
@@ -997,36 +980,6 @@ export function createThreadOutboxDelivery(): {
     );
     if (!hasAccess()) return true;
     let workspace = creation;
-    if (creation.pullRequestReference) {
-      const checkout = await runDeliveryCommand(gitEnvironment.preparePullRequestThread, {
-        environmentId: queuedMessage.environmentId,
-        input: { cwd: projectCwd, reference: creation.pullRequestReference, mode: "worktree" },
-      });
-      if (!isQueuedMessagePayloadCurrent(persistedMessage, deliveryRevision) || !hasAccess())
-        return true;
-      const failure = reportCommandFailure(queuedMessage, checkout, "start-turn");
-      if (failure?.action === "retry") return false;
-      if (failure?.action === "restore")
-        return restoreQueuedMessage(persistedMessage, failure.message);
-      if (!AsyncResult.isSuccess(checkout)) return false;
-      if (!checkout.value.worktreePath || !checkout.value.isOnPullRequestHead) {
-        const { shortLabel } = (
-          sourceControlClients.findByChangeRequestUrl(creation.pullRequestReference) ??
-          sourceControlClients.get(undefined)
-        ).changeRequest;
-        return restoreQueuedMessage(
-          persistedMessage,
-          `The ${shortLabel} worktree has local changes and could not update to the ${shortLabel} head. Resolve them before trying again.`,
-        );
-      }
-      workspace = {
-        ...creation,
-        workspaceMode: "local",
-        branch: checkout.value.branch,
-        worktreePath: checkout.value.worktreePath,
-        startFromOrigin: false,
-      };
-    }
     const deliveryResult = await runDeliveryCommand(threadEnvironment.startTurn, {
       environmentId: queuedMessage.environmentId,
       input: buildProjectThreadStartTurnInput({
@@ -1050,10 +1003,7 @@ export function createThreadOutboxDelivery(): {
         runtimeMode: sendSettings.runtimeMode,
         interactionMode: sendSettings.interactionMode,
         workspaceMode: workspace.workspaceMode,
-        branch: workspace.branch,
-        worktreePath: workspace.worktreePath,
-        startFromOrigin: workspace.startFromOrigin ?? false,
-        worktreeBranchName: buildTemporaryWorktreeBranchName(randomHex),
+        workingDirectory: workspace.workingDirectory,
       }),
     });
     if (AsyncResult.isFailure(deliveryResult) && !hasAccess()) return true;

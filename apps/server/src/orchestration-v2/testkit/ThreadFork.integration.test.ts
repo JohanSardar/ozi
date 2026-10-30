@@ -176,8 +176,7 @@ describe("orchestration V2 thread fork", () => {
               modelSelection: CLAUDE_MODEL_SELECTION,
               runtimeMode: "full-access",
               interactionMode: "default",
-              branch: null,
-              worktreePath: null,
+              workingDirectory: null,
             },
             {
               type: "message.dispatch",
@@ -320,8 +319,7 @@ describe("orchestration V2 thread fork", () => {
             modelSelection: CODEX_MODEL_SELECTION,
             runtimeMode: "full-access",
             interactionMode: "default",
-            branch: null,
-            worktreePath: null,
+            workingDirectory: null,
           },
           {
             type: "message.dispatch",
@@ -514,8 +512,7 @@ describe("orchestration V2 thread fork", () => {
             modelSelection: CLAUDE_MODEL_SELECTION,
             runtimeMode: "full-access",
             interactionMode: "default",
-            branch: null,
-            worktreePath: null,
+            workingDirectory: null,
           },
           {
             type: "message.dispatch",
@@ -578,7 +575,6 @@ describe("orchestration V2 thread fork", () => {
           },
           {
             type: "checkpoint.rollback",
-            restoreFiles: false,
             commandId: yield* ids.allocate.command({
               fixtureName: "thread-fork-native-prior-turn-source-rollback",
               commandName: "rollback-source-to-alpha",
@@ -720,8 +716,7 @@ describe("orchestration V2 thread fork", () => {
             modelSelection: CLAUDE_MODEL_SELECTION,
             runtimeMode: "full-access",
             interactionMode: "default",
-            branch: null,
-            worktreePath: null,
+            workingDirectory: null,
           },
           {
             type: "message.dispatch",
@@ -780,7 +775,6 @@ describe("orchestration V2 thread fork", () => {
           },
           {
             type: "checkpoint.rollback",
-            restoreFiles: false,
             commandId: yield* ids.allocate.command({
               fixtureName: "thread-fork-native-fork-local-rollback",
               commandName: "rollback-fork-to-first",
