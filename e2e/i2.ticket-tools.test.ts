@@ -183,7 +183,6 @@ describe("i2.ticket-tools", () => {
       server.once("error", reject);
       server.once("exit", (code) => reject(new Error(`Server exited ${code}: ${output}`)));
     });
-    await exec(process.execPath, [bin, "project", "add", workspace, "--home", home], { env });
   });
 
   afterAll(async () => {
@@ -278,6 +277,7 @@ describe("i2.ticket-tools", () => {
     const result = await cli(
       "thread",
       "start",
+      "--cwd",
       workspace,
       "i2-main: exercise ticket tools and delegate.",
       "--wait",

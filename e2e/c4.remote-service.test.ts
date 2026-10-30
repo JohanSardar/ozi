@@ -84,8 +84,6 @@ describe("c4.remote-client", () => {
       },
     );
     await started;
-    await exec("git", ["init", directory]);
-    await cli(home, "project", "add", directory);
   });
 
   afterAll(async () => {
@@ -114,7 +112,7 @@ describe("c4.remote-client", () => {
       new URLSearchParams(new URL(pairing.pairingUrl).hash.slice(1)).get("token"),
     );
     expect((await NodeFSP.stat(file)).mode & 0o777).toBe(0o600);
-    expect(await json(client, "thread", "list", "--project", directory)).toEqual([]);
+    expect(await json(client, "thread", "list")).toEqual([]);
     await expect(
       NodeFSP.access(NodePath.join(client, "userdata", "statev2.sqlite")),
     ).rejects.toThrow();
@@ -153,12 +151,10 @@ describe("c4.remote-client", () => {
     );
     expect(session).toBeDefined();
     await cli(home, "auth", "session", "revoke", session.sessionId);
-    await expect(cli(client, "thread", "list", "--project", directory, "--json")).rejects.toThrow(
-      "ozi connect",
-    );
+    await expect(cli(client, "thread", "list", "--json")).rejects.toThrow("ozi connect");
     const fresh = await json(home, "pair");
     await json(client, "connect", fresh.pairingUrl);
-    expect(await json(client, "thread", "list", "--project", directory)).toEqual([]);
+    expect(await json(client, "thread", "list")).toEqual([]);
     expect(await json(client, "disconnect")).toEqual({ disconnected: true });
     await expect(NodeFSP.access(NodePath.join(client, "remote.json"))).rejects.toThrow();
   });
@@ -167,15 +163,23 @@ describe("c4.remote-client", () => {
     const client = await NodeFSP.mkdtemp(NodePath.join(directory, "client-"));
     const pairing = await json(home, "pair", "--scope", "orchestration:read");
     await json(client, "connect", pairing.pairingUrl, "--access", "read-only");
-    expect(await json(client, "thread", "list", "--project", directory)).toEqual([]);
+    expect(await json(client, "thread", "list")).toEqual([]);
     await expect(
-      cli(client, "thread", "start", directory, "Cannot start from a read-only session", "--json"),
+      cli(
+        client,
+        "thread",
+        "start",
+        "--cwd",
+        directory,
+        "Cannot start from a read-only session",
+        "--json",
+      ),
     ).rejects.toThrow();
   });
 
   it("c4.local-priority: a live local server takes precedence over a saved remote", async () => {
     await NodeFSP.writeFile(NodePath.join(home, "remote.json"), "invalid");
-    expect(await json(home, "thread", "list", "--project", directory)).toEqual([]);
+    expect(await json(home, "thread", "list")).toEqual([]);
   });
 });
 

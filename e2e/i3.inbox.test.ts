@@ -126,7 +126,7 @@ describe("i3.inbox", () => {
       process.kill(-dev.pid, "SIGTERM");
       await exited;
     }
-    await NodeFSP.rm(home, { recursive: true, force: true });
+    await NodeFSP.rm(home, { recursive: true, force: true, maxRetries: 5 });
   });
 
   const text = async (locator: Playwright.Locator) =>

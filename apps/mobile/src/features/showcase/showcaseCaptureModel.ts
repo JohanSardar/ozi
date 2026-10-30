@@ -1,6 +1,5 @@
 import type { MobileThemeId, MobileThemeIds } from "../../lib/mobileTheme";
 import type { ShowcaseScene } from "./nativeShowcaseScene";
-import { isShowcaseNativeContentReady, type ShowcaseRenderSignal } from "./showcaseRenderSignal";
 
 export const SHOWCASE_THREAD_ID = "remote-command-center";
 
@@ -10,7 +9,6 @@ function sceneFromPathname(pathname: string): ShowcaseScene | null {
     return "environments";
   }
   if (routePath.endsWith("/terminal")) return "terminal";
-  if (routePath.endsWith("/review")) return "review";
   if (routePath.startsWith("/threads/")) return "thread";
   if (routePath === "/") return "threads";
   return null;
@@ -71,9 +69,6 @@ export interface ShowcaseReadinessInput {
   readonly themeApplied: boolean;
   readonly agentActivityStaged: boolean;
   readonly themeId: MobileThemeId;
-  readonly renderSignal: ShowcaseRenderSignal | null;
-  /** Counts render-signal changes; a redraw report restarts the settle delay. */
-  readonly renderReports: number;
 }
 
 /**
@@ -88,14 +83,9 @@ export function showcaseReadinessKey(input: ShowcaseReadinessInput): string | nu
     !input.hasFixture ||
     !input.orientationSettled ||
     !input.themeApplied ||
-    (scene === "agent-activity" && !input.agentActivityStaged) ||
-    !isShowcaseNativeContentReady({
-      scene,
-      themeId: input.themeId,
-      renderSignal: input.renderSignal,
-    })
+    (scene === "agent-activity" && !input.agentActivityStaged)
   ) {
     return null;
   }
-  return [scene, input.themeId, input.renderReports].join("|");
+  return [scene, input.themeId].join("|");
 }

@@ -16,8 +16,8 @@ import {
   ORCHESTRATION_PROTOCOL_HEADER,
   ORCHESTRATION_PROTOCOL_VERSION,
   OrchestrationV2ShellSnapshot,
-  ProjectId,
   ProviderInstanceId,
+  ProviderDriverKind,
   ThreadId,
   WsRpcGroup,
   type OrchestrationV2ThreadProjection,
@@ -93,11 +93,6 @@ function writeScratch(baseDir: string) {
     NodePath.join(skill, "SKILL.md"),
     "---\nname: eval-notes\ndescription: Takes notes for the eval.\n---\nTake notes.\n",
   );
-  const git = (...args: string[]) =>
-    NodeChildProcess.execFileSync("git", ["-C", workspace, ...args], { stdio: "ignore" });
-  git("init", "-q");
-  git("add", "-A");
-  git("-c", "user.name=eval", "-c", "user.email=eval@example.com", "commit", "-qm", "init");
   const launcher = NodePath.join(baseDir, "fx");
   NodeFS.writeFileSync(
     launcher,
@@ -193,25 +188,6 @@ export const startEnvironment = Effect.fn("environment.start")(function* (input:
     http
       .get(`${origin}/api/orchestration/shell`)
       .pipe(Effect.flatMap(HttpClientResponse.schemaBodyJson(OrchestrationV2ShellSnapshot)));
-  const createProject = Effect.fn("environment.createProject")(function* (
-    title: string,
-    workspaceRoot: string,
-  ) {
-    const projectId = ProjectId.make(yield* uuid);
-    yield* http.execute(
-      HttpClientRequest.post(`${origin}/api/projects/mutate`).pipe(
-        HttpClientRequest.bodyJsonUnsafe({
-          type: "project.create",
-          commandId: yield* uuid,
-          projectId,
-          title,
-          workspaceRoot,
-        }),
-      ),
-    );
-    return projectId;
-  });
-  const projectId = yield* createProject("acme-app", workspace);
   const ticket = yield* http
     .execute(HttpClientRequest.post(`${origin}/api/auth/websocket-ticket`))
     .pipe(
@@ -239,18 +215,17 @@ export const startEnvironment = Effect.fn("environment.start")(function* (input:
   const create = Effect.fn("environment.create")(function* (
     title: string,
     prompt?: string,
-    project: ProjectId = projectId,
+    instanceId: ProviderInstanceId = EVAL_INSTANCE,
   ) {
     const threadId = ThreadId.make(yield* uuid);
     yield* client["orchestration.launchThread"]({
       commandId: yield* command,
       threadId,
-      projectId: project,
       title,
-      modelSelection: { instanceId: EVAL_INSTANCE, model: EVAL_MODEL },
+      modelSelection: { instanceId, model: EVAL_MODEL },
       runtimeMode: "full-access",
       interactionMode: "default",
-      workspaceStrategy: { type: "root" },
+      workingDirectory: workspace,
       ...(prompt === undefined ? {} : { initialMessage: { text: prompt, attachments: [] } }),
     });
     return threadId;
@@ -319,18 +294,21 @@ export const startEnvironment = Effect.fn("environment.start")(function* (input:
   });
 
   return {
-    /** An empty thread in its own project; `lock` then disables `evalbot` there, so sends are rejected. */
     launchLockable: Effect.fn("environment.launchLockable")(function* (title: string) {
-      const root = NodePath.join(input.baseDir, `workspace/locked-${(yield* uuid).slice(0, 6)}`);
-      NodeFS.mkdirSync(root, { recursive: true });
-      const project = yield* createProject("locked", root);
-      const threadId = yield* create(title, undefined, project);
+      const instanceId = ProviderInstanceId.make(`locked-${yield* uuid}`);
+      const config = {
+        driver: ProviderDriverKind.make("fx"),
+        displayName: "Locked Eval Bot",
+        environment: [{ name: "OZI_EVAL_FX_CONTROL_DIR", value: control, sensitive: false }],
+        enabled: true,
+        config: { binaryPath: NodePath.join(input.baseDir, "fx") },
+      };
+      yield* client["server.updateSettings"]({
+        patch: { providerInstances: { [instanceId]: config } },
+      });
+      const threadId = yield* create(title, undefined, instanceId);
       const lock = client["server.updateSettings"]({
-        patch: {
-          projectSettingsOverrides: {
-            [project]: { providerInstances: { [EVAL_INSTANCE]: { enabled: false } } },
-          },
-        },
+        patch: { providerInstances: { [instanceId]: { ...config, enabled: false } } },
       });
       return { threadId, lock };
     }),
