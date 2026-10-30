@@ -374,6 +374,7 @@ function fallbackTextGenerationProvider(settings: ServerSettings): ServerSetting
 }
 
 const ATOMIC_SETTINGS_KEYS: ReadonlySet<string> = new Set([
+  "defaultModelSelection",
   "providerInstances",
   "backgroundActivity",
   "providerHealthRefreshInterval",
