@@ -1,6 +1,7 @@
 import { TicketError } from "@t3tools/contracts";
 import * as Effect from "effect/Effect";
 
+import * as TicketClearing from "../../../tickets/TicketClearing.ts";
 import * as Tickets from "../../../tickets/Tickets.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 import * as McpToolAccess from "../../McpToolAccess.ts";
@@ -75,9 +76,9 @@ export const layer = McpToolAccess.toLayer(TicketToolkit, {
   ),
   ticket_close: McpToolAccess.actsOnTickets((input) =>
     Effect.gen(function* () {
-      const tickets = yield* Tickets.Tickets;
+      const clearing = yield* TicketClearing.TicketClearing;
       const origin = yield* callerOrigin;
-      return yield* tickets.close({
+      return yield* clearing.close({
         id: input.id,
         by: { type: "agent", threadId: origin.threadId, messageId: origin.messageId },
       });

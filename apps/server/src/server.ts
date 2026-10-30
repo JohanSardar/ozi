@@ -1,6 +1,6 @@
 import * as Tickets from "./tickets/Tickets.ts";
 import * as InboxChecks from "./tickets/InboxChecks.ts";
-import * as TicketChoices from "./tickets/TicketChoices.ts";
+import * as TicketClearing from "./tickets/TicketClearing.ts";
 import * as ProviderEventLoggers from "@t3tools/provider-core/server/ProviderEventLoggers";
 import type { RelayManagedEndpointRuntimeConfig } from "@t3tools/contracts/relay";
 import * as Random from "effect/Random";
@@ -734,7 +734,7 @@ const layerMakeRoutes = Layer.mergeAll(
   Layer.provide(RemoteDelegation.layer.pipe(Layer.provide(ProjectionStoreV2.layer))),
   // Links agents ask for: shown in a thread from /mcp, answered over WebSocket.
   Layer.provide(PeerLinkRequests.layer),
-  Layer.provide(TicketChoices.layer.pipe(Layer.provide(RuntimeLayer.layerEventSink))),
+  Layer.provide(TicketClearing.layer.pipe(Layer.provide(RuntimeLayer.layerEventSink))),
   Layer.provide(Tickets.layer),
   // Share the service so HTTP/WS clients single-flight reads and invalidate each other's cached patches.
   Layer.provide(layerPullRequestService),

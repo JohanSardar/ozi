@@ -42,17 +42,11 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks }) {
   const { environmentId } = props;
   const routeRef = useThreadRouteRef();
   const choose = useAtomCommand(ticketChoose);
+  const chat = routeRef?.environmentId === environmentId ? { chatId: routeRef.threadId } : {};
   const hooks: TicketHooks = {
     ...props.hooks,
     choose: (ticket, choiceIndex) => {
-      void choose({
-        environmentId,
-        input: {
-          id: ticket.id,
-          choiceIndex,
-          ...(routeRef?.environmentId === environmentId ? { chatId: routeRef.threadId } : {}),
-        },
-      });
+      void choose({ environmentId, input: { id: ticket.id, choiceIndex, ...chat } });
     },
   };
   const { tab, selected } = useInboxStore();
@@ -105,7 +99,7 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks }) {
     );
   const gotIt = (ticket: Ticket) => {
     setSelected({ id: null, index: ordered.indexOf(ticket) });
-    void close({ environmentId, input: { id: ticket.id, by: { type: "acknowledged" } } });
+    void close({ environmentId, input: { id: ticket.id, by: { type: "acknowledged" }, ...chat } });
   };
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- window keydown listener that picks a choice on the open ticket

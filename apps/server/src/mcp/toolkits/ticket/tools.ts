@@ -12,6 +12,7 @@ import * as Schema from "effect/Schema";
 import { Tool, Toolkit } from "effect/ai";
 
 import * as ThreadManagementService from "../../../orchestration-v2/ThreadManagementService.ts";
+import * as TicketClearing from "../../../tickets/TicketClearing.ts";
 import * as Tickets from "../../../tickets/Tickets.ts";
 import * as McpInvocationContext from "../../McpInvocationContext.ts";
 
@@ -22,6 +23,7 @@ const shared = {
     McpInvocationContext.McpInvocationContext,
     ThreadManagementService.ThreadManagementService,
     Tickets.Tickets,
+    TicketClearing.TicketClearing,
   ],
 };
 
