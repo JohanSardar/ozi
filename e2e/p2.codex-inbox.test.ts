@@ -154,6 +154,7 @@ describe("p2.codex-inbox", () => {
     const first = (await wire()).find((record) => record.event === "fork")!;
     expect(first.context[0].text).toContain("decision");
     const requests = await wire();
+    expect(requests.some((record) => record.event === "launch" && record.inboxHook)).toBe(true);
     const params = requests.find((record) => record.method === "thread/fork")!.params;
     expect(params).toMatchObject({
       model: "gpt-5.6-sol",
@@ -161,14 +162,13 @@ describe("p2.codex-inbox", () => {
       config: {
         "hooks.Stop": [],
         "hooks.SubagentStop": [],
-        "hooks.state": { stop: { enabled: false }, subagentStop: { enabled: false } },
+        "hooks.state": { stop: { enabled: false } },
       },
     });
     expect(
       requests.find((record) => record.method === "thread/start")!.params.config["hooks.state"],
     ).toEqual({
       stop: { trusted_hash: "hash:stop" },
-      subagentStop: { trusted_hash: "hash:subagentStop" },
     });
     const sent = await cli("thread", "send", threadId, "hello: small talk", "--wait");
     expect(JSON.stringify(sent)).toContain("Reply: hello");

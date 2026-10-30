@@ -506,9 +506,13 @@ export const makePiAdapterV2 = Effect.fn("makePiAdapterV2")(function* (
       yield* Effect.addFinalizer(() => fileSystem.remove(inboxContextPath).pipe(Effect.ignore));
       yield* Effect.addFinalizer(() => fileSystem.remove(inputContextPath).pipe(Effect.ignore));
       const launch = buildPiRpcLaunch({
-        launchArgs: [...resolvedLaunchArgs.args, "--extension", inboxPath],
+        launchArgs: [
+          ...resolvedLaunchArgs.args,
+          ...(mcpSession?.subagent === true ? [] : ["--extension", inboxPath]),
+        ],
         environment: {
           ...options.environment,
+          OZI_SUBAGENT: mcpSession?.subagent === true ? "1" : "0",
           OZI_PI_INBOX_CONTEXT_FILE: inboxContextPath,
           OZI_PI_INPUT_CONTEXT_FILE: inputContextPath,
         },

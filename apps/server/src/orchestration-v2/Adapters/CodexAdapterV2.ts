@@ -156,7 +156,7 @@ import { inboxCheckStep } from "@t3tools/provider-core/server/inboxCheck";
 const CODEX_PROVIDER = ProviderDriverKind.make("codex");
 const CODEX_CAPACITY_MAX_RETRIES = 5;
 const CODEX_INBOX_HOOK_LABEL = "Ozi inbox check";
-const CODEX_INBOX_HOOK_ARGS = ["Stop", "SubagentStop"].flatMap((event) => [
+const CODEX_INBOX_HOOK_ARGS = ["Stop"].flatMap((event) => [
   "-c",
   `hooks.${event}=[{hooks=[{type="command",command="true",commandWindows="exit /b 0",statusMessage="${CODEX_INBOX_HOOK_LABEL}"}]}]`,
 ]);
@@ -1655,6 +1655,8 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
                     }),
                 ),
               );
+        const mcpSession = yield* readMcpSession(input.threadId);
+        const inboxEnabled = Option.isSome(inboxChecksService) && mcpSession?.subagent !== true;
         const client = yield* clientFactory.open({
           instanceId: adapterOptions.instanceId,
           threadId: input.threadId,
@@ -1662,7 +1664,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
           runtimePolicy: input.runtimePolicy,
           settings: resolvedRuntime?.config ?? adapterOptions.settings,
           environment: resolvedRuntime?.environment ?? adapterOptions.environment,
-          inboxCheck: Option.isSome(inboxChecksService),
+          inboxCheck: inboxEnabled,
         });
         const additionalContextByThread = yield* Ref.make(
           new Map<
@@ -1709,7 +1711,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
         let inboxHookState: Record<string, { trusted_hash: string; enabled?: boolean }> = {};
         const runtimeParams = (params: Parameters<typeof codexThreadRuntimeParams>[0]) => {
           const runtime = codexThreadRuntimeParams(params);
-          if (Option.isNone(inboxChecksService)) return runtime;
+          if (!inboxEnabled) return runtime;
           return { ...runtime, config: { ...runtime.config, "hooks.state": inboxHookState } };
         };
         // Codex rejects a second initialize on the shared app-server.
@@ -1736,7 +1738,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
                 }),
               );
             yield* client.notify("initialized", undefined);
-            if (Option.isSome(inboxChecksService)) {
+            if (inboxEnabled) {
               const { data } = yield* client.request("hooks/list", {
                 cwds: input.runtimePolicy.cwd === null ? [] : [input.runtimePolicy.cwd],
               });
@@ -1749,7 +1751,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
                         hook.statusMessage === CODEX_INBOX_HOOK_LABEL &&
                         hook.handlerType === "command" &&
                         (hook.command === "true" || hook.command === "exit /b 0") &&
-                        (hook.eventName === "stop" || hook.eventName === "subagentStop"),
+                        hook.eventName === "stop",
                     )
                     .map((hook) => [hook.key, { trusted_hash: hook.currentHash }]),
                 ),
@@ -1910,7 +1912,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
           Effect.sync(() => {
             if (
               payload.turnId != null &&
-              (payload.run.eventName === "stop" || payload.run.eventName === "subagentStop") &&
+              payload.run.eventName === "stop" &&
               payload.run.statusMessage === CODEX_INBOX_HOOK_LABEL &&
               payload.run.status === "completed" &&
               !inboxForks.has(payload.threadId)
@@ -1920,7 +1922,12 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
         );
         const startInboxCheck = Effect.fn("CodexAdapterV2.startInboxCheck")(
           function* (context: ActiveCodexTurnContext) {
-            if (!inboxStops.delete(context.nativeTurnId) || Option.isNone(inboxChecksService))
+            if (
+              !inboxStops.delete(context.nativeTurnId) ||
+              Option.isNone(inboxChecksService) ||
+              context.subagent !== null ||
+              context.input.appThread.lineage.relationshipToParent === "subagent"
+            )
               return;
             const sessionId = context.providerThread.providerSessionId;
             const threadId = context.providerThread.nativeThreadRef?.nativeId;

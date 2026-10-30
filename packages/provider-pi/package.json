@@ -26,7 +26,7 @@
   },
   "dependencies": {
     "@earendil-works/pi-coding-agent": "1.4.0",
-    "@ozi/pi": "github:JohanSardar/ozi-harness#5a61e8008a38274e689e43ecabcce9cb855ef871&path:/packages/ozi-pi",
+    "@ozi/pi": "github:JohanSardar/ozi-harness#38f6f47a531ac30eee0377fa9349790b942764f4&path:/packages/ozi-pi",
     "@ozi/pi-inbox": "workspace:*",
     "@t3tools/contracts": "workspace:*",
     "@t3tools/provider-core": "workspace:*",

@@ -3,7 +3,7 @@ import * as NodeHttp from "node:http";
 export type AnthropicRequest = {
   model: string;
   system: { text: string }[];
-  tools: { name: string }[];
+  tools: { name: string; description?: string }[];
   messages: { role: string; content: unknown }[];
   output_config?: { effort?: string };
   speed?: string;
