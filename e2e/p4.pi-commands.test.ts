@@ -301,9 +301,18 @@ it("P4.web: submitting built-ins in the composer shows RPC output without a Pi p
       vite.once("error", reject);
     });
     const pairing = new URL((await json("pair")).pairingUrl);
+    pairing.host = `127.0.0.1:${webPort}`;
+    const client = NodePath.join(directory, "web-client");
+    await cliAt(client, "connect", pairing.toString(), "--json");
+    expect(await main("get_state", {}, client)).toHaveProperty("sessionFile");
+    const remote = JSON.parse(
+      (await cliAt(client, "pi", "--thread", thread, "--p4-probe", "--json")).stdout,
+    );
+    expect(JSON.parse(remote.stdout)).toHaveProperty("marker", "selected-instance");
     browser = await chromium.launch({ executablePath: process.env.OZI_E2E_CHROMIUM });
     const page = await browser.newPage();
-    await page.goto(`http://127.0.0.1:${webPort}/pair${pairing.hash}`);
+    const browserPairing = new URL((await json("pair")).pairingUrl);
+    await page.goto(`http://127.0.0.1:${webPort}/pair${browserPairing.hash}`);
     const composer = page.getByRole("textbox", { name: /^Message / });
     const before = (await requests()).filter(
       (request) => request.type === "prompt" && request.message.startsWith("/"),

@@ -118,6 +118,8 @@ Pi receives runtime-owned input provenance alongside each prompt. Real requests 
 
 Local and remote `ozi pi` load the selected harness and its configured launch arguments. Ozi uses the bundled subscription bridge, data root and agent directory. Native Pi configuration/package commands retain their original arguments.
 
+The single-origin development proxy forwards session WebSockets under `/mcp`, so paired `ozi main` and `ozi pi` clients use the same public origin as the GUI.
+
 ## G1 progress
 
 Simulator and emulator support is removed across the server, contracts, providers, web and mobile clients. Browser streaming remains independent of devices. All providers, including ACP, remain available. Diffs, pull requests, source control, Git and worktree management are removed across clients, server, tools, settings and packages. File viewing and editing, terminals and conversation rewind remain. Projects and their folder-bound chat model are removed across the web, mobile, desktop, server, contracts, MCP tools, settings and CLI. Chats form a flat list within their environments and start without selecting a folder. Each chat may keep a working directory; existing chats retain their previous project directory during migration. File search, viewing and editing, terminals, archives, scheduling, delegation and all providers, including ACP, remain. `ozi thread start` takes a message directly; `--cwd` selects an optional working directory, and `ozi thread stop` stops a chat and its delegated work.
