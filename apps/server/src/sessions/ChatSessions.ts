@@ -15,6 +15,7 @@ import {
   MessageId,
   ProviderDriverKind,
   ProviderSessionId,
+  OZI_PROVIDER_INSTANCE,
   isConfiguredProviderInstanceEnabled,
   ThreadId,
   ChatAttachment,
@@ -388,7 +389,9 @@ const make = Effect.gen(function* () {
     input: Extract<ChatSessionInput, { action: "pi-rpc" | "pi-cli" }>,
   ) {
     const currentSettings = yield* settings.getSettings;
-    const instance = currentSettings.providerInstances[projection.thread.providerInstanceId];
+    const instance =
+      currentSettings.providerInstances[projection.thread.providerInstanceId] ??
+      (projection.thread.providerInstanceId === "ozi" ? OZI_PROVIDER_INSTANCE : undefined);
     if (
       instance?.driver !== "pi" ||
       !isConfiguredProviderInstanceEnabled(currentSettings, projection.thread.providerInstanceId)
@@ -399,11 +402,15 @@ const make = Effect.gen(function* () {
         yield* decodePiSettings(instance.config ?? {}),
         yield* mergeProviderInstanceEnvironment(instance.environment),
         config.baseDir,
-      ).pipe(Effect.provideService(Path.Path, path));
+        input.args,
+      ).pipe(
+        Effect.provideService(Path.Path, path),
+        Effect.provideService(FileSystem.FileSystem, fs),
+      );
       return yield* Effect.scoped(
         Effect.gen(function* () {
           const child = yield* spawner.spawn(
-            ChildProcess.make(launch.binary, input.args, {
+            ChildProcess.make(launch.binary, launch.args, {
               cwd: projection.thread.workingDirectory ?? config.cwd,
               env: launch.env,
               extendEnv: false,

@@ -4,7 +4,6 @@ import { PiRpcError } from "./rpc.ts";
 import * as NodeURL from "node:url";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
-import * as ProviderHost from "@t3tools/provider-core/server/ProviderHost";
 import type { PiSettings } from "../settings.ts";
 
 export const bundledPiBinary = NodeURL.fileURLToPath(
@@ -29,12 +28,12 @@ Call log_mistake for mistakes and corrections. Follow the user, including changi
 export const prepareOzi = Effect.fn("PiProvider.prepareOzi")(function* (
   settings: PiSettings,
   environment: NodeJS.ProcessEnv,
+  baseDir: string,
 ) {
   if (settings.harness !== "ozi" || !settings.enabled) return { settings, environment };
   const fs = yield* FileSystem.FileSystem;
   const path = yield* Path.Path;
-  const host = yield* ProviderHost.ProviderHost;
-  const root = settings.dataRoot || path.join(host.paths.baseDir, "harness");
+  const root = settings.dataRoot || path.join(baseDir, "harness");
   if (!path.isAbsolute(root))
     return yield* new PiRpcError({
       operation: "launch",
@@ -45,7 +44,7 @@ export const prepareOzi = Effect.fn("PiProvider.prepareOzi")(function* (
     yield* fs.writeFileString(path.join(root, "system.md"), SYSTEM, { flag: "wx" });
     yield* fs.makeDirectory(path.join(root, "skills"));
   }
-  const agentDir = path.join(host.paths.baseDir, "agents", "ozi");
+  const agentDir = path.join(baseDir, "agents", "ozi");
   yield* fs.makeDirectory(agentDir, { recursive: true });
   const extension = NodeURL.fileURLToPath(
     new URL("../", import.meta.resolve("@ozi/pi/RepairHost")),
