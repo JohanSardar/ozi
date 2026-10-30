@@ -39,7 +39,7 @@ export const ticketChoose = createEnvironmentRpcCommand(connectionAtomRuntime, {
 });
 
 interface InboxState {
-  tab: "inbox" | "archive";
+  tab: "inbox" | "archive" | "all";
   selected: { id: TicketId | null; index: number; reveal?: boolean };
   hidden: boolean;
 }

@@ -51,6 +51,8 @@ const GROUPS = [
   ["Read", "nothing to do"],
 ] as const;
 
+const TAB_LABELS = { inbox: "Inbox", archive: "Archive", all: "All" } as const;
+
 export const orderTickets = (tickets: ReadonlyArray<Ticket>) =>
   GROUPS.flatMap(([group]) => tickets.filter((ticket) => ticket.group === group));
 
@@ -141,14 +143,23 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks }) {
   const navigate = useNavigate();
   const close = useAtomCommand(ticketClose);
   const threads = useAtomValue(environmentThreadShells.environmentThreadsAtom(environmentId));
-  const open = useEnvironmentQuery(ticketList({ environmentId, input: {} })).data?.tickets ?? [];
+  const all = useEnvironmentQuery(ticketList({ environmentId, input: {} })).data?.tickets ?? [];
+  const chatId =
+    routeRef?.environmentId === environmentId
+      ? (threads.find((thread) => thread.id === routeRef.threadId)?.lineage.rootThreadId ??
+        routeRef.threadId)
+      : null;
+  const open =
+    tab === "all" ? all : all.filter((ticket) => chatId !== null && ticket.origin.chatId === chatId);
   const query = search.trim();
   const archived =
     useEnvironmentQuery(
-      tab === "archive"
+      tab === "archive" && chatId !== null
         ? ticketList({
             environmentId,
-            input: query ? { status: "archived", search: query } : { status: "archived" },
+            input: query
+              ? { status: "archived", search: query, chatId }
+              : { status: "archived", chatId },
           })
         : null,
     ).data?.tickets ?? [];
@@ -158,6 +169,10 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks }) {
       ? undefined
       : (ordered.find((ticket) => ticket.id === selected.id) ??
         ordered[Math.min(selected.index, ordered.length - 1)]);
+  const counts = {
+    inbox: all.filter((ticket) => chatId !== null && ticket.origin.chatId === chatId).length,
+    all: all.length,
+  };
   const shown = details && (open.find((ticket) => ticket.id === details.id) ?? details);
   const titles = new Map(threads.map((thread) => [thread.id, thread.title]));
   const jobs = threads.flatMap((thread) =>
@@ -169,11 +184,12 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks }) {
               threadId: task.childThreadId ?? thread.id,
               title: task.description ?? titles.get(task.childThreadId ?? thread.id) ?? "",
               chat: titles.get(thread.lineage.rootThreadId) ?? "",
+              root: thread.lineage.rootThreadId,
             },
           ]
         : [],
     ),
-  );
+  ).filter((job) => tab === "all" || job.root === chatId);
   const toggle = (ticket: Ticket) =>
     setSelected(
       current?.id === ticket.id
@@ -188,7 +204,7 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks }) {
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- window keydown listener that picks a choice on the open ticket
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (tab !== "inbox" || details || !current || !hooks.choose) return;
+      if (tab === "archive" || details || !current || !hooks.choose) return;
       if (event.metaKey || event.ctrlKey || event.altKey || isEditableFocused(event.target)) return;
       const index = Number(event.key) - 1;
       if (!(index >= 0 && index < current.choices.length)) return;
@@ -208,7 +224,7 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks }) {
         role="tablist"
         className="flex h-(--workspace-topbar-height) shrink-0 items-stretch gap-5 border-b border-border ps-3.5 pe-2.5"
       >
-        {(["inbox", "archive"] as const).map((name) => (
+        {(["inbox", "archive", "all"] as const).map((name) => (
           <button
             key={name}
             type="button"
@@ -222,9 +238,9 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks }) {
                 : "border-transparent text-muted-foreground hover:text-foreground",
             )}
           >
-            {name === "inbox" ? "Inbox" : "Archive"}
-            {name === "inbox" && open.length > 0 ? (
-              <span className="font-normal text-muted-foreground tabular-nums">{open.length}</span>
+            {TAB_LABELS[name]}
+            {name !== "archive" && counts[name] > 0 ? (
+              <span className="font-normal text-muted-foreground tabular-nums">{counts[name]}</span>
             ) : null}
           </button>
         ))}
@@ -246,7 +262,7 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks }) {
         </Tooltip>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-3 pt-0.5 pb-4">
-        {tab === "inbox" ? (
+        {tab !== "archive" && (tab === "all" || chatId !== null) ? (
           <>
             {GROUPS.map(([group, hint]) => {
               const tickets = ordered.filter((ticket) => ticket.group === group);
@@ -329,7 +345,7 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks }) {
               </section>
             ) : null}
           </>
-        ) : (
+        ) : tab === "archive" && chatId !== null ? (
           <>
             <div className="relative mt-3 mb-2.5">
               <SearchIcon className="pointer-events-none absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
@@ -366,7 +382,7 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks }) {
               </div>
             ) : null}
           </>
-        )}
+        ) : null}
       </div>
       {shown ? (
         <TicketWindow
