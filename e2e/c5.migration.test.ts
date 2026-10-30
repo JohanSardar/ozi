@@ -3,6 +3,7 @@ import * as NodeChildProcess from "node:child_process";
 import * as NodeFSP from "node:fs/promises";
 import * as NodeOS from "node:os";
 import * as NodePath from "node:path";
+import * as NodeSqlite from "node:sqlite";
 import * as NodeUtil from "node:util";
 import * as NodeEvents from "node:events";
 import * as NodeNet from "node:net";
@@ -52,6 +53,7 @@ let webhook: { id: string; webhook: { path: string } };
 let secret: string;
 let sourceHead: string;
 let sourceFiles: string;
+let workerId: string;
 const digest = async (directory: string): Promise<string> => {
   const values: string[] = [];
   for (const name of (await NodeFSP.readdir(directory)).sort()) {
@@ -138,6 +140,7 @@ beforeAll(async () => {
   await old.ozi("say", "C5 prepare");
   await old.wait("ozi-main", "text:C5 main history");
   const [job] = await old.ozi<{ jobId: string }[]>("jobs");
+  workerId = job!.jobId;
   const requested = await old.ozi<{ requests: { id: string }[] }>(
     "wait",
     "job",
@@ -217,11 +220,44 @@ it.skipIf(!legacyRepo)(
     expect(result.schedules).toBe(3);
     expect(result.webhooks).toBe(1);
     expect(result.secretFiles).toBeGreaterThan(0);
+    expect(result.skippedChats).toEqual([]);
     expect(JSON.stringify(result)).not.toContain(secret);
     expect(
       result.files.some((file: { to: string }) => file.to.endsWith("harness/protected/rule.md")),
     ).toBe(true);
     await expect(NodeFSP.access(target)).rejects.toThrow();
+    expect(await digest(old.home)).toBe(sourceFiles);
+  },
+);
+
+it.skipIf(!legacyRepo)(
+  "C5.orphan-worker: a worker whose Pi session is gone stays in the source and is reported",
+  async () => {
+    const copy = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "ozi-c5-db-"));
+    for (const name of await NodeFSP.readdir(NodePath.join(old.home, "userdata")))
+      if (name.startsWith("statev2.sqlite"))
+        await NodeFSP.copyFile(
+          NodePath.join(old.home, "userdata", name),
+          NodePath.join(copy, name),
+        );
+    const db = new NodeSqlite.DatabaseSync(NodePath.join(copy, "statev2.sqlite"));
+    const { payload_json } = db
+      .prepare(
+        "SELECT p.payload_json FROM orchestration_v2_projection_provider_threads p JOIN orchestration_v2_projection_threads t ON json_extract(t.payload_json, '$.activeProviderThreadId') = json_extract(p.payload_json, '$.id') WHERE json_extract(t.payload_json, '$.id') = ?",
+      )
+      .get(workerId) as { payload_json: string };
+    db.close();
+    await NodeFSP.rm(copy, { recursive: true, force: true });
+    const session: string | undefined = JSON.parse(payload_json).nativeThreadRef?.nativeId;
+    expect(session).toBeDefined();
+    await NodeFSP.rename(session!, `${session}.gone`);
+    try {
+      const result = await migrate("--dry-run");
+      expect(result.chats).toBe(3);
+      expect(result.skippedChats).toHaveLength(1);
+    } finally {
+      await NodeFSP.rename(`${session}.gone`, session!);
+    }
     expect(await digest(old.home)).toBe(sourceFiles);
   },
 );
