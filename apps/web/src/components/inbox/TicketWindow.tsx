@@ -85,8 +85,9 @@ export function TicketWindow(props: {
   onChoose: (index: number) => void;
   onReply: (text: string) => void;
   onGotIt: () => void;
+  inline?: boolean;
 }) {
-  const { environmentId, ticket, titles, onClose } = props;
+  const { environmentId, ticket, titles, onClose, inline = false } = props;
   const [reply, setReply] = useState("");
   const [page, setPage] = useState<{ src: string; title: string } | null>(null);
   const navigate = useNavigate();
@@ -132,20 +133,26 @@ export function TicketWindow(props: {
     onClose();
   };
 
-  return (
-    <Dialog open onOpenChange={(next) => !next && onClose()}>
-      <DialogPopup showCloseButton={false} className="max-w-190 sm:max-h-[86vh]">
+  const header = (
         <header className="flex h-12 shrink-0 items-center gap-2 border-b ps-5 pe-2 text-sm">
           <span className="font-medium">{open ? ticket.group : "Archived"}</span>
           <span className="min-w-0 flex-1 truncate text-muted-foreground">
             · {titles.get(ticket.origin.chatId) ?? ""} · <Age iso={ticket.createdAt} />
             {open ? null : ` · ${clearedBy(ticket)}`}
           </span>
-          <AppRouteModalClose />
+          {inline ? null : <AppRouteModalClose />}
         </header>
-        <DialogPanel>
+  );
+  const body = (
+        <>
           <div>
-            <DialogTitle className="mb-2">{ticket.title}</DialogTitle>
+            {inline ? (
+              <h2 className="mb-2 wrap-anywhere text-xl font-semibold leading-none">
+                {ticket.title}
+              </h2>
+            ) : (
+              <DialogTitle className="mb-2">{ticket.title}</DialogTitle>
+            )}
             <p className="font-semibold leading-snug">{ticket.need}</p>
           </div>
           <Section label="What happened">
@@ -197,20 +204,24 @@ export function TicketWindow(props: {
               ) : null}
             </div>
           </Section>
-        </DialogPanel>
+        </>
+  );
+  const footer = (
         <footer className="shrink-0 border-t px-4 pt-3 pb-4">
           <p className="mx-1 mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
             <ReplyIcon className="size-3.5" />
             <span className="shrink-0">Your reply goes to</span>
             <b className="min-w-0 truncate font-medium text-foreground">
-              {(routeRef && titles.get(routeRef.threadId)) || "New chat"}
+              {inline
+                ? (titles.get(ticket.origin.chatId) ?? "")
+                : (routeRef && titles.get(routeRef.threadId)) || "New chat"}
             </b>
             <span className="shrink-0">with this ticket attached</span>
           </p>
           <div className="flex items-end gap-2">
             <div className="relative flex-1">
               <Textarea
-                autoFocus
+                autoFocus={!inline}
                 rows={1}
                 value={reply}
                 onChange={(event) => setReply(event.target.value)}
@@ -248,9 +259,28 @@ export function TicketWindow(props: {
             ) : null}
           </div>
         </footer>
-        {page ? (
-          <HtmlRenderDialog src={page.src} title={page.title} onClose={() => setPage(null)} />
-        ) : null}
+  );
+  const pageDialog = page ? (
+    <HtmlRenderDialog src={page.src} title={page.title} onClose={() => setPage(null)} />
+  ) : null;
+  if (inline)
+    return (
+      <section aria-label={ticket.title} className="flex min-h-0 min-w-0 flex-1 flex-col">
+        {header}
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="mx-auto flex max-w-3xl flex-col gap-4 p-6">{body}</div>
+        </div>
+        <div className="mx-auto w-full max-w-3xl">{footer}</div>
+        {pageDialog}
+      </section>
+    );
+  return (
+    <Dialog open onOpenChange={(next) => !next && onClose()}>
+      <DialogPopup showCloseButton={false} className="max-w-190 sm:max-h-[86vh]">
+        {header}
+        <DialogPanel>{body}</DialogPanel>
+        {footer}
+        {pageDialog}
       </DialogPopup>
     </Dialog>
   );

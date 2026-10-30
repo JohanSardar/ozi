@@ -155,6 +155,7 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks; page?:
   const [search, setSearch] = useState("");
   const [workingOpen, setWorkingOpen] = useState(false);
   const [details, setDetails] = useState<Ticket | null>(null);
+  const [archivedPick, setArchivedPick] = useState<string | null>(null);
   const shortcut = useInboxShortcutLabel();
   const navigate = useNavigate();
   const close = useAtomCommand(ticketClose);
@@ -229,14 +230,128 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks; page?:
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [tab, details, current, hooks]);
 
+  if (page) {
+    const pageTicket =
+      tab === "inbox"
+        ? (current ?? ordered[0])
+        : (archived.find((ticket) => ticket.id === archivedPick) ?? archived[0]);
+    const row = (ticket: Ticket, detail: string, onSelect: () => void) => (
+      <button
+        key={ticket.id}
+        type="button"
+        aria-current={pageTicket?.id === ticket.id ? "true" : undefined}
+        onClick={onSelect}
+        className={cn(
+          "flex w-full flex-col rounded-lg px-3 py-2 text-left transition-colors",
+          pageTicket?.id === ticket.id ? "bg-accent text-accent-foreground" : "hover:bg-accent/60",
+        )}
+      >
+        <span className="truncate text-sm font-medium">{ticket.title}</span>
+        <span className="truncate text-xs text-muted-foreground">{detail}</span>
+      </button>
+    );
+    return (
+      <main aria-label="Inbox" className="flex min-h-0 min-w-0 flex-1 flex-col bg-background">
+        <div
+          role="tablist"
+          className="flex h-(--workspace-topbar-height) shrink-0 items-stretch gap-5 border-b border-border px-5"
+        >
+          {(["inbox", "archive"] as const).map((name) => (
+            <button
+              key={name}
+              type="button"
+              role="tab"
+              aria-selected={tab === name}
+              onClick={() => setTab(name)}
+              className={cn(
+                "inline-flex items-center gap-1.5 border-b-2 pt-0.5 text-sm font-medium transition-colors",
+                tab === name
+                  ? "border-foreground text-foreground"
+                  : "border-transparent text-muted-foreground hover:text-foreground",
+              )}
+            >
+              {name === "inbox" ? "Inbox" : "Archive"}
+              {name === "inbox" && open.length > 0 ? (
+                <span className="font-normal text-muted-foreground tabular-nums">{open.length}</span>
+              ) : null}
+            </button>
+          ))}
+        </div>
+        <div className="flex min-h-0 flex-1">
+          <div className="flex w-96 shrink-0 flex-col border-r border-border">
+            {tab === "archive" ? (
+              <div className="relative shrink-0 px-3 pt-3 pb-1">
+                <SearchIcon className="pointer-events-none absolute start-5.5 top-1/2 mt-1 size-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  type="search"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search archive"
+                  aria-label="Search archive"
+                  className="ps-7"
+                />
+              </div>
+            ) : null}
+            <div className="min-h-0 flex-1 overflow-y-auto px-2 pb-4">
+              {tab === "inbox"
+                ? GROUPS.map(([group, hint]) => {
+                    const tickets = ordered.filter((ticket) => ticket.group === group);
+                    return tickets.length === 0 ? null : (
+                      <section key={group} aria-label={group}>
+                        <h2 className="flex items-baseline gap-2 px-3 pt-4 pb-1.5 text-sm font-semibold">
+                          {group}
+                          <span className="font-normal text-muted-foreground tabular-nums">
+                            {tickets.length}
+                          </span>
+                          <span className="ml-auto text-xs font-normal text-muted-foreground">
+                            {hint}
+                          </span>
+                        </h2>
+                        {tickets.map((ticket) =>
+                          row(
+                            ticket,
+                            `${titles.get(ticket.origin.chatId) ?? ""}`,
+                            () => setSelected({ id: ticket.id, index: ordered.indexOf(ticket) }),
+                          ),
+                        )}
+                      </section>
+                    );
+                  })
+                : archived.map((ticket) =>
+                    row(
+                      ticket,
+                      `${clearedBy(ticket)} · ${titles.get(ticket.origin.chatId) ?? ""}`,
+                      () => setArchivedPick(ticket.id),
+                    ),
+                  )}
+            </div>
+          </div>
+          {pageTicket ? (
+            <TicketWindow
+              key={pageTicket.id}
+              inline
+              environmentId={environmentId}
+              ticket={pageTicket}
+              titles={titles}
+              onClose={() => undefined}
+              onChoose={(index) => hooks.choose?.(pageTicket, index)}
+              onReply={(text) => hooks.reply?.(pageTicket, text)}
+              onGotIt={() => gotIt(pageTicket)}
+            />
+          ) : (
+            <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">
+              {tab === "inbox" ? "You're all caught up" : "Cleared tickets show up here."}
+            </div>
+          )}
+        </div>
+      </main>
+    );
+  }
+
   return (
     <aside
       aria-label="Inbox"
-      className={
-        page
-          ? "flex min-h-0 min-w-0 flex-1 flex-col bg-background"
-          : "hidden w-(--inbox-width) shrink-0 flex-col border-l border-border bg-sidebar text-sidebar-foreground lg:flex"
-      }
+      className="hidden w-(--inbox-width) shrink-0 flex-col border-l border-border bg-sidebar text-sidebar-foreground lg:flex"
     >
       <div
         role="tablist"
@@ -268,7 +383,7 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks; page?:
               <Button
                 variant="ghost"
                 size="icon-sm"
-                className={cn("ms-auto self-center", page && "hidden")}
+                className="ms-auto self-center"
                 aria-label={`Hide inbox${shortcut}`}
                 onClick={toggleInbox}
               />
@@ -279,12 +394,7 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks; page?:
           <TooltipPopup side="bottom">Hide inbox{shortcut}</TooltipPopup>
         </Tooltip>
       </div>
-      <div
-        className={cn(
-          "min-h-0 flex-1 overflow-y-auto px-3 pt-0.5 pb-4",
-          page && "mx-auto w-full max-w-2xl",
-        )}
-      >
+      <div className="min-h-0 flex-1 overflow-y-auto px-3 pt-0.5 pb-4">
         {tab === "inbox" && scoped ? (
           <>
             {GROUPS.map(([group, hint]) => {
