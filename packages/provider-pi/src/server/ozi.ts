@@ -47,8 +47,8 @@ export const prepareOzi = Effect.fn("PiProvider.prepareOzi")(function* (
   }
   const agentDir = path.join(host.paths.baseDir, "agents", "ozi");
   yield* fs.makeDirectory(agentDir, { recursive: true });
-  const extension = path.dirname(
-    NodeURL.fileURLToPath(import.meta.resolve("@ozi/pi/package.json")),
+  const extension = NodeURL.fileURLToPath(
+    new URL("../", import.meta.resolve("@ozi/pi/RepairHost")),
   );
   const encodeArgument = Schema.encodeEffect(Schema.fromJsonString(Schema.String));
   const extensionArg = yield* encodeArgument(extension);

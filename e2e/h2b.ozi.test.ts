@@ -12,7 +12,7 @@ const exec = NodeUtil.promisify(NodeChildProcess.execFile);
 const root = NodePath.resolve(import.meta.dirname, "..");
 const cli = NodePath.join(root, "apps/server/src/bin.ts");
 
-it("h2b.ozi: the default chat runs the packaged harness through Pi on the Claude subscription", async () => {
+it("C6.harness-package: the default chat loads repair, completion and inbox with the subscription harness", async () => {
   const directory = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "ozi-h2b-"));
   const home = NodePath.join(directory, "home");
   const workspace = NodePath.join(directory, "workspace");
@@ -104,6 +104,11 @@ it("h2b.ozi: the default chat runs the packaged harness through Pi on the Claude
       "--wait",
     );
     expect(JSON.stringify(result), output).toContain("h2b-ozi-ok");
+    for (const name of ["log_mistake", "completion_check"]) {
+      expect(fake.requests.flatMap((request) => request.tools.map((tool) => tool.name))).toEqual(
+        expect.arrayContaining([expect.stringMatching(new RegExp(`(?:^|__)${name}$`))]),
+      );
+    }
     const thread = await run("thread", "show", result.threadId);
     expect(JSON.stringify(thread)).toContain('"providerInstanceId":"ozi"');
     const promptPath = NodePath.join(home, "harness/system.md");
@@ -113,8 +118,12 @@ it("h2b.ozi: the default chat runs the packaged harness through Pi on the Claude
     await NodeFSP.writeFile(NodePath.join(home, "harness/adhd.md"), "h2b-adhd");
     const first = fake.requests.length;
     await run("thread", "send", result.threadId, "Reply h2b-ozi-ok again without tools.", "--wait");
-    expect(JSON.stringify(fake.requests.slice(first)[0]?.system)).toContain("h2b-edited");
-    expect(JSON.stringify(fake.requests.slice(first)[0]?.system)).toContain("h2b-adhd");
+    expect(
+      fake.requests.slice(first).some((request) => {
+        const system = JSON.stringify(request.system);
+        return system.includes("h2b-edited") && system.includes("h2b-adhd");
+      }),
+    ).toBe(true);
     for (const request of fake.requests) {
       expect(request.model).toBe("claude-opus-5-5");
       expect(request.output_config?.effort).toBe("high");
@@ -133,9 +142,11 @@ it("h2b.ozi: the default chat runs the packaged harness through Pi on the Claude
     await expect(NodeFSP.stat(NodePath.join(directory, "ambient-pi"))).rejects.toThrow();
     expect(await NodeFSP.readdir(NodePath.join(home, "agents/ozi"))).toBeDefined();
   } finally {
-    const exited = NodeEvents.once(server, "exit");
-    server.kill("SIGTERM");
-    await exited;
+    if (server.exitCode === null && server.signalCode === null) {
+      const exited = NodeEvents.once(server, "exit");
+      server.kill("SIGTERM");
+      await exited;
+    }
     await fake.close();
     await NodeFSP.rm(directory, { recursive: true, force: true });
   }
