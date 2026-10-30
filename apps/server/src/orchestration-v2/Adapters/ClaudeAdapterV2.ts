@@ -9903,7 +9903,11 @@ export const makeClaudeAdapterV2 = Effect.fn("makeClaudeAdapterV2")(function* (
             ...(appendSystemPromptFileText === undefined ? {} : { appendSystemPromptFileText }),
             ...(toolSearchOverride === undefined ? {} : { toolSearchOverride }),
           });
-          if (Option.isSome(inboxChecks) && mcpSession !== undefined) {
+          if (
+            Option.isSome(inboxChecks) &&
+            mcpSession !== undefined &&
+            turnInput.appThread.lineage.relationshipToParent !== "subagent"
+          ) {
             queryOptions.hooks = {
               Stop: [
                 {
