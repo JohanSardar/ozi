@@ -35,7 +35,15 @@ The work in `ui-redesign.md`, split into tickets. A ticket starts when everythin
 | C2  | `ozi` CLI and terminal app on the new server, including the inbox                                                                   | GUI    | I2         | 4    |
 | I7  | Clearing: answered, replied, Got it, or closed by an agent after a chat acknowledgement; "✓ Closed" in the chat                     | GUI    | I5, I6     | 5    |
 | H3  | The harness ships the Pi inbox plugin                                                                                               | H      | H2, P3     | 5    |
+| H6  | Completion checks of main's own text-only claims                                                                                    | H, GUI | H5         | 6    |
+| H7  | `completion_check` accepts the task IDs `delegate_task` returns                                                                     | H, GUI | H5         | 6    |
+| W1  | Delegated Ozi workers start despite long session IDs                                                                                | GUI    | P3         | 6    |
+| P4  | `ozi pi`, `ozi main` and Pi's built-in slash commands                                                                               | GUI    | C3         | 6    |
+| P5  | Pi extension statuses, widgets, title and editor text show and persist                                                              | GUI    | H2         | 6    |
+| P6  | Changes made through `ozi pi` reach running chats on their next turn                                                                | GUI    | P4         | 6    |
 | C6  | Real-agent parity run against the current build, then cutover of the live server                                                    | GUI, H | all        | 6    |
+
+H6, H7, W1, P4, P5 and P6 came out of C6's real-agent runs, which also shipped fixes as `C6 part 1–8`; C6 ends with the live cutover.
 
 F1 implementation: Ozi identities, isolated checkout dev homes with no live-state seeding, neutral blue icons, inherited notices, Ozi agent rules, and a single typecheck/lint workflow. Internal packages and MCP namespaces stay upstream-named; MCP renaming belongs to G2.
 
