@@ -150,9 +150,16 @@ import {
 } from "@t3tools/provider-core/server/subagentProjection";
 import * as IdAllocator from "@t3tools/provider-core/server/IdAllocator";
 import * as ProviderAdapter from "@t3tools/provider-core/server/ProviderAdapter";
+import * as InboxChecks from "../../tickets/InboxChecks.ts";
+import { inboxCheckStep } from "@t3tools/provider-core/server/inboxCheck";
 
 const CODEX_PROVIDER = ProviderDriverKind.make("codex");
 const CODEX_CAPACITY_MAX_RETRIES = 5;
+const CODEX_INBOX_HOOK_LABEL = "Ozi inbox check";
+const CODEX_INBOX_HOOK_ARGS = ["Stop", "SubagentStop"].flatMap((event) => [
+  "-c",
+  `hooks.${event}=[{hooks=[{type="command",command="true",commandWindows="exit /b 0",statusMessage="${CODEX_INBOX_HOOK_LABEL}"}]}]`,
+]);
 export const CODEX_DRIVER_KIND = CODEX_PROVIDER;
 export const CODEX_DEFAULT_INSTANCE_ID = defaultInstanceIdForDriver(CODEX_DRIVER_KIND);
 
@@ -1295,6 +1302,7 @@ export interface CodexAppServerClientFactoryShape {
     readonly runtimePolicy: ProviderAdapter.ProviderAdapterV2RuntimePolicy;
     readonly settings: CodexSettings;
     readonly environment: NodeJS.ProcessEnv;
+    readonly inboxCheck?: boolean;
   }) => Effect.Effect<
     CodexClient.CodexAppServerClient["Service"],
     ProviderAdapter.ProviderAdapterOpenSessionError,
@@ -1496,9 +1504,12 @@ export const layerAppServerClientFactory: Layer.Layer<
         };
         const command = yield* makeCodexAppServerSpawnCommand({
           command: input.settings.binaryPath || "codex",
-          args: codexAppServerArgs(
-            resolveCodexLaunchArgs(input.settings.launchArgs, input.environment),
-          ),
+          args: [
+            ...codexAppServerArgs(
+              resolveCodexLaunchArgs(input.settings.launchArgs, input.environment),
+            ),
+            ...(input.inboxCheck ? CODEX_INBOX_HOOK_ARGS : []),
+          ],
           env: environment,
           threadId: input.threadId,
         }).pipe(Effect.provideService(AgentScope, agentScope));
@@ -1613,6 +1624,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
   adapterOptions: CodexAdapterV2Options,
 ) {
   const mcpSessions = yield* McpProviderSessions.McpProviderSessions;
+  const inboxChecksService = yield* Effect.serviceOption(InboxChecks.InboxChecks);
   const readMcpSession = (threadId: ThreadId | null) =>
     // @effect-diagnostics-next-line effectSucceedWithVoid:off - This optional result requires undefined, not the wider void type.
     threadId === null ? Effect.succeed(undefined) : mcpSessions.read(threadId);
@@ -1651,6 +1663,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
           runtimePolicy: input.runtimePolicy,
           settings: resolvedRuntime?.config ?? adapterOptions.settings,
           environment: resolvedRuntime?.environment ?? adapterOptions.environment,
+          inboxCheck: Option.isSome(inboxChecksService),
         });
         const additionalContextByThread = yield* Ref.make(
           new Map<
@@ -1694,6 +1707,12 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
           ),
         );
         const initialized = yield* Ref.make(false);
+        let inboxHookState: Record<string, { trusted_hash: string; enabled?: boolean }> = {};
+        const runtimeParams = (params: Parameters<typeof codexThreadRuntimeParams>[0]) => {
+          const runtime = codexThreadRuntimeParams(params);
+          if (Option.isNone(inboxChecksService)) return runtime;
+          return { ...runtime, config: { ...runtime.config, "hooks.state": inboxHookState } };
+        };
         // Codex rejects a second initialize on the shared app-server.
         const initializePermit = yield* Semaphore.make(1);
         const ensureInitialized = initializePermit.withPermit(
@@ -1718,6 +1737,25 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
                 }),
               );
             yield* client.notify("initialized", undefined);
+            if (Option.isSome(inboxChecksService)) {
+              const { data } = yield* client.request("hooks/list", {
+                cwds: input.runtimePolicy.cwd === null ? [] : [input.runtimePolicy.cwd],
+              });
+              inboxHookState = Object.fromEntries(
+                data.flatMap((entry) =>
+                  entry.hooks
+                    .filter(
+                      (hook) =>
+                        hook.source === "sessionFlags" &&
+                        hook.statusMessage === CODEX_INBOX_HOOK_LABEL &&
+                        hook.handlerType === "command" &&
+                        (hook.command === "true" || hook.command === "exit /b 0") &&
+                        (hook.eventName === "stop" || hook.eventName === "subagentStop"),
+                    )
+                    .map((hook) => [hook.key, { trusted_hash: hook.currentHash }]),
+                ),
+              );
+            }
             yield* Ref.set(initialized, true);
           }),
         );
@@ -1865,6 +1903,143 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
 
         const emitProviderEvent = (event: ProviderAdapter.ProviderAdapterV2Event) =>
           Queue.offer(events, event).pipe(Effect.asVoid);
+
+        const inboxStops = new Set<string>();
+        const inboxForks = new Map<string, Deferred.Deferred<boolean>>();
+        const inboxChecks = new Map<string, ActiveCodexTurnContext>();
+        yield* client.handleServerNotification("hook/completed", (payload) =>
+          Effect.sync(() => {
+            if (
+              payload.turnId != null &&
+              (payload.run.eventName === "stop" || payload.run.eventName === "subagentStop") &&
+              payload.run.statusMessage === CODEX_INBOX_HOOK_LABEL &&
+              payload.run.status === "completed" &&
+              !inboxForks.has(payload.threadId)
+            )
+              inboxStops.add(payload.turnId);
+          }),
+        );
+        const startInboxCheck = Effect.fn("CodexAdapterV2.startInboxCheck")(
+          function* (context: ActiveCodexTurnContext) {
+            if (!inboxStops.delete(context.nativeTurnId) || Option.isNone(inboxChecksService))
+              return;
+            const sessionId = context.providerThread.providerSessionId;
+            const threadId = context.providerThread.nativeThreadRef?.nativeId;
+            if (sessionId === null || threadId == null) return;
+            const source = yield* mcpSessions.read(context.projectionThreadId);
+            if (source === undefined) return;
+            const check = yield* inboxChecksService.value.prepare({
+              source,
+              sessionId,
+              messageId: context.input.message.messageId,
+              runId: context.input.runId,
+            });
+            const nativeItemId = `inbox-check:${context.nativeTurnId}`;
+            const ordinal = yield* resolveItemOrdinal(context, nativeItemId);
+            const startedAt = yield* DateTime.now;
+            const row = Effect.fn("CodexAdapterV2.inboxCheckRow")(function* (
+              status: "running" | "completed" | "failed",
+            ) {
+              const now = yield* DateTime.now;
+              yield* emitProviderEvent({
+                type: "turn_item.updated",
+                driver: CODEX_PROVIDER,
+                turnItem: inboxCheckStep(
+                  {
+                    id: idAllocator.derive.turnItemFromProviderItem({
+                      driver: CODEX_PROVIDER,
+                      nativeItemId,
+                    }),
+                    threadId: context.projectionThreadId,
+                    runId: context.projectionRunId,
+                    nodeId: context.providerNodeId,
+                    providerThreadId: context.providerThread.id,
+                    providerTurnId: context.providerTurnId,
+                    ordinal,
+                    startedAt,
+                    updatedAt: now,
+                  },
+                  check.filed.size,
+                  status,
+                ),
+              });
+            });
+            inboxChecks.set(context.nativeTurnId, context);
+            yield* row("running");
+            yield* Effect.gen(function* () {
+              let forkId: string | undefined;
+              yield* Effect.gen(function* () {
+                const runtime = codexThreadRuntimeParams({
+                  mcpSession: check.config,
+                  modelSelection: context.input.modelSelection,
+                  runtimePolicy: context.input.runtimePolicy,
+                });
+                const fork = yield* client.request("thread/fork", {
+                  threadId,
+                  lastTurnId: context.nativeTurnId,
+                  ...runtime,
+                  approvalPolicy: "never",
+                  sandbox: "read-only",
+                  config: {
+                    ...runtime.config,
+                    "hooks.Stop": [],
+                    "hooks.SubagentStop": [],
+                    "hooks.state": Object.fromEntries(
+                      Object.entries(inboxHookState).map(([key, state]) => [
+                        key,
+                        { ...state, enabled: false },
+                      ]),
+                    ),
+                    "mcp_servers.t3-code.default_tools_approval_mode": "approve",
+                    "mcp_servers.t3-code.enabled_tools": [
+                      "ticket_create",
+                      "ticket_update",
+                      "ticket_close",
+                      "ticket_list",
+                    ],
+                  },
+                });
+                forkId = fork.thread.id;
+                const done = yield* Deferred.make<boolean>();
+                inboxForks.set(forkId, done);
+                yield* client.request("turn/start", {
+                  threadId: forkId,
+                  model: context.input.modelSelection.model,
+                  effort:
+                    getModelSelectionStringOptionValue(
+                      context.input.modelSelection,
+                      "reasoningEffort",
+                    ) ?? null,
+                  input: [{ type: "text", text: check.prompt, text_elements: [] }],
+                });
+                const completed = yield* Deferred.await(done);
+                yield* row(completed ? "completed" : "failed");
+              }).pipe(
+                Effect.timeout("3 minutes"),
+                Effect.catchCause((cause) =>
+                  row("failed").pipe(
+                    Effect.andThen(Effect.logWarning("Codex inbox check failed.", { cause })),
+                  ),
+                ),
+                Effect.ensuring(
+                  Effect.gen(function* () {
+                    yield* check.close;
+                    if (forkId !== undefined) {
+                      inboxForks.delete(forkId);
+                      yield* client
+                        .request("thread/archive", { threadId: forkId })
+                        .pipe(Effect.timeout("5 seconds"), Effect.ignore);
+                    }
+                    inboxChecks.delete(context.nativeTurnId);
+                  }),
+                ),
+              );
+            }).pipe(Effect.forkIn(scope));
+          },
+          Effect.catchCause((cause) =>
+            Effect.logWarning("Codex inbox check could not start.", { cause }),
+          ),
+        );
 
         // Setting a goal passes through cleared and paused states; publish only the result.
         const goalUpdatesHeld = new Set<string>();
@@ -6277,6 +6452,11 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
 
         yield* client.handleServerNotification("turn/completed", (payload) =>
           Effect.gen(function* () {
+            const inbox = inboxForks.get(payload.threadId);
+            if (inbox !== undefined) {
+              yield* Deferred.succeed(inbox, payload.turn.status === "completed");
+              return;
+            }
             const context = (yield* Ref.get(activeTurns)).get(payload.turn.id);
             if (context === undefined) {
               return;
@@ -6301,7 +6481,11 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
                       : { failureErrorInfo: payload.turn.error.codexErrorInfo }),
                   }),
             };
-            if (!(yield* retryCapacityFailure(terminal))) yield* finalizeCodexTurn(terminal);
+            if (!(yield* retryCapacityFailure(terminal))) {
+              if (status === "completed") yield* startInboxCheck(context);
+              else inboxStops.delete(payload.turn.id);
+              yield* finalizeCodexTurn(terminal);
+            }
           }),
         );
 
@@ -6722,6 +6906,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
           canReuseContextUsage: canReuseCodexContextUsage,
           // Idle release can beat delayed subagent resumes: Codex reports them completed between turns with no resume-expected signal.
           hasPendingBackgroundWork: Effect.gen(function* () {
+            if (inboxChecks.size > 0) return true;
             for (const items of (yield* Ref.get(runningCommandItemsByTurn)).values()) {
               if (items.size > 0) {
                 return true;
@@ -6745,6 +6930,12 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
           hasPendingBackgroundWorkForThread: Effect.fn(
             "CodexAdapterV2.hasPendingBackgroundWorkForThread",
           )(function* (providerThread) {
+            if (
+              [...inboxChecks.values()].some(
+                (context) => context.providerThread.id === providerThread.id,
+              )
+            )
+              return true;
             const contexts = [
               ...(yield* Ref.get(activeTurns)).values(),
               ...(yield* Ref.get(settledTurns)).values(),
@@ -6770,7 +6961,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
               Effect.flatMap((mcpSession) =>
                 client.request(
                   "thread/start",
-                  codexThreadRuntimeParams({
+                  runtimeParams({
                     mcpSession,
                     modelSelection: threadInput.modelSelection,
                     runtimePolicy: threadInput.runtimePolicy,
@@ -6798,11 +6989,12 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
             ),
           resumeThread: Effect.fn("CodexAdapterV2.resumeThread")(
             function* (threadInput) {
+              yield* ensureInitialized;
               const nativeThreadId = yield* getNativeThreadId(threadInput.providerThread);
               const resume = client.raw.request("thread/resume", {
                 threadId: nativeThreadId,
                 excludeTurns: true,
-                ...codexThreadRuntimeParams({
+                ...runtimeParams({
                   mcpSession: yield* readMcpSession(
                     threadInput.threadId ?? threadInput.providerThread.appThreadId,
                   ),
@@ -7588,7 +7780,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
                 yield* client.raw.request("thread/resume", {
                   threadId,
                   excludeTurns: true,
-                  ...codexThreadRuntimeParams({
+                  ...runtimeParams({
                     mcpSession: yield* readMcpSession(threadInput.providerThread.appThreadId),
                     modelSelection: input.modelSelection,
                     runtimePolicy: input.runtimePolicy,
@@ -7631,6 +7823,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
           ),
           forkThread: Effect.fn("CodexAdapterV2.forkThread")(
             function* (threadInput) {
+              yield* ensureInitialized;
               const threadId = yield* getNativeThreadId(threadInput.sourceProviderThread);
               const boundary = yield* resolveCodexForkBoundary(threadInput);
               const response = yield* ensureInitialized.pipe(
@@ -7640,7 +7833,7 @@ export const makeCodexAdapterV2 = Effect.fn("makeCodexAdapterV2")(function* (
                     ...(boundary.lastTurnId === undefined
                       ? {}
                       : { lastTurnId: boundary.lastTurnId }),
-                    ...codexThreadRuntimeParams({
+                    ...runtimeParams({
                       mcpSession: yield* mcpSessions.read(threadInput.targetThreadId),
                       ...(threadInput.modelSelection === undefined
                         ? {}
