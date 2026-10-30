@@ -191,7 +191,6 @@ export interface SnoozePreset {
 }
 
 export interface SnoozePresetOptions {
-  readonly presets?: ReadonlyArray<SnoozePresetSetting>;
   readonly formatTime?: (date: Date) => string;
 }
 
@@ -244,13 +243,13 @@ function snoozePresetLabel(setting: SnoozePresetSetting, daysAhead: number): str
   return daysAhead === 7 ? `Next ${capitalize(setting.day)}` : capitalize(setting.day);
 }
 
-export function snoozePresetId(setting: SnoozePresetSetting): string {
+function snoozePresetId(setting: SnoozePresetSetting): string {
   return setting.kind === "after"
     ? `after:${setting.minutes}`
     : `at:${setting.day}:${setting.time}`;
 }
 
-export function resolveSnoozePreset(
+function resolveSnoozePreset(
   setting: SnoozePresetSetting,
   now: Date,
   formatTime: (date: Date) => string = snoozeTimeOfDayLabel,
@@ -287,12 +286,13 @@ export function resolveSnoozePresets(
   options: SnoozePresetOptions = {},
 ): ReadonlyArray<SnoozePreset> {
   // By minute, so a duration (which keeps the clock's seconds) and a set time in the same
-  // minute tie, and the stable sort keeps whichever comes first in settings.
+  // minute tie, and the stable sort keeps whichever comes first.
   const wakeMinute = (preset: SnoozePreset) => Math.floor(Date.parse(preset.snoozedUntil) / 60_000);
   const seen = new Set<number>();
   return (
-    (options.presets ?? DEFAULT_SNOOZE_PRESETS)
-      .flatMap((setting) => resolveSnoozePreset(setting, now, options.formatTime) ?? [])
+    DEFAULT_SNOOZE_PRESETS.flatMap(
+      (setting) => resolveSnoozePreset(setting, now, options.formatTime) ?? [],
+    )
       // flatMap returned a new array; Hermes has no `toSorted`.
       .sort((a, b) => wakeMinute(a) - wakeMinute(b))
       .filter((preset) => {
@@ -311,13 +311,12 @@ export function pickSnoozePreset(input: {
   readonly shown: ReadonlyArray<SnoozePreset>;
   readonly id: string;
   readonly now: Date;
-  readonly presets?: ReadonlyArray<SnoozePresetSetting>;
   readonly formatTime?: (date: Date) => string;
 }): SnoozePreset | undefined {
   const original = input.shown.find((preset) => preset.id === input.id);
   const ahead =
     original && Date.parse(original.snoozedUntil) > input.now.getTime() ? original : undefined;
-  const setting = (input.presets ?? DEFAULT_SNOOZE_PRESETS).find(
+  const setting = DEFAULT_SNOOZE_PRESETS.find(
     (candidate) => candidate.kind === "after" && snoozePresetId(candidate) === input.id,
   );
   return (setting && resolveSnoozePreset(setting, input.now, input.formatTime)) ?? ahead;

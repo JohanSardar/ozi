@@ -52,7 +52,6 @@ import { useScopedModelDisabledReason } from "./useScopedModelAvailability";
 import { useOptionalSettingsScope, useSettingsScope } from "./SettingsScopeContext";
 import { scopedIdleCompaction } from "./scopedSettings";
 import { ThreadTitleInstructionsSettings } from "./ThreadTitleInstructionsSettings";
-import { SnoozePresetsRow } from "./SnoozePresetsSettings";
 import { useDesktopUpdateState } from "../../state/desktopUpdate";
 import {
   getCustomModelOptionsByInstance,
@@ -450,9 +449,6 @@ export function useSettingsRestore(onRestored?: () => void) {
     ...(settings.snoozeLimitedThreads !== DEFAULT_UNIFIED_SETTINGS.snoozeLimitedThreads
       ? ["Snooze until limits reset"]
       : []),
-    ...(!Equal.equals(settings.snoozePresets, DEFAULT_UNIFIED_SETTINGS.snoozePresets)
-      ? ["Snooze options"]
-      : []),
     ...(settings.wordWrap !== DEFAULT_UNIFIED_SETTINGS.wordWrap ? ["Word wrap"] : []),
     ...getChangedTypographySettingLabels(settings),
     ...(settings.showSkillsInSlashMenu !== DEFAULT_UNIFIED_SETTINGS.showSkillsInSlashMenu
@@ -465,9 +461,7 @@ export function useSettingsRestore(onRestored?: () => void) {
     ...(settings.followUpBehavior !== DEFAULT_UNIFIED_SETTINGS.followUpBehavior
       ? ["Follow-up behavior"]
       : []),
-    ...(settings.contextWindowMeterEnabled !== DEFAULT_UNIFIED_SETTINGS.contextWindowMeterEnabled
-      ? ["Context window indicator"]
-      : []),
+    ...(settings.planModeEnabled !== DEFAULT_UNIFIED_SETTINGS.planModeEnabled ? ["Plan mode"] : []),
     ...(settings.responseStreamingMode !== DEFAULT_UNIFIED_SETTINGS.responseStreamingMode
       ? ["Response streaming"]
       : []),
@@ -565,7 +559,7 @@ export function useSettingsRestore(onRestored?: () => void) {
       composerRichTextEnabled: DEFAULT_UNIFIED_SETTINGS.composerRichTextEnabled,
       sendShortcut: DEFAULT_UNIFIED_SETTINGS.sendShortcut,
       followUpBehavior: DEFAULT_UNIFIED_SETTINGS.followUpBehavior,
-      contextWindowMeterEnabled: DEFAULT_UNIFIED_SETTINGS.contextWindowMeterEnabled,
+      planModeEnabled: DEFAULT_UNIFIED_SETTINGS.planModeEnabled,
       environmentIdentificationMode: DEFAULT_UNIFIED_SETTINGS.environmentIdentificationMode,
       glassOpacity: DEFAULT_UNIFIED_SETTINGS.glassOpacity,
       panelAnimationDurationMs: DEFAULT_UNIFIED_SETTINGS.panelAnimationDurationMs,
@@ -573,7 +567,6 @@ export function useSettingsRestore(onRestored?: () => void) {
       sidebarAutoSettleAfterDays: DEFAULT_UNIFIED_SETTINGS.sidebarAutoSettleAfterDays,
       autoResumeLimitedThreads: DEFAULT_UNIFIED_SETTINGS.autoResumeLimitedThreads,
       snoozeLimitedThreads: DEFAULT_UNIFIED_SETTINGS.snoozeLimitedThreads,
-      snoozePresets: DEFAULT_UNIFIED_SETTINGS.snoozePresets,
       responseStreamingMode: DEFAULT_UNIFIED_SETTINGS.responseStreamingMode,
       enableProviderUpdateChecks: DEFAULT_UNIFIED_SETTINGS.enableProviderUpdateChecks,
       continueThreadsAfterServerUpdate: DEFAULT_UNIFIED_SETTINGS.continueThreadsAfterServerUpdate,
@@ -613,6 +606,51 @@ export function useSettingsRestore(onRestored?: () => void) {
     changedSettingLabels,
     restoreDefaults,
   };
+}
+
+export function UsageLimitRows() {
+  return useOptionalSettingsScope() === null ? null : <ScopedUsageLimitRows />;
+}
+
+function ScopedUsageLimitRows() {
+  const settings = useScopedSettings();
+  const updateSettings = useUpdateScopedSettings();
+  return (
+    <>
+      <SettingsRow
+        serverScoped
+        {...searchableSetting("auto-resume-limited-threads")}
+        description="Resume usage-limit stops at the reported reset time. Each thread can cancel its scheduled continuation."
+        settingKeys={["autoResumeLimitedThreads"]}
+        control={
+          <ScopedSwitch
+            settingKeys={["autoResumeLimitedThreads"]}
+            checked={settings.autoResumeLimitedThreads}
+            onCheckedChange={(checked) =>
+              updateSettings({ autoResumeLimitedThreads: Boolean(checked) })
+            }
+            aria-label="Resume after usage limits"
+          />
+        }
+      />
+      <SettingsRow
+        serverScoped
+        {...searchableSetting("snooze-limited-threads")}
+        description="Snooze usage-limit stops until reset. Pair with resume to continue on wake."
+        settingKeys={["snoozeLimitedThreads"]}
+        control={
+          <ScopedSwitch
+            settingKeys={["snoozeLimitedThreads"]}
+            checked={settings.snoozeLimitedThreads}
+            onCheckedChange={(checked) =>
+              updateSettings({ snoozeLimitedThreads: Boolean(checked) })
+            }
+            aria-label="Snooze until limits reset"
+          />
+        }
+      />
+    </>
+  );
 }
 
 const AUTO_SETTLE_DEFAULT_DAYS = DEFAULT_UNIFIED_SETTINGS.sidebarAutoSettleAfterDays ?? 3;
@@ -656,39 +694,59 @@ function AutoSettleDaysInput({
   );
 }
 
-export function LegacyFeaturesSection() {
+function AutoSettleRows() {
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
-
+  const { connectedEnvironments } = useSettingsScope();
+  if (connectedEnvironments.length === 0) return null;
   return (
-    <SettingsSection id="legacy-features" title="Legacy">
+    <>
       <SettingsRow
-        {...searchableSetting("legacy-plan-mode")}
-        description="Restore Build/Plan, /plan, /default, and Shift+Tab. Off uses build mode."
-        control={
-          <Switch
-            checked={settings.planModeEnabled}
-            onCheckedChange={(checked) => {
-              updateSettings({ planModeEnabled: Boolean(checked) });
-            }}
-            aria-label="Plan mode (legacy)"
-          />
+        serverScoped
+        settingKeys={["sidebarAutoSettleAfterDays"]}
+        {...searchableSetting("auto-settle-inactive-threads")}
+        description="Sidebar threads with no activity for this long settle automatically."
+        resetAction={
+          settings.sidebarAutoSettleAfterDays !==
+          DEFAULT_UNIFIED_SETTINGS.sidebarAutoSettleAfterDays ? (
+            <SettingResetButton
+              label="auto-settle"
+              onClick={() =>
+                updateSettings({
+                  sidebarAutoSettleAfterDays: DEFAULT_UNIFIED_SETTINGS.sidebarAutoSettleAfterDays,
+                })
+              }
+            />
+          ) : null
         }
-      />
-      <SettingsRow
-        {...searchableSetting("legacy-context-window-indicator")}
-        description="Shows context window usage as a circular indicator in the composer."
         control={
-          <Switch
-            checked={settings.contextWindowMeterEnabled}
+          <ScopedSwitch
+            settingKeys={["sidebarAutoSettleAfterDays"]}
+            checked={settings.sidebarAutoSettleAfterDays !== null}
             onCheckedChange={(checked) =>
-              updateSettings({ contextWindowMeterEnabled: Boolean(checked) })
+              updateSettings({
+                sidebarAutoSettleAfterDays: checked ? AUTO_SETTLE_DEFAULT_DAYS : null,
+              })
             }
-            aria-label="Context window indicator (legacy)"
+            aria-label="Auto-settle inactive threads"
           />
         }
       />
-    </SettingsSection>
+      {settings.sidebarAutoSettleAfterDays !== null ? (
+        <SettingsRow
+          serverScoped
+          settingKeys={["sidebarAutoSettleAfterDays"]}
+          title={searchableSetting("days-before-auto-settle").title}
+          description="Any new activity un-settles a thread automatically."
+          control={
+            <AutoSettleDaysInput
+              value={settings.sidebarAutoSettleAfterDays}
+              onCommit={(days) => updateSettings({ sidebarAutoSettleAfterDays: days })}
+            />
+          }
+        />
+      ) : null}
+    </>
   );
 }
 
@@ -743,7 +801,7 @@ export function GeneralSettingsPanel() {
       <SettingsSection id="sidebar" title="Sidebar">
         <SettingsRow
           {...searchableSetting("working-shelf")}
-          description="Fold working and monitoring threads into a Working section. They return to the top of the inbox when they need you. The boring sidebar in Labs has no Working section."
+          description="Fold working and monitoring threads into a Working section. They return to the top of the inbox when they need you."
           resetAction={
             settings.sidebarWorkingShelfEnabled !==
             DEFAULT_UNIFIED_SETTINGS.sidebarWorkingShelfEnabled ? (
@@ -767,6 +825,7 @@ export function GeneralSettingsPanel() {
             />
           }
         />
+        <AutoSettleRows />
       </SettingsSection>
 
       <SettingsSection id="confirmations" title="Confirmations">
@@ -947,6 +1006,7 @@ export function ChatSettingsPanel() {
 
   return (
     <SettingsPageContainer>
+      <ChatDefaultsSettings />
       <SettingsSection id="composer" title="Composer">
         <SettingsRow
           {...searchableSetting("composer-rich-text")}
@@ -1018,6 +1078,17 @@ export function ChatSettingsPanel() {
                 ))}
               </SelectPopup>
             </Select>
+          }
+        />
+        <SettingsRow
+          {...searchableSetting("plan-mode")}
+          description="Restore Build/Plan, /plan, /default, and Shift+Tab. Off uses build mode."
+          control={
+            <Switch
+              checked={settings.planModeEnabled}
+              onCheckedChange={(checked) => updateSettings({ planModeEnabled: Boolean(checked) })}
+              aria-label="Plan mode"
+            />
           }
         />
         <AdvancedSettings targetIds={[searchableSetting("skills-in-slash-menu").id]}>
@@ -1092,6 +1163,7 @@ export function ChatSettingsPanel() {
           }
         />
       </SettingsSection>
+      <TextGenerationSection />
     </SettingsPageContainer>
   );
 }
@@ -1160,7 +1232,7 @@ function ScopedCompactIdleThreadsRow() {
   );
 }
 
-export function ThreadsSettingsPanel() {
+function TextGenerationSection() {
   const settings = useScopedSettings();
   const updateSettings = useUpdateScopedSettings();
   const navigate = useNavigate();
@@ -1213,262 +1285,166 @@ export function ThreadsSettingsPanel() {
   const mixedTextGenerationModel = useScopedSettingsMixed(["textGenerationModelSelection"]);
 
   return (
-    <SettingsPageContainer>
-      <ChatDefaultsSettings />
-
-      {
-        <SettingsSection id="snooze" title="Snooze">
-          <SnoozePresetsRow />
-        </SettingsSection>
-      }
-
-      <SettingsSection id="usage-limits" title="Usage limits">
-        <SettingsRow
-          serverScoped
-          {...searchableSetting("auto-resume-limited-threads")}
-          description="Resume usage-limit stops at the reported reset time. Each thread can cancel its scheduled continuation."
-          settingKeys={["autoResumeLimitedThreads"]}
-          control={
-            <ScopedSwitch
-              settingKeys={["autoResumeLimitedThreads"]}
-              checked={settings.autoResumeLimitedThreads}
-              onCheckedChange={(checked) =>
-                updateSettings({ autoResumeLimitedThreads: Boolean(checked) })
-              }
-              aria-label="Resume after usage limits"
-            />
-          }
-        />
-        <SettingsRow
-          serverScoped
-          {...searchableSetting("snooze-limited-threads")}
-          description="Snooze usage-limit stops until reset. Pair with resume to continue on wake."
-          settingKeys={["snoozeLimitedThreads"]}
-          control={
-            <ScopedSwitch
-              settingKeys={["snoozeLimitedThreads"]}
-              checked={settings.snoozeLimitedThreads}
-              onCheckedChange={(checked) =>
-                updateSettings({ snoozeLimitedThreads: Boolean(checked) })
-              }
-              aria-label="Snooze until limits reset"
-            />
-          }
-        />
-      </SettingsSection>
-
-      {hasServerTargets ? (
-        <SettingsSection id="auto-settle" title="Auto-settle">
-          <SettingsRow
-            serverScoped
-            settingKeys={["sidebarAutoSettleAfterDays"]}
-            {...searchableSetting("auto-settle-inactive-threads")}
-            description="Sidebar threads with no activity for this long settle automatically."
-            resetAction={
-              settings.sidebarAutoSettleAfterDays !==
-              DEFAULT_UNIFIED_SETTINGS.sidebarAutoSettleAfterDays ? (
-                <SettingResetButton
-                  label="auto-settle"
-                  onClick={() =>
-                    updateSettings({
-                      sidebarAutoSettleAfterDays:
-                        DEFAULT_UNIFIED_SETTINGS.sidebarAutoSettleAfterDays,
-                    })
-                  }
-                />
-              ) : null
-            }
-            control={
-              <ScopedSwitch
-                settingKeys={["sidebarAutoSettleAfterDays"]}
-                checked={settings.sidebarAutoSettleAfterDays !== null}
-                onCheckedChange={(checked) =>
-                  updateSettings({
-                    sidebarAutoSettleAfterDays: checked ? AUTO_SETTLE_DEFAULT_DAYS : null,
-                  })
-                }
-                aria-label="Auto-settle inactive threads"
-              />
-            }
-          />
-          {settings.sidebarAutoSettleAfterDays !== null ? (
-            <SettingsRow
-              serverScoped
-              settingKeys={["sidebarAutoSettleAfterDays"]}
-              title={searchableSetting("days-before-auto-settle").title}
-              description="Any new activity un-settles a thread automatically."
-              control={
-                <AutoSettleDaysInput
-                  value={settings.sidebarAutoSettleAfterDays}
-                  onCommit={(days) => updateSettings({ sidebarAutoSettleAfterDays: days })}
-                />
+    <SettingsSection id="text-generation" title="Text generation">
+      <SettingsRow
+        serverScoped
+        settingKeys={["textGenerationModelSelection"]}
+        {...searchableSetting("text-generation-model")}
+        description="Used for thread titles and other generated text on connected devices with this provider."
+        resetAction={
+          hasServerTargets && isTextGenerationModelDirty ? (
+            <SettingResetButton
+              label="text generation model"
+              onClick={() =>
+                updateSettings({
+                  textGenerationModelSelection:
+                    DEFAULT_UNIFIED_SETTINGS.textGenerationModelSelection,
+                })
               }
             />
-          ) : null}
-        </SettingsSection>
-      ) : null}
-
-      <SettingsSection id="text-generation" title="Text generation">
-        <SettingsRow
-          serverScoped
-          settingKeys={["textGenerationModelSelection"]}
-          {...searchableSetting("text-generation-model")}
-          description="Used for thread titles and other generated text on connected devices with this provider."
-          resetAction={
-            hasServerTargets && isTextGenerationModelDirty ? (
-              <SettingResetButton
-                label="text generation model"
-                onClick={() =>
-                  updateSettings({
-                    textGenerationModelSelection:
-                      DEFAULT_UNIFIED_SETTINGS.textGenerationModelSelection,
-                  })
-                }
-              />
-            ) : null
-          }
-          control={
-            !hasServerTargets ? (
-              <span className="text-sm text-muted-foreground">
-                Connect an environment to choose its text generation model.
-              </span>
-            ) : !hasTextGenerationProvider ? (
-              <span className="text-sm text-muted-foreground">
-                No text generation providers available.
-              </span>
-            ) : (
-              <div className="flex flex-wrap items-center justify-end gap-1.5">
-                <ProviderModelPicker
-                  environmentId={environmentId}
-                  activeInstanceId={textGenInstanceId}
-                  model={textGenModel}
-                  lockedProvider={null}
-                  instanceEntries={textGenerationModelInstanceEntries}
-                  modelOptionsByInstance={textGenerationModelOptionsByInstance}
-                  triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}
-                  {...(mixedTextGenerationModel ? { triggerLabel: "Mixed" } : {})}
-                  getModelDisabledReason={textGenerationModelDisabledReason}
-                  {...(environmentId
-                    ? {
-                        onOpenProviderSetup: (instanceId: ProviderInstanceId) => {
-                          void navigate({
-                            to: "/settings/providers",
-                            search: { environmentId, instanceId },
-                          });
-                        },
-                      }
-                    : {})}
-                  onInstanceModelChange={(instanceId, model) => {
-                    const reason = textGenerationModelDisabledReason(instanceId, model);
-                    if (reason) {
-                      toastManager.add({
-                        type: "error",
-                        title: "Text generation model not saved",
-                        description: reason,
-                      });
-                      return;
+          ) : null
+        }
+        control={
+          !hasServerTargets ? (
+            <span className="text-sm text-muted-foreground">
+              Connect an environment to choose its text generation model.
+            </span>
+          ) : !hasTextGenerationProvider ? (
+            <span className="text-sm text-muted-foreground">
+              No text generation providers available.
+            </span>
+          ) : (
+            <div className="flex flex-wrap items-center justify-end gap-1.5">
+              <ProviderModelPicker
+                environmentId={environmentId}
+                activeInstanceId={textGenInstanceId}
+                model={textGenModel}
+                lockedProvider={null}
+                instanceEntries={textGenerationModelInstanceEntries}
+                modelOptionsByInstance={textGenerationModelOptionsByInstance}
+                triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}
+                {...(mixedTextGenerationModel ? { triggerLabel: "Mixed" } : {})}
+                getModelDisabledReason={textGenerationModelDisabledReason}
+                {...(environmentId
+                  ? {
+                      onOpenProviderSetup: (instanceId: ProviderInstanceId) => {
+                        void navigate({
+                          to: "/settings/providers",
+                          search: { environmentId, instanceId },
+                        });
+                      },
                     }
+                  : {})}
+                onInstanceModelChange={(instanceId, model) => {
+                  const reason = textGenerationModelDisabledReason(instanceId, model);
+                  if (reason) {
+                    toastManager.add({
+                      type: "error",
+                      title: "Text generation model not saved",
+                      description: reason,
+                    });
+                    return;
+                  }
+                  updateSettings({
+                    textGenerationModelSelection: resolveAppModelSelectionState(
+                      {
+                        ...settings,
+                        textGenerationModelSelection: createModelSelection(instanceId, model),
+                      },
+                      textGenerationProviders,
+                    ),
+                  });
+                }}
+              />
+              {textGenInstanceEntry ? (
+                <TraitsPicker
+                  provider={textGenProvider}
+                  models={textGenInstanceEntry?.models ?? []}
+                  model={textGenModel}
+                  modelOptions={textGenModelOptions}
+                  allowPromptInjectedEffort={false}
+                  planModeEnabled={
+                    settings.planModeEnabled || selectsPlanAgent(textGenModelOptions)
+                  }
+                  triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}
+                  onModelOptionsChange={(nextOptions) => {
                     updateSettings({
                       textGenerationModelSelection: resolveAppModelSelectionState(
                         {
                           ...settings,
-                          textGenerationModelSelection: createModelSelection(instanceId, model),
+                          textGenerationModelSelection: createModelSelection(
+                            textGenInstanceId,
+                            textGenModel,
+                            nextOptions,
+                          ),
                         },
                         textGenerationProviders,
                       ),
                     });
                   }}
                 />
-                {textGenInstanceEntry ? (
-                  <TraitsPicker
-                    provider={textGenProvider}
-                    models={textGenInstanceEntry?.models ?? []}
-                    model={textGenModel}
-                    modelOptions={textGenModelOptions}
-                    allowPromptInjectedEffort={false}
-                    planModeEnabled={
-                      settings.planModeEnabled || selectsPlanAgent(textGenModelOptions)
-                    }
-                    triggerClassName={SETTINGS_PICKER_TRIGGER_CLASSNAME}
-                    onModelOptionsChange={(nextOptions) => {
-                      updateSettings({
-                        textGenerationModelSelection: resolveAppModelSelectionState(
-                          {
-                            ...settings,
-                            textGenerationModelSelection: createModelSelection(
-                              textGenInstanceId,
-                              textGenModel,
-                              nextOptions,
-                            ),
-                          },
-                          textGenerationProviders,
-                        ),
-                      });
-                    }}
-                  />
-                ) : null}
-              </div>
-            )
+              ) : null}
+            </div>
+          )
+        }
+      />
+      <AdvancedSettings
+        targetIds={[
+          searchableSetting("thread-title-instructions").id,
+          searchableSetting("response-streaming").id,
+        ]}
+      >
+        <ThreadTitleInstructionsSettings />
+        <SettingsRow
+          serverScoped
+          settingKeys={["responseStreamingMode"]}
+          {...searchableSetting("response-streaming")}
+          description={
+            mixedResponseStreamingMode
+              ? "The selected targets use different streaming modes."
+              : RESPONSE_STREAMING_MODE_DESCRIPTIONS[settings.responseStreamingMode]
+          }
+          resetAction={
+            settings.responseStreamingMode !== DEFAULT_UNIFIED_SETTINGS.responseStreamingMode ? (
+              <SettingResetButton
+                label="response streaming"
+                onClick={() =>
+                  updateSettings({
+                    responseStreamingMode: DEFAULT_UNIFIED_SETTINGS.responseStreamingMode,
+                  })
+                }
+              />
+            ) : null
+          }
+          control={
+            <Select
+              value={mixedResponseStreamingMode ? null : settings.responseStreamingMode}
+              onValueChange={(value) => {
+                if (value === "turn" || value === "paragraph") {
+                  updateSettings({ responseStreamingMode: value });
+                }
+              }}
+            >
+              <SelectTrigger size="sm" className="w-full sm:w-56" aria-label="Response streaming">
+                <SelectValue>
+                  {(value: ResponseStreamingMode | null) =>
+                    value === null ? "Mixed" : RESPONSE_STREAMING_MODE_LABELS[value]
+                  }
+                </SelectValue>
+              </SelectTrigger>
+              <SelectPopup align="end" alignItemWithTrigger={false}>
+                <SelectItem hideIndicator value="turn">
+                  {RESPONSE_STREAMING_MODE_LABELS.turn}
+                </SelectItem>
+                <SelectItem hideIndicator value="paragraph">
+                  {RESPONSE_STREAMING_MODE_LABELS.paragraph}
+                </SelectItem>
+              </SelectPopup>
+            </Select>
           }
         />
-        <AdvancedSettings
-          targetIds={[
-            searchableSetting("thread-title-instructions").id,
-            searchableSetting("response-streaming").id,
-          ]}
-        >
-          <ThreadTitleInstructionsSettings />
-          <SettingsRow
-            serverScoped
-            settingKeys={["responseStreamingMode"]}
-            {...searchableSetting("response-streaming")}
-            description={
-              mixedResponseStreamingMode
-                ? "The selected targets use different streaming modes."
-                : RESPONSE_STREAMING_MODE_DESCRIPTIONS[settings.responseStreamingMode]
-            }
-            resetAction={
-              settings.responseStreamingMode !== DEFAULT_UNIFIED_SETTINGS.responseStreamingMode ? (
-                <SettingResetButton
-                  label="response streaming"
-                  onClick={() =>
-                    updateSettings({
-                      responseStreamingMode: DEFAULT_UNIFIED_SETTINGS.responseStreamingMode,
-                    })
-                  }
-                />
-              ) : null
-            }
-            control={
-              <Select
-                value={mixedResponseStreamingMode ? null : settings.responseStreamingMode}
-                onValueChange={(value) => {
-                  if (value === "turn" || value === "paragraph") {
-                    updateSettings({ responseStreamingMode: value });
-                  }
-                }}
-              >
-                <SelectTrigger size="sm" className="w-full sm:w-56" aria-label="Response streaming">
-                  <SelectValue>
-                    {(value: ResponseStreamingMode | null) =>
-                      value === null ? "Mixed" : RESPONSE_STREAMING_MODE_LABELS[value]
-                    }
-                  </SelectValue>
-                </SelectTrigger>
-                <SelectPopup align="end" alignItemWithTrigger={false}>
-                  <SelectItem hideIndicator value="turn">
-                    {RESPONSE_STREAMING_MODE_LABELS.turn}
-                  </SelectItem>
-                  <SelectItem hideIndicator value="paragraph">
-                    {RESPONSE_STREAMING_MODE_LABELS.paragraph}
-                  </SelectItem>
-                </SelectPopup>
-              </Select>
-            }
-          />
-        </AdvancedSettings>
-      </SettingsSection>
-    </SettingsPageContainer>
+      </AdvancedSettings>
+    </SettingsSection>
   );
 }
 

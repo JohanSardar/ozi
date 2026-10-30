@@ -48,10 +48,6 @@ import {
   buildAttachmentVideoPreview,
   buildExpandedImagePreview,
 } from "./ExpandedImagePreview";
-import {
-  SNAP_SHOT_ATTACHMENT_FRAME_CLASS,
-  SnapShotAttachmentDetails,
-} from "./SnapShotAttachmentDetails";
 import { GuestMessageName, guestBubbleClassName } from "./guestMessageStyle";
 import { MessageCopyButton } from "./MessageCopyButton";
 import { promptLinkFor } from "../promptLinks/copyPromptLink";
@@ -503,12 +499,7 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
                 {regularImages.map((image) => (
                   <div
                     key={image.id}
-                    className={cn(
-                      "bg-background/70",
-                      image.source?.kind === "snap-shot" && image.previewUrl
-                        ? cn(SNAP_SHOT_ATTACHMENT_FRAME_CLASS, "col-span-2")
-                        : "aspect-[4/3] overflow-hidden rounded-lg border border-border/80",
-                    )}
+                    className="aspect-[4/3] overflow-hidden rounded-lg border border-border/80 bg-background/70"
                   >
                     {image.previewUrl ? (
                       <button
@@ -537,9 +528,6 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
                         {image.name}
                       </div>
                     )}
-                    {image.previewUrl && image.source?.kind === "snap-shot" ? (
-                      <SnapShotAttachmentDetails source={image.source} />
-                    ) : null}
                   </div>
                 ))}
                 {userVideos.map((file) => (

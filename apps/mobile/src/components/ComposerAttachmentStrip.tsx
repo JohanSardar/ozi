@@ -170,16 +170,15 @@ function ComposerImageAttachment(
 function ComposerAttachmentContent(props: ComposerAttachmentThumbnailProps) {
   const { attachment } = props;
   // The document picker types every pick as a plain file, so a picture arrives here as one.
-  if (attachment.type === "image" || imageMimeType(attachment) !== null) {
+  if (attachment.type === "image") {
+    return <ComposerImageAttachment {...props} attachment={attachment} />;
+  }
+  if (imageMimeType(attachment) !== null) {
     const { source: _droppedSource, ...rest } = attachment;
     return (
       <ComposerImageAttachment
         {...props}
-        attachment={
-          attachment.type === "image"
-            ? attachment
-            : { ...rest, type: "image", previewUri: attachment.fileUri }
-        }
+        attachment={{ ...rest, type: "image", previewUri: attachment.fileUri }}
       />
     );
   }

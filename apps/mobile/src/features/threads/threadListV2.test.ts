@@ -58,21 +58,19 @@ function makeThread(
 const NOW = "2026-06-02T00:00:00.000Z";
 
 describe("resolveThreadListV2SnoozeMenuSelection", () => {
-  it("recomputes the environment's presets instead of using old timestamps", () => {
-    const presets = [{ kind: "after", minutes: 360 }] as const;
-    const displayedPresets = resolveSnoozePresets(new Date(2026, 4, 8, 10), { presets });
+  it("recomputes a duration preset instead of using old timestamps", () => {
+    const displayedPresets = resolveSnoozePresets(new Date(2026, 4, 8, 10));
     const selectedAt = new Date(2026, 4, 8, 10, 30);
     const selection = resolveThreadListV2SnoozeMenuSelection({
-      event: "snooze:after:360",
+      event: "snooze:after:180",
       displayedPresets,
       now: selectedAt,
-      presets,
     });
 
     expect(selection._tag).toBe("selected");
     if (selection._tag === "selected") {
       expect(selection.preset.snoozedUntil).toBe(
-        new Date(selectedAt.getTime() + 6 * 60 * 60 * 1_000).toISOString(),
+        new Date(selectedAt.getTime() + 3 * 60 * 60 * 1_000).toISOString(),
       );
     }
   });
@@ -87,7 +85,6 @@ describe("resolveThreadListV2SnoozePresets", () => {
     const presets = resolveThreadListV2SnoozePresets({
       secondary: "snooze",
       now: laterMinute,
-      presets: undefined,
     });
 
     expect(presets.find((preset) => preset.id === "after:60")?.snoozedUntil).toBe(

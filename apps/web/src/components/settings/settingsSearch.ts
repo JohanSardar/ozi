@@ -2,8 +2,6 @@ import { HOSTED_APP_CHANNEL } from "~/branding";
 import { isElectron } from "~/env";
 import { isMacPlatform, isWindowsPlatform, normalizeSearchText } from "~/lib/utils";
 import { STATIC_KEYBINDING_COMMANDS, type KeybindingCommand } from "@t3tools/contracts";
-import type { EnvironmentId } from "@t3tools/contracts";
-import type { EnvironmentConnectionPhase } from "@t3tools/client-runtime/connection";
 import { DEFAULT_KEYBINDINGS } from "@t3tools/shared/keybindings";
 import * as Schema from "effect/Schema";
 import { TYPOGRAPHY_ADVANCED_STORAGE_KEY } from "../../appearanceFonts";
@@ -17,17 +15,13 @@ export type SettingsPath =
   | "/settings/appearance"
   | "/settings/chat"
   | "/settings/keybindings"
-  | "/settings/snap-shot"
   | "/settings/providers"
-  | "/settings/threads"
   | "/settings/browser"
   | "/settings/scheduled-tasks"
   | "/settings/connections"
   | "/settings/access"
   | "/settings/maintenance"
-  | "/settings/labs"
-  | "/settings/about"
-  | "/settings/archived";
+  | "/settings/about";
 
 export type SettingsSearchScope =
   | "environment"
@@ -56,7 +50,6 @@ export interface SettingsSearchItem {
   readonly managedTunnelOnly?: boolean;
   readonly peerLinksOnly?: boolean;
   readonly secondary?: boolean;
-  readonly requiresThreadAutoSettlement?: boolean;
 }
 
 export interface SettingsSearchAvailability {
@@ -67,7 +60,6 @@ export interface SettingsSearchAvailability {
   readonly hasMacProviderSettingsEnvironment: boolean;
   readonly canManageLocalBackend: boolean;
   readonly isWslSettingsRowVisible: boolean;
-  readonly hasThreadAutoSettlement: boolean;
   readonly managedTunnelActive?: boolean;
   readonly hasPeerLinkHost?: boolean;
 }
@@ -78,17 +70,13 @@ export const SETTINGS_SECTION_LABELS: Readonly<Record<SettingsPath, string>> = {
   "/settings/appearance": "Appearance",
   "/settings/chat": "Chat",
   "/settings/keybindings": "Keybindings",
-  "/settings/snap-shot": "SnapShots",
   "/settings/providers": "Providers",
-  "/settings/threads": "Threads",
   "/settings/browser": "Browser",
   "/settings/scheduled-tasks": "Scheduled tasks",
   "/settings/connections": "Environments",
   "/settings/access": "Sharing & access",
   "/settings/maintenance": "Maintenance",
-  "/settings/labs": "Labs",
   "/settings/about": "About",
-  "/settings/archived": "Archive",
 };
 
 /** Sidebar order. A group without a heading is set apart by space alone. */
@@ -98,27 +86,16 @@ export const SETTINGS_NAV_GROUPS: ReadonlyArray<{
 }> = [
   {
     heading: null,
-    paths: [
-      "/settings/general",
-      "/settings/appearance",
-      "/settings/chat",
-      "/settings/keybindings",
-      "/settings/snap-shot",
-    ],
+    paths: ["/settings/general", "/settings/appearance", "/settings/chat", "/settings/keybindings"],
   },
   {
     heading: "Agents",
-    paths: [
-      "/settings/providers",
-      "/settings/threads",
-      "/settings/browser",
-      "/settings/scheduled-tasks",
-    ],
+    paths: ["/settings/providers", "/settings/browser", "/settings/scheduled-tasks"],
   },
   { heading: "Connections", paths: ["/settings/connections", "/settings/access"] },
   {
     heading: null,
-    paths: ["/settings/maintenance", "/settings/labs", "/settings/about", "/settings/archived"],
+    paths: ["/settings/maintenance", "/settings/about"],
   },
 ];
 
@@ -160,21 +137,21 @@ export const SETTINGS_SEARCH_ITEMS = [
   {
     id: "environment-defaults",
     title: "Chat defaults",
-    to: "/settings/threads",
+    to: "/settings/chat",
     scope: "environment-defaults",
     searchTerms: ["model environments defaults"],
   },
   {
     id: "default-model",
     title: "Default model",
-    to: "/settings/threads",
+    to: "/settings/chat",
     scope: "environment-defaults",
     searchTerms: ["new chat provider reasoning effort"],
   },
   {
     id: "default-permissions",
     title: "Permissions",
-    to: "/settings/threads",
+    to: "/settings/chat",
     scope: "environment-defaults",
     searchTerms: [
       "new thread default runtime mode supervised approvals auto accept edits full access",
@@ -289,59 +266,57 @@ export const SETTINGS_SEARCH_ITEMS = [
     to: "/settings/appearance",
     searchTerms: ["long lines code blocks diffs file previews"],
   },
-  {
-    id: "snooze-options",
-    title: "Snooze options",
-    to: "/settings/threads",
-    searchTerms: ["snooze presets times later tonight tomorrow next week remind"],
-    environmentOnly: true,
-    scope: "environment-defaults",
-  },
-  {
-    id: "snooze-limited-threads",
-    title: "Snooze until limits reset",
-    to: "/settings/threads",
-    searchTerms: ["usage quota rate limit reset wake recover continue"],
-  },
-  {
-    id: "auto-resume-limited-threads",
-    title: "Resume after usage limits",
-    to: "/settings/threads",
-    searchTerms: ["usage quota rate limit reset recover continue"],
-  },
+
   {
     id: "working-shelf",
     title: "Working section",
     to: "/settings/general",
     searchTerms: ["hide fold running monitoring threads inbox sidebar shelf"],
   },
-  {
-    id: "boring-sidebar-multiline",
-    title: "Two-line folder rows",
-    to: "/settings/labs",
-    searchTerms: ["beta boring sidebar folder rows multiline branch pull request details"],
-  },
+
   {
     id: "guest-links",
     title: "Guest links",
-    to: "/settings/labs",
+    to: "/settings/access",
     scope: "environment",
     searchTerms: ["beta share guest invite link teammate watch t3 connect tunnel"],
   },
   {
     id: "linked-environments-beta",
     title: "Linked environments",
-    to: "/settings/labs",
+    to: "/settings/connections",
     scope: "environment",
     searchTerms: ["beta link another machine vps peer agents work there delegate"],
+  },
+
+  {
+    id: "snooze-limited-threads",
+    title: "Snooze until limits reset",
+    to: "/settings/providers",
+    scope: "environment-defaults",
+    searchTerms: ["usage quota rate limit reset wake recover continue"],
+  },
+  {
+    id: "auto-resume-limited-threads",
+    title: "Resume after usage limits",
+    to: "/settings/providers",
+    scope: "environment-defaults",
+    searchTerms: ["usage quota rate limit reset recover continue"],
   },
   {
     id: "auto-settle-inactive-threads",
     title: "Auto-settle inactive threads",
-    to: "/settings/threads",
-    searchTerms: ["sidebar inactivity days no activity automatically"],
-    requiresThreadAutoSettlement: true,
+    to: "/settings/general",
     scope: "environment-defaults",
+    searchTerms: ["sidebar inactivity days no activity automatically"],
+  },
+  {
+    id: "days-before-auto-settle",
+    title: "Days of inactivity before auto-settle",
+    to: "/settings/general",
+    targetId: "auto-settle-inactive-threads",
+    scope: "environment-defaults",
+    searchTerms: ["thread timeout activity sidebar"],
   },
   {
     id: "compact-idle-threads",
@@ -350,15 +325,7 @@ export const SETTINGS_SEARCH_ITEMS = [
     scope: "environment-defaults",
     searchTerms: ["claude context compaction idle cache tokens usage summary resume"],
   },
-  {
-    id: "days-before-auto-settle",
-    title: "Days of inactivity before auto-settle",
-    to: "/settings/threads",
-    targetId: "auto-settle-inactive-threads",
-    searchTerms: ["thread timeout activity sidebar"],
-    requiresThreadAutoSettlement: true,
-    scope: "environment-defaults",
-  },
+
   {
     id: "thread-notifications",
     title: "Thread notifications",
@@ -392,7 +359,7 @@ export const SETTINGS_SEARCH_ITEMS = [
   {
     id: "response-streaming",
     title: "Response streaming",
-    to: "/settings/threads",
+    to: "/settings/chat",
     scope: "environment-defaults",
     searchTerms: ["output token paragraph buffered wait turn legacy"],
   },
@@ -407,6 +374,12 @@ export const SETTINGS_SEARCH_ITEMS = [
     title: "Rich text composer",
     to: "/settings/chat",
     searchTerms: ["composer rich text tiptap bold italic markdown styled wysiwyg"],
+  },
+  {
+    id: "plan-mode",
+    title: "Plan mode",
+    to: "/settings/chat",
+    searchTerms: ["build plan composer shift tab default"],
   },
   {
     id: "send-shortcut",
@@ -448,7 +421,7 @@ export const SETTINGS_SEARCH_ITEMS = [
   {
     id: "new-threads",
     title: "New threads",
-    to: "/settings/threads",
+    to: "/settings/chat",
     scope: "environment-defaults",
     searchTerms: ["default chat model draft"],
   },
@@ -480,14 +453,14 @@ export const SETTINGS_SEARCH_ITEMS = [
   {
     id: "text-generation-model",
     title: "Text generation model",
-    to: "/settings/threads",
+    to: "/settings/chat",
     scope: "environment-defaults",
     searchTerms: ["generated thread titles source control content default provider"],
   },
   {
     id: "thread-title-instructions",
     title: "Thread title instructions",
-    to: "/settings/threads",
+    to: "/settings/chat",
     scope: "environment-defaults",
     searchTerms: ["generated thread titles prompt custom style naming rename regenerate"],
   },
@@ -542,18 +515,7 @@ export const SETTINGS_SEARCH_ITEMS = [
     title: "Open source licenses",
     to: "/settings/about",
   },
-  {
-    id: "legacy-plan-mode",
-    title: "Plan mode (legacy)",
-    to: "/settings/labs",
-    searchTerms: ["build plan composer old"],
-  },
-  {
-    id: "legacy-context-window-indicator",
-    title: "Context window indicator (legacy)",
-    to: "/settings/labs",
-    searchTerms: ["composer meter usage tokens circle old"],
-  },
+
   {
     id: "keybindings",
     title: "Keybindings",
@@ -561,45 +523,7 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["keyboard shortcuts hotkeys commands bindings json"],
   },
   ...KEYBINDING_SEARCH_ITEMS,
-  {
-    id: "snap-shot-enabled",
-    title: "SnapShots",
-    searchTerms: ["window capture screenshot"],
-    to: "/settings/snap-shot",
-  },
-  {
-    id: "snap-shot-accessibility",
-    title: "Include app text",
-    to: "/settings/snap-shot",
-    targetId: "snap-shot-enabled",
-    searchTerms: [
-      "capture accessibility data text UI structure elements privacy omit agent context",
-    ],
-  },
-  {
-    id: "snap-shot-shortcut",
-    title: "Capture shortcut",
-    to: "/settings/snap-shot",
-    targetId: "snap-shot-enabled",
-  },
-  {
-    id: "snap-shot-sound",
-    title: "Capture sound",
-    to: "/settings/snap-shot",
-    targetId: "snap-shot-enabled",
-  },
-  {
-    id: "snap-shot-flash",
-    title: "Capture flash",
-    to: "/settings/snap-shot",
-    targetId: "snap-shot-enabled",
-  },
-  {
-    id: "snap-shot-animations",
-    title: "Capture animations",
-    to: "/settings/snap-shot",
-    targetId: "snap-shot-enabled",
-  },
+
   {
     id: "providers",
     title: "Providers",
@@ -806,12 +730,6 @@ export const SETTINGS_SEARCH_ITEMS = [
       "automatic machine environment resources cpu memory capacity preference weight shared chats",
     ],
   },
-  {
-    id: "archive",
-    title: "Archived threads",
-    to: "/settings/archived",
-    searchTerms: ["restore reopen deleted chat history"],
-  },
 ] as const satisfies ReadonlyArray<SettingsSearchItem>;
 
 export type SettingsSearchItemId = (typeof SETTINGS_SEARCH_ITEMS)[number]["id"];
@@ -823,50 +741,15 @@ const SETTINGS_CATEGORY_SCOPES: Readonly<Record<SettingsPath, SettingsSearchScop
   "/settings/general": null,
   "/settings/appearance": null,
   "/settings/chat": null,
-  "/settings/snap-shot": null,
   "/settings/keybindings": null,
   "/settings/providers": null,
-  "/settings/threads": null,
   "/settings/browser": null,
   "/settings/connections": "connections",
   "/settings/access": "connections",
   "/settings/scheduled-tasks": null,
   "/settings/maintenance": null,
-  "/settings/labs": null,
   "/settings/about": null,
-  "/settings/archived": "environment-defaults",
 };
-
-const RENAMED_SETTINGS_PATHS: Readonly<Record<string, SettingsPath>> = {
-  "/settings/integrations": "/settings/browser",
-  "/settings/storage": "/settings/maintenance",
-  "/settings/beta": "/settings/labs",
-};
-const SPLIT_SETTINGS_PATHS: ReadonlySet<string> = new Set([
-  "/settings/general",
-  "/settings/appearance",
-  "/settings/connections",
-  ...Object.keys(RENAMED_SETTINGS_PATHS),
-]);
-// Section anchors that moved but are not search results themselves.
-const MOVED_SECTION_ANCHORS: Readonly<Record<string, SettingsPath>> = {
-  "authorized-clients": "/settings/access",
-  "legacy-features": "/settings/labs",
-  "text-generation": "/settings/threads",
-  about: "/settings/about",
-};
-
-/** Where an old settings link now lives. Its anchor finds the page its row moved to. */
-export function movedSettingsPath(pathname: string, hash: string): SettingsPath | null {
-  if (!SPLIT_SETTINGS_PATHS.has(pathname)) return null;
-  const items: readonly SettingsSearchItem[] = SETTINGS_SEARCH_ITEMS;
-  const anchored = hash
-    ? (items.find((item) => item.id === hash) ?? items.find((item) => item.targetId === hash))
-    : undefined;
-  const to =
-    anchored?.to ?? MOVED_SECTION_ANCHORS[hash] ?? RENAMED_SETTINGS_PATHS[pathname] ?? null;
-  return to === pathname ? null : to;
-}
 
 export function getSettingsSearchTargetScope(targetId: string) {
   const items: readonly SettingsSearchItem[] = SETTINGS_SEARCH_ITEMS;
@@ -877,37 +760,8 @@ export function getSettingsSearchTargetScope(targetId: string) {
     ? {
         title: item.title,
         scope: item.scope ?? SETTINGS_CATEGORY_SCOPES[item.to],
-        ...(item.requiresThreadAutoSettlement ? { requiresThreadAutoSettlement: true } : {}),
       }
     : null;
-}
-
-interface AutoSettlementSearchEnvironment {
-  readonly environmentId: EnvironmentId;
-  readonly connection: { readonly phase: EnvironmentConnectionPhase };
-  readonly serverConfig: object | null;
-}
-
-export function getThreadAutoSettlementSearchAvailability(
-  environments: readonly AutoSettlementSearchEnvironment[],
-  scope?: Pick<ResolvedSettingsScope, "kind" | "environmentIds">,
-) {
-  const connected = environments.filter(
-    (environment) =>
-      environment.connection.phase === "connected" && environment.serverConfig !== null,
-  );
-  const eligibleEnvironmentIds = connected.map((environment) => environment.environmentId);
-  const selected = connected.filter((environment) =>
-    scope?.environmentIds.includes(environment.environmentId),
-  );
-  return {
-    eligibleEnvironmentIds,
-    isTargetAvailable:
-      scope !== undefined &&
-      scope.kind !== "unavailable" &&
-      selected.length > 0 &&
-      selected.every((environment) => eligibleEnvironmentIds.includes(environment.environmentId)),
-  };
 }
 
 export function isSettingsSearchScopeAvailable(
@@ -946,7 +800,6 @@ export function filterAvailableSettingsSearchItems(
       (!item.localBackendManagementOnly || availability.canManageLocalBackend) &&
       (!item.localEnvironmentOnly || !availability.localEnvironmentDisabled) &&
       (!item.wslAvailableOnly || availability.isWslSettingsRowVisible) &&
-      (!item.requiresThreadAutoSettlement || availability.hasThreadAutoSettlement) &&
       (!item.managedTunnelOnly || availability.managedTunnelActive === true) &&
       (!item.peerLinksOnly || availability.hasPeerLinkHost === true),
   );
