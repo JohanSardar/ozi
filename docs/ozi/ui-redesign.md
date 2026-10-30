@@ -123,6 +123,10 @@ The inbox is a fixed right column beside every chat from 1024px wide (340px, 404
 
 Open details, and any archive row, opens the ticket in T3's dialog over the app (760px wide, up to 86% of the height). The header shows the group, or Archived with how it cleared, then its chat and age. The body shows the title, the bold need, What happened (summary), Details (the markdown), Pick one (open tickets only), Files (HTML pages open in T3's HTML dialog, other attachments in a new tab) and Sources: Session transcript opens the calling thread and Job opens the worker. The footer names the chat the reply goes to (the current chat, or New chat) above a reply box with Send, and Got it for open tickets. Clicking outside, Esc, sending, choosing, Got it or a source link closes it; while it is open the inbox's number keys are off. Inbox rows carry no icons.
 
+## L1 chats sidebar
+
+Needs you holds chats with open tickets, by origin chat, and chats waiting on an approval or answer. Working, Pinned and Recent follow; settled and snoozed chats sit at the end of Recent. Rows are one line: title, then the time or a thin spinner. The footer shows a neutral avatar with "You" and the environment, any update or undo notice, and Settings; Usage stays in the command palette.
+
 ## L5 handoff line
 
 Each job the main agent delegates shows in its chat as one line: the job title, then "waiting on you" while the job has an open ticket, else its state (queued, working, waiting, idle, done, failed, stopped). The line stays visible when the turn folds. Clicking it switches the inbox to its ticket and opens it, or opens the worker when there is no open ticket. The worker's completion notice adds no second line. Provider-native subagents keep T3's rows inside the work log.
