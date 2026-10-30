@@ -16,12 +16,21 @@ it.each([
   { selection: "explicit", name: "w1.explicit-ozi-model: a delegated Pi worker writes a file" },
   { selection: "inherited", name: "w1.inherited-ozi-model: a delegated Pi worker writes a file" },
   {
+    selection: "cli",
+    name: "C6.pi-cli-harness: local and remote Pi load the selected Ozi harness",
+  },
+  {
     selection: "completion",
     name: "H7.task-id C6.worker-scope: completion checks resolve a delegated task before Review",
   },
 ])(
   "$name",
-  async ({ selection }: { selection: "explicit" | "inherited" | "completion"; name: string }) => {
+  async ({
+    selection,
+  }: {
+    selection: "explicit" | "inherited" | "completion" | "cli";
+    name: string;
+  }) => {
     const directory = await NodeFSP.mkdtemp(NodePath.join(NodeOS.tmpdir(), "ozi-w1-"));
     const home = NodePath.join(directory, "home");
     const workspace = NodePath.join(directory, "workspace");
@@ -193,6 +202,61 @@ it.each([
         server.once("error", reject);
         server.once("exit", (code) => reject(new Error(`Server exited ${code}: ${output}`)));
       });
+      if (selection === "cli") {
+        const session = await run(
+          "session",
+          "new",
+          "--provider",
+          "ozi",
+          "--model",
+          model,
+          "--title",
+          "C6 native Pi",
+        );
+        const pi = async (clientHome: string, args: string[]) => {
+          const running = exec(
+            process.execPath,
+            [
+              cli,
+              "pi",
+              "--home",
+              clientHome,
+              "--thread",
+              session.threadId,
+              "--json",
+              "--",
+              ...args,
+            ],
+            { cwd: workspace, env: environment, timeout: 30_000 },
+          );
+          running.child.stdin?.end();
+          return JSON.parse((await running).stdout);
+        };
+        const args = [
+          "--print",
+          "--provider",
+          "claude-bridge",
+          "--model",
+          "claude-opus-5-5",
+          "C6 native harness: write w1-worker.txt and report.",
+        ];
+        expect((await pi(home, args)).stdout).toContain("w1-worker-done");
+        const clientHome = NodePath.join(directory, "client");
+        await exec(
+          process.execPath,
+          [cli, "connect", (await run("pair")).pairingUrl, "--home", clientHome, "--json"],
+          { env: environment },
+        );
+        expect((await pi(clientHome, args)).stdout).toContain("w1-worker-done");
+        expect((await pi(clientHome, ["mcp", "list"])).exitCode).toBe(0);
+        expect(await NodeFSP.readFile(NodePath.join(workspace, "w1-worker.txt"), "utf8")).toBe(
+          "w1-worker-ok",
+        );
+        expect(
+          fake.requests.some((request) => JSON.stringify(request.system).includes("You are Ozi")),
+        ).toBe(true);
+        return;
+      }
       const result = await run(
         "thread",
         "start",

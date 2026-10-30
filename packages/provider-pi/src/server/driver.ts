@@ -102,6 +102,7 @@ export const PiDriver: ProviderDriver<PiSettings, PiDriverEnv, Path.Path> = {
     const prepared = yield* prepareOzi(
       { ...config, enabled },
       yield* mergeProviderInstanceEnvironment(environment),
+      host.paths.baseDir,
     ).pipe(
       Effect.mapError(
         (cause) =>

@@ -221,7 +221,14 @@ it("P4.cli: native arguments, instance environment, stderr and exit status survi
   );
   expect(result.stderr).toContain("Pi CLI stderr");
   expect(JSON.parse(result.stdout)).toMatchObject({
-    args: ["--p4-probe", "--json", "argument with spaces"],
+    args: expect.arrayContaining([
+      "--extension",
+      "--ozi-data-root",
+      NodePath.join(home, "harness"),
+      "--p4-probe",
+      "--json",
+      "argument with spaces",
+    ]),
     agentDir: NodePath.join(home, "agents/ozi"),
     marker: "selected-instance",
     cwd: await NodeFSP.realpath(directory),

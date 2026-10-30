@@ -6,6 +6,7 @@ import {
   ChatSessionResult,
   PiRpcCommand,
   ServerSettings,
+  OZI_PROVIDER_INSTANCE,
   MessageId,
   ProviderInstanceId,
   ChatSessionRpcGroup,
@@ -587,19 +588,22 @@ export const piCommand = Command.make("pi", {
           selected?.modelSelection?.instanceId ??
           settings.defaultModelSelection?.instanceId ??
           ProviderInstanceId.make("ozi");
-        const instance = settings.providerInstances[instanceId];
+        const instance =
+          settings.providerInstances[instanceId] ??
+          (instanceId === "ozi" ? OZI_PROVIDER_INSTANCE : undefined);
         if (instance?.driver !== "pi")
           return yield* new SessionCliError({ message: "Choose a Pi chat with --thread." });
         const launch = yield* piCliLaunch(
           yield* decodePiSettings(instance.config ?? {}),
           yield* mergeProviderInstanceEnvironment(instance.environment),
           config.baseDir,
+          flags.args,
         );
         const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
         yield* Effect.scoped(
           Effect.gen(function* () {
             const child = yield* spawner.spawn(
-              ChildProcess.make(launch.binary, flags.args, {
+              ChildProcess.make(launch.binary, launch.args, {
                 env: launch.env,
                 extendEnv: false,
                 cwd: selected?.workingDirectory ?? config.cwd,
