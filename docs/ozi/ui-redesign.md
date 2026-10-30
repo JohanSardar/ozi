@@ -134,7 +134,7 @@ Open details, and any archive row, opens the ticket in T3's dialog over the app 
 
 ## L1 chats sidebar
 
-Needs you holds chats with open tickets, by origin chat, and chats waiting on an approval or answer. Working, Pinned and Recent follow; settled and snoozed chats sit at the end of Recent. Rows are one line: title, then the time or a thin spinner. The footer shows a neutral avatar with "You" and the environment, any update or undo notice, and Settings; Usage stays in the command palette.
+Needs you holds chats with open tickets, by origin chat, and chats waiting on an approval or answer. Working holds chats that run or wait on running workers. Delegated workers and subagents never get a row, even while running. Working, Pinned and Recent follow; settled and snoozed chats sit at the end of Recent. Rows are one line: title, then the time or a thin spinner. The footer shows a neutral avatar with "You" and the environment, any update or undo notice, and Settings; Usage stays in the command palette.
 
 ## L5 handoff line
 

@@ -628,7 +628,7 @@ type SidebarThreadStatusInput = Pick<
   | "pendingGuestMessageCount"
   | "runtime"
   | "blockedOnThreadWait"
->;
+> & { pendingBackgroundTasks?: SidebarThreadSummary["pendingBackgroundTasks"] | undefined };
 
 export function resolveSidebarThreadStatus(thread: SidebarThreadStatusInput): SidebarThreadStatus {
   if (thread.hasPendingApprovals || thread.pendingSubagentRequest === "approval") {
@@ -640,6 +640,9 @@ export function resolveSidebarThreadStatus(thread: SidebarThreadStatusInput): Si
   // A guest is waiting on the owner; the agent's own requests come first.
   if ((thread.pendingGuestMessageCount ?? 0) > 0) {
     return "request";
+  }
+  if ((thread.pendingBackgroundTasks ?? []).some((task) => task.kind === "subagent")) {
+    return "working";
   }
   if (thread.runtime?.status === "running" && thread.blockedOnThreadWait === true) {
     return "waiting";
