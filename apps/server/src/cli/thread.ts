@@ -132,12 +132,18 @@ const isThreadServerUnreachableError = Schema.is(ThreadServerUnreachableError);
  * These errors are expected outcomes for a script, so they print as one line
  * on stderr instead of the runtime's logged stack trace.
  */
-const reportThreadErrors = <A, E, R>(effect: Effect.Effect<A, E, R>) =>
-  effect.pipe(
-    Effect.tapError((error) =>
-      isThreadCliError(error) ? Console.error(error.message) : Effect.void,
-    ),
-  );
+export const reportThreadErrors =
+  (json: boolean) =>
+  <A, E, R>(effect: Effect.Effect<A, E, R>) =>
+    effect.pipe(
+      Effect.tapError((error) =>
+        isThreadCliError(error)
+          ? Console.error(
+              json ? encodeJson({ code: error._tag, message: error.message }) : error.message,
+            )
+          : Effect.void,
+      ),
+    );
 
 const decodeFailureText = Schema.decodeUnknownOption(Schema.fromJsonString(OrchestratorMcpFailure));
 const encodeJson = Schema.encodeSync(Schema.fromJsonString(Schema.Unknown));
@@ -160,7 +166,7 @@ const ProjectListResult = Schema.Struct({
   nextCursor: Schema.NullOr(Schema.Int),
 });
 
-const ThreadLaunchResult = Schema.Struct({
+export const ThreadLaunchResult = Schema.Struct({
   threadId: ThreadId,
   projectId: ProjectId,
   runId: Schema.NullOr(RunId),
@@ -180,7 +186,27 @@ const makeThreadTools = (session: McpToolSession, origin: string, token: string)
       tool,
       detail: `The server sent an unexpected ${tool} result. Update the ozi CLI to match the server.`,
     });
+  const call = Effect.fn("cli.thread.callTool")(function* <S extends Schema.Decoder<unknown>>(
+    tool: string,
+    args: Readonly<Record<string, unknown>>,
+    schema: S,
+  ): Effect.fn.Return<S["Type"], ThreadServerUnreachableError | ThreadToolFailedError> {
+    const raw = yield* session
+      .call(tool, args)
+      .pipe(Effect.mapError((cause) => new ThreadServerUnreachableError({ origin, cause })));
+    const result = yield* decodeToolResult(raw).pipe(Effect.mapError(() => unexpected(tool)));
+    if (result.isError === true) {
+      return yield* new ThreadToolFailedError({ tool, detail: toolFailureDetail(result) });
+    }
+    return yield* Schema.decodeUnknownEffect(schema)(result.structuredContent).pipe(
+      Effect.mapError(() => unexpected(tool)),
+    );
+  });
   return {
+    inbox: <S extends Schema.Decoder<unknown>>(
+      request: Readonly<Record<string, unknown>>,
+      schema: S,
+    ) => call("inbox", { request }, schema),
     post: Effect.fn("cli.thread.post")(function* <S extends Schema.Decoder<unknown>>(
       path: string,
       body: unknown,
@@ -197,25 +223,11 @@ const makeThreadTools = (session: McpToolSession, origin: string, token: string)
         Effect.provide(FetchHttpClient.layer),
       );
     }),
-    call: Effect.fn("cli.thread.callTool")(function* <S extends Schema.Decoder<unknown>>(
-      tool: string,
-      args: Readonly<Record<string, unknown>>,
-      schema: S,
-    ): Effect.fn.Return<S["Type"], ThreadServerUnreachableError | ThreadToolFailedError> {
-      const raw = yield* session
-        .call(tool, args)
-        .pipe(Effect.mapError((cause) => new ThreadServerUnreachableError({ origin, cause })));
-      const result = yield* decodeToolResult(raw).pipe(Effect.mapError(() => unexpected(tool)));
-      if (result.isError === true) {
-        return yield* new ThreadToolFailedError({ tool, detail: toolFailureDetail(result) });
-      }
-      return yield* Schema.decodeUnknownEffect(schema)(result.structuredContent).pipe(
-        Effect.mapError(() => unexpected(tool)),
-      );
-    }),
+    call,
   };
 };
-export type ThreadTools = Pick<ReturnType<typeof makeThreadTools>, "call">;
+export type CliTools = ReturnType<typeof makeThreadTools>;
+export type ThreadTools = Pick<CliTools, "call">;
 
 /**
  * Signs in as a short-lived MCP client of the running server, the same way an
@@ -266,7 +278,7 @@ export const withThreadTools = Effect.fn("cli.thread.withThreadTools")(function*
     const environmentAuth = yield* EnvironmentAuth.EnvironmentAuth;
     const issued = yield* Effect.acquireRelease(
       environmentAuth.issueMcpClientSession({
-        label: "t3 thread cli",
+        label: "ozi cli",
         // The CLI runs as the machine's owner. New threads still start at
         // the project's default mode, never at this ceiling by default.
         access: "full-access",
@@ -279,7 +291,7 @@ export const withThreadTools = Effect.fn("cli.thread.withThreadTools")(function*
     const session = yield* mcpToolSession({
       endpoint: new URL("/mcp", origin).href,
       authorization: `Bearer ${issued.token}`,
-      clientName: "t3-thread-cli",
+      clientName: "ozi-cli",
     }).pipe(Effect.mapError((cause) => new ThreadServerUnreachableError({ origin, cause })));
     return yield* run(makeThreadTools(session, origin, issued.token));
   }).pipe(
@@ -322,7 +334,7 @@ const listAllProjects = Effect.fn("cli.thread.listAllProjects")(function* (tools
 });
 
 /** A project id, or a path inside a project's folder (deepest project wins). */
-const resolveProject = Effect.fn("cli.thread.resolveProject")(function* (
+export const resolveProject = Effect.fn("cli.thread.resolveProject")(function* (
   tools: ThreadTools,
   identifier: string,
 ) {
@@ -356,7 +368,7 @@ const resolveProject = Effect.fn("cli.thread.resolveProject")(function* (
 });
 
 /** Every item on a timeline view, oldest first. */
-const readTimeline = Effect.fn("cli.thread.readTimeline")(function* (
+export const readTimeline = Effect.fn("cli.thread.readTimeline")(function* (
   tools: ThreadTools,
   threadId: ThreadId,
   view: "messages" | "activity",
@@ -383,7 +395,7 @@ const readTimeline = Effect.fn("cli.thread.readTimeline")(function* (
 });
 
 /** Item text past the read's per-item cap. */
-const readFullText = Effect.fn("cli.thread.readFullText")(function* (
+export const readFullText = Effect.fn("cli.thread.readFullText")(function* (
   tools: ThreadTools,
   threadId: ThreadId,
   item: OrchestratorMcpThreadTimelineItem,
@@ -578,7 +590,7 @@ const threadListCommand = Command.make("list", {
           yield* Console.log(`${thread.threadId}  ${thread.status.padEnd(11)}  ${thread.title}`);
         }
       }),
-    ).pipe(reportThreadErrors),
+    ).pipe(reportThreadErrors(flags.json)),
   ),
 );
 
@@ -657,7 +669,7 @@ const threadStartCommand = Command.make("start", {
           yield* flags.json ? printJson(launched) : Console.log(launched.threadId);
         }),
       );
-    }).pipe(reportThreadErrors),
+    }).pipe(reportThreadErrors(flags.json)),
   ),
 );
 
@@ -691,7 +703,7 @@ const threadSendCommand = Command.make("send", {
             : Console.log(sent.delivery === "queued" ? "Queued." : "Sent.");
         }),
       );
-    }).pipe(reportThreadErrors),
+    }).pipe(reportThreadErrors(flags.json)),
   ),
 );
 
@@ -758,7 +770,7 @@ const threadShowCommand = Command.make("show", {
           }
         }),
       );
-    }).pipe(reportThreadErrors),
+    }).pipe(reportThreadErrors(flags.json)),
   ),
 );
 
