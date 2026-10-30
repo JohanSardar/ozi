@@ -42,8 +42,8 @@ import {
   pinOrderKeyBetween,
 } from "@t3tools/client-runtime/state/thread-sort";
 import { type ScopedThreadRef, type EnvironmentId } from "@t3tools/contracts";
-import { useRouter } from "@tanstack/react-router";
-import { SearchIcon, SquarePenIcon } from "lucide-react";
+import { useLocation, useRouter } from "@tanstack/react-router";
+import { InboxIcon, SearchIcon, SquarePenIcon } from "lucide-react";
 import { useRef, useState, type MouseEvent } from "react";
 import { isElectron } from "../env";
 import { useHandleNewThread } from "../hooks/useHandleNewThread";
@@ -246,13 +246,14 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
     visibleCount: settledLimit,
   });
   const ticketEnvironmentId = usePrimaryEnvironmentId();
+  const openTickets =
+    useEnvironmentQuery(
+      ticketEnvironmentId ? ticketList({ environmentId: ticketEnvironmentId, input: {} }) : null,
+    ).data?.tickets ?? [];
   const ticketChats = new Set(
-    (
-      useEnvironmentQuery(
-        ticketEnvironmentId ? ticketList({ environmentId: ticketEnvironmentId, input: {} }) : null,
-      ).data?.tickets ?? []
-    ).map((ticket) => `${ticketEnvironmentId}:${ticket.origin.chatId}`),
+    openTickets.map((ticket) => `${ticketEnvironmentId}:${ticket.origin.chatId}`),
   );
+  const inboxPage = useLocation({ select: (location) => location.pathname === "/inbox" });
   const groups = new Map<string, EnvironmentThreadShell[]>([
     ["Needs you", []],
     ["Working", []],
@@ -535,6 +536,20 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               <SquarePenIcon className="size-4" />
               New chat
               {newChatShortcut ? <Kbd className="ml-auto">{newChatShortcut}</Kbd> : null}
+            </Button>
+            <Button
+              className="justify-start"
+              variant={inboxPage ? "secondary" : "ghost"}
+              aria-current={inboxPage ? "page" : undefined}
+              onClick={() => void router.navigate({ to: "/inbox" })}
+            >
+              <InboxIcon className="size-4" />
+              Inbox
+              {openTickets.length > 0 ? (
+                <span className="ml-auto text-xs text-muted-foreground tabular-nums">
+                  {openTickets.length}
+                </span>
+              ) : null}
             </Button>
           </SidebarGroup>
         }

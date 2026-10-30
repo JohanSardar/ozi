@@ -39,7 +39,7 @@ export const ticketChoose = createEnvironmentRpcCommand(connectionAtomRuntime, {
 });
 
 interface InboxState {
-  tab: "inbox" | "archive" | "all";
+  tab: "inbox" | "archive";
   selected: { id: TicketId | null; index: number; reveal?: boolean };
   hidden: boolean;
 }
@@ -65,7 +65,8 @@ export const toggleInbox = () => useInboxStore.setState(({ hidden }) => ({ hidde
 
 export const useTicketReplyStore = create<{
   send: ((ticket: Ticket, text: string) => void) | null;
-}>()(() => ({ send: null }));
+  pending: { ticket: Ticket; text: string } | null;
+}>()(() => ({ send: null, pending: null }));
 
 export function ticketReplyMessage(environmentId: EnvironmentId, ticket: Ticket, text: string) {
   const title = (threadId: ThreadId) =>

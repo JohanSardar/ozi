@@ -19,6 +19,7 @@ import { Route as ChatIndexRouteImport } from './routes/_chat.index'
 import { Route as ChatUsageRouteImport } from './routes/_chat.usage'
 import { Route as ChatSettingsRouteImport } from './routes/_chat.settings'
 import { Route as ChatNewRouteImport } from './routes/_chat.new'
+import { Route as ChatInboxRouteImport } from './routes/_chat.inbox'
 import { Route as ChatSettingsScheduledTasksRouteImport } from './routes/_chat.settings.scheduled-tasks'
 import { Route as ChatSettingsProvidersRouteImport } from './routes/_chat.settings.providers'
 import { Route as ChatSettingsOpenSourceLicensesRouteImport } from './routes/_chat.settings.open-source-licenses'
@@ -82,6 +83,11 @@ const ChatSettingsRoute = ChatSettingsRouteImport.update({
 const ChatNewRoute = ChatNewRouteImport.update({
   id: '/new',
   path: '/new',
+  getParentRoute: () => ChatRoute,
+} as any)
+const ChatInboxRoute = ChatInboxRouteImport.update({
+  id: '/inbox',
+  path: '/inbox',
   getParentRoute: () => ChatRoute,
 } as any)
 const ChatSettingsScheduledTasksRoute =
@@ -170,6 +176,7 @@ export interface FileRoutesByFullPath {
   '/guest': typeof GuestRoute
   '/pair': typeof PairRoute
   '/welcome': typeof WelcomeRoute
+  '/inbox': typeof ChatInboxRoute
   '/new': typeof ChatNewRoute
   '/settings': typeof ChatSettingsRouteWithChildren
   '/usage': typeof ChatUsageRoute
@@ -195,6 +202,7 @@ export interface FileRoutesByTo {
   '/guest': typeof GuestRoute
   '/pair': typeof PairRoute
   '/welcome': typeof WelcomeRoute
+  '/inbox': typeof ChatInboxRoute
   '/new': typeof ChatNewRoute
   '/settings': typeof ChatSettingsRouteWithChildren
   '/usage': typeof ChatUsageRoute
@@ -223,6 +231,7 @@ export interface FileRoutesById {
   '/guest': typeof GuestRoute
   '/pair': typeof PairRoute
   '/welcome': typeof WelcomeRoute
+  '/_chat/inbox': typeof ChatInboxRoute
   '/_chat/new': typeof ChatNewRoute
   '/_chat/settings': typeof ChatSettingsRouteWithChildren
   '/_chat/usage': typeof ChatUsageRoute
@@ -252,6 +261,7 @@ export interface FileRouteTypes {
     | '/guest'
     | '/pair'
     | '/welcome'
+    | '/inbox'
     | '/new'
     | '/settings'
     | '/usage'
@@ -277,6 +287,7 @@ export interface FileRouteTypes {
     | '/guest'
     | '/pair'
     | '/welcome'
+    | '/inbox'
     | '/new'
     | '/settings'
     | '/usage'
@@ -304,6 +315,7 @@ export interface FileRouteTypes {
     | '/guest'
     | '/pair'
     | '/welcome'
+    | '/_chat/inbox'
     | '/_chat/new'
     | '/_chat/settings'
     | '/_chat/usage'
@@ -404,6 +416,13 @@ declare module '@tanstack/react-router' {
       path: '/new'
       fullPath: '/new'
       preLoaderRoute: typeof ChatNewRouteImport
+      parentRoute: typeof ChatRoute
+    }
+    '/_chat/inbox': {
+      id: '/_chat/inbox'
+      path: '/inbox'
+      fullPath: '/inbox'
+      preLoaderRoute: typeof ChatInboxRouteImport
       parentRoute: typeof ChatRoute
     }
     '/_chat/settings/scheduled-tasks': {
@@ -551,6 +570,7 @@ const ChatSettingsRouteWithChildren = ChatSettingsRoute._addFileChildren(
 )
 
 interface ChatRouteChildren {
+  ChatInboxRoute: typeof ChatInboxRoute
   ChatNewRoute: typeof ChatNewRoute
   ChatSettingsRoute: typeof ChatSettingsRouteWithChildren
   ChatUsageRoute: typeof ChatUsageRoute
@@ -560,6 +580,7 @@ interface ChatRouteChildren {
 }
 
 const ChatRouteChildren: ChatRouteChildren = {
+  ChatInboxRoute: ChatInboxRoute,
   ChatNewRoute: ChatNewRoute,
   ChatSettingsRoute: ChatSettingsRouteWithChildren,
   ChatUsageRoute: ChatUsageRoute,

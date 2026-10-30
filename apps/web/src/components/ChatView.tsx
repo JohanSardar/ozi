@@ -1663,12 +1663,18 @@ export default function ChatView(props: ChatViewProps) {
   const sendTicketReplyStable = useStableCallback(sendTicketReply);
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- offers the inbox this chat as the place ticket replies go
   useEffect(() => {
-    useTicketReplyStore.setState({ send: sendTicketReplyStable });
+    const { pending } = useTicketReplyStore.getState();
+    useTicketReplyStore.setState({
+      send: sendTicketReplyStable,
+      ...(pending?.ticket.origin.chatId === activeThreadId ? { pending: null } : {}),
+    });
+    if (pending?.ticket.origin.chatId === activeThreadId)
+      sendTicketReplyStable(pending.ticket, pending.text);
     return () =>
       useTicketReplyStore.setState((state) =>
         state.send === sendTicketReplyStable ? { send: null } : state,
       );
-  }, [sendTicketReplyStable]);
+  }, [sendTicketReplyStable, activeThreadId]);
   const queuedRunsControlRef = useRef<QueuedRunsControlHandle>(null);
 
   const {

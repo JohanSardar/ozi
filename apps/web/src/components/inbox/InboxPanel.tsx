@@ -1,7 +1,7 @@
 import { useAtomValue } from "@effect/atom-react";
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import type { EnvironmentId, Ticket } from "@t3tools/contracts";
-import { useNavigate } from "@tanstack/react-router";
+import { useLocation, useNavigate } from "@tanstack/react-router";
 import {
   ArrowUpIcon,
   CheckIcon,
@@ -30,6 +30,7 @@ import {
   ticketList,
   toggleInbox,
   useInboxStore,
+  useTicketReplyStore,
 } from "../../state/tickets";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { buildThreadRouteParams } from "../../threadRoutes";
@@ -50,8 +51,6 @@ const GROUPS = [
   ["Review", "finished work"],
   ["Read", "nothing to do"],
 ] as const;
-
-const TAB_LABELS = { inbox: "Inbox", archive: "Archive", all: "All" } as const;
 
 export const orderTickets = (tickets: ReadonlyArray<Ticket>) =>
   GROUPS.flatMap(([group]) => tickets.filter((ticket) => ticket.group === group));
@@ -86,7 +85,24 @@ export function InboxPanel(props: TicketHooks) {
     return () => window.removeEventListener("keydown", onKeyDown, true);
   }, [keybindings]);
 
-  return environmentId && !hidden ? <Inbox environmentId={environmentId} hooks={props} /> : null;
+  const inboxPage = useLocation({ select: (location) => location.pathname === "/inbox" });
+  return environmentId && !hidden && !inboxPage ? (
+    <Inbox environmentId={environmentId} hooks={props} />
+  ) : null;
+}
+
+export function InboxPage() {
+  const environmentId = useAtomValue(primaryEnvironmentIdAtom);
+  const navigate = useNavigate();
+  const reply = (ticket: Ticket, text: string) => {
+    if (!environmentId) return;
+    useTicketReplyStore.setState({ pending: { ticket, text } });
+    void navigate({
+      to: "/$environmentId/$threadId",
+      params: buildThreadRouteParams(scopeThreadRef(environmentId, ticket.origin.chatId)),
+    });
+  };
+  return environmentId ? <Inbox environmentId={environmentId} hooks={{ reply }} page /> : null;
 }
 
 export function ShowInboxButton() {
@@ -122,8 +138,8 @@ export function ShowInboxButton() {
   );
 }
 
-function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks }) {
-  const { environmentId } = props;
+function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks; page?: boolean }) {
+  const { environmentId, page = false } = props;
   const routeRef = useThreadRouteRef();
   const choose = useAtomCommand(ticketChoose);
   const chat = routeRef?.environmentId === environmentId ? { chatId: routeRef.threadId } : {};
@@ -145,21 +161,23 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks }) {
   const threads = useAtomValue(environmentThreadShells.environmentThreadsAtom(environmentId));
   const all = useEnvironmentQuery(ticketList({ environmentId, input: {} })).data?.tickets ?? [];
   const chatId =
-    routeRef?.environmentId === environmentId
+    !page && routeRef?.environmentId === environmentId
       ? (threads.find((thread) => thread.id === routeRef.threadId)?.lineage.rootThreadId ??
         routeRef.threadId)
       : null;
-  const open =
-    tab === "all" ? all : all.filter((ticket) => chatId !== null && ticket.origin.chatId === chatId);
+  const scoped = page || chatId !== null;
+  const open = page ? all : all.filter((ticket) => ticket.origin.chatId === chatId);
   const query = search.trim();
   const archived =
     useEnvironmentQuery(
-      tab === "archive" && chatId !== null
+      tab === "archive" && scoped
         ? ticketList({
             environmentId,
-            input: query
-              ? { status: "archived", search: query, chatId }
-              : { status: "archived", chatId },
+            input: {
+              status: "archived",
+              ...(query ? { search: query } : {}),
+              ...(chatId ? { chatId } : {}),
+            },
           })
         : null,
     ).data?.tickets ?? [];
@@ -169,10 +187,6 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks }) {
       ? undefined
       : (ordered.find((ticket) => ticket.id === selected.id) ??
         ordered[Math.min(selected.index, ordered.length - 1)]);
-  const counts = {
-    inbox: all.filter((ticket) => chatId !== null && ticket.origin.chatId === chatId).length,
-    all: all.length,
-  };
   const shown = details && (open.find((ticket) => ticket.id === details.id) ?? details);
   const titles = new Map(threads.map((thread) => [thread.id, thread.title]));
   const jobs = threads.flatMap((thread) =>
@@ -189,7 +203,7 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks }) {
           ]
         : [],
     ),
-  ).filter((job) => tab === "all" || job.root === chatId);
+  ).filter((job) => page || job.root === chatId);
   const toggle = (ticket: Ticket) =>
     setSelected(
       current?.id === ticket.id
@@ -204,7 +218,7 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks }) {
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- window keydown listener that picks a choice on the open ticket
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (tab === "archive" || details || !current || !hooks.choose) return;
+      if (tab !== "inbox" || details || !current || !hooks.choose) return;
       if (event.metaKey || event.ctrlKey || event.altKey || isEditableFocused(event.target)) return;
       const index = Number(event.key) - 1;
       if (!(index >= 0 && index < current.choices.length)) return;
@@ -218,13 +232,17 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks }) {
   return (
     <aside
       aria-label="Inbox"
-      className="hidden w-(--inbox-width) shrink-0 flex-col border-l border-border bg-sidebar text-sidebar-foreground lg:flex"
+      className={
+        page
+          ? "flex min-h-0 min-w-0 flex-1 flex-col bg-background"
+          : "hidden w-(--inbox-width) shrink-0 flex-col border-l border-border bg-sidebar text-sidebar-foreground lg:flex"
+      }
     >
       <div
         role="tablist"
         className="flex h-(--workspace-topbar-height) shrink-0 items-stretch gap-5 border-b border-border ps-3.5 pe-2.5"
       >
-        {(["inbox", "archive", "all"] as const).map((name) => (
+        {(["inbox", "archive"] as const).map((name) => (
           <button
             key={name}
             type="button"
@@ -238,9 +256,9 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks }) {
                 : "border-transparent text-muted-foreground hover:text-foreground",
             )}
           >
-            {TAB_LABELS[name]}
-            {name !== "archive" && counts[name] > 0 ? (
-              <span className="font-normal text-muted-foreground tabular-nums">{counts[name]}</span>
+            {name === "inbox" ? "Inbox" : "Archive"}
+            {name === "inbox" && open.length > 0 ? (
+              <span className="font-normal text-muted-foreground tabular-nums">{open.length}</span>
             ) : null}
           </button>
         ))}
@@ -250,7 +268,7 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks }) {
               <Button
                 variant="ghost"
                 size="icon-sm"
-                className="ms-auto self-center"
+                className={cn("ms-auto self-center", page && "hidden")}
                 aria-label={`Hide inbox${shortcut}`}
                 onClick={toggleInbox}
               />
@@ -261,8 +279,13 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks }) {
           <TooltipPopup side="bottom">Hide inbox{shortcut}</TooltipPopup>
         </Tooltip>
       </div>
-      <div className="min-h-0 flex-1 overflow-y-auto px-3 pt-0.5 pb-4">
-        {tab !== "archive" && (tab === "all" || chatId !== null) ? (
+      <div
+        className={cn(
+          "min-h-0 flex-1 overflow-y-auto px-3 pt-0.5 pb-4",
+          page && "mx-auto w-full max-w-2xl",
+        )}
+      >
+        {tab === "inbox" && scoped ? (
           <>
             {GROUPS.map(([group, hint]) => {
               const tickets = ordered.filter((ticket) => ticket.group === group);
@@ -345,7 +368,7 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks }) {
               </section>
             ) : null}
           </>
-        ) : tab === "archive" && chatId !== null ? (
+        ) : tab === "archive" && scoped ? (
           <>
             <div className="relative mt-3 mb-2.5">
               <SearchIcon className="pointer-events-none absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
