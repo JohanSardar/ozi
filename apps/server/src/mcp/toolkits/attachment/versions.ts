@@ -1,6 +1,7 @@
 import * as NodeBuffer from "node:buffer";
-import * as NodeCrypto from "node:crypto";
-import * as NodePath from "node:path";
+import * as Crypto from "effect/Crypto";
+import * as DateTime from "effect/DateTime";
+import * as Path from "effect/Path";
 import * as Effect from "effect/Effect";
 import * as FileSystem from "effect/FileSystem";
 import * as Schema from "effect/Schema";
@@ -21,6 +22,8 @@ export const attachmentVersions = Effect.fn("attachment.versions")(function* (
   author: "you" | "Ozi",
 ) {
   const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const crypto = yield* Crypto.Crypto;
   const config = yield* ServerConfig;
   const original = resolveAttachmentPathById({
     attachmentsDir: config.attachmentsDir,
@@ -31,13 +34,15 @@ export const attachmentVersions = Effect.fn("attachment.versions")(function* (
       code: "invalid_request",
       message: "Invalid attachment.",
     });
-  const root = NodePath.join(config.attachmentsDir, "versions", input.attachment.id);
+  const root = path.join(config.attachmentsDir, "versions", input.attachment.id);
   yield* fs.makeDirectory(root, { recursive: true });
-  const decodeVersion = Schema.decodeEffect(Schema.fromJsonString(AttachmentVersion));
+  const codec = Schema.fromJsonString(AttachmentVersion);
+  const decodeVersion = Schema.decodeEffect(codec);
+  const encodeVersion = Schema.encodeEffect(codec);
   const files = yield* fs.readDirectory(root);
   const versions = (yield* Effect.forEach(
     files.filter((name) => name.endsWith(".json")),
-    (name) => fs.readFileString(NodePath.join(root, name)).pipe(Effect.flatMap(decodeVersion)),
+    (name) => fs.readFileString(path.join(root, name)).pipe(Effect.flatMap(decodeVersion)),
   )).sort((a, b) => a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
   if (versions.length === 0) {
     if (!original)
@@ -45,16 +50,18 @@ export const attachmentVersions = Effect.fn("attachment.versions")(function* (
         code: "invalid_request",
         message: "Attachment not found.",
       });
-    yield* fs.copyFile(original, NodePath.join(root, "original.bin"));
+    yield* fs.copyFile(original, path.join(root, "original.bin"));
     const first: AttachmentVersion = {
       id: "original",
-      createdAt: new Date().toISOString(),
+      createdAt: DateTime.formatIso(yield* DateTime.now),
       author: "Ozi",
       attachment: input.attachment,
       notes: [],
     };
     yield* fs
-      .writeFileString(NodePath.join(root, "original.json"), JSON.stringify(first), { flag: "wx" })
+      .writeFileString(path.join(root, "original.json"), yield* encodeVersion(first), {
+        flag: "wx",
+      })
       .pipe(
         Effect.catchIf(
           (error) => error.reason._tag === "AlreadyExists",
@@ -71,7 +78,7 @@ export const attachmentVersions = Effect.fn("attachment.versions")(function* (
       code: "invalid_request",
       message: "Version not found.",
     });
-  const snapshot = NodePath.join(root, `${selected.id}.bin`);
+  const snapshot = path.join(root, `${selected.id}.bin`);
   const source = (yield* fs.exists(snapshot))
     ? snapshot
     : resolveAttachmentPathById({
@@ -93,29 +100,27 @@ export const attachmentVersions = Effect.fn("attachment.versions")(function* (
         code: "invalid_request",
         message: "File must be between 1 byte and 50 MB.",
       });
-    const id = NodeCrypto.randomUUID();
+    const id = yield* crypto.randomUUIDv4();
     const extension = attachmentFileExtension(input.attachment.name);
     const attachmentId = `${toSafeThreadAttachmentSegment(input.threadId)}-${id}-${extension.slice(1)}`;
-    yield* fs.writeFile(NodePath.join(root, `${id}.bin`), bytes, { flag: "wx" });
-    yield* fs.writeFile(
-      NodePath.join(config.attachmentsDir, `${attachmentId}${extension}`),
-      bytes,
-      { flag: "wx" },
-    );
+    yield* fs.writeFile(path.join(root, `${id}.bin`), bytes, { flag: "wx" });
+    yield* fs.writeFile(path.join(config.attachmentsDir, `${attachmentId}${extension}`), bytes, {
+      flag: "wx",
+    });
     const version: AttachmentVersion = {
       id,
-      createdAt: new Date().toISOString(),
+      createdAt: DateTime.formatIso(yield* DateTime.now),
       author,
       attachment: { ...input.attachment, id: attachmentId, sizeBytes: bytes.length },
       notes: input.notes ?? selected.notes,
     };
-    yield* fs.writeFileString(NodePath.join(root, `${id}.json`), JSON.stringify(version), {
+    yield* fs.writeFileString(path.join(root, `${id}.json`), yield* encodeVersion(version), {
       flag: "wx",
     });
     versions.push(version);
   }
   if (input.action === "send") {
-    const livePath = NodePath.join(
+    const livePath = path.join(
       config.attachmentsDir,
       `${selected.attachment.id}${attachmentFileExtension(selected.attachment.name)}`,
     );
@@ -148,6 +153,8 @@ export const importAttachment = Effect.fn("attachment.import")(function* (input:
   contentBase64: string;
 }) {
   const fs = yield* FileSystem.FileSystem;
+  const path = yield* Path.Path;
+  const crypto = yield* Crypto.Crypto;
   const config = yield* ServerConfig;
   const bytes = NodeBuffer.Buffer.from(input.contentBase64, "base64");
   if (!bytes.length || bytes.length > 50 * 1024 * 1024)
@@ -156,8 +163,8 @@ export const importAttachment = Effect.fn("attachment.import")(function* (input:
       message: "File must be between 1 byte and 50 MB.",
     });
   const extension = attachmentFileExtension(input.name);
-  const id = `${toSafeThreadAttachmentSegment(input.threadId)}-${NodeCrypto.randomUUID()}-${extension.slice(1)}`;
-  yield* fs.writeFile(NodePath.join(config.attachmentsDir, `${id}${extension}`), bytes, {
+  const id = `${toSafeThreadAttachmentSegment(input.threadId)}-${yield* crypto.randomUUIDv4()}-${extension.slice(1)}`;
+  yield* fs.writeFile(path.join(config.attachmentsDir, `${id}${extension}`), bytes, {
     flag: "wx",
   });
   return {

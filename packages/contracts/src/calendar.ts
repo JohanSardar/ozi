@@ -1,18 +1,25 @@
+import * as DateTime from "effect/DateTime";
+import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import { TrimmedNonEmptyString } from "./baseSchemas.ts";
 
+const parseCalendarDate = (value: string) =>
+  DateTime.makeZoned(value.length === 10 ? `${value}T00:00:00` : value, {
+    timeZone: DateTime.zoneMakeLocal(),
+    adjustForTimeZone: !/(?:Z|[+-]\d{2}:\d{2})$/.test(value),
+  });
 export const calendarDate = (value: string) =>
-  new Date(/^\d{4}-\d{2}-\d{2}$/.test(value) ? `${value}T00:00:00` : value);
+  DateTime.toDateUtc(Option.getOrThrow(parseCalendarDate(value)));
 const CalendarDate = TrimmedNonEmptyString.check(
   Schema.isPattern(
     /^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})?)?$/,
   ),
   Schema.makeFilter((value) => {
-    const day = new Date(`${value.slice(0, 10)}T00:00:00Z`);
+    const day = DateTime.make(`${value.slice(0, 10)}T00:00:00Z`);
     return (
-      Number.isFinite(calendarDate(value).getTime()) &&
-      Number.isFinite(day.getTime()) &&
-      day.toISOString().slice(0, 10) === value.slice(0, 10)
+      Option.isSome(parseCalendarDate(value)) &&
+      Option.isSome(day) &&
+      DateTime.formatIsoDateUtc(day.value) === value.slice(0, 10)
     );
   }),
 );

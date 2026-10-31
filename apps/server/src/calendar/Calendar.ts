@@ -1,4 +1,5 @@
-import * as NodeCrypto from "node:crypto";
+import * as Crypto from "effect/Crypto";
+import * as Hex from "effect/encoding/Hex";
 import {
   CalendarError,
   CalendarEvent,
@@ -27,12 +28,19 @@ export class Calendar extends Context.Service<
 
 const storageError = () =>
   new CalendarError({ message: "Could not read or save the Ozi calendar." });
-const decode = Schema.decodeUnknownEffect(Schema.fromJsonString(CalendarEvent));
+const codec = Schema.fromJsonString(CalendarEvent);
+const decode = Schema.decodeUnknownEffect(codec);
+const encode = Schema.encodeEffect(codec);
+const isCalendarError = Schema.is(CalendarError);
 const parse = Schema.decodeUnknownOption(Schema.fromJsonString(CalendarEventInput));
-const id = (event: CalendarEventInput) =>
-  NodeCrypto.createHash("sha256").update(calendarKey(event)).digest("hex");
 const make = Effect.gen(function* () {
   const sql = yield* SqlClient.SqlClient;
+  const crypto = yield* Crypto.Crypto;
+  const id = Effect.fn("Calendar.id")(function* (event: CalendarEventInput) {
+    return Hex.encode(
+      yield* crypto.digest("SHA-256", new TextEncoder().encode(calendarKey(event))),
+    );
+  });
   const tickets = yield* Tickets.Tickets;
   yield* sql`CREATE TABLE IF NOT EXISTS calendar_events (id TEXT PRIMARY KEY, payload_json TEXT NOT NULL)`;
 
@@ -43,18 +51,18 @@ const make = Effect.gen(function* () {
       }
       const event: CalendarEvent = {
         ...input,
-        id: id(input),
+        id: yield* id(input),
         source: input.source ?? "ozi",
         added: true,
       };
-      yield* sql`INSERT INTO calendar_events (id, payload_json) VALUES (${event.id}, ${JSON.stringify(event)})
+      yield* sql`INSERT INTO calendar_events (id, payload_json) VALUES (${event.id}, ${yield* encode(event)})
       ON CONFLICT(id) DO NOTHING`;
       const rows = yield* sql<{
         payload_json: string;
       }>`SELECT payload_json FROM calendar_events WHERE id = ${event.id}`;
       return yield* decode(rows[0]!.payload_json);
     },
-    Effect.mapError((error) => (error instanceof CalendarError ? error : storageError())),
+    Effect.mapError((error) => (isCalendarError(error) ? error : storageError())),
   );
 
   const list = Effect.fn("Calendar.list")(
@@ -75,7 +83,7 @@ const make = Effect.gen(function* () {
             calendarEnd(parsed.value) > calendarDate(parsed.value.start)
           ) {
             const event = parsed.value;
-            const key = id(event);
+            const key = yield* id(event);
             events.set(key, { ...event, id: key, source: "ticket", added: false });
           }
         }
@@ -94,7 +102,7 @@ const make = Effect.gen(function* () {
           .sort((a, b) => calendarDate(a.start).getTime() - calendarDate(b.start).getTime()),
       };
     },
-    Effect.mapError((error) => (error instanceof CalendarError ? error : storageError())),
+    Effect.mapError((error) => (isCalendarError(error) ? error : storageError())),
   );
   return Calendar.of({ list, add });
 });

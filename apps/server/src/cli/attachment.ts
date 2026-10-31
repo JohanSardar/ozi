@@ -1,6 +1,6 @@
 import * as FileSystem from "effect/FileSystem";
 import * as NodeBuffer from "node:buffer";
-import * as NodePath from "node:path";
+import * as Path from "effect/Path";
 import { ChatFileAttachment, ThreadId } from "@t3tools/contracts";
 import { AttachmentVersionsInput, AttachmentVersionsResult } from "@t3tools/contracts";
 import * as Console from "effect/Console";
@@ -24,6 +24,7 @@ export const attachmentCommand = Command.make("attachment").pipe(
       Command.withHandler((flags) =>
         Effect.gen(function* () {
           const fs = yield* FileSystem.FileSystem;
+          const path = yield* Path.Path;
           const bytes = yield* fs.readFile(flags.file);
           yield* withInboxTools(flags, (tools) =>
             tools
@@ -31,7 +32,7 @@ export const attachmentCommand = Command.make("attachment").pipe(
                 "ozi_attachment_import",
                 {
                   threadId: flags.thread,
-                  name: NodePath.basename(flags.file),
+                  name: path.basename(flags.file),
                   mimeType: flags.mimeType,
                   contentBase64: NodeBuffer.Buffer.from(bytes).toString("base64"),
                 },
