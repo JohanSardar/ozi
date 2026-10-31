@@ -84,7 +84,7 @@ export function richBlock(language: string, code: string): ReactNode | null {
 }
 
 const CARD_CLASS =
-  "group/card relative my-3 max-w-xl rounded-[10px] border border-border bg-card text-card-foreground transition-colors";
+  "group/card relative my-3 max-w-xl rounded-lg border border-border bg-card text-card-foreground transition-colors";
 
 function HoverAction(props: { icon: ReactNode; label: string; onClick: () => void }) {
   return (
@@ -233,7 +233,9 @@ function EventCard(props: typeof EventBlock.Type) {
         day: "numeric",
         ...(allDay ? { timeZone: "UTC" } : {}),
       })}${
-        allDay ? "" : ` · ${time(start)}${end && !Number.isNaN(end.getTime()) ? `–${time(end)}` : ""}`
+        allDay
+          ? ""
+          : ` · ${time(start)}${end && !Number.isNaN(end.getTime()) ? `–${time(end)}` : ""}`
       }`
     : props.start;
   return (
@@ -357,7 +359,9 @@ function DraftCard(props: typeof DraftBlock.Type) {
               {body}
             </p>
           )}
-          <span className="text-2xs text-muted-foreground">{sent ? "Sent to Ozi" : "Not sent"}</span>
+          <span className="text-2xs text-muted-foreground">
+            {sent ? "Sent to Ozi" : "Not sent"}
+          </span>
         </div>
         {actions ? <div className="border-t border-border px-3 py-2">{actions}</div> : null}
       </Card>
@@ -429,7 +433,7 @@ export function LinkCard(props: { url: string; children: ReactNode }) {
       href={props.url}
       target="_blank"
       rel="noreferrer"
-      className="my-3 flex max-w-xl overflow-hidden rounded-[10px] border border-border bg-card text-card-foreground no-underline transition-colors hover:border-ring/40"
+      className="my-3 flex max-w-xl overflow-hidden rounded-lg border border-border bg-card text-card-foreground no-underline transition-colors hover:border-ring/40"
     >
       <span className="min-w-0 flex-1 p-3">
         <span className="block truncate text-xs text-muted-foreground">{preview.site}</span>

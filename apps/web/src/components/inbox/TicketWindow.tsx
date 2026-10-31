@@ -2,7 +2,14 @@ import { resolveAssetUrl } from "@t3tools/client-runtime/state/assets";
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import type { EnvironmentId, ThreadId, Ticket } from "@t3tools/contracts";
 import { useNavigate } from "@tanstack/react-router";
-import { ArrowLeftIcon, ArrowUpIcon, CheckIcon, EllipsisIcon, ReplyIcon, XIcon } from "lucide-react";
+import {
+  ArrowLeftIcon,
+  ArrowUpIcon,
+  CheckIcon,
+  EllipsisIcon,
+  ReplyIcon,
+  XIcon,
+} from "lucide-react";
 import { useRef, useState, type ReactNode } from "react";
 
 import { useRelativeTimeState } from "../../hooks/useRelativeTimeState";
@@ -15,9 +22,9 @@ import { AppRouteModalClose } from "../AppRouteModal";
 import ChatMarkdown from "../ChatMarkdown";
 import { RichActionsContext } from "../chat/RichBlocks";
 import { Button } from "../ui/button";
-import { Dialog, DialogPanel, DialogPopup, DialogTitle } from "../ui/dialog";
+import { Dialog, DialogPopup, DialogTitle } from "../ui/dialog";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
-import { Textarea } from "../ui/textarea";
+import { ScrollArea } from "../ui/scroll-area";
 import { TicketAttachment, TicketImage, TicketPages } from "./TicketMedia";
 
 export function Age(props: { iso: string }) {
@@ -41,11 +48,7 @@ export function Choices(props: {
 }) {
   const pictures = props.ticket.choices.some((choice) => choice.image);
   return (
-    <div
-      role="group"
-      aria-label="Choices"
-      className="grid gap-1.5"
-    >
+    <div role="group" aria-label="Choices" className="grid gap-1.5">
       {props.ticket.choices.map((choice, index) =>
         pictures ? (
           <button
@@ -242,7 +245,7 @@ export function TicketWindow(props: {
     : (routeRef && titles.get(routeRef.threadId)) || "a new chat";
   const footer = (
     <div className="pointer-events-none sticky bottom-0 z-20 flex justify-center px-4 pt-6 pb-4">
-      <div className="pointer-events-auto flex w-full max-w-3xl flex-wrap items-end gap-1 rounded-[10px] border border-border bg-popover p-1 shadow-lg">
+      <div className="pointer-events-auto flex w-full max-w-3xl flex-wrap items-end gap-1 rounded-lg border border-border bg-popover p-1 shadow-lg">
         {quoted !== null ? (
           <div className="flex w-full items-center gap-2 rounded-md bg-accent/60 py-1.5 ps-3 pe-1 text-xs text-muted-foreground">
             <ReplyIcon className="size-3.5 shrink-0" />
@@ -257,7 +260,7 @@ export function TicketWindow(props: {
             </Button>
           </div>
         ) : null}
-        <Textarea
+        <textarea
           ref={replyField}
           autoFocus={!inline}
           rows={1}
@@ -270,8 +273,7 @@ export function TicketWindow(props: {
           }}
           placeholder={`Reply to ${destination}…`}
           aria-label={`Reply to ${ticket.title}`}
-          unstyled
-          className="min-w-0 flex-1 [&_textarea]:max-h-40 [&_textarea]:min-h-9 [&_textarea]:resize-none [&_textarea]:px-3 [&_textarea]:py-2 [&_textarea]:text-sm"
+          className="field-sizing-content max-h-40 min-h-9 min-w-0 flex-1 resize-none rounded-lg px-3 py-2 text-sm outline-none wrap-anywhere"
         />
         <Menu>
           <MenuTrigger
@@ -284,7 +286,9 @@ export function TicketWindow(props: {
               Open chat · {titles.get(ticket.origin.threadId) ?? ""}
             </MenuItem>
             {workerId ? (
-              <MenuItem onClick={() => goTo(workerId)}>Open job · {titles.get(workerId) ?? ""}</MenuItem>
+              <MenuItem onClick={() => goTo(workerId)}>
+                Open job · {titles.get(workerId) ?? ""}
+              </MenuItem>
             ) : null}
           </MenuPopup>
         </Menu>
@@ -323,7 +327,7 @@ export function TicketWindow(props: {
     return (
       <section aria-label={ticket.title} className="flex min-h-0 min-w-0 flex-1 flex-col">
         {header}
-        <div className="min-h-0 flex-1 overflow-y-auto">
+        <div className="scrollbar-gutter-both min-h-0 flex-1 overflow-y-auto">
           <div className="mx-auto flex max-w-3xl flex-col gap-6 px-6 pt-6 [&_.max-w-xl]:max-w-none">
             <RichActionsContext value={richActions}>{body}</RichActionsContext>
           </div>
@@ -333,17 +337,16 @@ export function TicketWindow(props: {
     );
   return (
     <Dialog open onOpenChange={(next) => !next && onClose()}>
-      <DialogPopup
-        showCloseButton={false}
-        className="max-w-[min(71rem,92vw)] sm:max-h-[88vh]"
-      >
+      <DialogPopup showCloseButton={false} className="max-w-[min(71rem,92vw)] sm:max-h-[88vh]">
         {header}
-        <DialogPanel className="p-0" scrollFade={false}>
-          <div className="mx-auto flex max-w-3xl flex-col gap-6 px-6 pt-6 [&_.max-w-xl]:max-w-none">
-            <RichActionsContext value={richActions}>{body}</RichActionsContext>
+        <ScrollArea scrollFade={false}>
+          <div className="space-y-4">
+            <div className="mx-auto flex max-w-3xl flex-col gap-6 px-6 pt-6 [&_.max-w-xl]:max-w-none">
+              <RichActionsContext value={richActions}>{body}</RichActionsContext>
+            </div>
+            {footer}
           </div>
-          {footer}
-        </DialogPanel>
+        </ScrollArea>
       </DialogPopup>
     </Dialog>
   );
