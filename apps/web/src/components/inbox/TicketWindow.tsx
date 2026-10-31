@@ -108,7 +108,7 @@ function Source(props: { label: string; detail: string; onClick: () => void }) {
     <button
       type="button"
       onClick={props.onClick}
-      className="flex w-full items-center gap-3 rounded-md border border-border px-3 py-2 text-left text-sm transition-colors hover:bg-accent"
+      className="flex w-full max-w-xl items-center gap-3 rounded-xl border border-border bg-card px-3.5 py-2.5 text-left text-sm transition-colors hover:border-ring/40 hover:bg-accent"
     >
       <span className="min-w-0 flex-1 truncate">{props.label}</span>
       <span className="truncate text-xs text-muted-foreground">{props.detail}</span>

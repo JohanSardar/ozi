@@ -31,7 +31,6 @@ import {
   useRef,
   useState,
 } from "react";
-import { isElectron } from "~/env";
 import { FileSurfaceLoading } from "./fileSurfaceChrome";
 
 import { useOpenLink } from "~/browser/useOpenLink";
@@ -75,21 +74,7 @@ const PdfViewer = lazy(() => import("./PdfViewer"));
 
 function PdfDocument(props: { src: string; title: string }) {
   const [src] = useState(props.src);
-  // The Electron shell does not enable PDF plugins. WebKit embeds on iOS
-  // expose only the first page, even when pdfViewerEnabled reports support.
-  const native =
-    !isElectron &&
-    navigator.pdfViewerEnabled &&
-    !/iPad|iPhone|iPod/.test(navigator.userAgent) &&
-    !(navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
-  return native ? (
-    // oxlint-disable-next-line react/iframe-missing-sandbox -- Chromium's PDF plugin requires an unsandboxed frame; src is an exact-file asset grant.
-    <iframe
-      src={`${src.split("#", 1)[0]}#navpanes=0&view=FitH`}
-      title={props.title}
-      className="block h-full min-h-0 w-full flex-1 border-0 bg-white"
-    />
-  ) : (
+  return (
     <Suspense fallback={<FileSurfaceLoading />}>
       <PdfViewer src={src} title={props.title} />
     </Suspense>
@@ -98,7 +83,7 @@ function PdfDocument(props: { src: string; title: string }) {
 
 /**
  * HTML runs in a sandboxed frame with an opaque origin, so a page cannot reach
- * the app's session or storage. PDFs use a native viewer or the lazy PDF.js fallback.
+ * the app's session or storage. PDFs use the app's PDF.js viewer, never the browser's plugin.
  */
 export function BrowserDocumentFrame(props: {
   readonly src: string;

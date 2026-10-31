@@ -125,6 +125,22 @@ export function TicketPages(props: { environmentId: EnvironmentId; ticket: Ticke
   ));
 }
 
+function TicketVideo(props: { environmentId: EnvironmentId; attachment: ChatAttachment }) {
+  const asset = useAssetUrlState(props.environmentId, attachmentResource(props.attachment));
+  return asset._tag === "Success" ? (
+    <video
+      controls
+      playsInline
+      preload="metadata"
+      src={asset.url}
+      aria-label={props.attachment.name}
+      className="block w-full max-w-xl rounded-xl bg-black"
+    />
+  ) : (
+    <span className="block aspect-video w-full max-w-xl rounded-xl bg-muted" />
+  );
+}
+
 export function TicketAttachment(props: {
   environmentId: EnvironmentId;
   ticket: Ticket;
@@ -135,19 +151,22 @@ export function TicketAttachment(props: {
   const kind = filePreviewKind(attachment);
   if (kind === "image")
     return (
-      <ChatMarkdownAssetImage
-        environmentId={environmentId}
-        resource={attachmentResource(attachment)}
-        alt={attachment.name}
-        standalone
-      />
+      <div className="max-w-xl [&_img]:w-full">
+        <ChatMarkdownAssetImage
+          environmentId={environmentId}
+          resource={attachmentResource(attachment)}
+          alt={attachment.name}
+          standalone
+        />
+      </div>
     );
-  if (["video", "audio", "pdf", "text", "markdown", "html"].includes(kind))
+  if (kind === "video") return <TicketVideo environmentId={environmentId} attachment={attachment} />;
+  if (["audio", "text", "markdown", "html"].includes(kind))
     return (
       <div
         className={cn(
           "flex max-w-xl flex-col overflow-hidden rounded-xl border border-border",
-          kind === "audio" ? "h-28" : "h-96",
+          kind === "audio" ? "h-28" : "max-h-96 [&>*]:max-h-96",
         )}
       >
         <AttachmentFilePreview
@@ -163,10 +182,18 @@ export function TicketAttachment(props: {
     <button
       type="button"
       onClick={props.onOpen}
-      className="flex w-full items-center gap-2.5 rounded-md border border-border px-3 py-2 text-left text-sm transition-colors hover:bg-accent"
+      className="flex w-full max-w-xl items-center gap-3 rounded-xl border border-border bg-card px-3.5 py-3 text-left transition-colors hover:border-ring/40 hover:bg-accent"
     >
-      <FileIcon className="size-4 shrink-0 text-muted-foreground" />
-      <span className="min-w-0 flex-1 truncate">{attachment.name}</span>
+      <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">
+        <FileIcon className="size-4" />
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="block truncate text-sm font-medium">{attachment.name}</span>
+        <span className="block text-xs text-muted-foreground uppercase">
+          {kind === "pdf" ? "PDF" : (attachment.name.split(".").pop() ?? "File")}
+        </span>
+      </span>
+      <span className="text-xs font-medium text-muted-foreground">Open</span>
     </button>
   );
 }
