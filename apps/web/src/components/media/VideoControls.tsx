@@ -65,6 +65,15 @@ export function useMediaState(media: HTMLMediaElement) {
   return state;
 }
 
+export const seekByKey = (key: string, media: HTMLMediaElement) => {
+  if (key === "ArrowRight") media.currentTime += 5;
+  if (key === "ArrowLeft") media.currentTime -= 5;
+};
+
+const toggleMute = (media: HTMLMediaElement) => {
+  media.muted = !media.muted;
+};
+
 export const toggleMedia = (media: HTMLMediaElement) =>
   media.paused ? void media.play().catch(() => {}) : media.pause();
 
@@ -128,8 +137,7 @@ export function VideoControls(props: { video: HTMLVideoElement; label: string })
           tabIndex={0}
           onPointerDown={(event) => seekFromPointer(event, video)}
           onKeyDown={(event) => {
-            if (event.key === "ArrowRight") video.currentTime += 5;
-            if (event.key === "ArrowLeft") video.currentTime -= 5;
+            seekByKey(event.key, video);
           }}
           className="group/seek relative flex h-10 min-w-0 flex-1 cursor-pointer items-center"
         >
@@ -140,9 +148,7 @@ export function VideoControls(props: { video: HTMLVideoElement; label: string })
         <button
           type="button"
           aria-label={muted ? "Unmute" : "Mute"}
-          onClick={() => {
-            video.muted = !video.muted;
-          }}
+          onClick={() => toggleMute(video)}
           className="flex size-10 shrink-0 items-center justify-center rounded-lg hover:bg-white/15"
         >
           {muted ? <VolumeXIcon className="size-5" /> : <Volume2Icon className="size-5" />}

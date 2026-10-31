@@ -2,7 +2,7 @@ import { PauseIcon, PlayIcon, TriangleAlertIcon } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import { cn } from "../../lib/utils";
-import { mediaTime, seekFromPointer, toggleMedia, useMediaState } from "./VideoControls";
+import { mediaTime, seekByKey, seekFromPointer, toggleMedia, useMediaState } from "./VideoControls";
 
 const BARS = 64;
 
@@ -70,8 +70,7 @@ function Strip(props: { audio: HTMLAudioElement; src: string; name: string }) {
           tabIndex={0}
           onPointerDown={(event) => seekFromPointer(event, props.audio)}
           onKeyDown={(event) => {
-            if (event.key === "ArrowRight") props.audio.currentTime += 5;
-            if (event.key === "ArrowLeft") props.audio.currentTime -= 5;
+            seekByKey(event.key, props.audio);
           }}
           className="flex h-8 cursor-pointer items-center gap-[2px]"
         >
