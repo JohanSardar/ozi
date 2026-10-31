@@ -152,7 +152,7 @@ const CHAT_MARKDOWN_IMAGE_FRAME_CLASS_NAME = cn(
 function MediaReply({ summary, children }: { summary: string; children: ReactNode }) {
   const { quote } = use(RichActionsContext);
   return (
-    <span className="group/media-reply relative inline-block max-w-full align-top">
+    <span className="group/media-reply relative inline-block max-w-[min(100%,30rem)] align-top">
       {children}
       {quote ? (
         <button
