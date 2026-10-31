@@ -216,7 +216,7 @@ function ProviderSettingsPlaceholder({
         divided={false}
         className={cn(
           providerCardHeightClassName,
-          "scrollbar-gutter-both flex overflow-x-hidden overflow-y-auto",
+          "flex overflow-x-hidden overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden",
         )}
       >
         <Empty>
@@ -961,17 +961,10 @@ export function EnvironmentProviderSettings({
         ) : null}
         <SettingsGroup
           divided={false}
-          className={cn(
-            providerCardHeightClassName,
-            "overflow-hidden @min-[48rem]/providers:grid @min-[48rem]/providers:grid-cols-[17rem_minmax(0,1fr)]",
-          )}
+          className="overflow-hidden"
         >
-          <div className="border-b border-border/60 bg-muted/10 @min-[48rem]/providers:flex @min-[48rem]/providers:min-h-0 @min-[48rem]/providers:flex-col @min-[48rem]/providers:border-r @min-[48rem]/providers:border-b-0">
-            <ScrollArea
-              scrollFade
-              chainVerticalScroll
-              className="@min-[48rem]/providers:min-h-0 @min-[48rem]/providers:flex-1"
-            >
+          <div className="border-b border-border/60 bg-muted/10">
+            <div>
               <div className="divide-y divide-border/50">
                 {rows.map((row) => renderProviderInstance(row, "list"))}
                 {!readOnly ? (
@@ -985,17 +978,14 @@ export function EnvironmentProviderSettings({
                   </button>
                 ) : null}
               </div>
-            </ScrollArea>
+            </div>
           </div>
 
-          <div data-provider-detail className="min-w-0 @min-[48rem]/providers:min-h-0">
+          <div data-provider-detail className="min-w-0">
             {selectedRow ? (
-              <ScrollArea scrollFade chainVerticalScroll className="@min-[48rem]/providers:h-full">
-                {/* Flat sections run dividers edge to edge and inset text like the list beside them. */}
-                <div className="space-y-6 py-4">
-                  {renderProviderInstance(selectedRow, "editor")}
-                </div>
-              </ScrollArea>
+              <div className="space-y-6 py-4">
+                {renderProviderInstance(selectedRow, "editor")}
+              </div>
             ) : (
               <div className="p-6 text-sm text-muted-foreground">
                 {targetInstanceMissing

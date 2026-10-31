@@ -128,7 +128,7 @@ function ProviderOptionGrid({
             {option.label}
           </span>
           <RadioPrimitive.Indicator
-            className="grid size-5 shrink-0 place-items-center rounded-full bg-primary text-primary-foreground"
+            className="grid size-5 shrink-0 place-items-center rounded-sm bg-primary text-primary-foreground"
             aria-hidden
           >
             <CheckIcon className="size-3.5 shrink-0" />

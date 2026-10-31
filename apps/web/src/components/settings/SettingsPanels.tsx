@@ -1573,11 +1573,27 @@ export function AboutSettingsPanel() {
             />
           </>
         )}
-        <p>Forked from T3 Code.</p>
+        <SettingsRow
+          title="Forked from T3 Code"
+          description="Built on open-source work from T3 Code, Pi and Firstmate."
+        />
         <MobileAppSettingsRow />
       </SettingsSection>
 
       <SettingsSection id="legal" title="Legal">
+        <SettingsRow
+          title="MIT license"
+          description="T3 Code © 2026 T3 Tools Inc. Pi © 2025 Mario Zechner. Includes MIT-licensed work from Firstmate."
+        >
+          <details className="pb-3 text-xs text-muted-foreground">
+            <summary className="cursor-pointer py-2 font-medium text-primary">License terms</summary>
+            <p className="whitespace-pre-line leading-relaxed">{`Permission is hereby granted, free of charge, to any person obtaining a copy of this software and associated documentation files (the "Software"), to deal in the Software without restriction, including without limitation the rights to use, copy, modify, merge, publish, distribute, sublicense, and/or sell copies of the Software, and to permit persons to whom the Software is furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.`}</p>
+          </details>
+        </SettingsRow>
         <SettingsRow
           {...searchableSetting("privacy-policy")}
           description="How Ozi stores your data and connects to providers."

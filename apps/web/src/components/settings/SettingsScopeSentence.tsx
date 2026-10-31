@@ -9,6 +9,7 @@ export const SETTINGS_DEVICE_ONLY_PATHS: ReadonlySet<string> = new Set([
   "/settings/connections",
   "/settings/access",
   "/settings/about",
+  "/settings/open-source-licenses",
 ]);
 export function SettingsScopeSentence() {
   const scope = useOptionalSettingsScope();
@@ -16,7 +17,7 @@ export function SettingsScopeSentence() {
   const { environments } = useEnvironments();
   if (!scope || SETTINGS_DEVICE_ONLY_PATHS.has(pathname)) return null;
   return (
-    <div className="flex items-center gap-2 px-3 text-sm text-muted-foreground">
+    <div className="flex flex-wrap items-center gap-2 px-4 text-sm text-muted-foreground">
       <span>Applying settings to</span>
       <Select
         value={scope.search.machine ?? "all"}

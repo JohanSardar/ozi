@@ -837,7 +837,7 @@ export function ConnectionsSettings({ view }: { readonly view: "environments" | 
       <>
         <SettingsRow
           {...searchableSetting("wsl-backend")}
-          description="Run the selected WSL distro alongside Windows. Projects remain on their current filesystem."
+          description="Run the selected WSL distro alongside Windows."
           status={
             desktopWslError ? (
               <span className="block text-destructive">{desktopWslError}</span>

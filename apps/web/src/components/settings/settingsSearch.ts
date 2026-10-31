@@ -561,7 +561,7 @@ export const SETTINGS_SEARCH_ITEMS = [
     title: "Agent browser access",
     to: "/settings/browser",
     scope: "environment-defaults",
-    searchTerms: ["allow disable enable open drive preview tools sessions project override"],
+    searchTerms: ["allow disable enable open drive preview tools sessions environment override"],
   },
   {
     id: "browser-profiles",

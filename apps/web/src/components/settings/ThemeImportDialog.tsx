@@ -457,7 +457,7 @@ function ThemeImportBody({
           <input
             ref={fileInputRef}
             accept=".json,application/json"
-            className="sr-only"
+            className="hidden"
             onChange={handleFileChange}
             multiple
             type="file"

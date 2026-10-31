@@ -10,14 +10,10 @@ import { useTheme } from "../../hooks/useTheme";
 import { DEFAULT_COMPOSER_PLACEHOLDER } from "../../composerPlaceholder";
 import { GhosttyTerminalSurface } from "~/terminal/ghostty/surface";
 
-const PREVIEW_SKILLS: ReadonlyArray<ServerProviderSkill> = [
-  { name: "frontend-design", path: ".agents/skills/frontend-design/SKILL.md", enabled: true },
-];
+const PREVIEW_SKILLS: ReadonlyArray<ServerProviderSkill> = [];
 
 const PROMPT_PREVIEW_TEXT =
-  "Use $frontend-design to fix the flaky test in " +
-  "[surface.test.ts](apps/web/src/terminal/ghostty/surface.test.ts) and align the header with " +
-  "[SettingsPanels.tsx](apps/web/src/components/settings/SettingsPanels.tsx) before shipping.";
+  "Plan a weekend trip with a short packing list and a few places to explore.";
 
 function noop() {}
 
@@ -56,19 +52,14 @@ export function CodeFontPreview() {
   );
 }
 
-const TERMINAL_PROMPT =
-  "\x1b[1;32m→\x1b[0m \x1b[1;36mt3code\x1b[0m \x1b[1;34mgit:(\x1b[1;31mmain\x1b[1;34m)\x1b[0m \x1b[1;33m✗\x1b[0m ";
+const TERMINAL_PROMPT = "\x1b[1;36mozi\x1b[0m \x1b[1;32m>\x1b[0m ";
 const TERMINAL_PREVIEW_TRANSCRIPT =
-  `${TERMINAL_PROMPT}vpr dev\r\n` +
+  `${TERMINAL_PROMPT}--help\r\n` +
   "\r\n" +
-  "  \x1b[1;32mVITE\x1b[0m \x1b[32mv7.1.1\x1b[0m  \x1b[2mready in\x1b[0m \x1b[1m1.24s\x1b[0m\r\n" +
+  "  \x1b[1;36mOzi\x1b[0m\r\n" +
+  "  Chats, agents and your inbox.\r\n" +
   "\r\n" +
-  "  \x1b[32m→\x1b[0m  \x1b[2mLocal:\x1b[0m    \x1b[4;36mhttp://127.0.0.1:5173/\x1b[0m\r\n" +
-  "  \x1b[32m→\x1b[0m  \x1b[2mNetwork:\x1b[0m  \x1b[4;36mhttp://192.168.1.24:5173/\x1b[0m\r\n" +
-  "\r\n" +
-  "  \x1b[32m✓ 85 passed\x1b[0m   \x1b[33m△ 2 warnings\x1b[0m   \x1b[31m✗ 0 failed\x1b[0m\r\n" +
-  "\r\n" +
-  "  \x1b[42;30m READY \x1b[0m \x1b[2mwatching for changes, press\x1b[0m \x1b[1mq\x1b[0m \x1b[2mto quit\x1b[0m\r\n" +
+  "  \x1b[1;32mUsage\x1b[0m  ozi [command]\r\n" +
   "\r\n" +
   TERMINAL_PROMPT;
 const TERMINAL_PREVIEW_ROWS = TERMINAL_PREVIEW_TRANSCRIPT.split("\r\n").length;

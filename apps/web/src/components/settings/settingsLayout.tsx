@@ -345,8 +345,8 @@ export function SettingsRow({
       tabIndex={rowProps.id ? -1 : rowProps.tabIndex}
       data-slot="settings-row"
       className={cn(
-        "group/settings-row @container/settings-row rounded-xl px-3 sm:px-4 aria-disabled:opacity-64 aria-disabled:[&_*]:text-muted-foreground",
-        children ? "pt-3 pb-1" : "py-3",
+        "group/settings-row @container/settings-row rounded-lg px-4 sm:px-5 aria-disabled:opacity-64 aria-disabled:[&_*]:text-muted-foreground",
+        children ? "pt-4 pb-2" : "py-4",
         className,
       )}
     >
@@ -360,7 +360,7 @@ export function SettingsRow({
             </span>
           </div>
           {description ? (
-            <p className="max-w-2xl text-balance text-xs leading-normal text-muted-foreground">
+            <p className="max-w-2xl text-pretty text-xs leading-relaxed text-muted-foreground">
               {description}
             </p>
           ) : null}
@@ -451,10 +451,10 @@ export function SettingsPageContainer({
       onTargetHandled={clearTargetHash}
     >
       <div
-        className="topbar-scroll-fade scrollbar-gutter-both flex-1 overflow-y-auto"
+        className="topbar-scroll-fade min-h-0 flex-1 overflow-x-hidden overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         data-settings-page-scroll
       >
-        <WorkspacePageContainer width={width} className={cn("gap-8", className)}>
+        <WorkspacePageContainer width={width} className={cn("gap-7 px-5 pt-7 pb-12 sm:px-8", className)}>
           <SettingsScopeSentence />
           {children}
         </WorkspacePageContainer>

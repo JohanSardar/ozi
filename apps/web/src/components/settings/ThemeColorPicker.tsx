@@ -164,7 +164,7 @@ function ThemeColorPickerPanel({
           <p className="text-2xs text-muted-foreground">Choose a color</p>
         </div>
         <span
-          className="size-7 shrink-0 rounded-full shadow-sm"
+          className="size-7 shrink-0 rounded-md shadow-sm"
           style={{ backgroundColor: currentColor }}
         />
       </div>
@@ -186,7 +186,7 @@ function ThemeColorPickerPanel({
             <span className="px-1 text-3xs font-semibold text-muted-foreground">HEX</span>
             <span className="flex min-w-0 items-center gap-2 rounded-lg border border-input bg-background px-2 focus-within:border-ring">
               <span
-                className="size-3.5 shrink-0 rounded-full"
+                className="size-3.5 shrink-0 rounded-sm"
                 style={{ backgroundColor: currentColor }}
               />
               <input
@@ -260,13 +260,13 @@ function ThemeColorPicker({
               render={
                 <button
                   aria-label={`Choose ${label} color`}
-                  className="relative flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-full border border-foreground/30 transition-transform hover:scale-105 focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-2 focus-visible:outline-ring"
+                  className="relative flex size-6 shrink-0 cursor-pointer items-center justify-center rounded-md border border-foreground/30 transition-transform hover:scale-105 focus-visible:outline-2 focus-visible:outline-solid focus-visible:-outline-offset-2 focus-visible:outline-ring"
                   onFocus={onInteract}
                   onPointerDown={onInteract}
                   type="button"
                 >
                   <span
-                    className="absolute inset-0 rounded-full shadow-sm"
+                    className="absolute inset-0 rounded-md shadow-sm"
                     style={{ backgroundColor: value }}
                   />
                 </button>
