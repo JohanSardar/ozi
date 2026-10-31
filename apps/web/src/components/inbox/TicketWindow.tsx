@@ -2,8 +2,8 @@ import { resolveAssetUrl } from "@t3tools/client-runtime/state/assets";
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import type { EnvironmentId, ThreadId, Ticket } from "@t3tools/contracts";
 import { useNavigate } from "@tanstack/react-router";
-import { ArrowLeftIcon, ArrowUpIcon, CheckIcon, ReplyIcon } from "lucide-react";
-import { useState, type ReactNode } from "react";
+import { ArrowLeftIcon, ArrowUpIcon, CheckIcon, EllipsisIcon, ReplyIcon, XIcon } from "lucide-react";
+import { useRef, useState, type ReactNode } from "react";
 
 import { useRelativeTimeState } from "../../hooks/useRelativeTimeState";
 import { useThreadRouteRef } from "../../hooks/useThreadRouteTarget";
@@ -16,6 +16,7 @@ import ChatMarkdown from "../ChatMarkdown";
 import { RichActionsContext } from "../chat/RichBlocks";
 import { Button } from "../ui/button";
 import { Dialog, DialogPanel, DialogPopup, DialogTitle } from "../ui/dialog";
+import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
 import { Textarea } from "../ui/textarea";
 import { TicketAttachment, TicketImage, TicketPages } from "./TicketMedia";
 
@@ -103,19 +104,6 @@ function Section(props: { label: string; children: ReactNode }) {
   );
 }
 
-function Source(props: { label: string; detail: string; onClick: () => void }) {
-  return (
-    <button
-      type="button"
-      onClick={props.onClick}
-      className="flex w-full max-w-xl items-center gap-3 rounded-xl border border-border bg-card px-3.5 py-2.5 text-left text-sm transition-colors hover:border-ring/40 hover:bg-accent"
-    >
-      <span className="min-w-0 flex-1 truncate">{props.label}</span>
-      <span className="truncate text-xs text-muted-foreground">{props.detail}</span>
-    </button>
-  );
-}
-
 export function TicketWindow(props: {
   environmentId: EnvironmentId;
   ticket: Ticket;
@@ -159,9 +147,17 @@ export function TicketWindow(props: {
         : null;
     if (src !== null) window.open(src, "_blank", "noopener");
   };
+  const [quoted, setQuoted] = useState<string | null>(null);
   const send = () => {
     if (!reply.trim()) return;
-    props.onReply(reply.trim());
+    props.onReply(
+      quoted === null
+        ? reply.trim()
+        : `${quoted
+            .split("\n")
+            .map((line) => `> ${line}`)
+            .join("\n")}\n\n${reply.trim()}`,
+    );
     onClose();
   };
 
@@ -238,66 +234,68 @@ export function TicketWindow(props: {
           </div>
         </Section>
       ) : null}
-      <Section label="Sources">
-        <div className="grid gap-1.5">
-          <Source
-            label="Session transcript"
-            detail={titles.get(ticket.origin.threadId) ?? ""}
-            onClick={() => goTo(ticket.origin.threadId)}
-          />
-          {workerId ? (
-            <Source
-              label={`Job · ${titles.get(workerId) ?? ""}`}
-              detail="Worker"
-              onClick={() => goTo(workerId)}
-            />
-          ) : null}
-        </div>
-      </Section>
     </>
   );
+  const replyField = useRef<HTMLTextAreaElement>(null);
+  const destination = inline
+    ? (titles.get(ticket.origin.chatId) ?? "")
+    : (routeRef && titles.get(routeRef.threadId)) || "a new chat";
   const footer = (
-    <footer className="shrink-0 border-t px-4 pt-3 pb-4">
-      <p className="mx-1 mb-2 flex items-center gap-1.5 text-xs text-muted-foreground">
-        <ReplyIcon className="size-3.5" />
-        <span className="shrink-0">Your reply goes to</span>
-        <b className="min-w-0 truncate font-medium text-foreground">
-          {inline
-            ? (titles.get(ticket.origin.chatId) ?? "")
-            : (routeRef && titles.get(routeRef.threadId)) || "New chat"}
-        </b>
-        <span className="shrink-0">with this ticket attached</span>
-      </p>
-      <div className="flex items-end gap-2">
-        <div className="relative flex-1">
-          <Textarea
-            autoFocus={!inline}
-            rows={1}
-            value={reply}
-            onChange={(event) => setReply(event.target.value)}
-            onKeyDown={(event) => {
-              if (event.key !== "Enter" || event.shiftKey) return;
-              event.preventDefault();
-              send();
-            }}
-            placeholder="Reply…"
-            aria-label={`Reply to ${ticket.title}`}
-            className="[&_textarea]:min-h-9 [&_textarea]:pe-9"
-          />
-          {reply.trim() ? (
+    <div className="pointer-events-none sticky bottom-0 z-20 flex justify-center px-4 pt-6 pb-4">
+      <div className="pointer-events-auto flex w-full max-w-3xl flex-wrap items-end gap-1 rounded-[10px] border border-border bg-popover p-1 shadow-lg">
+        {quoted !== null ? (
+          <div className="flex w-full items-center gap-2 rounded-md bg-accent/60 py-1.5 ps-3 pe-1 text-xs text-muted-foreground">
+            <ReplyIcon className="size-3.5 shrink-0" />
+            <span className="min-w-0 flex-1 truncate">{quoted.replaceAll("\n", " · ")}</span>
             <Button
               size="icon-xs"
-              aria-label="Send reply"
-              className="absolute end-1.5 bottom-1.5"
-              onClick={send}
+              variant="ghost"
+              aria-label="Remove quote"
+              onClick={() => setQuoted(null)}
             >
-              <ArrowUpIcon />
+              <XIcon />
             </Button>
-          ) : null}
-        </div>
-        {open ? (
+          </div>
+        ) : null}
+        <Textarea
+          ref={replyField}
+          autoFocus={!inline}
+          rows={1}
+          value={reply}
+          onChange={(event) => setReply(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key !== "Enter" || event.shiftKey) return;
+            event.preventDefault();
+            send();
+          }}
+          placeholder={`Reply to ${destination}…`}
+          aria-label={`Reply to ${ticket.title}`}
+          unstyled
+          className="min-w-0 flex-1 [&_textarea]:max-h-40 [&_textarea]:min-h-9 [&_textarea]:resize-none [&_textarea]:px-3 [&_textarea]:py-2 [&_textarea]:text-sm"
+        />
+        <Menu>
+          <MenuTrigger
+            render={<Button aria-label="More" size="icon" variant="ghost" className="shrink-0" />}
+          >
+            <EllipsisIcon />
+          </MenuTrigger>
+          <MenuPopup align="end" side="top" sideOffset={8}>
+            <MenuItem onClick={() => goTo(ticket.origin.threadId)}>
+              Open chat · {titles.get(ticket.origin.threadId) ?? ""}
+            </MenuItem>
+            {workerId ? (
+              <MenuItem onClick={() => goTo(workerId)}>Open job · {titles.get(workerId) ?? ""}</MenuItem>
+            ) : null}
+          </MenuPopup>
+        </Menu>
+        {reply.trim() ? (
+          <Button className="shrink-0" onClick={send}>
+            <ArrowUpIcon />
+            Send
+          </Button>
+        ) : open ? (
           <Button
-            variant="outline"
+            className="shrink-0"
             onClick={() => {
               props.onGotIt();
               onClose();
@@ -308,12 +306,16 @@ export function TicketWindow(props: {
           </Button>
         ) : null}
       </div>
-    </footer>
+    </div>
   );
   const richActions = {
     send: (text: string) => {
       props.onReply(text);
       onClose();
+    },
+    quote: (text: string) => {
+      setQuoted(text);
+      replyField.current?.focus();
     },
     ...(inline ? {} : { done: onClose }),
   };
@@ -322,21 +324,26 @@ export function TicketWindow(props: {
       <section aria-label={ticket.title} className="flex min-h-0 min-w-0 flex-1 flex-col">
         {header}
         <div className="min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto flex max-w-3xl flex-col gap-4 p-6">
+          <div className="mx-auto flex max-w-3xl flex-col gap-6 px-6 pt-6 [&_.max-w-xl]:max-w-none">
             <RichActionsContext value={richActions}>{body}</RichActionsContext>
           </div>
+          {footer}
         </div>
-        <div className="mx-auto w-full max-w-3xl">{footer}</div>
       </section>
     );
   return (
     <Dialog open onOpenChange={(next) => !next && onClose()}>
-      <DialogPopup showCloseButton={false} className="max-w-190 sm:max-h-[86vh]">
+      <DialogPopup
+        showCloseButton={false}
+        className="max-w-[min(71rem,92vw)] sm:max-h-[88vh]"
+      >
         {header}
-        <DialogPanel>
-          <RichActionsContext value={richActions}>{body}</RichActionsContext>
+        <DialogPanel className="p-0" scrollFade={false}>
+          <div className="mx-auto flex max-w-3xl flex-col gap-6 px-6 pt-6 [&_.max-w-xl]:max-w-none">
+            <RichActionsContext value={richActions}>{body}</RichActionsContext>
+          </div>
+          {footer}
         </DialogPanel>
-        {footer}
       </DialogPopup>
     </Dialog>
   );

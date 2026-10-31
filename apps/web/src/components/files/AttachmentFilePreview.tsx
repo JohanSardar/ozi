@@ -26,7 +26,7 @@ import { cn } from "~/lib/utils";
 
 import { BinaryFilePreview } from "./BinaryFilePreview";
 import { PreviewImage } from "./PreviewImage";
-import { AudioPreview } from "./AudioPreview";
+import { AudioStrip } from "../media/AudioStrip";
 import { BrowserDocumentFrame } from "./BrowserDocumentFrame";
 import { DelimitedTablePreview } from "./DelimitedTablePreview";
 import {
@@ -327,7 +327,9 @@ export function AttachmentFilePreview(props: {
       threadRef={props.threadRef}
     />
   ) : kind === "audio" ? (
-    <AudioPreview src={url} name={props.name} onError={() => setError("Unable to load audio.")} />
+    <div className="flex min-h-0 flex-1 items-center justify-center p-4">
+      <AudioStrip src={url} name={props.name} onError={() => setError("Unable to load audio.")} />
+    </div>
   ) : kind === "video" ? (
     <div className="flex min-h-0 flex-1 items-center justify-center bg-black">
       <video

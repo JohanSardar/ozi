@@ -3,13 +3,15 @@ import { TrimmedNonEmptyString } from "@t3tools/contracts";
 import * as Option from "effect/Option";
 import * as Schema from "effect/Schema";
 import {
-  CalendarPlusIcon,
+  ArrowUpRightIcon,
+  CheckIcon,
+  CopyIcon,
   ExternalLinkIcon,
   GlobeIcon,
   MailIcon,
   MapPinIcon,
-  MessageSquareIcon,
   PencilIcon,
+  ReplyIcon,
   SendIcon,
 } from "lucide-react";
 import { createContext, use, useState, type ReactNode } from "react";
@@ -20,6 +22,7 @@ import { previewEnvironment } from "../../state/preview";
 import { useEnvironmentQuery } from "../../state/query";
 import { linkPreview } from "../../state/tickets";
 import { useAtomCommand } from "../../state/use-atom-command";
+import { cn } from "../../lib/utils";
 import { openTerminalLinkInPreview } from "../preview/openTerminalLinkInPreview";
 import { Button } from "../ui/button";
 import { Textarea } from "../ui/textarea";
@@ -27,6 +30,7 @@ import { Textarea } from "../ui/textarea";
 export const RichActionsContext = createContext<{
   readonly send?: (text: string) => void;
   readonly done?: () => void;
+  readonly quote?: (text: string) => void;
 }>({});
 
 const Text = TrimmedNonEmptyString;
@@ -79,12 +83,60 @@ export function richBlock(language: string, code: string): ReactNode | null {
   return null;
 }
 
-function Card(props: { children: ReactNode; className?: string }) {
+const CARD_CLASS =
+  "group/card relative my-3 max-w-xl rounded-[10px] border border-border bg-card text-card-foreground transition-colors";
+
+function HoverAction(props: { icon: ReactNode; label: string; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={(event) => {
+        event.stopPropagation();
+        props.onClick();
+      }}
+      className="flex h-7 items-center gap-1.5 rounded-md px-2 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground [&_svg]:size-3.5"
+    >
+      {props.icon}
+      {props.label}
+    </button>
+  );
+}
+
+function Card(props: {
+  children: ReactNode;
+  summary: string;
+  onOpen?: (() => void) | undefined;
+  className?: string;
+}) {
+  const { quote } = use(RichActionsContext);
+  const [copied, setCopied] = useState(false);
+  const { onOpen } = props;
   return (
     <div
-      className={`my-3 max-w-xl overflow-hidden rounded-xl border border-border bg-card text-card-foreground ${props.className ?? ""}`}
+      role={onOpen ? "button" : undefined}
+      tabIndex={onOpen ? 0 : undefined}
+      onClick={onOpen}
+      onKeyDown={(event) => {
+        if (onOpen && event.target === event.currentTarget && event.key === "Enter") onOpen();
+      }}
+      className={cn(CARD_CLASS, onOpen && "cursor-pointer hover:border-ring/40", props.className)}
     >
-      {props.children}
+      <div className="pointer-events-none absolute -top-4 end-2 z-10 flex gap-0.5 rounded-lg border border-border bg-popover p-0.5 opacity-0 shadow-md transition-opacity group-focus-within/card:pointer-events-auto group-focus-within/card:opacity-100 group-hover/card:pointer-events-auto group-hover/card:opacity-100">
+        {quote ? (
+          <HoverAction icon={<ReplyIcon />} label="Reply" onClick={() => quote(props.summary)} />
+        ) : null}
+        {onOpen ? <HoverAction icon={<ExternalLinkIcon />} label="Open" onClick={onOpen} /> : null}
+        <HoverAction
+          icon={copied ? <CheckIcon /> : <CopyIcon />}
+          label={copied ? "Copied" : "Copy"}
+          onClick={() => {
+            void navigator.clipboard.writeText(props.summary);
+            setCopied(true);
+            setTimeout(() => setCopied(false), 1200);
+          }}
+        />
+      </div>
+      <div className="overflow-hidden rounded-[inherit]">{props.children}</div>
     </div>
   );
 }
@@ -110,34 +162,25 @@ function MapCard(props: typeof MapBlock.Type) {
     props.lat !== undefined && props.lon !== undefined
       ? `${props.lat},${props.lon}`
       : props.address;
+  const href = `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${props.name}, ${props.address}`)}`;
   return (
-    <Card>
-      <iframe
-        title={`Map of ${props.name}`}
-        src={`https://maps.google.com/maps?q=${encodeURIComponent(query)}&z=15&output=embed`}
-        loading="lazy"
-        sandbox="allow-scripts allow-popups"
-        referrerPolicy="no-referrer"
-        className="block h-48 w-full border-0 border-b border-border"
-      />
-      <div className="flex items-center gap-3 p-3">
-        <div className="min-w-0 flex-1">
-          <Heading icon={<MapPinIcon />} title={props.name} detail={props.address} />
-        </div>
-        <Button
-          variant="outline"
-          size="sm"
-          render={
-            <a
-              href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(`${props.name}, ${props.address}`)}`}
-              target="_blank"
-              rel="noreferrer"
-            />
-          }
-        >
-          <ExternalLinkIcon />
-          Open in Maps
-        </Button>
+    <Card
+      summary={`${props.name}, ${props.address}`}
+      onOpen={() => window.open(href, "_blank", "noopener")}
+    >
+      <div className="relative h-44 overflow-hidden border-b border-border">
+        <iframe
+          title={`Map of ${props.name}`}
+          src={`https://maps.google.com/maps?q=${encodeURIComponent(query)}&z=15&output=embed`}
+          loading="lazy"
+          sandbox="allow-scripts"
+          referrerPolicy="no-referrer"
+          tabIndex={-1}
+          className="pointer-events-none absolute inset-x-0 -top-14 h-[calc(100%+7rem)] w-full border-0"
+        />
+      </div>
+      <div className="p-3">
+        <Heading icon={<MapPinIcon />} title={props.name} detail={props.address} />
       </div>
     </Card>
   );
@@ -183,11 +226,24 @@ function EventCard(props: typeof EventBlock.Type) {
   const allDay = dateOnly(props.start);
   const end = props.end ? new Date(props.end) : null;
   const time = (date: Date) => date.toLocaleTimeString(undefined, { timeStyle: "short" });
+  const when = valid
+    ? `${start.toLocaleDateString(undefined, {
+        weekday: "long",
+        month: "long",
+        day: "numeric",
+        ...(allDay ? { timeZone: "UTC" } : {}),
+      })}${
+        allDay ? "" : ` · ${time(start)}${end && !Number.isNaN(end.getTime()) ? `–${time(end)}` : ""}`
+      }`
+    : props.start;
   return (
-    <Card>
+    <Card
+      summary={[props.title, when, props.location].filter(Boolean).join(" · ")}
+      onOpen={valid ? () => downloadIcs(props) : undefined}
+    >
       <div className="flex gap-3.5 p-3.5">
         {valid ? (
-          <div className="flex w-14 shrink-0 flex-col items-center self-start overflow-hidden rounded-lg border border-border bg-background">
+          <div className="flex w-14 shrink-0 flex-col items-center self-start overflow-hidden rounded-md border border-border bg-background">
             <span className="w-full bg-primary py-0.5 text-center text-3xs font-semibold tracking-wide text-primary-foreground uppercase">
               {start.toLocaleDateString(undefined, {
                 month: "short",
@@ -204,33 +260,13 @@ function EventCard(props: typeof EventBlock.Type) {
         ) : null}
         <div className="min-w-0 flex-1 text-sm">
           <p className="font-medium leading-snug">{props.title}</p>
-          <p className="text-muted-foreground">
-            {valid
-              ? start.toLocaleDateString(undefined, {
-                  weekday: "long",
-                  month: "long",
-                  day: "numeric",
-                  ...(allDay ? { timeZone: "UTC" } : {}),
-                })
-              : props.start}
-            {valid && !allDay
-              ? ` · ${time(start)}${end && !Number.isNaN(end.getTime()) ? `–${time(end)}` : ""}`
-              : ""}
-          </p>
+          <p className="text-muted-foreground">{when}</p>
           {props.location ? <p className="text-muted-foreground">{props.location}</p> : null}
           {props.notes ? (
             <p className="mt-1.5 text-xs text-muted-foreground">{props.notes}</p>
           ) : null}
         </div>
       </div>
-      {valid ? (
-        <div className="flex justify-end border-t border-border px-3 py-2">
-          <Button variant="outline" size="sm" onClick={() => downloadIcs(props)}>
-            <CalendarPlusIcon />
-            Add to calendar
-          </Button>
-        </div>
-      ) : null}
     </Card>
   );
 }
@@ -260,64 +296,86 @@ function DraftCard(props: typeof DraftBlock.Type) {
     setEditing(false);
     setSent(true);
   };
-  return (
-    <Card>
-      <div className="space-y-0.5 border-b border-border px-3.5 py-2.5 text-sm">
-        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-          {props.kind === "email" ? (
-            <MailIcon className="size-3.5" />
-          ) : (
-            <MessageSquareIcon className="size-3.5" />
-          )}
-          {props.kind === "email" ? "Email draft" : "Message draft"}
-        </div>
-        <p>
-          <span className="text-muted-foreground">To </span>
-          {props.to}
-        </p>
-        {props.subject ? <p className="font-medium">{props.subject}</p> : null}
-      </div>
+  const editor = (
+    <Textarea
+      autoFocus
+      value={body}
+      onChange={(event) => setBody(event.target.value)}
+      aria-label="Edit draft"
+      className="[&_textarea]:min-h-32"
+    />
+  );
+  const actions = send ? (
+    <div className="flex items-center justify-end gap-1.5">
+      {sent ? <span className="me-auto text-xs text-muted-foreground">Sent to Ozi</span> : null}
       {editing ? (
-        <div className="p-2">
-          <Textarea
-            autoFocus
-            value={body}
-            onChange={(event) => setBody(event.target.value)}
-            aria-label="Edit draft"
-            className="[&_textarea]:min-h-40"
-          />
-        </div>
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => {
+            setBody(props.body);
+            setEditing(false);
+          }}
+        >
+          Cancel
+        </Button>
       ) : (
-        <p className="whitespace-pre-wrap px-3.5 py-3 text-sm leading-relaxed">{body}</p>
+        <Button variant="ghost" size="sm" onClick={() => setEditing(true)}>
+          <PencilIcon />
+          Edit
+        </Button>
       )}
-      {send ? (
-        <div className="flex items-center justify-end gap-2 border-t border-border px-3 py-2">
-          {sent ? (
-            <span className="me-auto text-xs text-muted-foreground">Sent to the agent</span>
-          ) : null}
-          {editing ? (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setBody(props.body);
-                setEditing(false);
-              }}
-            >
-              Cancel
-            </Button>
-          ) : (
-            <Button variant="outline" size="sm" onClick={() => setEditing(true)}>
-              <PencilIcon />
-              Edit
-            </Button>
-          )}
-          <Button size="sm" onClick={submit} disabled={!body.trim()}>
-            <SendIcon />
-            Send
-          </Button>
+      <Button size="sm" onClick={submit} disabled={!body.trim()}>
+        <SendIcon />
+        Send
+      </Button>
+    </div>
+  ) : null;
+  const summary = [`To ${props.to}`, props.subject, body].filter(Boolean).join("\n");
+  if (props.kind === "message")
+    return (
+      <Card summary={summary}>
+        <div className="border-b border-border px-4 py-2.5 text-center">
+          <span className="mx-auto mb-1 flex size-8 items-center justify-center rounded-full bg-muted text-xs font-semibold">
+            {props.to.slice(0, 1).toUpperCase()}
+          </span>
+          <span className="text-xs text-muted-foreground">{props.to}</span>
         </div>
-      ) : null}
+        <div className="flex flex-col items-end gap-2 px-4 py-4">
+          {editing ? (
+            <div className="w-full">{editor}</div>
+          ) : (
+            <p className="max-w-[80%] whitespace-pre-wrap rounded-2xl rounded-br-md bg-primary px-3.5 py-2 text-sm leading-relaxed text-primary-foreground">
+              {body}
+            </p>
+          )}
+          <span className="text-2xs text-muted-foreground">{sent ? "Sent to Ozi" : "Not sent"}</span>
+        </div>
+        {actions ? <div className="border-t border-border px-3 py-2">{actions}</div> : null}
+      </Card>
+    );
+  return (
+    <Card summary={summary}>
+      <div className="flex items-center gap-2 border-b border-border px-4 py-2.5 text-xs text-muted-foreground">
+        <MailIcon className="size-3.5" />
+        New email
+      </div>
+      <dl className="divide-y divide-border border-b border-border px-4 text-sm">
+        <div className="flex gap-3 py-2">
+          <dt className="w-14 shrink-0 text-muted-foreground">To</dt>
+          <dd className="min-w-0 truncate">{props.to}</dd>
+        </div>
+        {props.subject ? (
+          <div className="flex gap-3 py-2">
+            <dt className="w-14 shrink-0 text-muted-foreground">Subject</dt>
+            <dd className="min-w-0 font-medium">{props.subject}</dd>
+          </div>
+        ) : null}
+      </dl>
+      <div className="px-4 py-3.5">
+        {editing ? editor : <p className="whitespace-pre-wrap text-sm leading-relaxed">{body}</p>}
+      </div>
+      {actions ? <div className="border-t border-border px-3 py-2">{actions}</div> : null}
     </Card>
   );
 }
@@ -341,15 +399,12 @@ function BrowserCard(props: typeof BrowserBlock.Type) {
     });
   };
   return (
-    <Card>
+    <Card summary={`${props.label ?? host}: ${props.url}`} onOpen={open}>
       <div className="flex items-center gap-3 p-3">
         <div className="min-w-0 flex-1">
           <Heading icon={<GlobeIcon />} title={props.label ?? host} detail={props.note ?? host} />
         </div>
-        <Button size="sm" onClick={open}>
-          <ExternalLinkIcon />
-          Open
-        </Button>
+        <ArrowUpRightIcon className="size-4 shrink-0 text-muted-foreground transition-transform group-hover/card:translate-x-0.5 group-hover/card:-translate-y-0.5" />
       </div>
     </Card>
   );
@@ -366,7 +421,7 @@ export function LinkCard(props: { url: string; children: ReactNode }) {
       href={props.url}
       target="_blank"
       rel="noreferrer"
-      className="my-3 flex max-w-xl overflow-hidden rounded-xl border border-border bg-card text-card-foreground no-underline transition-colors hover:bg-accent/40"
+      className="my-3 flex max-w-xl overflow-hidden rounded-[10px] border border-border bg-card text-card-foreground no-underline transition-colors hover:border-ring/40"
     >
       <span className="min-w-0 flex-1 p-3">
         <span className="block truncate text-xs text-muted-foreground">{preview.site}</span>

@@ -10,6 +10,8 @@ import { useAssetUrlState } from "../../assets/assetUrls";
 import { observeResize } from "../../lib/observeResize";
 import { cn } from "../../lib/utils";
 import { HtmlRenderFrame } from "../chat/HtmlRenderFrame";
+import { AudioStrip } from "../media/AudioStrip";
+import { MediaVideoPlayer } from "../media/MediaVideoPlayer";
 import { AttachmentFilePreview } from "../files/AttachmentFilePreview";
 
 const TicketPdf = lazy(() => import("./TicketPdf"));
@@ -128,17 +130,26 @@ export function TicketPages(props: { environmentId: EnvironmentId; ticket: Ticke
 
 function TicketVideo(props: { environmentId: EnvironmentId; attachment: ChatAttachment }) {
   const asset = useAssetUrlState(props.environmentId, attachmentResource(props.attachment));
-  return asset._tag === "Success" ? (
-    <video
-      controls
-      playsInline
+  return (
+    <MediaVideoPlayer
+      src={asset._tag === "Success" ? asset.url : null}
+      sourceFailed={asset._tag === "Failure"}
+      label={props.attachment.name}
       preload="metadata"
-      src={asset.url}
-      aria-label={props.attachment.name}
-      className="block w-full max-w-xl rounded-xl bg-black"
+      className="block w-full max-w-xl overflow-hidden rounded-[10px] bg-black"
+      videoClassName="aspect-auto"
     />
-  ) : (
-    <span className="block aspect-video w-full max-w-xl rounded-xl bg-muted" />
+  );
+}
+
+function TicketAudio(props: { environmentId: EnvironmentId; attachment: ChatAttachment }) {
+  const asset = useAssetUrlState(props.environmentId, attachmentResource(props.attachment));
+  return (
+    <AudioStrip
+      src={asset._tag === "Success" ? asset.url : ""}
+      name={props.attachment.name}
+      failed={asset._tag === "Failure"}
+    />
   );
 }
 
@@ -162,18 +173,19 @@ export function TicketAttachment(props: {
       </button>
     );
   if (kind === "video") return <TicketVideo environmentId={environmentId} attachment={attachment} />;
+  if (kind === "audio") return <TicketAudio environmentId={environmentId} attachment={attachment} />;
   if (kind === "pdf")
     return (
       <Suspense fallback={<span className="block h-[22rem] w-full max-w-xl rounded-xl bg-muted" />}>
         <TicketPdf environmentId={environmentId} attachment={attachment} onOpen={props.onOpen} />
       </Suspense>
     );
-  if (["audio", "text", "markdown", "html"].includes(kind))
+  if (["text", "markdown", "html"].includes(kind))
     return (
       <div
         className={cn(
           "flex max-w-xl flex-col overflow-hidden rounded-xl border border-border",
-          kind === "audio" ? "h-28" : "max-h-96 [&>*]:max-h-96",
+          "max-h-96 [&>*]:max-h-96",
         )}
       >
         <AttachmentFilePreview

@@ -3,7 +3,7 @@ import { useEffect, useRef, useState } from "react";
 
 import { useAssetUrlState } from "~/assets/assetUrls";
 
-import { AudioPreview } from "./AudioPreview";
+import { AudioStrip } from "../media/AudioStrip";
 
 export function InlineAudioPreview(props: {
   readonly name: string;
@@ -38,19 +38,11 @@ export function InlineAudioPreview(props: {
   }, []);
 
   return (
-    <span ref={container} data-markdown-copy={props.copyMarkdown}>
-      <AudioPreview
-        compact
+    <span ref={container} data-markdown-copy={props.copyMarkdown} className="block">
+      <AudioStrip
         name={props.name}
         src={src ?? ""}
-        revision={
-          props.resource
-            ? JSON.stringify([props.environmentId, props.resource])
-            : (props.src ?? null)
-        }
         failed={failed}
-        onOpen={props.onOpen}
-        onRetry={() => setFailedSrc(null)}
         onError={() => setFailedSrc(src ?? null)}
       />
     </span>

@@ -9,6 +9,7 @@ import { prepareVideoFirstFrame } from "../../lib/videoFirstFrame";
 import { Button } from "../ui/button";
 import { OpenMediaLink } from "./OpenMediaLink";
 import { MediaActions, type MediaActionSource } from "./MediaActions";
+import { VideoControls } from "./VideoControls";
 
 interface MediaVideoPlayerProps {
   readonly src: string | null;
@@ -54,6 +55,7 @@ export function MediaVideoPlayer({
   const [retrying, setRetrying] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [preloadedSrc, setPreloadedSrc] = useState<string | null>(null);
+  const [video, setVideo] = useState<HTMLVideoElement | null>(null);
   const src = playbackSource?.src ?? latestSrc;
   const sourceRevision = playbackSource === null ? revision : playbackSource.revision;
   const failed = src !== null ? failedSrc === src : sourceFailed;
@@ -73,6 +75,7 @@ export function MediaVideoPlayer({
 
   // Retry and failure remount the element, so its listeners live and die with it.
   const attachVideo = (video: HTMLVideoElement) => {
+    setVideo(video);
     const pauseWhenHidden = () => {
       // Native fullscreen can hide the inline page while this video is still visible.
       const fullscreen =
@@ -88,6 +91,7 @@ export function MediaVideoPlayer({
       document.removeEventListener("fullscreenchange", pauseWhenHidden);
       video.removeEventListener("webkitendfullscreen", pauseWhenHidden);
       video.pause();
+      setVideo(null);
       // A detached element's pause event never reaches onPause.
       setPlaying(false);
     };
@@ -163,7 +167,6 @@ export function MediaVideoPlayer({
           aria-label={label || "Video preview"}
           aria-hidden={onOpen ? true : undefined}
           autoPlay={onOpen ? false : autoPlay}
-          controls={!onOpen}
           muted={onOpen ? true : undefined}
           playsInline
           preload={preload === "metadata" || preloaded ? "metadata" : "none"}
@@ -197,6 +200,9 @@ export function MediaVideoPlayer({
           style={style}
         />
       )}
+      {video !== null && src !== null && !failed && !onOpen ? (
+        <VideoControls video={video} label={label || "video"} />
+      ) : null}
       {onOpen ? (
         <button
           type="button"
