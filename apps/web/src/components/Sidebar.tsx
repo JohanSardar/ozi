@@ -632,7 +632,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
               />
               {query.trim() && ordered.length === 0 ? (
                 <li className="list-none px-2.5 py-6 text-sm text-muted-foreground">
-                  No chats found
+                  {search.isPending ? "Searching chats…" : "No chats found"}
                 </li>
               ) : null}
               {[...groups].map(([label, rows]) =>

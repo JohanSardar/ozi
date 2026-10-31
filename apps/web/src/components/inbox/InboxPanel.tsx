@@ -194,8 +194,9 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks; page?:
         : null,
     ).data?.tickets ?? [];
   const ordered = orderTickets(open);
-  const current =
-    selected.index < 0
+  const current = page
+    ? ordered.find((ticket) => ticket.id === archivedPick)
+    : selected.index < 0
       ? undefined
       : (ordered.find((ticket) => ticket.id === selected.id) ??
         ordered[Math.min(selected.index, ordered.length - 1)]);
@@ -229,7 +230,13 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks; page?:
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- window keydown listener that picks a choice on the open ticket
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (tab !== "inbox" || details || !current || collapsed.has(current.group) || !hooks.choose)
+      if (
+        tab !== "inbox" ||
+        details ||
+        !current ||
+        (!page && collapsed.has(current.group)) ||
+        !hooks.choose
+      )
         return;
       if (event.metaKey || event.ctrlKey || event.altKey || isEditableFocused(event.target)) return;
       const index = Number(event.key) - 1;
@@ -239,7 +246,7 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks; page?:
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [tab, details, current, hooks, collapsed]);
+  }, [tab, details, current, hooks, collapsed, page]);
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- window keydown listener that leaves the full-screen ticket on Escape
   useEffect(() => {
@@ -554,7 +561,7 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks; page?:
                 className="flex w-full items-center gap-3 rounded-lg border border-transparent px-2.5 py-2 text-left transition-colors hover:border-border hover:bg-card"
               >
                 <span className="min-w-0 flex-1">
-                  <span className="block truncate text-sm font-medium">{ticket.title}</span>
+                  <span className="block wrap-anywhere text-sm font-medium">{ticket.title}</span>
                   <span className="block truncate text-xs text-muted-foreground">
                     {clearedBy(ticket)} · {titles.get(ticket.origin.chatId) ?? ""}
                   </span>
@@ -727,8 +734,8 @@ function TicketRow(props: {
       {props.open ? (
         <div className="px-3.5 pb-3.5">
           <RichActionsContext value={{ quote, send: (text) => hooks.reply?.(ticket, text) }}>
-            <p className="mb-1.5 text-sm font-semibold leading-snug">{ticket.need}</p>
-            <p className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
+            <p className="mb-1.5 wrap-anywhere text-sm font-semibold leading-snug">{ticket.need}</p>
+            <p className="wrap-anywhere whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
               {ticket.summary}
             </p>
             {ticket.htmlPages.length > 0 ? (
@@ -746,7 +753,7 @@ function TicketRow(props: {
               </div>
             ) : null}
           </RichActionsContext>
-          <div className="sticky bottom-0 z-10 -mx-1 mt-4 flex flex-wrap items-end gap-1 rounded-lg border border-border bg-popover p-1 shadow-lg">
+          <div className="sticky bottom-0 z-10 -mx-1 mt-4 flex flex-wrap items-end gap-1 rounded-lg border border-border bg-popover p-1 text-sm shadow-lg">
             {quoted ? (
               <button
                 type="button"
