@@ -79,11 +79,11 @@ function TicketPage(props: {
   const measure = (box: HTMLDivElement) =>
     observeResize(box, () => setTall(box.offsetHeight > PAGE_PREVIEW_HEIGHT * 1.4));
   return (
-    <div>
+    <div className="max-w-xl">
       <p className="mb-2 text-sm leading-5 font-medium">{props.page.title}</p>
       <div
         className={cn(
-          "overflow-hidden rounded-xl border border-border bg-background px-4 py-3",
+          "overflow-hidden rounded-xl border border-border bg-card px-4 py-3",
           tall && !open && "[mask-image:linear-gradient(to_bottom,black_55%,transparent)]",
         )}
         style={tall && !open ? { maxHeight: PAGE_PREVIEW_HEIGHT } : undefined}
@@ -146,7 +146,7 @@ export function TicketAttachment(props: {
     return (
       <div
         className={cn(
-          "flex flex-col overflow-hidden rounded-lg border border-border",
+          "flex max-w-xl flex-col overflow-hidden rounded-xl border border-border",
           kind === "audio" ? "h-28" : "h-96",
         )}
       >
