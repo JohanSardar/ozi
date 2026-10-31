@@ -1,6 +1,9 @@
 import type { AttachmentVersionNote } from "@t3tools/contracts";
 
-export function observeFileHighlights(container: HTMLElement, notes: readonly AttachmentVersionNote[]) {
+export function observeFileHighlights(
+  container: HTMLElement,
+  notes: readonly AttachmentVersionNote[],
+) {
   if (!("highlights" in CSS) || typeof Highlight === "undefined") return;
   const update = () => {
     const highlight = new Highlight();
@@ -9,7 +12,10 @@ export function observeFileHighlights(container: HTMLElement, notes: readonly At
       const walker = document.createTreeWalker(layer, NodeFilter.SHOW_TEXT);
       const nodes: Text[] = [];
       let next = walker.nextNode();
-      while (next) { nodes.push(next as Text); next = walker.nextNode(); }
+      while (next) {
+        nodes.push(next as Text);
+        next = walker.nextNode();
+      }
       const text = nodes.map((node) => node.data).join("");
       for (const note of notes) {
         const start = text.indexOf(note.quote);
@@ -19,7 +25,10 @@ export function observeFileHighlights(container: HTMLElement, notes: readonly At
         const range = document.createRange();
         for (const node of nodes) {
           if (offset <= start && offset + node.length > start) range.setStart(node, start - offset);
-          if (offset < end && offset + node.length >= end) { range.setEnd(node, end - offset); break; }
+          if (offset < end && offset + node.length >= end) {
+            range.setEnd(node, end - offset);
+            break;
+          }
           offset += node.length;
         }
         highlight.add(range);
@@ -30,5 +39,8 @@ export function observeFileHighlights(container: HTMLElement, notes: readonly At
   update();
   const observer = new MutationObserver(update);
   observer.observe(container, { childList: true, subtree: true });
-  return () => { observer.disconnect(); CSS.highlights.delete("ozi-file-notes"); };
+  return () => {
+    observer.disconnect();
+    CSS.highlights.delete("ozi-file-notes");
+  };
 }

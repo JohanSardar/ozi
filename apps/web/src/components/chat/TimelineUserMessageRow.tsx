@@ -29,7 +29,6 @@ import ChatMarkdown from "../ChatMarkdown";
 import {
   CalendarClockIcon,
   ChevronDownIcon,
-  DownloadIcon,
   EyeIcon,
   type LucideIcon,
   MessagesSquareIcon,
@@ -579,21 +578,7 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
                           {fileIdentity}
                           <EyeIcon className="size-4 shrink-0" />
                         </button>
-                        <Tooltip>
-                          <TooltipTrigger
-                            render={
-                              <Button
-                                size="icon-xs"
-                                variant="ghost-muted"
-                                aria-label={`Download ${file.name}`}
-                                onClick={() => ctx.onFileDownload(file)}
-                              />
-                            }
-                          >
-                            <DownloadIcon />
-                          </TooltipTrigger>
-                          <TooltipPopup side="top">Download {file.name}</TooltipPopup>
-                        </Tooltip>
+
                       </div>
                     );
                   }

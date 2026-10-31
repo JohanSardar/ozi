@@ -28,6 +28,7 @@ export const AttachmentVersionsInput = Schema.Struct({
 });
 export type AttachmentVersionsInput = typeof AttachmentVersionsInput.Type;
 export const AttachmentVersionsResult = Schema.Struct({
+  sourcePath: Schema.String,
   versions: Schema.Array(AttachmentVersion),
   contentBase64: Schema.optional(Schema.String),
 });

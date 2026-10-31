@@ -1,5 +1,11 @@
 import { create } from "zustand";
-import type { AssetResource, ChatAttachment, EnvironmentId, ScopedThreadRef, Ticket } from "@t3tools/contracts";
+import type {
+  AssetResource,
+  ChatAttachment,
+  EnvironmentId,
+  ScopedThreadRef,
+  Ticket,
+} from "@t3tools/contracts";
 
 export interface FileSheetTarget {
   name: string;
@@ -13,7 +19,11 @@ export interface FileSheetTarget {
   src?: string;
   ticket?: Ticket;
 }
-export const useFileSheet = create<{ target: FileSheetTarget | null; open: (target: FileSheetTarget) => void; close: () => void }>((set) => ({
+export const useFileSheet = create<{
+  target: FileSheetTarget | null;
+  open: (target: FileSheetTarget) => void;
+  close: () => void;
+}>((set) => ({
   target: null,
   open: (target) => set({ target }),
   close: () => set({ target: null }),

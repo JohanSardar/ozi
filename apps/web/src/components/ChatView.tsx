@@ -223,7 +223,7 @@ import {
 import { useEnvironmentShellHasSnapshot } from "../state/shell";
 import { ChatComposer, type ChatComposerHandle } from "./chat/ChatComposer";
 import { DraftHeroHeadline } from "./chat/DraftHeroHeadline";
-import { ExpandedImageDialogHost, openExpandedImagePreview } from "./chat/ExpandedImageDialog";
+import { ExpandedImageDialogHost } from "./chat/ExpandedImageDialog";
 import { RevertConfirmHost } from "./chat/ChatOverlayHosts";
 import type { AssistantCitationRequest } from "./chat/AssistantCitationSource";
 import { useCitedHistory } from "./chat/citationProcedure";
@@ -2511,7 +2511,12 @@ export default function ChatView(props: ChatViewProps) {
       </>
     ) : null;
   const onExpandTimelineImage = (preview: ExpandedImagePreview) => {
-    openExpandedImagePreview(routeThreadKey, preview);
+    const item = preview.images[preview.index];
+    if (!item) return;
+    const asset = item.actionsSource?.asset;
+    const resource = asset?.resource;
+    const attachment = resource?._tag === "attachment" ? serverProjection?.messages.flatMap((message) => message.attachments).find((file) => file.id === resource.attachmentId) : undefined;
+    useFileSheet.getState().open({ name: item.name, mimeType: attachment?.mimeType ?? item.mimeType ?? (item.type === "video" ? "video/mp4" : "image/png"), sizeBytes: attachment?.sizeBytes ?? 0, environmentId: asset?.environmentId ?? activeThreadRef?.environmentId, threadRef: activeThreadRef ?? undefined, resource, ...(attachment?.type === "image" || attachment?.type === "file" ? { attachment } : {}), src: item.src ?? undefined });
   };
   const onExpandTimelineImageStable = useStableCallback(onExpandTimelineImage);
   const shownThreadSyncPhase = activeEnvironmentUnavailable ? null : delayedThreadSyncPhase;

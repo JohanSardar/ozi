@@ -1,3 +1,4 @@
+import { MediaVideoPlayer } from "../media/MediaVideoPlayer";
 import { useThreadRouteRef } from "~/hooks/useThreadRouteTarget";
 import { useFileSheet } from "./fileSheetState";
 import { filePreviewDelimiter } from "@t3tools/shared/delimitedPreview";
@@ -12,7 +13,14 @@ import {
   officePreviewKind,
   FILE_TEXT_PREVIEW_MAX_BYTES,
 } from "@t3tools/shared/filePreview";
-import { ChevronRightIcon, DownloadIcon, Trash2Icon, WrapTextIcon, XIcon } from "lucide-react";
+import {
+  ChevronRightIcon,
+  MoreHorizontalIcon,
+  DownloadIcon,
+  Trash2Icon,
+  WrapTextIcon,
+  XIcon,
+} from "lucide-react";
 import { Check, Code2, Copy, Eye, Table2 } from "lucide";
 import { lazy, Suspense, useEffect, useRef, useState } from "react";
 
@@ -96,7 +104,34 @@ export function AttachmentFilePreview(props: {
   const routeRef = useThreadRouteRef();
   const openSheet = () => {
     const asset = props.asset;
-    useFileSheet.getState().open({ ...props, threadRef: props.threadRef ?? routeRef ?? undefined, environmentId: asset?.environmentId, resource: asset && "resource" in asset ? asset.resource : asset && "attachmentId" in asset ? { _tag: "attachment", attachmentId: asset.attachmentId, fileName: props.name, mimeType: props.mimeType } : undefined, attachment: asset && "attachmentId" in asset ? { type: "file", id: asset.attachmentId, name: props.name, mimeType: props.mimeType, sizeBytes: props.sizeBytes } : undefined });
+    useFileSheet
+      .getState()
+      .open({
+        ...props,
+        threadRef: props.threadRef ?? routeRef ?? undefined,
+        environmentId: asset?.environmentId,
+        resource:
+          asset && "resource" in asset
+            ? asset.resource
+            : asset && "attachmentId" in asset
+              ? {
+                  _tag: "attachment",
+                  attachmentId: asset.attachmentId,
+                  fileName: props.name,
+                  mimeType: props.mimeType,
+                }
+              : undefined,
+        attachment:
+          asset && "attachmentId" in asset
+            ? {
+                type: "file",
+                id: asset.attachmentId,
+                name: props.name,
+                mimeType: props.mimeType,
+                sizeBytes: props.sizeBytes,
+              }
+            : undefined,
+      });
   };
   const kind = filePreviewKind(props);
   const officeKind = officePreviewKind(props);
@@ -137,6 +172,7 @@ export function AttachmentFilePreview(props: {
     props.file ? null : resource,
   );
   const prepareDownload = useAssetUrlRefresh(props.asset?.environmentId ?? null, downloadResource);
+  const [fileMenuOpen, setFileMenuOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [localUrl, setLocalUrl] = useState<string | null>(null);
   const [remoteUrl, setRemoteUrl] = useState<string | null>(null);
@@ -340,13 +376,11 @@ export function AttachmentFilePreview(props: {
     </div>
   ) : kind === "video" ? (
     <div className="flex min-h-0 flex-1 items-center justify-center bg-black">
-      <video
-        controls
-        playsInline
+      <MediaVideoPlayer
         src={url}
-        aria-label={props.name}
+        label={props.name}
+        preload="metadata"
         className="max-h-full max-w-full"
-        onError={() => setError("Unable to load video.")}
       />
     </div>
   ) : kind === "image" ? (
@@ -369,94 +403,122 @@ export function AttachmentFilePreview(props: {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
-      {!props.sheetContent ? <div className={cn(FILE_SURFACE_SUBHEADER_CLASS)} data-surface-subheader>
-        <button type="button" className="rounded-lg px-2 py-1 text-xs text-primary" onClick={openSheet}>Open file</button>
-        <div className="flex min-w-0 flex-1 items-center text-xs">
-          <span className="shrink-0 px-0.5 text-muted-foreground">
-            {props.origin ?? "Attachment"}
-          </span>
-          <ChevronRightIcon className="mx-1 size-3.5 shrink-0 text-muted-foreground/60" />
-          <span aria-current="page" className="min-w-0 truncate px-0.5 font-medium text-foreground">
-            {props.name}
-          </span>
-          {props.sizeBytes > 0 ? (
-            <span className="ml-2 shrink-0 text-muted-foreground">
-              {formatAttachmentSize(props.sizeBytes)}
+      {!props.sheetContent ? (
+        <div className={cn(FILE_SURFACE_SUBHEADER_CLASS)} data-surface-subheader>
+          <button
+            type="button"
+            className="rounded-lg px-2 py-1 text-xs text-primary"
+            onClick={openSheet}
+          >
+            Open file
+          </button>
+          <div className="flex min-w-0 flex-1 items-center text-xs">
+            <span className="shrink-0 px-0.5 text-muted-foreground">
+              {props.origin ?? "Attachment"}
             </span>
+            <ChevronRightIcon className="mx-1 size-3.5 shrink-0 text-muted-foreground/60" />
+            <span
+              aria-current="page"
+              className="min-w-0 truncate px-0.5 font-medium text-foreground"
+            >
+              {props.name}
+            </span>
+            {props.sizeBytes > 0 ? (
+              <span className="ml-2 shrink-0 text-muted-foreground">
+                {formatAttachmentSize(props.sizeBytes)}
+              </span>
+            ) : null}
+          </div>
+          {renderedMode ? (
+            <FileSurfaceAction
+              label={renderedToggleLabel(renderedMode, rendered)}
+              pressed={rendered}
+              onPress={() => setRendered((value) => !value)}
+            >
+              <MorphIcon
+                className="size-3.5"
+                icon={rendered ? Code2 : renderedMode === "table" ? Table2 : Eye}
+              />
+            </FileSurfaceAction>
           ) : null}
-        </div>
-        {renderedMode ? (
-          <FileSurfaceAction
-            label={renderedToggleLabel(renderedMode, rendered)}
-            pressed={rendered}
-            onPress={() => setRendered((value) => !value)}
-          >
-            <MorphIcon
-              className="size-3.5"
-              icon={rendered ? Code2 : renderedMode === "table" ? Table2 : Eye}
-            />
-          </FileSurfaceAction>
-        ) : null}
-        {showsRawText ? (
-          <FileSurfaceAction
-            label={wordWrap ? "Disable word wrap" : "Enable word wrap"}
-            pressed={wordWrap}
-            onPress={() => setWordWrapOverride(!wordWrap)}
-          >
-            <WrapTextIcon className="size-3.5" />
-          </FileSurfaceAction>
-        ) : null}
-        {content || streamsText ? (
-          <FileSurfaceAction
-            label={isCopied ? "Copied" : content?.truncated ? "Copy preview" : "Copy contents"}
-            onPress={() => {
-              if (content) {
-                void copyToClipboard(content.text, undefined);
-                return;
-              }
-              const copy = copyContents.current;
-              if (!copy) {
-                toastManager.add({
-                  type: "error",
-                  title: "Could not copy file",
-                  description: "Wait for the file to finish loading before copying.",
-                });
-                return;
-              }
-              void copy()
-                .then((text) => copyToClipboard(text, undefined))
-                .catch((cause: unknown) =>
+          {showsRawText ? (
+            <FileSurfaceAction
+              label={wordWrap ? "Disable word wrap" : "Enable word wrap"}
+              pressed={wordWrap}
+              onPress={() => setWordWrapOverride(!wordWrap)}
+            >
+              <WrapTextIcon className="size-3.5" />
+            </FileSurfaceAction>
+          ) : null}
+          {content || streamsText ? (
+            <FileSurfaceAction
+              label={isCopied ? "Copied" : content?.truncated ? "Copy preview" : "Copy contents"}
+              onPress={() => {
+                if (content) {
+                  void copyToClipboard(content.text, undefined);
+                  return;
+                }
+                const copy = copyContents.current;
+                if (!copy) {
                   toastManager.add({
                     type: "error",
                     title: "Could not copy file",
-                    description: cause instanceof Error ? cause.message : "Try again.",
-                  }),
-                );
-            }}
-          >
-            <MorphIcon className="size-3.5" icon={isCopied ? Check : Copy} />
-          </FileSurfaceAction>
-        ) : null}
-        {url ? (
-          <FileSurfaceAction
-            label={saving ? "Preparing file…" : "Download"}
-            disabled={saving}
-            onPress={save}
-          >
-            <DownloadIcon className="size-3.5" />
-          </FileSurfaceAction>
-        ) : null}
-        {props.onRemove ? (
-          <FileSurfaceAction label="Remove from draft" onPress={props.onRemove}>
-            <Trash2Icon className="size-3.5" />
-          </FileSurfaceAction>
-        ) : null}
-        {props.onClose ? (
-          <FileSurfaceAction label="Close" onPress={props.onClose}>
-            <XIcon className="size-3.5" />
-          </FileSurfaceAction>
-        ) : null}
-      </div> : null}
+                    description: "Wait for the file to finish loading before copying.",
+                  });
+                  return;
+                }
+                void copy()
+                  .then((text) => copyToClipboard(text, undefined))
+                  .catch((cause: unknown) =>
+                    toastManager.add({
+                      type: "error",
+                      title: "Could not copy file",
+                      description: cause instanceof Error ? cause.message : "Try again.",
+                    }),
+                  );
+              }}
+            >
+              <MorphIcon className="size-3.5" icon={isCopied ? Check : Copy} />
+            </FileSurfaceAction>
+          ) : null}
+          {url ? (
+            <div className="relative">
+              <FileSurfaceAction
+                label="More file actions"
+                onPress={() => setFileMenuOpen(!fileMenuOpen)}
+              >
+                <MoreHorizontalIcon className="size-3.5" />
+              </FileSurfaceAction>
+              {fileMenuOpen ? (
+                <div className="absolute right-0 top-full z-20 mt-1 rounded-lg border border-border bg-popover p-1 shadow-lg">
+                  <button
+                    type="button"
+                    disabled={saving}
+                    className="flex items-center gap-2 px-3 py-2 text-sm"
+                    onClick={() => {
+                      save();
+                      setFileMenuOpen(false);
+                    }}
+                  >
+                    <DownloadIcon className="size-3.5" />
+                    Download
+                  </button>
+                </div>
+              ) : null}
+            </div>
+          ) : null}
+          {props.onRemove ? (
+            <FileSurfaceAction label="Remove from draft" onPress={props.onRemove}>
+              <Trash2Icon className="size-3.5" />
+            </FileSurfaceAction>
+          ) : null}
+          {props.onClose ? (
+            <FileSurfaceAction label="Close" onPress={props.onClose}>
+              <XIcon className="size-3.5" />
+            </FileSurfaceAction>
+          ) : null}
+        </div>
+      ) : null}
       {content?.truncated ? (
         <FileSurfaceNotice>
           Preview limited to the first 1 MB
