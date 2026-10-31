@@ -270,12 +270,12 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks; page?:
           key={ticket.id}
           type="button"
           onClick={() => setArchivedPick(ticket.id)}
-          className="flex h-52 flex-col rounded-xl border border-border bg-card p-4 text-left transition-colors hover:border-ring/40 hover:bg-accent/40"
+          className="flex flex-col rounded-lg border border-border bg-card p-4 text-left transition-colors hover:border-ring/40 hover:bg-accent/40"
         >
           <span className="flex gap-3">
             <span className="min-w-0 flex-1">
-              <span className="line-clamp-2 text-sm font-medium">{ticket.title}</span>
-              <span className="mt-1.5 line-clamp-2 text-sm font-semibold leading-snug">
+              <span className="block wrap-anywhere text-sm font-medium">{ticket.title}</span>
+              <span className="mt-1.5 block wrap-anywhere text-sm font-semibold leading-snug">
                 {ticket.need}
               </span>
             </span>
@@ -288,7 +288,7 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks; page?:
               />
             ) : null}
           </span>
-          <span className="mt-1.5 line-clamp-3 text-xs leading-relaxed text-muted-foreground">
+          <span className="mt-1.5 block wrap-anywhere text-sm leading-relaxed text-muted-foreground">
             {ticket.summary}
           </span>
           <span className="mt-auto flex items-center gap-1 pt-3 text-xs text-muted-foreground">
@@ -306,7 +306,7 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks; page?:
         </button>
       );
     };
-    const grid = "grid grid-cols-[repeat(auto-fill,minmax(17rem,1fr))] gap-3";
+    const grid = "mx-auto grid w-full max-w-3xl gap-3";
     return (
       <main aria-label="Inbox" className="flex min-h-0 min-w-0 flex-1 flex-col bg-background">
         {expanded ? (
@@ -366,12 +366,12 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks; page?:
                 </div>
               ) : null}
             </div>
-            <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-8">
+            <div className="scrollbar-gutter-both min-h-0 flex-1 overflow-y-auto px-6 pb-8">
               {tab === "inbox" ? (
                 GROUPS.map(([group, hint, Glyph]) => {
                   const tickets = ordered.filter((ticket) => ticket.group === group);
                   return tickets.length === 0 ? null : (
-                    <section key={group} aria-label={group}>
+                    <section key={group} aria-label={group} className="mx-auto max-w-3xl pt-5">
                       <GroupHeading
                         group={group}
                         hint={hint}
@@ -408,7 +408,7 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks; page?:
   return (
     <aside
       aria-label="Inbox"
-      className="hidden w-(--inbox-width) shrink-0 flex-col border-l border-border bg-sidebar text-sidebar-foreground lg:flex"
+      className="ms-auto hidden w-(--inbox-width) shrink-0 flex-col border-l border-border bg-sidebar text-sidebar-foreground lg:flex"
     >
       <div
         role="tablist"
