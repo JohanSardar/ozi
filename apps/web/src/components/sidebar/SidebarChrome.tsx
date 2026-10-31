@@ -1,4 +1,4 @@
-import { SettingsIcon, SquarePenIcon } from "lucide-react";
+import { SettingsIcon, SquarePenIcon, UserRoundIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { memo } from "react";
 import { useNavigate } from "@tanstack/react-router";
@@ -177,8 +177,8 @@ const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
   return (
     <SidebarMenu className="flex-row items-center">
       <SidebarMenuItem className="flex min-w-0 flex-1 items-center">
-        <span className="flex size-7 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground">
-          Y
+        <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
+          <UserRoundIcon className="size-4" />
         </span>
         <span className="ml-2 flex min-w-0 flex-col text-sm leading-tight">
           <span>You</span>

@@ -43,7 +43,7 @@ import {
 } from "@t3tools/client-runtime/state/thread-sort";
 import { type ScopedThreadRef, type EnvironmentId } from "@t3tools/contracts";
 import { useLocation, useRouter } from "@tanstack/react-router";
-import { InboxIcon, SearchIcon, SquarePenIcon } from "lucide-react";
+import { InboxIcon, SearchIcon, SquarePenIcon, XIcon } from "lucide-react";
 import { useRef, useState, type MouseEvent } from "react";
 import { isElectron } from "../env";
 import { useHandleNewThread } from "../hooks/useHandleNewThread";
@@ -233,7 +233,7 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
   const listed = query.trim()
     ? threads.filter(
         (thread) =>
-          thread.title.toLocaleLowerCase().includes(query.toLocaleLowerCase()) ||
+          thread.title.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase()) ||
           matches.has(scopedThreadKey(scopeThreadRef(thread.environmentId, thread.id))),
       )
     : threads;
@@ -523,7 +523,18 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                   if (event.key === "Escape") event.currentTarget.blur();
                 }}
               />
-              <Kbd>/</Kbd>
+              {query ? (
+                <Button
+                  variant="ghost"
+                  size="icon-xs"
+                  aria-label="Clear chat search"
+                  onClick={() => setQuery("")}
+                >
+                  <XIcon />
+                </Button>
+              ) : (
+                <Kbd>/</Kbd>
+              )}
             </div>
             <Button
               className="mt-2 justify-start"
@@ -619,6 +630,11 @@ export default function Sidebar({ routeReveal }: { routeReveal: SidebarRouteReve
                     });
                 }}
               />
+              {query.trim() && ordered.length === 0 ? (
+                <li className="list-none px-2.5 py-6 text-sm text-muted-foreground">
+                  No chats found
+                </li>
+              ) : null}
               {[...groups].map(([label, rows]) =>
                 rows.length === 0 ? null : (
                   <li key={label} className="list-none">

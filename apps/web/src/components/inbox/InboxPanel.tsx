@@ -5,12 +5,21 @@ import { useLocation, useNavigate } from "@tanstack/react-router";
 import {
   ArrowUpIcon,
   CheckIcon,
+  ChevronDownIcon,
+  CopyIcon,
+  EllipsisIcon,
+  ListChecksIcon,
+  MessageCircleQuestionIcon,
+  ReplyIcon,
+  ScanEyeIcon,
+  BookOpenIcon,
   InboxIcon,
   Maximize2Icon,
   PanelRightIcon,
   SearchIcon,
+  XIcon,
 } from "lucide-react";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import { useThreadRouteRef } from "../../hooks/useThreadRouteTarget";
 import {
@@ -35,7 +44,10 @@ import {
 import { useAtomCommand } from "../../state/use-atom-command";
 import { buildThreadRouteParams } from "../../threadRoutes";
 import { Button } from "../ui/button";
-import { Input } from "../ui/input";
+import { InputGroup, InputGroupAddon, InputGroupInput } from "../ui/input-group";
+import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
+import { Textarea } from "../ui/textarea";
+import { RichActionsContext } from "../chat/RichBlocks";
 import { Spinner } from "../ui/spinner";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { TicketImage, TicketPages, ticketThumbnail } from "./TicketMedia";
@@ -47,10 +59,10 @@ export interface TicketHooks {
 }
 
 const GROUPS = [
-  ["Decide", "questions and approvals"],
-  ["Do", "only you can do these"],
-  ["Review", "finished work"],
-  ["Read", "nothing to do"],
+  ["Decide", "questions and approvals", MessageCircleQuestionIcon],
+  ["Do", "only you can do these", ListChecksIcon],
+  ["Review", "finished work", ScanEyeIcon],
+  ["Read", "nothing to do", BookOpenIcon],
 ] as const;
 
 export const orderTickets = (tickets: ReadonlyArray<Ticket>) =>
@@ -120,7 +132,7 @@ export function ShowInboxButton() {
         render={
           <Button
             variant="ghost"
-            size="icon-sm"
+            size="sm"
             className="relative ms-2 hidden shrink-0 lg:inline-flex [-webkit-app-region:no-drag]"
             aria-label={`Show inbox${shortcut}`}
             onClick={toggleInbox}
@@ -129,9 +141,7 @@ export function ShowInboxButton() {
       >
         <InboxIcon className="size-4" />
         {count > 0 ? (
-          <span className="absolute -top-0.5 -right-0.5 min-w-4 rounded-full bg-primary px-1 text-center text-3xs font-semibold leading-4 text-primary-foreground tabular-nums">
-            {count}
-          </span>
+          <span className="text-xs text-muted-foreground tabular-nums">{count}</span>
         ) : null}
       </TooltipTrigger>
       <TooltipPopup side="bottom">Show inbox{shortcut}</TooltipPopup>
@@ -155,30 +165,30 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks; page?:
   const setSelected = (next: typeof selected) => useInboxStore.setState({ selected: next });
   const [search, setSearch] = useState("");
   const [workingOpen, setWorkingOpen] = useState(false);
+  const [collapsed, setCollapsed] = useState<ReadonlySet<string>>(new Set());
+  const toggleGroup = (group: string) =>
+    setCollapsed((previous) => {
+      const next = new Set(previous);
+      if (next.has(group)) next.delete(group);
+      else next.add(group);
+      return next;
+    });
   const [details, setDetails] = useState<Ticket | null>(null);
   const [archivedPick, setArchivedPick] = useState<string | null>(null);
   const shortcut = useInboxShortcutLabel();
   const navigate = useNavigate();
   const close = useAtomCommand(ticketClose);
   const threads = useAtomValue(environmentThreadShells.environmentThreadsAtom(environmentId));
-  const all = useEnvironmentQuery(ticketList({ environmentId, input: {} })).data?.tickets ?? [];
-  const chatId =
-    !page && routeRef?.environmentId === environmentId
-      ? (threads.find((thread) => thread.id === routeRef.threadId)?.lineage.rootThreadId ??
-        routeRef.threadId)
-      : null;
-  const scoped = page || chatId !== null;
-  const open = page ? all : all.filter((ticket) => ticket.origin.chatId === chatId);
+  const open = useEnvironmentQuery(ticketList({ environmentId, input: {} })).data?.tickets ?? [];
   const query = search.trim();
   const archived =
     useEnvironmentQuery(
-      tab === "archive" && scoped
+      tab === "archive"
         ? ticketList({
             environmentId,
             input: {
               status: "archived",
               ...(query ? { search: query } : {}),
-              ...(chatId ? { chatId } : {}),
             },
           })
         : null,
@@ -191,23 +201,20 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks; page?:
         ordered[Math.min(selected.index, ordered.length - 1)]);
   const shown = details && (open.find((ticket) => ticket.id === details.id) ?? details);
   const titles = new Map(threads.map((thread) => [thread.id, thread.title]));
-  const jobs = threads
-    .flatMap((thread) =>
-      (thread.pendingBackgroundTasks ?? []).flatMap((task) =>
-        task.kind === "subagent"
-          ? [
-              {
-                id: task.taskId,
-                threadId: task.childThreadId ?? thread.id,
-                title: task.description ?? titles.get(task.childThreadId ?? thread.id) ?? "",
-                chat: titles.get(thread.lineage.rootThreadId) ?? "",
-                root: thread.lineage.rootThreadId,
-              },
-            ]
-          : [],
-      ),
-    )
-    .filter((job) => page || job.root === chatId);
+  const jobs = threads.flatMap((thread) =>
+    (thread.pendingBackgroundTasks ?? []).flatMap((task) =>
+      task.kind === "subagent"
+        ? [
+            {
+              id: task.taskId,
+              threadId: task.childThreadId ?? thread.id,
+              title: task.description ?? titles.get(task.childThreadId ?? thread.id) ?? "",
+              chat: titles.get(thread.lineage.rootThreadId) ?? "",
+            },
+          ]
+        : [],
+    ),
+  );
   const toggle = (ticket: Ticket) =>
     setSelected(
       current?.id === ticket.id
@@ -222,7 +229,8 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks; page?:
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- window keydown listener that picks a choice on the open ticket
   useEffect(() => {
     const onKeyDown = (event: KeyboardEvent) => {
-      if (tab !== "inbox" || details || !current || !hooks.choose) return;
+      if (tab !== "inbox" || details || !current || collapsed.has(current.group) || !hooks.choose)
+        return;
       if (event.metaKey || event.ctrlKey || event.altKey || isEditableFocused(event.target)) return;
       const index = Number(event.key) - 1;
       if (!(index >= 0 && index < current.choices.length)) return;
@@ -231,7 +239,7 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks; page?:
     };
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [tab, details, current, hooks]);
+  }, [tab, details, current, hooks, collapsed]);
 
   // oxlint-disable-next-line t3code/no-unreasoned-state-sync -- window keydown listener that leaves the full-screen ticket on Escape
   useEffect(() => {
@@ -336,32 +344,38 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks; page?:
               ))}
               {tab === "archive" ? (
                 <div className="relative ms-auto w-72 self-center">
-                  <SearchIcon className="pointer-events-none absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-                  <Input
-                    type="search"
-                    value={search}
-                    onChange={(event) => setSearch(event.target.value)}
-                    placeholder="Search archive"
-                    aria-label="Search archive"
-                    className="ps-7"
-                  />
+                  <InputGroup>
+                    <InputGroupAddon>
+                      <SearchIcon className="size-4 text-muted-foreground" />
+                    </InputGroupAddon>
+                    <InputGroupInput
+                      type="search"
+                      value={search}
+                      onChange={(event) => setSearch(event.target.value)}
+                      placeholder="Search archive"
+                      aria-label="Search archive"
+                    />
+                  </InputGroup>
                 </div>
               ) : null}
             </div>
             <div className="min-h-0 flex-1 overflow-y-auto px-6 pb-8">
               {tab === "inbox" ? (
-                GROUPS.map(([group, hint]) => {
+                GROUPS.map(([group, hint, Glyph]) => {
                   const tickets = ordered.filter((ticket) => ticket.group === group);
                   return tickets.length === 0 ? null : (
                     <section key={group} aria-label={group}>
-                      <h2 className="flex items-baseline gap-2 pt-6 pb-3 text-sm font-semibold">
-                        {group}
-                        <span className="font-normal text-muted-foreground tabular-nums">
-                          {tickets.length}
-                        </span>
-                        <span className="text-xs font-normal text-muted-foreground">· {hint}</span>
-                      </h2>
-                      <div className={grid}>{tickets.map(tile)}</div>
+                      <GroupHeading
+                        group={group}
+                        hint={hint}
+                        count={tickets.length}
+                        collapsed={collapsed.has(group)}
+                        onToggle={() => toggleGroup(group)}
+                        glyph={Glyph}
+                      />
+                      {collapsed.has(group) ? null : (
+                        <div className={grid}>{tickets.map(tile)}</div>
+                      )}
                     </section>
                   );
                 })
@@ -431,35 +445,36 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks; page?:
         </Tooltip>
       </div>
       <div className="min-h-0 flex-1 overflow-y-auto px-3 pt-0.5 pb-4">
-        {tab === "inbox" && scoped ? (
+        {tab === "inbox" ? (
           <>
-            {GROUPS.map(([group, hint]) => {
+            {GROUPS.map(([group, hint, Glyph]) => {
               const tickets = ordered.filter((ticket) => ticket.group === group);
               return tickets.length === 0 ? null : (
                 <section key={group} aria-label={group} className="mt-3.5 first:mt-3">
-                  <h2 className="flex items-baseline gap-2 px-1 pb-2 text-sm font-semibold">
-                    {group}
-                    <span className="font-normal text-muted-foreground tabular-nums">
-                      {tickets.length}
-                    </span>
-                    <span className="ml-auto text-xs font-normal text-muted-foreground">
-                      {hint}
-                    </span>
-                  </h2>
-                  {tickets.map((ticket) => (
-                    <TicketRow
-                      key={ticket.id}
-                      environmentId={environmentId}
-                      ticket={ticket}
-                      chat={titles.get(ticket.origin.chatId) ?? ""}
-                      open={current?.id === ticket.id}
-                      reveal={current?.id === ticket.id && selected.reveal === true}
-                      hooks={hooks}
-                      onToggle={() => toggle(ticket)}
-                      onGotIt={() => gotIt(ticket)}
-                      onOpenDetails={() => setDetails(ticket)}
-                    />
-                  ))}
+                  <GroupHeading
+                    group={group}
+                    hint={hint}
+                    count={tickets.length}
+                    collapsed={collapsed.has(group)}
+                    onToggle={() => toggleGroup(group)}
+                    glyph={Glyph}
+                  />
+                  {collapsed.has(group)
+                    ? null
+                    : tickets.map((ticket) => (
+                        <TicketRow
+                          key={ticket.id}
+                          environmentId={environmentId}
+                          ticket={ticket}
+                          chat={titles.get(ticket.origin.chatId) ?? ""}
+                          open={current?.id === ticket.id}
+                          reveal={current?.id === ticket.id && selected.reveal === true}
+                          hooks={hooks}
+                          onToggle={() => toggle(ticket)}
+                          onGotIt={() => gotIt(ticket)}
+                          onOpenDetails={() => setDetails(ticket)}
+                        />
+                      ))}
                 </section>
               );
             })}
@@ -475,14 +490,14 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks; page?:
                   type="button"
                   aria-expanded={workingOpen}
                   onClick={() => setWorkingOpen(!workingOpen)}
-                  className="flex w-full items-baseline gap-2 px-1 pb-2 text-left text-sm font-semibold"
+                  className="flex w-full items-center gap-2 rounded-md px-1 py-2 text-left text-sm font-medium text-muted-foreground hover:text-foreground"
                 >
-                  Working
+                  <ChevronDownIcon
+                    className={cn("size-3.5 transition-transform", !workingOpen && "-rotate-90")}
+                  />
+                  Working ·
                   <span className="font-normal text-muted-foreground tabular-nums">
                     {jobs.length}
-                  </span>
-                  <span className="ml-auto text-xs font-normal text-muted-foreground">
-                    {workingOpen ? "hide" : "show"}
                   </span>
                 </button>
                 {workingOpen ? (
@@ -515,18 +530,21 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks; page?:
               </section>
             ) : null}
           </>
-        ) : tab === "archive" && scoped ? (
+        ) : tab === "archive" ? (
           <>
             <div className="relative mt-3 mb-2.5">
-              <SearchIcon className="pointer-events-none absolute start-2.5 top-1/2 size-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                type="search"
-                value={search}
-                onChange={(event) => setSearch(event.target.value)}
-                placeholder="Search archive"
-                aria-label="Search archive"
-                className="ps-7"
-              />
+              <InputGroup>
+                <InputGroupAddon>
+                  <SearchIcon className="size-4 text-muted-foreground" />
+                </InputGroupAddon>
+                <InputGroupInput
+                  type="search"
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Search archive"
+                  aria-label="Search archive"
+                />
+              </InputGroup>
             </div>
             {archived.map((ticket) => (
               <button
@@ -569,6 +587,40 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks; page?:
   );
 }
 
+function GroupHeading(props: {
+  group: string;
+  hint: string;
+  count: number;
+  collapsed: boolean;
+  onToggle: () => void;
+  glyph: typeof InboxIcon;
+}) {
+  const Glyph = props.glyph;
+  return (
+    <h2>
+      <button
+        type="button"
+        aria-expanded={!props.collapsed}
+        onClick={props.onToggle}
+        aria-description={props.hint}
+        className="mb-2 flex w-full items-center gap-2 rounded-md px-1 py-2 text-left text-sm font-medium hover:bg-accent"
+      >
+        <Glyph className="size-3.5 text-muted-foreground" />
+        {props.group}
+        <span className="text-xs font-normal text-muted-foreground tabular-nums">
+          {props.count}
+        </span>
+        <ChevronDownIcon
+          className={cn(
+            "ms-auto size-3.5 text-muted-foreground transition-transform",
+            props.collapsed && "-rotate-90",
+          )}
+        />
+      </button>
+    </h2>
+  );
+}
+
 function TicketRow(props: {
   environmentId: EnvironmentId;
   ticket: Ticket;
@@ -583,9 +635,24 @@ function TicketRow(props: {
   const { environmentId, ticket, hooks } = props;
   const [reply, setReply] = useState("");
   const thumbnail = ticketThumbnail(ticket);
+  const replyField = useRef<HTMLTextAreaElement>(null);
+  const [quoted, setQuoted] = useState<string | null>(null);
+  const quote = (text: string) => {
+    setQuoted(text);
+    requestAnimationFrame(() => replyField.current?.focus());
+  };
   const send = () => {
     if (!reply.trim() || !hooks.reply) return;
-    hooks.reply(ticket, reply.trim());
+    hooks.reply(
+      ticket,
+      quoted
+        ? `${quoted
+            .split("\n")
+            .map((line) => `> ${line}`)
+            .join("\n")}\n\n${reply.trim()}`
+        : reply.trim(),
+    );
+    setQuoted(null);
     setReply("");
   };
   return (
@@ -601,8 +668,39 @@ function TicketRow(props: {
           : undefined
       }
       aria-label={ticket.title}
-      className="mb-1.5 overflow-hidden rounded-lg border border-border bg-card transition-colors focus-within:border-ring/40 hover:border-ring/40"
+      className="group/ticket relative mb-2 rounded-lg border border-border bg-card transition-colors focus-within:border-ring/40 hover:border-ring/40"
     >
+      <div className="pointer-events-none absolute -top-3.5 end-2 z-10 flex gap-0.5 rounded-lg border border-border bg-popover p-0.5 opacity-0 shadow-md transition-opacity group-hover/ticket:pointer-events-auto group-hover/ticket:opacity-100 group-focus-within/ticket:pointer-events-auto group-focus-within/ticket:opacity-100">
+        <Button
+          variant="ghost"
+          size="xs"
+          onClick={() => {
+            if (!props.open) props.onToggle();
+            quote(ticket.need);
+          }}
+        >
+          <ReplyIcon />
+          Reply
+        </Button>
+        <Button variant="ghost" size="xs" onClick={props.onOpenDetails}>
+          <Maximize2Icon />
+          Open
+        </Button>
+        <Button
+          variant="ghost"
+          size="xs"
+          onClick={() =>
+            void navigator.clipboard.writeText(
+              [ticket.title, ticket.need, ticket.summary, ticket.markdown]
+                .filter(Boolean)
+                .join("\n\n"),
+            )
+          }
+        >
+          <CopyIcon />
+          Copy
+        </Button>
+      </div>
       <button
         type="button"
         aria-expanded={props.open}
@@ -610,7 +708,9 @@ function TicketRow(props: {
         className="flex w-full items-center gap-2.5 px-3.5 py-2.5 text-left"
       >
         <span className="min-w-0 flex-1">
-          <span className="block truncate text-sm font-medium leading-snug">{ticket.title}</span>
+          <span className="block wrap-anywhere text-sm font-medium leading-snug">
+            {ticket.title}
+          </span>
           <span className="mt-px block truncate text-xs text-muted-foreground">
             {props.chat} · <Age iso={ticket.createdAt} />
           </span>
@@ -626,63 +726,89 @@ function TicketRow(props: {
       </button>
       {props.open ? (
         <div className="px-3.5 pb-3.5">
-          <p className="mb-1.5 text-sm font-semibold leading-snug">{ticket.need}</p>
-          <p className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
-            {ticket.summary}
-          </p>
-          {ticket.htmlPages.length > 0 ? (
-            <div className="mt-3 grid gap-2">
-              <TicketPages environmentId={environmentId} ticket={ticket} />
-            </div>
-          ) : null}
-          {ticket.choices.length > 0 ? (
-            <div className="mt-3">
-              <Choices
-                environmentId={environmentId}
-                ticket={ticket}
-                onChoose={(index) => hooks.choose?.(ticket, index)}
-              />
-            </div>
-          ) : null}
-          <div className="mt-2.5 flex items-center gap-2">
-            <div className="relative flex-1">
-              <Input
-                value={reply}
-                onChange={(event) => setReply(event.target.value)}
-                onKeyDown={(event) => {
-                  if (event.key !== "Enter" || event.shiftKey) return;
-                  event.preventDefault();
-                  send();
-                }}
-                placeholder="Reply…"
-                aria-label={`Reply to ${ticket.title}`}
-                className="bg-background pe-8"
-              />
-              {reply.trim() ? (
-                <Button
-                  size="icon-xs"
-                  aria-label="Send reply"
-                  className="absolute end-1 top-1/2 -translate-y-1/2"
-                  onClick={send}
-                >
-                  <ArrowUpIcon />
-                </Button>
-              ) : null}
-            </div>
-            <Button variant="outline" onClick={props.onGotIt}>
-              <CheckIcon />
-              Got it
+          <RichActionsContext value={{ quote, send: (text) => hooks.reply?.(ticket, text) }}>
+            <p className="mb-1.5 text-sm font-semibold leading-snug">{ticket.need}</p>
+            <p className="whitespace-pre-line text-sm leading-relaxed text-muted-foreground">
+              {ticket.summary}
+            </p>
+            {ticket.htmlPages.length > 0 ? (
+              <div className="mt-3 grid gap-2">
+                <TicketPages environmentId={environmentId} ticket={ticket} />
+              </div>
+            ) : null}
+            {ticket.choices.length > 0 ? (
+              <div className="mt-3">
+                <Choices
+                  environmentId={environmentId}
+                  ticket={ticket}
+                  onChoose={(index) => hooks.choose?.(ticket, index)}
+                />
+              </div>
+            ) : null}
+          </RichActionsContext>
+          <div className="sticky bottom-0 z-10 -mx-1 mt-4 flex flex-wrap items-end gap-1 rounded-lg border border-border bg-popover p-1 shadow-lg">
+            {quoted ? (
+              <button
+                type="button"
+                onClick={() => setQuoted(null)}
+                aria-label="Remove quote"
+                className="flex w-full items-center gap-2 rounded-md bg-accent/60 px-3 py-1.5 text-left text-xs text-muted-foreground"
+              >
+                <ReplyIcon className="size-3.5 shrink-0" />
+                <span className="min-w-0 truncate">{quoted}</span>
+                <XIcon className="ms-auto size-3.5 shrink-0" />
+              </button>
+            ) : null}
+            <Textarea
+              ref={replyField}
+              rows={1}
+              unstyled
+              value={reply}
+              onChange={(event) => setReply(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key !== "Enter" || event.shiftKey) return;
+                event.preventDefault();
+                send();
+              }}
+              placeholder="Reply…"
+              aria-label={`Reply to ${ticket.title}`}
+              className="min-w-0 flex-1 [&_textarea]:max-h-40 [&_textarea]:min-h-9 [&_textarea]:resize-none"
+            />
+            <Menu>
+              <MenuTrigger
+                render={
+                  <Button
+                    aria-label="More ticket actions"
+                    size="icon"
+                    variant="ghost"
+                    className="shrink-0"
+                  />
+                }
+              >
+                <EllipsisIcon />
+              </MenuTrigger>
+              <MenuPopup align="end" side="top" sideOffset={8}>
+                <MenuItem onClick={props.onOpenDetails}>
+                  <Maximize2Icon />
+                  Open details
+                </MenuItem>
+                <MenuItem onClick={() => void navigator.clipboard.writeText(ticket.summary)}>
+                  <CopyIcon />
+                  Copy summary
+                </MenuItem>
+                {reply.trim() ? (
+                  <MenuItem onClick={props.onGotIt}>
+                    <CheckIcon />
+                    Got it
+                  </MenuItem>
+                ) : null}
+              </MenuPopup>
+            </Menu>
+            <Button className="shrink-0" onClick={reply.trim() ? send : props.onGotIt}>
+              {reply.trim() ? <ArrowUpIcon /> : <CheckIcon />}
+              {reply.trim() ? "Send" : "Got it"}
             </Button>
           </div>
-          <Button
-            variant="ghost-muted"
-            size="xs"
-            className="mt-2 -ml-1.5"
-            onClick={props.onOpenDetails}
-          >
-            <Maximize2Icon />
-            Open details
-          </Button>
         </div>
       ) : null}
     </article>
