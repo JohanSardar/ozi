@@ -1,3 +1,4 @@
+import { calendarCommand } from "./cli/calendar.ts";
 import { attachmentCommand } from "./cli/attachment.ts";
 import {
   sessionCommand,
@@ -65,6 +66,7 @@ export const makeCli = () =>
       environmentCommand,
       browserCommand,
       threadCommand,
+      calendarCommand,
       ticketCommand,
       attachmentCommand,
       inboxCommand,

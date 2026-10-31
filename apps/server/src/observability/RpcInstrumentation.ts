@@ -132,6 +132,8 @@ const RPC_AGGREGATES = {
   [WS_METHODS.subscribeServerConfig]: "server",
   [WS_METHODS.subscribeServerLifecycle]: "server",
   [WS_METHODS.subscribeAuthAccess]: "auth",
+  [WS_METHODS.calendarList]: "calendar",
+  [WS_METHODS.calendarAdd]: "calendar",
   [WS_METHODS.ticketsCreate]: "tickets",
   [WS_METHODS.ticketsUpdate]: "tickets",
   [WS_METHODS.ticketsClose]: "tickets",

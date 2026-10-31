@@ -1,3 +1,4 @@
+import * as Calendar from "./calendar/Calendar.ts";
 import { OrchestratorMcpFailure } from "@t3tools/contracts";
 import { attachmentVersions } from "./mcp/toolkits/attachment/versions.ts";
 import * as Tickets from "./tickets/Tickets.ts";
@@ -1116,6 +1117,7 @@ export const layerWsRpc = (
       const databaseStorage = yield* DatabaseStorage.DatabaseStorage;
       const serverSettings = yield* ServerSettings.ServerSettingsService;
       const peerLinks = yield* PeerLinks.PeerLinks;
+      const calendar = yield* Calendar.Calendar;
       const tickets = yield* Tickets.Tickets;
       const ticketClearing = yield* TicketClearing.TicketClearing;
       const peerLinkRequests = yield* PeerLinkRequests.PeerLinkRequests;
@@ -1575,6 +1577,8 @@ export const layerWsRpc = (
       );
 
       const handlers = ServerWsRpcGroup.of({
+        [WS_METHODS.calendarList]: (input) => calendar.list(input),
+        [WS_METHODS.calendarAdd]: (input) => calendar.add(input),
         [WS_METHODS.ticketsCreate]: (input) => tickets.create(input),
         [WS_METHODS.ticketsUpdate]: (input) => tickets.update(input),
         [WS_METHODS.ticketsClose]: (input) => ticketClearing.close(input),
@@ -2604,6 +2608,7 @@ export const layer = Layer.unwrap(
     const serverBrowser = yield* ServerBrowser.ServerBrowser;
     const serverSelfUpdate = yield* ServerSelfUpdate.ServerSelfUpdate;
     const peerLinks = yield* PeerLinks.PeerLinks;
+    const calendar = yield* Calendar.Calendar;
     const tickets = yield* Tickets.Tickets;
     const ticketClearing = yield* TicketClearing.TicketClearing;
     const peerLinkRequests = yield* PeerLinkRequests.PeerLinkRequests;
@@ -2678,6 +2683,7 @@ export const layer = Layer.unwrap(
               Layer.provide(Layer.succeed(ServerSelfUpdate.ServerSelfUpdate, serverSelfUpdate)),
               Layer.provide(OtlpEndpointCheck.layer),
               Layer.provide(Layer.succeed(PeerLinks.PeerLinks, peerLinks)),
+              Layer.provide(Layer.succeed(Calendar.Calendar, calendar)),
               Layer.provide(Layer.succeed(Tickets.Tickets, tickets)),
               Layer.provide(Layer.succeed(TicketClearing.TicketClearing, ticketClearing)),
               Layer.provide(Layer.succeed(PeerLinkRequests.PeerLinkRequests, peerLinkRequests)),

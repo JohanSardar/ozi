@@ -1,3 +1,5 @@
+import { CalendarToolkit } from "./toolkits/calendar/tools.ts";
+import * as CalendarHandlers from "./toolkits/calendar/handlers.ts";
 import * as Cause from "effect/Cause";
 import * as Clock from "effect/Clock";
 import * as Context from "effect/Context";
@@ -1112,6 +1114,7 @@ export const layerTools = Layer.mergeAll(
   layerPreviewToolkit,
   layerOrchestratorToolkit,
   layerThreadToolkit,
+  toolkitRegistration(CalendarToolkit, CalendarHandlers.layer),
   toolkitRegistration(TicketToolkit, TicketHandlers.layer),
   layerAttachmentToolkit,
   layerThreadLaunchRegistration,

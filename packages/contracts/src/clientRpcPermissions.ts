@@ -12,6 +12,7 @@ import { WS_METHODS } from "./rpc.ts";
 
 /** Incremental client enforcement; the server still authorizes every request. */
 export const CLIENT_GUARDED_RPC_SCOPES = {
+  [WS_METHODS.calendarAdd]: AuthOrchestrationOperateScope,
   [WS_METHODS.ticketsCreate]: AuthOrchestrationOperateScope,
   [WS_METHODS.ticketsUpdate]: AuthOrchestrationOperateScope,
   [WS_METHODS.ticketsClose]: AuthOrchestrationOperateScope,

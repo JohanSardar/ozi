@@ -1,3 +1,4 @@
+import * as Calendar from "./calendar/Calendar.ts";
 import * as Tickets from "./tickets/Tickets.ts";
 import * as Inbox from "./tickets/Inbox.ts";
 import * as InboxChecks from "./tickets/InboxChecks.ts";
@@ -542,6 +543,7 @@ const layerMakeRoutes = Layer.mergeAll(
   Layer.provide(RemoteDelegation.layer.pipe(Layer.provide(ProjectionStoreV2.layer))),
   // Links agents ask for: shown in a thread from /mcp, answered over WebSocket.
   Layer.provide(PeerLinkRequests.layer),
+  Layer.provide(Calendar.layer),
   Layer.provide(Inbox.layer),
   Layer.provide(TicketClearing.layer.pipe(Layer.provide(RuntimeLayer.layerEventSink))),
   Layer.provide(Tickets.layer),

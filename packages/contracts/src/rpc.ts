@@ -1,3 +1,4 @@
+import { CalendarError, CalendarEvent, CalendarEventInput, CalendarListInput, CalendarListResult } from "./calendar.ts";
 import { OrchestratorMcpFailure } from "./orchestratorMcp.ts";
 import { AttachmentVersionsInput, AttachmentVersionsResult } from "./attachmentVersions.ts";
 import {
@@ -266,6 +267,8 @@ import {
 import { SecretRequestAnswerInput, SecretRequestError } from "./secretRequest.ts";
 
 export const WS_METHODS = {
+  calendarList: "calendar.list",
+  calendarAdd: "calendar.add",
   ticketsCreate: "tickets.create",
   ticketsUpdate: "tickets.update",
   ticketsClose: "tickets.close",
@@ -1188,6 +1191,17 @@ export class RpcScopeAuthorization extends RpcMiddleware.Service<RpcScopeAuthori
   { error: EnvironmentAuthorizationError },
 ) {}
 
+const WsCalendarListRpc = Rpc.make(WS_METHODS.calendarList, {
+  payload: CalendarListInput,
+  success: CalendarListResult,
+  error: Schema.Union([CalendarError, EnvironmentAuthorizationError]),
+});
+const WsCalendarAddRpc = Rpc.make(WS_METHODS.calendarAdd, {
+  payload: CalendarEventInput,
+  success: CalendarEvent,
+  error: Schema.Union([CalendarError, EnvironmentAuthorizationError]),
+});
+
 const WsTicketsCreateRpc = Rpc.make(WS_METHODS.ticketsCreate, {
   payload: TicketCreateInput,
   success: Ticket,
@@ -1271,6 +1285,8 @@ export const ChatSessionRpcGroup = RpcGroup.make(
 ).middleware(RpcScopeAuthorization);
 
 export const WsRpcGroup = RpcGroup.make(
+  WsCalendarListRpc,
+  WsCalendarAddRpc,
   WsTicketsSubscribeRpc,
   WsTicketsListRpc,
   WsTicketsGetRpc,
