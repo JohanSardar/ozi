@@ -5,6 +5,7 @@ import { cn } from "../../lib/utils";
 import { mediaTime, seekByKey, seekFromPointer, toggleMedia, useMediaState } from "./VideoControls";
 
 const BARS = 64;
+const SLOTS = Array.from({ length: BARS }, (_, slot) => slot);
 
 function useWaveform(src: string) {
   const [peaks, setPeaks] = useState<readonly number[] | null>(null);
@@ -72,16 +73,16 @@ function Strip(props: { audio: HTMLAudioElement; src: string; name: string }) {
           onKeyDown={(event) => {
             seekByKey(event.key, props.audio);
           }}
-          className="flex h-8 cursor-pointer items-center gap-[2px]"
+          className="flex h-8 cursor-pointer items-center gap-0.5"
         >
-          {(peaks ?? Array.from({ length: BARS }, () => 0.06)).map((peak, index) => (
+          {SLOTS.map((slot) => (
             <span
-              key={index}
+              key={slot}
               className={cn(
                 "min-w-0 flex-1 rounded-full transition-colors",
-                index / BARS < progress ? "bg-primary" : "bg-foreground/20",
+                slot / BARS < progress ? "bg-primary" : "bg-foreground/20",
               )}
-              style={{ height: `${Math.round(peak * 100)}%` }}
+              style={{ height: `${Math.round((peaks?.[slot] ?? 0.06) * 100)}%` }}
             />
           ))}
         </span>
