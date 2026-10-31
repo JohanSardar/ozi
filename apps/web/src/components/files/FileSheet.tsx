@@ -256,12 +256,12 @@ export function FileSheet({ target, onClose }: { target: FileSheetTarget; onClos
   const download = () => {
     if (!url) return;
     void attempt(async () => {
-      const file =
-        blob ??
-        (await fetch(url).then((response) => {
-          if (!response.ok) throw new Error("Could not download this file.");
-          return response.blob();
-        }));
+      let file = blob;
+      if (!file) {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error("Could not download this file.");
+        file = await response.blob();
+      }
       const source = URL.createObjectURL(file);
       setTimeout(() => URL.revokeObjectURL(source), 30000);
       const anchor = document.createElement("a");
