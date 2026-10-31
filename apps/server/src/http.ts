@@ -4,6 +4,7 @@ import {
   AuthOrchestrationReadScope,
   EnvironmentHttpApi,
 } from "@t3tools/contracts";
+import { injectHtmlRenderBootstrap } from "@t3tools/shared/htmlRender";
 import { isDevProxiedPath } from "@t3tools/shared/devProxy";
 import { injectMcpAppCookieBootstrap, injectMcpAppThemeBootstrap } from "@t3tools/shared/mcpApp";
 import { decodeOtlpTraceRecords } from "@t3tools/shared/observability";
@@ -172,19 +173,19 @@ export const assetFileResponse = Effect.fn("assetFileResponse")(function* (
   method: "GET" | "HEAD" = "GET",
 ) {
   const headers = assetResponseHeaders(asset.path, asset);
-  if (
-    asset.renderIntent === "mcp-app" &&
-    !asset.download &&
-    headers["Content-Type"] === "text/html; charset=utf-8"
-  ) {
+  if (!asset.download && headers["Content-Type"] === "text/html; charset=utf-8") {
     const bytes = yield* readMcpAppHtml(asset.path);
     if (bytes === null) {
-      return HttpServerResponse.text("MCP app is too large to preview.", { status: 413 });
+      return HttpServerResponse.text("HTML page is too large to preview.", { status: 413 });
     }
     const body = pipe(
       new TextDecoder().decode(bytes),
-      injectMcpAppThemeBootstrap,
-      injectMcpAppCookieBootstrap,
+      (html) =>
+        asset.renderIntent === "mcp-app"
+          ? injectMcpAppCookieBootstrap(injectMcpAppThemeBootstrap(html))
+          : html.includes('id="t3-theme"')
+            ? html
+            : injectHtmlRenderBootstrap(html),
       (html) => new TextEncoder().encode(html),
     );
     headers["Content-Length"] = String(body.byteLength);

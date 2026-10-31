@@ -36,7 +36,7 @@ const shared = {
 const AttachmentUploadTool = Tool.make("ozi_attachment_prepare_upload", {
   ...shared,
   description:
-    "Get an upload URL. POST the file's exact bytes to `relativeUrl` on this MCP server's HTTP origin, then send via `ozi_thread_send_attachments` with the returned `attachmentId`.",
+    "For a new chat message, get an upload URL. For ticket files use ozi_attachment_import instead. POST the file's exact bytes to `relativeUrl` on this MCP server's HTTP origin, then send via `ozi_thread_send_attachments` with the returned `attachmentId`.",
   parameters: Schema.Struct({ upload: AttachmentCreateUploadUrlInput }),
   success: AttachmentCreateUploadUrlResult,
 }).annotate(Tool.Destructive, true);
@@ -68,8 +68,8 @@ const AttachmentSendTool = Tool.make("ozi_thread_send_attachments", {
 })
   .annotate(Tool.Destructive, true)
   .annotate(Tool.OpenWorld, true);
-const AttachmentImportTool = Tool.make("ozi_attachment_import", { ...shared, description: "Store file bytes as a durable attachment, without sending a message or starting a turn. Returns a file reference for tickets or version history.", parameters: Schema.Struct({ threadId: ThreadId, name: Schema.String, mimeType: Schema.String, contentBase64: Schema.String.check(Schema.isMaxLength(70000000)) }), success: ChatFileAttachment }).annotate(Tool.Destructive, true);
-const AttachmentVersionsTool = Tool.make("ozi_attachment_versions", { ...shared, dependencies: [...shared.dependencies, DocumentText.DocumentText], description: "Read, list, create or restore immutable file versions. Supply the original attachment and origin thread. create accepts contentBase64; restore creates a new version. read returns contentBase64. Keep the original attachment ID to update the user’s open file sheet.", parameters: AttachmentVersionsInput, success: AttachmentVersionsResult }).annotate(Tool.Destructive, true);
+const AttachmentImportTool = Tool.make("ozi_attachment_import", { ...shared, description: 'Store file bytes without sending a message or starting a turn. Example: {"threadId":"origin_chat_id","name":"report.md","mimeType":"text/markdown","contentBase64":"IyBSZXBvcnQK"}. Put the returned file reference in ticket attachments; for text/html use htmlPages with a takeaway title. PDF/docx/xlsx/csv/md/txt open in the in-app file sheet. CLI: ozi attachment import --thread ID --file PATH --mime-type TYPE --json.', parameters: Schema.Struct({ threadId: ThreadId, name: Schema.String, mimeType: Schema.String, contentBase64: Schema.String.check(Schema.isMaxLength(70000000)) }), success: ChatFileAttachment }).annotate(Tool.Destructive, true);
+const AttachmentVersionsTool = Tool.make("ozi_attachment_versions", { ...shared, dependencies: [...shared.dependencies, DocumentText.DocumentText], description: "Read, list, create or restore file versions using the original attachment reference and origin threadId. action: list returns history; read returns contentBase64 (latest unless versionId); create takes contentBase64 and optional notes; restore takes versionId and appends a version. Keep the original attachment ID so the open file sheet updates in place. send forwards the selected file and quote/comment notes to the origin chat and starts or steers its agent; use only when asked. CLI: ozi attachment versions --input JSON --json.", parameters: AttachmentVersionsInput, success: AttachmentVersionsResult }).annotate(Tool.Destructive, true);
 export const AttachmentToolkit = Toolkit.make(
   AttachmentImportTool,
   AttachmentVersionsTool,

@@ -11,6 +11,92 @@ import {
 } from "./baseSchemas.ts";
 import { ChatAttachment, ChatFileAttachment } from "./chatAttachment.ts";
 
+const RichText = TrimmedNonEmptyString;
+const EventTime = RichText.check(
+  Schema.makeFilter(
+    (value) =>
+      /^(?:\d{4}-\d{2}-\d{2}|\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2}))$/.test(
+        value,
+      ) && Number.isFinite(Date.parse(value)),
+    {
+      message:
+        "Use an ISO date (2026-11-01) or timestamp with timezone (2026-11-01T19:30:00-06:00).",
+    },
+  ),
+);
+export const TicketRichBlocks = {
+  map: Schema.Struct({
+    name: RichText,
+    address: RichText,
+    lat: Schema.optional(
+      Schema.Number.check(Schema.isGreaterThanOrEqualTo(-90), Schema.isLessThanOrEqualTo(90)),
+    ),
+    lon: Schema.optional(
+      Schema.Number.check(Schema.isGreaterThanOrEqualTo(-180), Schema.isLessThanOrEqualTo(180)),
+    ),
+  }),
+  event: Schema.Struct({
+    title: RichText,
+    start: EventTime,
+    end: Schema.optional(EventTime),
+    location: Schema.optional(RichText),
+    notes: Schema.optional(RichText),
+  }),
+  draft: Schema.Struct({
+    kind: Schema.Literals(["email", "message"]),
+    to: RichText,
+    subject: Schema.optional(RichText),
+    body: RichText,
+  }),
+  browser: Schema.Struct({
+    url: RichText.check(
+      Schema.makeFilter(
+        (value) => {
+          try {
+            return ["http:", "https:"].includes(new URL(value).protocol);
+          } catch {
+            return false;
+          }
+        },
+        { message: "Use a complete http:// or https:// URL." },
+      ),
+    ),
+    label: Schema.optional(RichText),
+    note: Schema.optional(RichText),
+  }),
+};
+
+export const TICKET_MEDIA_GUIDE = [
+  "Use closed fenced blocks: opening line ```map, ```event, ```draft or ```browser, then JSON on its own line, then ```.",
+  'map: {"name":"Cafe","address":"12 Main St","lat":41.88,"lon":-87.63}; name and address required, coordinates optional.',
+  'event: {"title":"Dinner","start":"2026-11-01T19:30:00-06:00","end":"2026-11-01T21:00:00-06:00","location":"Cafe","notes":"Patio"}; title/start required; ISO date or timestamp with timezone. A card proposes an event; it does not book it.',
+  'draft: {"kind":"email","to":"team@example.com","subject":"Dinner","body":"See you at seven."}; kind is email or message; subject optional. A draft is unsent; user Send asks the agent to send it.',
+  'browser: {"url":"https://example.com/checkout","label":"Finish checkout","note":"Confirm the total"}; url required, label/note optional. Opens the shared browser for a user-only step.',
+  "A URL alone on a line becomes a link card. ![Cafe](https://example.com/cafe.jpg) embeds a real photo; first image is the thumbnail. Use real photos or evidence screenshots, never illustrations, emoji, vector art or drawn placeholders; omit a picture if unavailable.",
+  "![Demo](/absolute/demo.mp4) and ![Recording](/absolute/recording.wav) use app video/audio players. [Report](/absolute/report.pdf) opens a file; PDF, docx, xlsx, csv, md and txt attachments open the in-app file sheet. Use actual uploaded attachment IDs, never invented IDs.",
+  'Choices are numbered by the app: {"label":"Choose Cafe","detail":"Patio at seven","image":"https://example.com/cafe.jpg"}; up to four, omit numbers in labels; use real photos for visual choices.',
+  'htmlPages: [{"title":"Cafe wins on price and availability","attachment":{"type":"file","id":"uploaded_id","name":"comparison.html","mimeType":"text/html","sizeBytes":123}}]. Title states the takeaway; page repeats no title. Transparent background, app fonts, responsive one column about 768px, no scrollbars, no viewport heights. Prefer native cards for places/events/drafts/browser steps.',
+].join(" ");
+
+export const TicketMarkdown = Schema.String.check(
+  Schema.makeFilter((markdown) => {
+    const fence =
+      /^[ \t]{0,3}(`{3,}|~{3,})(map|event|draft|browser)[ \t]*\r?\n([\s\S]*?)(?:^[ \t]{0,3}\1[ \t]*$|(?![\s\S]))/gm;
+    for (const match of markdown.matchAll(fence)) {
+      const kind = match[2] as keyof typeof TicketRichBlocks;
+      const schema = TicketRichBlocks[kind];
+      try {
+        Schema.decodeUnknownSync(schema)(JSON.parse(match[3] ?? ""));
+        if (!match[0].trimEnd().endsWith(match[1]!))
+          return `${kind} block: close the JSON fence with ${match[1]}.`;
+      } catch (error) {
+        return `${kind} block: ${String(error)}`;
+      }
+    }
+    return true;
+  }),
+).annotate({ description: TICKET_MEDIA_GUIDE });
+
 export const TicketId = TrimmedNonEmptyString.pipe(Schema.brand("TicketId"));
 export type TicketId = typeof TicketId.Type;
 
@@ -25,7 +111,7 @@ export const TicketChoice = Schema.Struct({
   image: Schema.optional(
     TrimmedNonEmptyString.annotate({
       description:
-        "Optional picture of this option: an absolute file path or https URL, e.g. a photo of the restaurant or the product. Give every choice one when the options are things to look at.",
+        "Optional real photo of this option (never an illustration or drawn placeholder): an absolute file path or https URL, e.g. a photo of the restaurant or the product. Give every choice one when the options are things to look at.",
     }),
   ),
 });
@@ -57,12 +143,15 @@ export const TicketContent = Schema.Struct({
       "Two to four short plain sentences: what happened, why it matters and anything the user should know before acting.",
   }),
   choices: Schema.Array(TicketChoice).check(Schema.isMaxLength(4)),
-  markdown: Schema.String.annotate({
+  markdown: TicketMarkdown,
+  attachments: Schema.Array(ChatAttachment).annotate({
     description:
-      'Optional: more context for someone who wants it, still plain language. Mention a file, link or command only when the user needs it. Show, don\'t describe: ![alt](/absolute/path.png or https URL) for a photo, screenshot or recording as proof (the first image becomes the ticket\'s thumbnail); a line that is only a URL shows as a link card. Rich cards are fenced blocks with a JSON body: ```map {"name","address"} for a place; ```event {"title","start","end"?,"location"?} for a booking or appointment (ISO times); ```draft {"kind":"email"|"message","to","subject"?,"body"} for anything sent in the user\'s name, so they can send or edit it; ```browser {"url","label"?,"note"?} when only the user can finish a step, like a payment, BankID, CAPTCHA or final confirm.',
+      'Uploaded file references: {"type":"file","id":"uploaded_id","name":"report.pdf","mimeType":"application/pdf","sizeBytes":123}. Images/video/audio use app viewers; PDF/docx/xlsx/csv/md/txt open in the file sheet.',
   }),
-  attachments: Schema.Array(ChatAttachment),
-  htmlPages: Schema.Array(TicketHtmlPage),
+  htmlPages: Schema.Array(TicketHtmlPage).annotate({
+    description:
+      "Uploaded HTML pages with takeaway titles. Repeat no title inside; transparent background, app fonts, responsive column about 768px, no scrollbars or viewport heights.",
+  }),
 });
 export const TicketOrigin = Schema.Struct({
   threadId: ThreadId,
@@ -87,6 +176,7 @@ export const TicketClearance = Schema.Union([
 const ticketFields = {
   id: TicketId,
   ...TicketContent.fields,
+  markdown: Schema.String,
   origin: TicketOrigin,
   createdAt: IsoDateTime,
   updatedAt: IsoDateTime,
@@ -115,7 +205,7 @@ export const TicketUpdateInput = Schema.Struct({
     need: Schema.optionalKey(TrimmedNonEmptyString),
     summary: Schema.optionalKey(TrimmedNonEmptyString),
     choices: Schema.optionalKey(TicketContent.fields.choices),
-    markdown: Schema.optionalKey(Schema.String),
+    markdown: Schema.optionalKey(TicketMarkdown),
     attachments: Schema.optionalKey(TicketContent.fields.attachments),
     htmlPages: Schema.optionalKey(TicketContent.fields.htmlPages),
   }),
@@ -161,7 +251,10 @@ export class TicketError extends Schema.TaggedError<TicketError>()("TicketError"
 export const TicketReplyInput = Schema.Struct({
   id: TicketId,
   chatId: ThreadId,
-  text: TrimmedNonEmptyString,
+  text: TrimmedNonEmptyString.annotate({
+    description:
+      'Reply in chatId. To quote a card, prefix its visible text with Markdown > lines, a blank line, then your reply, e.g. "> Cafe, 12 Main St\\n\\nIs there parking?".',
+  }),
 });
 export type TicketReplyInput = typeof TicketReplyInput.Type;
 export const TicketResponse = Schema.Struct({

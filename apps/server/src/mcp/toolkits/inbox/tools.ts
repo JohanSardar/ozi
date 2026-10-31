@@ -10,7 +10,7 @@ import * as McpInvocationContext from "../../McpInvocationContext.ts";
 export const InboxToolkit = Toolkit.make(
   Tool.make("inbox", {
     description:
-      "User inbox operations for paired CLI clients. Agent sessions use ticket_create, ticket_update, ticket_close and ticket_list instead.",
+      "User inbox operations for paired CLI clients: list/get/create/update/close/choose/reply/watch. CLI: ozi ticket <action> --input JSON --json; subscribe watches. Reply takes {id,chatId,text}; quote a card with Markdown > lines in text before the reply. Agent sessions use ticket_create, ticket_update, ticket_close and ticket_list instead.",
     parameters: Schema.Struct({ request: InboxRequest }),
     success: InboxResult,
     failure: Schema.Union([TicketError, OrchestratorMcpFailure]),

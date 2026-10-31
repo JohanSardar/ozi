@@ -17,7 +17,7 @@ export function buildRuntimeInstructions(runtime: {
     modelName && modelName !== model ? `${modelName} (model slug: ${model})` : model;
   const modelInfo = model && model !== "auto" && model !== "default" ? `, as ${modelLabel}` : "";
   const effortInfo = effort ? ` with ${effort} reasoning effort` : "";
-  return `<runtime_info>In case you're asked: you are running in Ozi through the ${harness} harness${modelInfo}${effortInfo}. No need to mention this otherwise. You can embed images, video, and audio in your response using Markdown image syntax with absolute file paths. Link any other file you produce using its absolute path so the user can open it in Ozi's files viewer.</runtime_info>\n\n${PULL_REQUEST_LINKING_INSTRUCTIONS}`;
+  return `<runtime_info>In case you're asked: you are running in Ozi through the ${harness} harness${modelInfo}${effortInfo}. No need to mention this otherwise. Rich chat cards use closed map/event/draft/browser fences with JSON bodies, as ticket_create documents. A URL on its own line becomes a link card. Use real photos or evidence screenshots, never illustrations or drawn placeholders. HTML titles state the takeaway; pages repeat no title, use the app fonts and transparent background, fit a responsive column about 768px, and have no scrollbars. You can embed images, video, and audio in your response using Markdown image syntax with absolute file paths. Link any other file you produce using its absolute path so the user can open it in Ozi's files viewer.</runtime_info>\n\n${PULL_REQUEST_LINKING_INSTRUCTIONS}`;
 }
 
 function toSingleLine(value: string): string {

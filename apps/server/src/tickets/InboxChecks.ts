@@ -7,7 +7,7 @@ import * as Layer from "effect/Layer";
 
 import * as ProjectionStore from "../orchestration-v2/ProjectionStore.ts";
 import * as McpSessionRegistry from "../mcp/McpSessionRegistry.ts";
-import { TICKET_WRITING, TicketListResult } from "@t3tools/contracts";
+import { TICKET_MEDIA_GUIDE, TICKET_WRITING, TicketListResult } from "@t3tools/contracts";
 import * as Tickets from "./Tickets.ts";
 
 export class InboxChecks extends Context.Service<
@@ -62,6 +62,7 @@ const make = Effect.gen(function* () {
 Use ticket_create, ticket_update, ticket_close and ticket_list only.
 File a ticket for anything from this turn that needs the user's answer or acknowledgement: a question, approval, something only the user can do, finished result, failure, or something the user should see. Skip small talk. File nothing if nothing fits.
 Give it a group (Decide, Do, Review or Read), a title saying what happened or what's needed, one sentence on what to do, a short summary of the context, and up to four choices when useful, with pictures, maps, events, drafts and browser cards from this turn as the fields explain. The user should be able to act without reading the chat. ${TICKET_WRITING}
+Reuse real photos and existing uploaded attachments from the turn; never invent files or draw placeholder pictures. ${TICKET_MEDIA_GUIDE}
 Do not duplicate an existing ticket; update it when needed. Close the listed open tickets that the user's last message acknowledged. Do not treat silence or viewing as acknowledgement.
 Listed open tickets:
 ${listed}`,

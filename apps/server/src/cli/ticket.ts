@@ -5,6 +5,7 @@ import {
   TicketUpdateInput,
   TicketCloseInput,
   TicketChooseInput,
+  TicketReplyInput,
   TicketGetInput,
   TicketListInput,
 } from "@t3tools/contracts";
@@ -19,7 +20,7 @@ import { formatJson, withInboxTools } from "./inbox.ts";
 const print = (value: unknown) => Console.log(formatJson(value));
 const run = Effect.fn("cli.ticket")(function* (
   flags: { readonly baseDir: Option.Option<string>; readonly json: boolean },
-  action: "create" | "update" | "close" | "get" | "list" | "choose",
+  action: "create" | "update" | "close" | "get" | "list" | "choose" | "reply",
   input: unknown,
 ) {
   return yield* withInboxTools(flags, (tools) =>
@@ -35,7 +36,7 @@ const flags = {
   json: Flag.Boolean("json").pipe(Flag.withDefault(true)),
 };
 const command = <S extends Schema.Decoder<unknown>>(
-  name: "create" | "update" | "close" | "get" | "list" | "choose",
+  name: "create" | "update" | "close" | "get" | "list" | "choose" | "reply",
   schema: S,
 ) =>
   Command.make(name, flags).pipe(
@@ -55,6 +56,7 @@ export const ticketCommand = Command.make("ticket").pipe(
     command("update", TicketUpdateInput),
     command("close", TicketCloseInput),
     command("choose", TicketChooseInput),
+    command("reply", TicketReplyInput),
     command("get", TicketGetInput),
     command("list", TicketListInput),
     Command.make("subscribe", flags).pipe(

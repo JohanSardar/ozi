@@ -233,6 +233,7 @@ export const HTML_RENDER_LAYOUT_GUIDE = [
   `Frame width is reply width (${HTML_RENDER_COLUMN_WIDTH}px desktop, about 360px phones), on the thread background.`,
   "Leave html, body, and the outer element with no background color, no outer card, border, banner title, or side padding. This wins over any rule that sets a page background.",
   "A box that needs its own background gets 16px padding and var(--radius) corners. Give charts fixed pixel heights.",
+  "Use real photos or no picture; never illustrations, emoji, vector art or drawn placeholders. Title states the takeaway; do not repeat it in the page. No scrollbars or fixed-width layouts. Design for about 768px and narrower phones.",
   "Let content set the height. Do not use vh units or height:100% on html or body. Both are rejected or loop.",
 ].join(" ");
 
@@ -354,7 +355,7 @@ export function htmlRenderThemeMessage(theme: HtmlRenderTheme) {
 
 const BASE_CSS =
   "html{background:transparent;color:var(--foreground);font-family:var(--font-sans);font-size:14px;line-height:1.5;-webkit-font-smoothing:antialiased;-webkit-text-size-adjust:100%}" +
-  "*{scrollbar-width:none!important}::-webkit-scrollbar{display:none}body{margin:0}:where(img,video){max-width:100%;height:auto}:where(table){width:100%;border-collapse:collapse}" +
+  "*{scrollbar-width:none!important}::-webkit-scrollbar{display:none}body{margin:0;background:transparent;overflow-wrap:break-word}*,*::before,*::after{box-sizing:border-box}:where(img,video,svg,canvas){max-width:100%;height:auto}:where(table){width:100%;border-collapse:collapse}" +
   "code,kbd,pre,samp{font-family:var(--font-mono)}" +
   // Focus outlines paint inside the element, so the frame edge never clips them.
   ":where(:focus-visible){outline:2px solid var(--ring)}:focus-visible{outline-width:2px!important;outline-offset:-2px!important}" +

@@ -231,6 +231,6 @@ const browserSetupCommand = Command.make("setup", { baseDir: baseDirFlag }).pipe
 );
 
 export const browserCommand = Command.make("browser").pipe(
-  Command.withDescription("Manage T3's headless browser on this host."),
+  Command.withDescription("Manage Ozi's headless browser on this host."),
   Command.withSubcommands([browserSetupCommand]),
 );

@@ -22,6 +22,7 @@ import {
   injectMcpAppThemeBootstrap,
   MCP_APP_MAX_HTML_BYTES,
 } from "@t3tools/shared/mcpApp";
+import { injectHtmlRenderBootstrap } from "@t3tools/shared/htmlRender";
 import { ORCHESTRATION_PROTOCOL_HEADER } from "@t3tools/contracts";
 
 import * as ServerConfig from "./config.ts";
@@ -30,54 +31,54 @@ import { assetResponseHeaders, assetFileResponse, downloadContentDisposition } f
 import * as ServerHttp from "./http.ts";
 
 describe("MCP app asset responses", () => {
-  it.effect(
-    "transforms existing snapshots only with explicit render intent and fresh metadata",
-    () =>
-      Effect.gen(function* () {
-        const fs = yield* FileSystem.FileSystem;
-        const path = yield* Path.Path;
-        const directory = yield* fs.makeTempDirectoryScoped({ prefix: "t3-mcp-theme-" });
-        const file = path.join(directory, "app.html");
-        const html = injectMcpAppCsp(
-          "<html><head><script>vendor()</script></head><body>☃</body></html>",
-          undefined,
+  it.effect("bootstraps inline HTML and preserves downloaded originals", () =>
+    Effect.gen(function* () {
+      const fs = yield* FileSystem.FileSystem;
+      const path = yield* Path.Path;
+      const directory = yield* fs.makeTempDirectoryScoped({ prefix: "t3-mcp-theme-" });
+      const file = path.join(directory, "app.html");
+      const html = injectMcpAppCsp(
+        "<html><head><script>vendor()</script></head><body>☃</body></html>",
+        undefined,
+      );
+      yield* fs.writeFileString(file, html);
+      for (const method of ["GET", "HEAD"] as const) {
+        const response = HttpServerResponse.toWeb(
+          yield* assetFileResponse(
+            { path: file, mimeType: "text/html", renderIntent: "mcp-app" },
+            "bytes=0-1",
+            undefined,
+            method,
+          ),
         );
-        yield* fs.writeFileString(file, html);
-        for (const method of ["GET", "HEAD"] as const) {
-          const response = HttpServerResponse.toWeb(
-            yield* assetFileResponse(
-              { path: file, mimeType: "text/html", renderIntent: "mcp-app" },
-              "bytes=0-1",
-              undefined,
-              method,
-            ),
-          );
-          const expected = injectMcpAppCookieBootstrap(injectMcpAppThemeBootstrap(html));
-          expect(response.status).toBe(200);
-          expect(response.headers.get("content-length")).toBe(
-            String(new TextEncoder().encode(expected).byteLength),
-          );
-          expect(response.headers.get("etag")).toBeNull();
-          expect(response.headers.get("last-modified")).toBeNull();
-          expect(response.headers.get("content-security-policy")).toBe(
-            "sandbox allow-scripts allow-forms allow-popups allow-downloads",
-          );
-          expect(yield* Effect.promise(() => response.text())).toBe(
-            method === "HEAD" ? "" : expected,
-          );
-        }
-        for (const download of [false, true]) {
-          const response = HttpServerResponse.toWeb(
-            yield* assetFileResponse({
-              path: file,
-              mimeType: "text/html",
-              download,
-              ...(download ? { renderIntent: "mcp-app" as const } : {}),
-            }),
-          );
-          expect(yield* Effect.promise(() => response.text())).toBe(html);
-        }
-      }).pipe(Effect.provide(layerFileResponse)),
+        const expected = injectMcpAppCookieBootstrap(injectMcpAppThemeBootstrap(html));
+        expect(response.status).toBe(200);
+        expect(response.headers.get("content-length")).toBe(
+          String(new TextEncoder().encode(expected).byteLength),
+        );
+        expect(response.headers.get("etag")).toBeNull();
+        expect(response.headers.get("last-modified")).toBeNull();
+        expect(response.headers.get("content-security-policy")).toBe(
+          "sandbox allow-scripts allow-forms allow-popups allow-downloads",
+        );
+        expect(yield* Effect.promise(() => response.text())).toBe(
+          method === "HEAD" ? "" : expected,
+        );
+      }
+      for (const download of [false, true]) {
+        const response = HttpServerResponse.toWeb(
+          yield* assetFileResponse({
+            path: file,
+            mimeType: "text/html",
+            download,
+            ...(download ? { renderIntent: "mcp-app" as const } : {}),
+          }),
+        );
+        expect(yield* Effect.promise(() => response.text())).toBe(
+          download ? html : injectHtmlRenderBootstrap(html),
+        );
+      }
+    }).pipe(Effect.provide(layerFileResponse)),
   );
 
   it.effect("rejects oversized captures before transforming them", () =>
