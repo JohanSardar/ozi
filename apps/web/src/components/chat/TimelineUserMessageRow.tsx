@@ -548,7 +548,6 @@ function UserTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" 
                       mimeType: file.mimeType,
                       disposition: "inline",
                     }}
-                    onOpen={() => ctx.onFileOpen(file)}
                   />
                 ))}
               </div>

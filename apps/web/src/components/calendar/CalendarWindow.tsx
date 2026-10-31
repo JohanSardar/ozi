@@ -214,8 +214,10 @@ export function CalendarWindow({
   );
   const scroll = (node: HTMLDivElement | null) => {
     if (node)
-      node.scrollTop =
-        Math.max(0, Math.min(9, (calendarDate(event.start).getHours() || 9) - 1)) * 60;
+      node.scrollTop = Math.max(
+        0,
+        Math.max(0, Math.min(9, (calendarDate(event.start).getHours() || 9) - 1)) * 60 - 12,
+      );
   };
   const submit = async () => {
     if (!environmentId || saving || isAdded) return;

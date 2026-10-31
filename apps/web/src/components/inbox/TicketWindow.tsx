@@ -14,6 +14,7 @@ import { useRef, useState, type ReactNode } from "react";
 
 import { useRelativeTimeState } from "../../hooks/useRelativeTimeState";
 import { useThreadRouteRef } from "../../hooks/useThreadRouteTarget";
+import { cn } from "../../lib/utils";
 import { assetEnvironment } from "../../state/assets";
 import { readPreparedConnection } from "../../state/session";
 import { useAtomQueryRunner } from "../../state/use-atom-query-runner";
@@ -106,6 +107,12 @@ function Section(props: { label: string; children: ReactNode }) {
     </section>
   );
 }
+
+const TICKET_COLUMN = cn(
+  "mx-auto flex max-w-3xl flex-col gap-6 px-6 pt-6 [&_.max-w-xl]:max-w-none",
+  "[&_[class*=media-reply]]:block [&_[class*=media-reply]]:max-w-none [&_[class*=media-reply]>span]:w-full [&_[class*=media-reply]>span]:max-w-none",
+  "[&_[class*=media-reply]_:is(img,video)]:w-full [&_[class*=media-reply]_:is(img,video)]:max-w-none [&_[class*=media-reply]_:is(img,video)]:max-h-none [&_[class*=media-reply]_:is(img,video)]:aspect-auto",
+);
 
 export function TicketWindow(props: {
   environmentId: EnvironmentId;
@@ -328,7 +335,7 @@ export function TicketWindow(props: {
       <section aria-label={ticket.title} className="flex min-h-0 min-w-0 flex-1 flex-col">
         {header}
         <div className="scrollbar-gutter-both min-h-0 flex-1 overflow-y-auto">
-          <div className="mx-auto flex max-w-3xl flex-col gap-6 px-6 pt-6 [&_.max-w-xl]:max-w-none">
+          <div className={TICKET_COLUMN}>
             <RichActionsContext value={richActions}>{body}</RichActionsContext>
           </div>
           {footer}
@@ -341,7 +348,7 @@ export function TicketWindow(props: {
         {header}
         <ScrollArea scrollFade={false}>
           <div className="space-y-4">
-            <div className="mx-auto flex max-w-3xl flex-col gap-6 px-6 pt-6 [&_.max-w-xl]:max-w-none">
+            <div className={TICKET_COLUMN}>
               <RichActionsContext value={richActions}>{body}</RichActionsContext>
             </div>
             {footer}

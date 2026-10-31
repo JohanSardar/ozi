@@ -49,11 +49,11 @@ export default function TicketPdf(props: {
       onClick={props.onOpen}
       className="group block w-full max-w-xl overflow-hidden rounded-xl border border-border bg-card text-left transition-colors hover:border-ring/40"
     >
-      <span className="flex h-72 items-start justify-center overflow-hidden bg-muted px-10 pt-6">
+      <span className="flex h-80 items-center justify-center overflow-hidden bg-muted p-6">
         <canvas
           ref={canvas}
           aria-label={props.attachment.name}
-          className="w-full rounded-t-md bg-white shadow-lg transition-transform duration-200 group-hover:-translate-y-1"
+          className="max-h-full max-w-full rounded-sm bg-white shadow-lg transition-transform duration-200 group-hover:-translate-y-0.5"
         />
       </span>
       <span className="flex items-center gap-2.5 border-t border-border px-3.5 py-2.5">

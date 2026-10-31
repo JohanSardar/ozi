@@ -590,7 +590,7 @@ export function FileSheet({ target, onClose }: { target: FileSheetTarget; onClos
                   )}
                   <button
                     type="button"
-                    className={actionClass}
+                    className={cn(actionClass, "text-primary-foreground hover:bg-primary-foreground/15")}
                     onClick={() => {
                       setEditing(false);
                       setDirty(false);
@@ -602,7 +602,7 @@ export function FileSheet({ target, onClose }: { target: FileSheetTarget; onClos
                   <button
                     type="button"
                     disabled={busy}
-                    className={cn(actionClass, "bg-primary-foreground text-primary")}
+                    className={cn(actionClass, "bg-primary-foreground text-primary hover:bg-primary-foreground/90")}
                     onClick={() => void attempt(() => save())}
                   >
                     <CheckIcon className="size-4" />

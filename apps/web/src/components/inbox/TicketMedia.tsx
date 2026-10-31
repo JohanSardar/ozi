@@ -129,7 +129,7 @@ export function TicketPages(props: { environmentId: EnvironmentId; ticket: Ticke
   ));
 }
 
-function TicketVideo(props: { environmentId: EnvironmentId; attachment: ChatAttachment; onOpen: () => void }) {
+function TicketVideo(props: { environmentId: EnvironmentId; attachment: ChatAttachment }) {
   const asset = useAssetUrlState(props.environmentId, attachmentResource(props.attachment));
   return (
     <MediaVideoPlayer
@@ -137,7 +137,6 @@ function TicketVideo(props: { environmentId: EnvironmentId; attachment: ChatAtta
       sourceFailed={asset._tag === "Failure"}
       label={props.attachment.name}
       preload="metadata"
-      onOpen={props.onOpen}
       className="block w-full max-w-xl overflow-hidden rounded-lg bg-black"
       videoClassName="aspect-auto"
     />
@@ -164,8 +163,8 @@ export function TicketAttachment(props: {
         />
       </button>
     );
-  if (kind === "video") return <TicketVideo environmentId={environmentId} attachment={attachment} onOpen={open} />;
-  if (kind === "audio") return <InlineAudioPreview name={attachment.name} environmentId={environmentId} resource={attachmentResource(attachment)} onOpen={open} />;
+  if (kind === "video") return <TicketVideo environmentId={environmentId} attachment={attachment} />;
+  if (kind === "audio") return <InlineAudioPreview name={attachment.name} environmentId={environmentId} resource={attachmentResource(attachment)} />;
   if (kind === "pdf")
     return (
       <Suspense fallback={<span className="block h-[22rem] w-full max-w-xl rounded-xl bg-muted" />}>
