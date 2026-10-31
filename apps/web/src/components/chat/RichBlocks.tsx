@@ -239,7 +239,15 @@ function EventCard(props: typeof EventBlock.Type) {
   return (
     <Card
       summary={[props.title, when, props.location].filter(Boolean).join(" · ")}
-      onOpen={valid ? () => downloadIcs(props) : undefined}
+      onOpen={
+        valid
+          ? () => {
+              void import("../calendar/openCalendar").then(({ openCalendar }) =>
+                openCalendar(props, () => downloadIcs(props)),
+              );
+            }
+          : undefined
+      }
     >
       <div className="flex gap-3.5 p-3.5">
         {valid ? (
