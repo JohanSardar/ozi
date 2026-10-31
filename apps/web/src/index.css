@@ -89,7 +89,7 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
 }
 
 :root {
-  --app-scrollbar-width: 6px;
+  --app-scrollbar-width: 0px;
   --appearance-contrast-base: 100%;
   --appearance-contrast-boost: 0%;
   --appearance-contrast-border-boost: 0%;
@@ -1827,22 +1827,13 @@ code {
   -webkit-app-region: no-drag;
 }
 
-/* Scrollbar styling */
+/* No visible scrollbars anywhere: content scrolls by wheel, trackpad and touch. */
+* {
+  scrollbar-width: none !important;
+}
+
 ::-webkit-scrollbar {
-  width: var(--app-scrollbar-width);
-}
-
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-::-webkit-scrollbar-thumb {
-  background: var(--app-scrollbar-thumb);
-  border-radius: 3px;
-}
-
-::-webkit-scrollbar-thumb:hover {
-  background: var(--app-scrollbar-thumb-hover);
+  display: none;
 }
 
 /* Chat markdown rendering */
@@ -2122,23 +2113,12 @@ code {
   border-radius: 0.5rem;
   background: var(--muted);
   padding: 0.8rem 0.9rem;
-  scrollbar-width: thin;
-  scrollbar-color: color-mix(in srgb, var(--contrast-border) 78%, transparent) transparent;
 }
 
 .chat-markdown pre code {
   border: none;
   background: transparent;
   padding: 0;
-}
-
-.chat-markdown pre::-webkit-scrollbar {
-  height: var(--app-scrollbar-width);
-}
-
-.chat-markdown pre::-webkit-scrollbar-thumb {
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--contrast-border) 78%, transparent);
 }
 
 :is(.chat-markdown, .composer-tiptap) .chat-markdown-codeblock-header {

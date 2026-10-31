@@ -11,9 +11,6 @@ export function ExtensionUiLines(props: {
   if (ui === null) return null;
   const statuses = Object.values(ui.statuses);
   const lines = [
-    ...(placement === "aboveEditor"
-      ? ui.notices.map((notice) => ({ key: `notice:${notice.id}`, text: notice.message }))
-      : []),
     ...Object.entries(ui.widgets)
       .filter(([, widget]) => widget.placement === placement)
       .map(([key, widget]) => ({ key: `widget:${key}`, text: widget.lines.join("\n") })),

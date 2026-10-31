@@ -30,7 +30,10 @@ export const TicketChoice = Schema.Struct({
   ),
 });
 export const TicketHtmlPage = Schema.Struct({
-  title: TrimmedNonEmptyString,
+  title: TrimmedNonEmptyString.annotate({
+    description:
+      "The page's takeaway in a few words, readable at a glance, e.g. 'Piccolo Sogno leads: best rated, free at 7:30', not 'Restaurant comparison'. The page itself repeats no title.",
+  }),
   attachment: Schema.Struct({
     ...ChatFileAttachment.fields,
     mimeType: Schema.Literal("text/html"),

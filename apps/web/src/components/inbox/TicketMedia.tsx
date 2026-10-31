@@ -3,10 +3,11 @@ import { classifyMarkdownImageSource } from "@t3tools/client-runtime/markdown-im
 import type { AssetResource, ChatAttachment, EnvironmentId, Ticket } from "@t3tools/contracts";
 import { filePreviewKind } from "@t3tools/shared/filePreview";
 import { mediaKindFromPath } from "@t3tools/shared/mediaPreview";
-import { FileIcon } from "lucide-react";
+import { ChevronDownIcon, FileIcon } from "lucide-react";
 import { useState } from "react";
 
 import { useAssetUrlState } from "../../assets/assetUrls";
+import { observeResize } from "../../lib/observeResize";
 import { cn } from "../../lib/utils";
 import { ChatMarkdownAssetImage } from "../chat/ChatMarkdownMedia";
 import { HtmlRenderFrame } from "../chat/HtmlRenderFrame";
@@ -66,16 +67,61 @@ export function TicketImage(props: {
   );
 }
 
-export function TicketPages(props: { environmentId: EnvironmentId; ticket: Ticket }) {
-  const threadRef = scopeThreadRef(props.environmentId, props.ticket.origin.threadId);
-  return props.ticket.htmlPages.map((page) => (
-    <div key={page.attachment.id} className="overflow-hidden rounded-lg border border-border">
-      <HtmlRenderFrame
-        environmentId={props.environmentId}
-        htmlRender={{ attachmentId: page.attachment.id, title: page.title, height: 360 }}
-        threadRef={threadRef}
-      />
+const PAGE_PREVIEW_HEIGHT = 224;
+
+function TicketPage(props: {
+  environmentId: EnvironmentId;
+  ticket: Ticket;
+  page: Ticket["htmlPages"][number];
+}) {
+  const [open, setOpen] = useState(false);
+  const [tall, setTall] = useState(false);
+  const measure = (box: HTMLDivElement) =>
+    observeResize(box, () => setTall(box.offsetHeight > PAGE_PREVIEW_HEIGHT + 24));
+  return (
+    <div>
+      <p className="mb-2 text-sm leading-5 font-medium">{props.page.title}</p>
+      <div
+        className={cn(
+          "overflow-hidden rounded-lg",
+          tall && !open && "[mask-image:linear-gradient(to_bottom,black_55%,transparent)]",
+        )}
+        style={tall && !open ? { maxHeight: PAGE_PREVIEW_HEIGHT } : undefined}
+      >
+        <div ref={measure}>
+          <HtmlRenderFrame
+            environmentId={props.environmentId}
+            htmlRender={{
+              attachmentId: props.page.attachment.id,
+              title: props.page.title,
+              height: PAGE_PREVIEW_HEIGHT,
+            }}
+            threadRef={scopeThreadRef(props.environmentId, props.ticket.origin.threadId)}
+          />
+        </div>
+      </div>
+      {tall ? (
+        <button
+          type="button"
+          onClick={() => setOpen(!open)}
+          className="mt-1.5 flex items-center gap-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground"
+        >
+          <ChevronDownIcon className={cn("size-3.5 transition-transform", open && "rotate-180")} />
+          {open ? "Show less" : "Show all"}
+        </button>
+      ) : null}
     </div>
+  );
+}
+
+export function TicketPages(props: { environmentId: EnvironmentId; ticket: Ticket }) {
+  return props.ticket.htmlPages.map((page) => (
+    <TicketPage
+      key={page.attachment.id}
+      environmentId={props.environmentId}
+      ticket={props.ticket}
+      page={page}
+    />
   ));
 }
 

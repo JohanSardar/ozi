@@ -60,10 +60,10 @@ export function Choices(props: {
                 environmentId={props.environmentId}
                 ticket={props.ticket}
                 image={choice.image}
-                className="aspect-4/3 w-full"
+                className="aspect-video w-full"
               />
             ) : (
-              <span className="block aspect-4/3 w-full bg-muted" />
+              <span className="block aspect-video w-full bg-muted" />
             )}
             <span className="absolute top-1.5 left-1.5 h-5 min-w-5 rounded-sm bg-background/85 px-1 text-center text-xs leading-5 text-muted-foreground tabular-nums backdrop-blur">
               {index + 1}
