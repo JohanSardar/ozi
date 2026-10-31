@@ -67,7 +67,7 @@ export function TicketImage(props: {
   );
 }
 
-const PAGE_PREVIEW_HEIGHT = 224;
+const PAGE_PREVIEW_HEIGHT = 320;
 
 function TicketPage(props: {
   environmentId: EnvironmentId;
@@ -77,13 +77,13 @@ function TicketPage(props: {
   const [open, setOpen] = useState(false);
   const [tall, setTall] = useState(false);
   const measure = (box: HTMLDivElement) =>
-    observeResize(box, () => setTall(box.offsetHeight > PAGE_PREVIEW_HEIGHT + 24));
+    observeResize(box, () => setTall(box.offsetHeight > PAGE_PREVIEW_HEIGHT * 1.4));
   return (
     <div>
       <p className="mb-2 text-sm leading-5 font-medium">{props.page.title}</p>
       <div
         className={cn(
-          "overflow-hidden rounded-lg",
+          "overflow-hidden rounded-xl border border-border bg-background px-4 py-3",
           tall && !open && "[mask-image:linear-gradient(to_bottom,black_55%,transparent)]",
         )}
         style={tall && !open ? { maxHeight: PAGE_PREVIEW_HEIGHT } : undefined}
