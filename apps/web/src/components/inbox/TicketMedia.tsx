@@ -4,14 +4,15 @@ import type { AssetResource, ChatAttachment, EnvironmentId, Ticket } from "@t3to
 import { filePreviewKind } from "@t3tools/shared/filePreview";
 import { mediaKindFromPath } from "@t3tools/shared/mediaPreview";
 import { ChevronDownIcon, FileIcon } from "lucide-react";
-import { useState } from "react";
+import { lazy, Suspense, useState } from "react";
 
 import { useAssetUrlState } from "../../assets/assetUrls";
 import { observeResize } from "../../lib/observeResize";
 import { cn } from "../../lib/utils";
-import { ChatMarkdownAssetImage } from "../chat/ChatMarkdownMedia";
 import { HtmlRenderFrame } from "../chat/HtmlRenderFrame";
 import { AttachmentFilePreview } from "../files/AttachmentFilePreview";
+
+const TicketPdf = lazy(() => import("./TicketPdf"));
 
 type TicketPicture = string | ChatAttachment;
 
@@ -151,16 +152,22 @@ export function TicketAttachment(props: {
   const kind = filePreviewKind(attachment);
   if (kind === "image")
     return (
-      <div className="max-w-xl [&_img]:w-full">
-        <ChatMarkdownAssetImage
+      <button type="button" onClick={props.onOpen} className="block w-full max-w-xl cursor-zoom-in">
+        <TicketImage
           environmentId={environmentId}
-          resource={attachmentResource(attachment)}
-          alt={attachment.name}
-          standalone
+          ticket={props.ticket}
+          image={attachment}
+          className="h-auto w-full rounded-xl border border-border object-contain"
         />
-      </div>
+      </button>
     );
   if (kind === "video") return <TicketVideo environmentId={environmentId} attachment={attachment} />;
+  if (kind === "pdf")
+    return (
+      <Suspense fallback={<span className="block h-[22rem] w-full max-w-xl rounded-xl bg-muted" />}>
+        <TicketPdf environmentId={environmentId} attachment={attachment} onOpen={props.onOpen} />
+      </Suspense>
+    );
   if (["audio", "text", "markdown", "html"].includes(kind))
     return (
       <div
@@ -190,7 +197,7 @@ export function TicketAttachment(props: {
       <span className="min-w-0 flex-1">
         <span className="block truncate text-sm font-medium">{attachment.name}</span>
         <span className="block text-xs text-muted-foreground uppercase">
-          {kind === "pdf" ? "PDF" : (attachment.name.split(".").pop() ?? "File")}
+          {attachment.name.split(".").pop() ?? "File"}
         </span>
       </span>
       <span className="text-xs font-medium text-muted-foreground">Open</span>
