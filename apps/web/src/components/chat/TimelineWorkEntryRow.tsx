@@ -32,7 +32,7 @@ import {
 } from "../../session-logic";
 import ChatMarkdown from "../ChatMarkdown";
 import { ChatMarkdownAssetImage } from "./ChatMarkdownMedia";
-import { ChevronRightIcon, CircleAlertIcon, XIcon, RotateCcwIcon } from "lucide-react";
+import { CheckIcon, ChevronRightIcon, CircleAlertIcon, XIcon, RotateCcwIcon } from "lucide-react";
 import { Button, InlineButton } from "../ui/button";
 import { useAssetUrls } from "../../assets/assetUrls";
 import { useThreadShell } from "../../state/entities";
@@ -153,6 +153,14 @@ export const SimpleWorkEntryRow = memo(function SimpleWorkEntryRow(props: WorkEn
   const item = props.workEntry.projectedItem?.item;
   const childThreadId =
     item?.type === "notification" ? notificationChildThreadId(item.source) : undefined;
+  if (item?.type === "notification" && item.id.startsWith("ticket:") && item.id.endsWith(":closed")) {
+    return (
+      <div className="flex min-w-0 items-start gap-2 py-2 text-sm text-muted-foreground">
+        <CheckIcon aria-hidden className="mt-0.5 size-4 shrink-0 text-success" />
+        <span className="min-w-0 break-words">{item.summary}</span>
+      </div>
+    );
+  }
   if (item?.type !== "notification" || childThreadId === undefined) {
     return <WorkEntryLogRow {...props} />;
   }

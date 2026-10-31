@@ -203,7 +203,7 @@ export function ComposerControlsBar(props: {
     hasTraits: providerTraitsPicker !== null,
     planModeUiEnabled,
     collapsed: composerControlsCollapsed,
-    measuredHiddenBlockCount,
+    measuredHiddenBlockCount: Math.max(measuredHiddenBlockCount, 2),
   });
   const restingProviderTraitsPicker = renderProviderTraitsPicker({
     ...providerTraitsPickerInput,

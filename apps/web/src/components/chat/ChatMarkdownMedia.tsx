@@ -1,12 +1,14 @@
 import { MISSING_FILE_ACCESS_MESSAGE } from "@t3tools/client-runtime/state/assets";
 import { mediaFileReference, mediaUrlReference } from "@t3tools/client-runtime/media-reference";
 import type { AssetResource, EnvironmentId } from "@t3tools/contracts";
-import { TriangleAlertIcon } from "lucide-react";
+import { ReplyIcon, TriangleAlertIcon } from "lucide-react";
 import {
   createContext,
   memo,
+  use,
   useState,
   type ComponentProps,
+  type ReactNode,
   type CSSProperties,
   type KeyboardEvent as ReactKeyboardEvent,
   type MouseEvent as ReactMouseEvent,
@@ -18,6 +20,7 @@ import { useRightPanelStore } from "../../rightPanelStore";
 import { MediaActions, type MediaActionSource } from "../media/MediaActions";
 import { MediaVideoPlayer } from "../media/MediaVideoPlayer";
 import type { ExpandedImagePreview } from "./ExpandedImagePreview";
+import { RichActionsContext } from "./RichBlocks";
 import { markdownImageGallery, markdownImageItems } from "./markdownImageGallery";
 
 const CHAT_MARKDOWN_MEDIA_MAX_WIDTH_CLASS_NAME = "max-w-[min(100%,30rem)]";
@@ -146,12 +149,40 @@ const CHAT_MARKDOWN_IMAGE_FRAME_CLASS_NAME = cn(
   CHAT_MARKDOWN_MEDIA_FRAME_CLASS_NAME,
 );
 
+function MediaReply({ summary, children }: { summary: string; children: ReactNode }) {
+  const { quote } = use(RichActionsContext);
+  return (
+    <span className="group/media-reply relative inline-block max-w-full align-top">
+      {children}
+      {quote ? (
+        <button
+          type="button"
+          aria-label="Reply to media"
+          onClick={() => quote(summary)}
+          className="absolute right-2 top-2 z-10 flex items-center gap-1.5 rounded-md border border-border bg-popover px-2 py-1.5 text-xs text-popover-foreground opacity-0 shadow-sm transition-opacity hover:bg-accent focus-visible:opacity-100 group-hover/media-reply:opacity-100 group-focus-within/media-reply:opacity-100 pointer-coarse:opacity-100"
+        >
+          <ReplyIcon className="size-3.5" />
+          Reply
+        </button>
+      ) : null}
+    </span>
+  );
+}
+
+export function ChatMarkdownImage(props: ComponentProps<typeof ChatMarkdownImageContent>) {
+  return (
+    <MediaReply summary={props.copyMarkdown ?? props.alt ?? "Image"}>
+      <ChatMarkdownImageContent {...props} />
+    </MediaReply>
+  );
+}
+
 /**
  * Callers key this on the file's identity, not its URL: a re-signed URL for
  * the same file keeps the decoded image on screen while the new bytes arrive,
  * and a different file starts from the slot again.
  */
-export function ChatMarkdownImage(props: {
+function ChatMarkdownImageContent(props: {
   readonly src: string | null;
   readonly sourceFailed?: boolean | undefined;
   readonly unavailableDetail?: string | undefined;
@@ -272,7 +303,15 @@ export function ChatMarkdownImage(props: {
   );
 }
 
-export function ChatMarkdownVideo(props: {
+export function ChatMarkdownVideo(props: ComponentProps<typeof ChatMarkdownVideoContent>) {
+  return (
+    <MediaReply summary={props.copyMarkdown ?? props.alt ?? "Video"}>
+      <ChatMarkdownVideoContent {...props} />
+    </MediaReply>
+  );
+}
+
+function ChatMarkdownVideoContent(props: {
   readonly src: string | null;
   readonly alt: string;
   readonly copyMarkdown: string | undefined;

@@ -10,7 +10,7 @@ export function ComposerReplyQuote({
   onRemove: () => void;
 }) {
   return (
-    <div className="mx-2.5 mt-2.5 flex items-start gap-2 rounded-md border-primary border-l-2 bg-accent px-2.5 py-2 text-muted-foreground text-xs">
+    <div className="mb-3 flex items-start gap-2 rounded-lg border-primary border-l-2 bg-accent px-3 py-2.5 text-muted-foreground text-xs">
       <CornerUpLeftIcon aria-hidden className="mt-0.5 size-3.5 shrink-0" />
       <p className="line-clamp-2 min-w-0 flex-1">Replying to “{citation.text}”</p>
       <Button

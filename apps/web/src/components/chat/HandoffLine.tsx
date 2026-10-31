@@ -56,12 +56,12 @@ export function HandoffLine(props: {
       type="button"
       aria-label={`${props.title} · ${state}`}
       onClick={open}
-      className="mt-3 mb-0.5 inline-flex max-w-full items-center gap-2.5 rounded-lg border border-border bg-card py-2 pr-2.5 pl-3 text-left text-sm transition-colors hover:border-ring/40"
+      className="mt-3 mb-0.5 inline-flex max-w-full items-start gap-2 rounded-lg px-2 py-2 text-left text-sm transition-colors hover:bg-accent"
     >
-      <CornerDownRightIcon aria-hidden className="size-3.5 shrink-0 text-muted-foreground/70" />
-      <span className="min-w-0 truncate font-medium">{props.title}</span>
+      <CornerDownRightIcon aria-hidden className="mt-0.5 size-3.5 shrink-0 text-muted-foreground/70" />
+      <span className="min-w-0 break-words font-medium">{props.title}</span>
       <span className="shrink-0 text-muted-foreground">· {state}</span>
-      <ChevronRightIcon aria-hidden className="size-3.5 shrink-0 text-muted-foreground/70" />
+      <ChevronRightIcon aria-hidden className="mt-0.5 size-3.5 shrink-0 text-muted-foreground/70" />
     </button>
   );
 }

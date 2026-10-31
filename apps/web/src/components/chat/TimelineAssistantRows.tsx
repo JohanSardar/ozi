@@ -11,6 +11,7 @@ import { ProposedPlanCard } from "./ProposedPlanCard";
 import { HtmlRenderFrame } from "./HtmlRenderFrame";
 import { McpAppFrame } from "./McpAppFrame";
 import { MessageCopyButton } from "./MessageCopyButton";
+import { RichActionsContext } from "./RichBlocks";
 import { AssistantCitationSource } from "./AssistantCitationSource";
 import { resolveAssistantMessageCopyState } from "./MessagesTimeline.logic";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -23,6 +24,23 @@ import { MESSAGE_HEADING_LEVEL, MessageAuthorHeading } from "./TimelineRowParts"
 
 export function AssistantTimelineRow({ row }: { row: Extract<TimelineRow, { kind: "message" }> }) {
   const ctx = use(TimelineRowCtx);
+  const richActions = use(RichActionsContext);
+  const quoteCard = ctx.onCiteAssistantText && ctx.threadRef
+    ? (summary: string) => {
+        const text = summary.slice(0, ASSISTANT_CITATION_MAX_TEXT_LENGTH);
+        if (!text.trim() || !ctx.threadRef) return;
+        ctx.onCiteAssistantText?.({
+          version: 1,
+          ...ctx.threadRef,
+          messageId: row.message.id,
+          text,
+          start: 0,
+          end: text.length,
+          prefix: "",
+          suffix: "",
+        });
+      }
+    : undefined;
   const messageText = row.message.text || (row.message.streaming ? "" : "(empty response)");
 
   return (
@@ -37,18 +55,20 @@ export function AssistantTimelineRow({ row }: { row: Extract<TimelineRow, { kind
             request={ctx.citationRequest}
             listRef={ctx.listRef}
           >
-            <ChatMarkdown
-              text={messageText}
-              cwd={ctx.markdownCwd}
-              threadRef={ctx.threadRef ?? undefined}
-              isStreaming={Boolean(row.message.streaming)}
-              lineBreaks={shouldPreserveAssistantLineBreaks(messageText)}
-              skills={ctx.skills}
-              headingLevelOffset={MESSAGE_HEADING_LEVEL}
-              onUseArtifactTemplate={ctx.onUseArtifactTemplate}
-              onRunShellCommand={ctx.onRunShellCommand}
-              onImageExpand={ctx.onImageExpand}
-            />
+            <RichActionsContext value={{ ...richActions, ...(quoteCard ? { quote: quoteCard } : {}) }}>
+              <ChatMarkdown
+                text={messageText}
+                cwd={ctx.markdownCwd}
+                threadRef={ctx.threadRef ?? undefined}
+                isStreaming={Boolean(row.message.streaming)}
+                lineBreaks={shouldPreserveAssistantLineBreaks(messageText)}
+                skills={ctx.skills}
+                headingLevelOffset={MESSAGE_HEADING_LEVEL}
+                onUseArtifactTemplate={ctx.onUseArtifactTemplate}
+                onRunShellCommand={ctx.onRunShellCommand}
+                onImageExpand={ctx.onImageExpand}
+              />
+            </RichActionsContext>
           </AssistantCitationSource>
         </div>
 
