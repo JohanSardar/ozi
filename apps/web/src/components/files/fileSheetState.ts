@@ -11,12 +11,12 @@ export interface FileSheetTarget {
   name: string;
   mimeType: string;
   sizeBytes: number;
-  environmentId?: EnvironmentId;
-  resource?: AssetResource;
-  attachment?: ChatAttachment;
-  threadRef?: ScopedThreadRef;
+  environmentId?: EnvironmentId | undefined;
+  resource?: AssetResource | undefined;
+  attachment?: ChatAttachment | undefined;
+  threadRef?: ScopedThreadRef | undefined;
   file?: Blob | null;
-  src?: string;
+  src?: string | undefined;
   ticket?: Ticket;
 }
 export const useFileSheet = create<{

@@ -38,7 +38,7 @@ import { connectionAtomRuntime } from "~/connection/runtime";
 import { useAtomCommand } from "~/state/use-atom-command";
 import { useAssetUrlRefresh } from "~/assets/assetUrls";
 import { Dialog, DialogPopup, DialogTitle } from "~/components/ui/dialog";
-import { cn } from "~/lib/utils";
+import { cn, randomUUID } from "~/lib/utils";
 import VirtualTablePreview from "./VirtualTablePreview";
 import { PREVIEW_PAGE_ROWS } from "./largeTextProtocol";
 import PdfViewer from "./PdfViewer";
@@ -225,7 +225,7 @@ export function FileSheet({ target, onClose }: { target: FileSheetTarget; onClos
       setError("Select text in the file first.");
       return;
     }
-    const next = [...notes, { id: crypto.randomUUID(), quote: selection, comment: text }];
+    const next = [...notes, { id: randomUUID(), quote: selection, comment: text }];
     void attempt(() => save(next));
     setCommenting(false);
     setComment("");
@@ -397,7 +397,7 @@ export function FileSheet({ target, onClose }: { target: FileSheetTarget; onClos
                 mimeType={target.mimeType}
                 sizeBytes={blob.size}
                 file={blob}
-                threadRef={target.threadRef}
+                {...(target.threadRef ? { threadRef: target.threadRef } : {})}
                 sheetContent
               />
             ) : (
@@ -655,7 +655,7 @@ export function FileSheet({ target, onClose }: { target: FileSheetTarget; onClos
                               ...(selection
                                 ? [
                                     {
-                                      id: crypto.randomUUID(),
+                                      id: randomUUID(),
                                       quote: selection,
                                       comment: "Selected text",
                                     },
@@ -693,7 +693,7 @@ export function FileSheet({ target, onClose }: { target: FileSheetTarget; onClos
                             ...(selection
                               ? [
                                   {
-                                    id: crypto.randomUUID(),
+                                    id: randomUUID(),
                                     quote: selection,
                                     comment: "Selected text",
                                   },
