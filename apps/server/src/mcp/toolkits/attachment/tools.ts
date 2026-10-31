@@ -1,3 +1,5 @@
+import { ChatFileAttachment } from "@t3tools/contracts";
+import { AttachmentVersionsInput, AttachmentVersionsResult } from "@t3tools/contracts";
 import { McpAttachmentInput } from "./input.ts";
 import {
   AttachmentCreateUploadUrlInput,
@@ -66,7 +68,11 @@ const AttachmentSendTool = Tool.make("ozi_thread_send_attachments", {
 })
   .annotate(Tool.Destructive, true)
   .annotate(Tool.OpenWorld, true);
+const AttachmentImportTool = Tool.make("ozi_attachment_import", { ...shared, description: "Store file bytes as a durable attachment, without sending a message or starting a turn. Returns a file reference for tickets or version history.", parameters: Schema.Struct({ threadId: ThreadId, name: Schema.String, mimeType: Schema.String, contentBase64: Schema.String.check(Schema.isMaxLength(70000000)) }), success: ChatFileAttachment }).annotate(Tool.Destructive, true);
+const AttachmentVersionsTool = Tool.make("ozi_attachment_versions", { ...shared, dependencies: [...shared.dependencies, DocumentText.DocumentText], description: "Read, list, create or restore immutable file versions. Supply the original attachment and origin thread. create accepts contentBase64; restore creates a new version. read returns contentBase64. Keep the original attachment ID to update the user’s open file sheet.", parameters: AttachmentVersionsInput, success: AttachmentVersionsResult }).annotate(Tool.Destructive, true);
 export const AttachmentToolkit = Toolkit.make(
+  AttachmentImportTool,
+  AttachmentVersionsTool,
   AttachmentUploadTool,
   AttachmentDiscardTool,
   AttachmentSendTool,

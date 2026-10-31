@@ -1,3 +1,4 @@
+import { attachmentCommand } from "./cli/attachment.ts";
 import {
   sessionCommand,
   printCommand,
@@ -65,6 +66,7 @@ export const makeCli = () =>
       browserCommand,
       threadCommand,
       ticketCommand,
+      attachmentCommand,
       inboxCommand,
       terminalCommand,
       scheduleCommand,

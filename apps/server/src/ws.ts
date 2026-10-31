@@ -1,3 +1,5 @@
+import { OrchestratorMcpFailure } from "@t3tools/contracts";
+import { attachmentVersions } from "./mcp/toolkits/attachment/versions.ts";
 import * as Tickets from "./tickets/Tickets.ts";
 import { linkPreview } from "./linkPreview.ts";
 import * as TicketClearing from "./tickets/TicketClearing.ts";
@@ -2317,6 +2319,7 @@ export const layerWsRpc = (
             ),
           ),
         [WS_METHODS.attachmentsCreateUploadUrl]: (input) => issueAttachmentUploadUrl(input),
+        [WS_METHODS.attachmentVersions]: (input) => attachmentVersions(input, "you").pipe(Effect.mapError(() => new OrchestratorMcpFailure({ code: "invalid_request", message: "Could not access file versions." }))),
         [WS_METHODS.attachmentsDelete]: (input) => deletePendingAttachment(input.attachmentId),
         [WS_METHODS.chatSessionsExecute]: (input) => chatSessions.execute(input),
         [WS_METHODS.chatSessionsPrint]: (input) => chatSessions.print(input),

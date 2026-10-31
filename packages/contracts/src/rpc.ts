@@ -1,3 +1,5 @@
+import { OrchestratorMcpFailure } from "./orchestratorMcp.ts";
+import { AttachmentVersionsInput, AttachmentVersionsResult } from "./attachmentVersions.ts";
 import {
   WorkspaceListEntriesError,
   WorkspaceListEntriesInput,
@@ -289,6 +291,7 @@ export const WS_METHODS = {
   assetsPersistChatAttachments: "assets.persistChatAttachments",
   attachmentsCreateUploadUrl: "attachments.createUploadUrl",
   attachmentsDelete: "attachments.delete",
+  attachmentVersions: "attachments.versions",
 
   mcpAppsCallTool: "mcpApps.callTool",
   mcpAppsToolInfo: "mcpApps.toolInfo",
@@ -814,6 +817,8 @@ const WsAttachmentsCreateUploadUrlRpc = Rpc.make(WS_METHODS.attachmentsCreateUpl
   success: AttachmentCreateUploadUrlResult,
   error: Schema.Union([AttachmentUploadSigningKeyError, EnvironmentAuthorizationError]),
 });
+
+const WsAttachmentVersionsRpc = Rpc.make(WS_METHODS.attachmentVersions, { payload: AttachmentVersionsInput, success: AttachmentVersionsResult, error: OrchestratorMcpFailure });
 
 const WsAttachmentsDeleteRpc = Rpc.make(WS_METHODS.attachmentsDelete, {
   payload: AttachmentDeleteInput,
@@ -1353,6 +1358,7 @@ export const WsRpcGroup = RpcGroup.make(
   WsAssetsCreateUrlRpc,
   WsAssetsPersistChatAttachmentsRpc,
   WsAttachmentsCreateUploadUrlRpc,
+  WsAttachmentVersionsRpc,
   WsAttachmentsDeleteRpc,
   WsMcpAppsCallToolRpc,
   WsMcpAppsToolInfoRpc,

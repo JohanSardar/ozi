@@ -1,3 +1,4 @@
+import { attachmentVersions, importAttachment } from "./versions.ts";
 import {
   ATTACHMENT_UPLOAD_URL_TTL_MS,
   type ChatAttachment,
@@ -48,6 +49,8 @@ export const layer = McpToolAccess.toLayer(
     return {
       // A pending upload belongs to its caller until a send claims it, so
       // linked callers may stage the uploads their own sends need.
+      ozi_attachment_import: McpToolAccess.writesThreads((input) => [input.threadId], (input) => Effect.gen(function* () { yield* readThread(input.threadId, ["messages"]); return yield* importAttachment(input).pipe(Effect.mapError(unavailable)); })),
+      ozi_attachment_versions: McpToolAccess.writesThreads((input) => [input.threadId], (input) => Effect.gen(function* () { yield* readThread(input.threadId, ["messages"]); return yield* attachmentVersions(input, "Ozi").pipe(Effect.mapError(unavailable)); })),
       ozi_attachment_prepare_upload: McpToolAccess.writes(
         (input) =>
           Effect.gen(function* () {

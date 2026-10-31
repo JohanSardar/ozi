@@ -57,3 +57,4 @@ export * from "./chatSessions.ts";
 export * from "./textGeneration.ts";
 
 export * from "./workspace.ts";
+export * from "./attachmentVersions.ts";
