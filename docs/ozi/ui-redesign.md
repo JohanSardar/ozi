@@ -66,7 +66,11 @@ Three columns: chats, conversation, inbox.
 
 ## Look
 
-- T3's design, slightly squarer: 6–8px corners.
+- T3's design, squarer: 8px corners, never pills. The app's line icons only; no emoji, illustrations or drawn placeholders. Real photos or no picture.
+- Colour stays: blue for the main button, links and edit mode; green and amber for meaning; coloured details such as the date tile.
+- Content first: one column, few nested boxes, clear type sizes, generous padding. No scrollbars anywhere and no browser-native widgets that can't be styled (PDFs use the app's PDF.js viewer).
+- Material 3 Expressive toolbar ideas only: the current thing gets a floating action bar with one emphasised action and the rest in a ⋯ menu. Quick motion, not springy.
+- Cards have no inner buttons: clicking a card opens it; hovering shows Reply, Open and Copy, in tickets and in chat. Reply quotes the card above the reply field or composer.
 - T3's light and dark modes, preset themes and advanced theme editor (background, surface, raised surface, overlay, text, muted text, border, input, accent, message surface, sidebar colors, status colors).
 - Settings is T3's overlay window with search, keeping General, Appearance, Chat, Keybindings, Agents (Providers, Browser, Scheduled tasks), Connections (Environments, Sharing & access), Maintenance and About.
 
@@ -130,7 +134,7 @@ The inbox is a fixed right column beside every chat from 1024px wide (340px, 404
 
 ## I4 ticket window
 
-Open details, and any archive row, opens the ticket in T3's dialog over the app (760px wide, up to 86% of the height). The header shows the group, or Archived with how it cleared, then its chat and age. The body shows the title, the bold need, What happened (summary), Details (the markdown), Pick one (open tickets only), Pages (HTML pages inline, sandboxed, with an expand button), Files (images, video, audio, PDF, text and markdown previewed inline; other files are chips that open in a new tab) and Sources: Session transcript opens the calling thread and Job opens the worker. The footer names the chat the reply goes to (the current chat, or New chat) above a reply box with Send, and Got it for open tickets. Clicking outside, Esc, sending, choosing, Got it or a source link closes it; while it is open the inbox's number keys are off. Inbox rows carry no icons.
+Open details (in the card's ⋯ menu), and any archive row, opens the ticket in T3's dialog over the app (up to 71rem or 92% of the width, 88% of the height). The header shows the group, or Archived with how it cleared, then its chat and age. The body is one 768px column: the title, the bold need, What happened (summary), Details (the markdown; its photos and videos fill the column), Pick one (open tickets only, compact rows with an 80px photo), Pages (titled with the takeaway, in a padded box, collapsed past 320px with Show all) and Files: photos fill the column, video and audio play in Ozi's own players (big play button, click to toggle, thick timeline; audio has a waveform), PDFs show their whole first page, text, markdown and CSV show a preview card, other files a file card; every file opens in the file sheet. The footer is a floating bar: the reply field (placeholder names the chat it goes to), a ⋯ menu with Open chat and Open job, and one blue button, Send when there is text, else Got it. A card's Reply puts a removable quote chip above the field; the reply is sent with the card quoted. Clicking outside, Esc, sending, choosing, Got it or a source link closes it; while it is open the inbox's number keys are off. Inbox rows carry no icons.
 
 ## R1 rich content
 
@@ -138,10 +142,12 @@ Chat messages and ticket details render through the same markdown, so agents can
 
 Fenced blocks with a JSON body become cards; invalid JSON stays a code block:
 
-- `map {"name","address","lat"?,"lon"?}`: an embedded Google map (no key) pinned at the coordinates or address, with Open in Maps.
-- `event {"title","start","end"?,"location"?,"notes"?}`: date, time and place, with Add to calendar (a generated .ics). A date without a time is all day.
-- `draft {"kind":"email"|"message","to","subject"?,"body"}`: the message as it will be sent. Send replies "Send it as written:" with the draft quoted; Edit edits in place and Send then replies "Send this edited version:". In chat the reply goes to that chat; in a ticket it is a ticket reply.
-- `browser {"url","label"?,"note"?}`: Open shows the page in Ozi's browser panel for the chat on screen, else a new tab. For steps only the user can finish.
+- `map {"name","address","lat"?,"lon"?}`: an embedded Google map (no key, Google's corner link cropped) pinned at the coordinates or address; clicking the card opens Google Maps.
+- `event {"title","start","end"?,"location"?,"notes"?}`: date tile, time and place; clicking opens the calendar (K1). A date without a time is all day.
+- `draft {"kind":"email"|"message","to","subject"?,"body"}`: looks like the real thing, a text bubble or a new email with To and Subject. Send replies "Send it as written:" with the draft quoted; Edit edits in place and Send then replies "Send this edited version:". In chat the reply goes to that chat; in a ticket it is a ticket reply.
+- `browser {"url","label"?,"note"?}`: clicking shows the page in Ozi's browser panel for the chat on screen, else a new tab. For steps only the user can finish.
+
+The ticket tools validate these blocks: a malformed map, event, draft or browser block is rejected with an error naming the field. Ticket HTML pages get the same bootstrap as `html_render` pages (transparent background, app fonts, no scrollbars, images fit).
 
 A paragraph that is only an http(s) URL becomes a link card with the page's title, description and image from `links.preview` (orchestration read scope). The server fetches public addresses only (every resolved address is checked, private, loopback, link-local and NAT64 ranges refused), follows up to three redirects, reads at most 512 KB of HTML within 5 s and caches results for an hour.
 
@@ -188,3 +194,11 @@ Every clearance goes through `tickets.close` (and `ozi ticket close`), `tickets.
 ## G4 settings sections
 
 Settings shows General, Appearance, Chat, Keybindings, Agents (Providers, Browser, Scheduled tasks), Connections (Environments, Sharing & access), Maintenance and About; search finds only their rows. Threads, Labs, SnapShots and Archive are gone, with their old redirects. Their surviving settings moved: new-chat defaults, text generation and plan mode to Chat, usage-limit resume and snooze to Providers, auto-settle to General, guest links to Sharing & access and linked environments to Environments. Snooze presets and the context window meter are removed; snooze uses the fixed presets. SnapShots is removed end to end, including desktop capture, its native helpers, attachment sources and dependencies. `e2e/g4.settings.test.ts` checks the sections, the ticket toggles and search. Screenshots: [General](screenshots/g4-general.png), [Chat](screenshots/g4-chat.png), [Sharing & access](screenshots/g4-sharing.png).
+
+## F2 file sheet
+
+Any file opened from a ticket, a chat card or an attachment opens in the file sheet, a dialog the size of the ticket window; nothing downloads unless Download in its ⋯ menu is chosen. A floating bar holds Highlight, Comment, Versions, an "Ask Ozi to change…" field and one blue Send. Send posts to the file's origin chat with the file attached and the selection, highlights and comments quoted as notes. Every version is kept (append-only byte snapshots beside the attachments): Versions lists them with time and author, shows a line diff for text and restores any version as a new one. Markdown, text and docx edit in place; while editing the bar turns blue with bold, italic, heading, list, link, Cancel and Save (a new version). Docx keeps basic formatting, not full layout. CSV and the first sheet of an xlsx edit as a grid. PDFs use the app's viewer; highlights and comments are stored as notes on the version and are not burned in unless asked. Agents use `attachment_versions_list`, `attachment_version_create` and the matching `ozi attachment` commands; a new version appears in the open sheet.
+
+## K1 calendar
+
+Clicking an event card opens a week view (Google Calendar style: hour grid, today marker, overlapping events side by side) at that event's week, scrolled to it. The event shows faint with a dashed edge until Add to calendar, then solid. The header has the month picker, Today and previous/next week; the ⋯ menu has Download .ics and Open in Google Calendar. Events come from ticket event blocks and Ozi's own calendar store (SQLite, with a `source` field for a later Google sync; the Google Calendar connector is not wired yet). Agents use `calendar_list` and `calendar_add` and `ozi calendar list|add --json`; agents never add to an outside calendar without the user's Add.
