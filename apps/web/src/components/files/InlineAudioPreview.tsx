@@ -1,3 +1,5 @@
+import { useFileSheet } from "./fileSheetState";
+import { FileIcon } from "lucide-react";
 import type { AssetResource, EnvironmentId } from "@t3tools/contracts";
 import { useEffect, useRef, useState } from "react";
 
@@ -39,6 +41,7 @@ export function InlineAudioPreview(props: {
 
   return (
     <span ref={container} data-markdown-copy={props.copyMarkdown} className="block">
+      <button type="button" className="mb-1 flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground" onClick={() => props.onOpen ? props.onOpen() : useFileSheet.getState().open({ name: props.name, mimeType: "audio/mpeg", sizeBytes: 0, environmentId: props.environmentId, resource: props.resource, src: props.src })}><FileIcon className="size-3.5" />Open file</button>
       <AudioStrip
         name={props.name}
         src={src ?? ""}

@@ -1,3 +1,4 @@
+import { FileSheetHost } from "~/components/files/FileSheet";
 import {
   Outlet,
   Link,
@@ -164,6 +165,7 @@ function RootRouteBranch() {
 
   return (
     <>
+      <FileSheetHost />
       <ChatGptWelcomeCoordinator />
       <FirstRunGate
         enabled={primaryEnvironmentAuthenticated}

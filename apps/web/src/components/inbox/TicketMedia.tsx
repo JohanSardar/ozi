@@ -1,3 +1,4 @@
+import { useFileSheet } from "../files/fileSheetState";
 import { scopeThreadRef } from "@t3tools/client-runtime/environment";
 import { classifyMarkdownImageSource } from "@t3tools/client-runtime/markdown-images";
 import type { AssetResource, ChatAttachment, EnvironmentId, Ticket } from "@t3tools/contracts";
@@ -160,10 +161,11 @@ export function TicketAttachment(props: {
   onOpen: () => void;
 }) {
   const { attachment, environmentId } = props;
+  const open = () => useFileSheet.getState().open({ ...attachment, attachment, environmentId, resource: attachmentResource(attachment), threadRef: scopeThreadRef(environmentId, props.ticket.origin.chatId), ticket: props.ticket });
   const kind = filePreviewKind(attachment);
   if (kind === "image")
     return (
-      <button type="button" onClick={props.onOpen} className="block w-full max-w-xl cursor-zoom-in">
+      <button type="button" onClick={open} className="block w-full max-w-xl cursor-zoom-in">
         <TicketImage
           environmentId={environmentId}
           ticket={props.ticket}
@@ -177,7 +179,7 @@ export function TicketAttachment(props: {
   if (kind === "pdf")
     return (
       <Suspense fallback={<span className="block h-[22rem] w-full max-w-xl rounded-xl bg-muted" />}>
-        <TicketPdf environmentId={environmentId} attachment={attachment} onOpen={props.onOpen} />
+        <TicketPdf environmentId={environmentId} attachment={attachment} onOpen={open} />
       </Suspense>
     );
   if (["text", "markdown", "html"].includes(kind))
@@ -185,8 +187,9 @@ export function TicketAttachment(props: {
       <div
         className={cn(
           "flex max-w-xl flex-col overflow-hidden rounded-xl border border-border",
-          "max-h-96 [&>*]:max-h-96",
+          "max-h-96 [&>*]:max-h-96 cursor-pointer",
         )}
+        onClick={open}
       >
         <AttachmentFilePreview
           name={attachment.name}
@@ -200,7 +203,7 @@ export function TicketAttachment(props: {
   return (
     <button
       type="button"
-      onClick={props.onOpen}
+      onClick={open}
       className="flex w-full max-w-xl items-center gap-3 rounded-xl border border-border bg-card px-3.5 py-3 text-left transition-colors hover:border-ring/40 hover:bg-accent"
     >
       <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-muted text-muted-foreground">

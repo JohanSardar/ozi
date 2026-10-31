@@ -1,3 +1,4 @@
+import { useFileSheet } from "./files/fileSheetState";
 import { useDraftEnvironments } from "../hooks/useDraftEnvironments";
 import { shouldShowEnvironmentIndicator, shouldShowComposerContextStrip } from "./ChatView.logic";
 import { useComposerSelection } from "./chat/useComposerSelection";
@@ -1306,7 +1307,7 @@ export default function ChatView(props: ChatViewProps) {
   const downloadFileAttachmentStable = useStableCallback(downloadFileAttachment);
   const openFileAttachment = (attachment: ChatFileAttachment) => {
     if (activeThreadRef) {
-      useRightPanelStore.getState().openAttachment(activeThreadRef, attachment);
+      useFileSheet.getState().open({ ...attachment, attachment, threadRef: activeThreadRef, environmentId: activeThreadRef.environmentId, resource: { _tag: "attachment", attachmentId: attachment.id, fileName: attachment.name, mimeType: attachment.mimeType } });
       return;
     }
   };

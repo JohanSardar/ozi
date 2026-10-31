@@ -12,6 +12,7 @@ export default function VirtualTablePreview(props: {
   readonly loadPage?: (page: number) => void;
   readonly header?: readonly string[] | undefined;
   readonly source?: boolean;
+  readonly onCellEdit?: (row: number, column: number, value: string) => void;
   readonly wrap?: boolean;
   readonly revealLine?: number | null;
   readonly revealRequestId?: number;
@@ -245,7 +246,7 @@ function RowPage(
                 }
                 style={props.source ? undefined : { width: props.sizes[column] }}
               >
-                {row?.[column] ?? ""}
+                {props.onCellEdit ? <input aria-label={`Row ${index + 1}, column ${column + 1}`} className="w-full min-w-0 bg-transparent outline-none focus:bg-primary/10" value={row?.[column] ?? ""} onChange={(event) => props.onCellEdit?.(index, column, event.target.value)} /> : row?.[column] ?? ""}
               </div>
             ))}
           </div>

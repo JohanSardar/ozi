@@ -1,3 +1,5 @@
+import { useThreadRouteRef } from "~/hooks/useThreadRouteTarget";
+import { useFileSheet } from "./fileSheetState";
 import { filePreviewDelimiter } from "@t3tools/shared/delimitedPreview";
 import type { AssetResource, EnvironmentId, ScopedThreadRef } from "@t3tools/contracts";
 import { formatAttachmentSize } from "@t3tools/client-runtime/state/attachments";
@@ -89,7 +91,13 @@ export function AttachmentFilePreview(props: {
   origin?: string;
   onRemove?: () => void;
   onClose?: () => void;
+  sheetContent?: boolean;
 }) {
+  const routeRef = useThreadRouteRef();
+  const openSheet = () => {
+    const asset = props.asset;
+    useFileSheet.getState().open({ ...props, threadRef: props.threadRef ?? routeRef ?? undefined, environmentId: asset?.environmentId, resource: asset && "resource" in asset ? asset.resource : asset && "attachmentId" in asset ? { _tag: "attachment", attachmentId: asset.attachmentId, fileName: props.name, mimeType: props.mimeType } : undefined, attachment: asset && "attachmentId" in asset ? { type: "file", id: asset.attachmentId, name: props.name, mimeType: props.mimeType, sizeBytes: props.sizeBytes } : undefined });
+  };
   const kind = filePreviewKind(props);
   const officeKind = officePreviewKind(props);
   const delimiter = filePreviewDelimiter(props);
@@ -361,7 +369,8 @@ export function AttachmentFilePreview(props: {
 
   return (
     <div className="flex min-h-0 flex-1 flex-col overflow-hidden bg-background">
-      <div className={cn(FILE_SURFACE_SUBHEADER_CLASS)} data-surface-subheader>
+      {!props.sheetContent ? <div className={cn(FILE_SURFACE_SUBHEADER_CLASS)} data-surface-subheader>
+        <button type="button" className="rounded-lg px-2 py-1 text-xs text-primary" onClick={openSheet}>Open file</button>
         <div className="flex min-w-0 flex-1 items-center text-xs">
           <span className="shrink-0 px-0.5 text-muted-foreground">
             {props.origin ?? "Attachment"}
@@ -430,7 +439,7 @@ export function AttachmentFilePreview(props: {
         ) : null}
         {url ? (
           <FileSurfaceAction
-            label={saving ? "Preparing file…" : "Save file"}
+            label={saving ? "Preparing file…" : "Download"}
             disabled={saving}
             onPress={save}
           >
@@ -447,7 +456,7 @@ export function AttachmentFilePreview(props: {
             <XIcon className="size-3.5" />
           </FileSurfaceAction>
         ) : null}
-      </div>
+      </div> : null}
       {content?.truncated ? (
         <FileSurfaceNotice>
           Preview limited to the first 1 MB
