@@ -14,6 +14,7 @@ import { HtmlRenderFrame } from "../chat/HtmlRenderFrame";
 import { InlineAudioPreview } from "../files/InlineAudioPreview";
 import { MediaVideoPlayer } from "../media/MediaVideoPlayer";
 import { AttachmentFilePreview } from "../files/AttachmentFilePreview";
+import { TicketTextFile } from "./TicketTextFile";
 
 const TicketPdf = lazy(() => import("./TicketPdf"));
 
@@ -55,7 +56,9 @@ export function TicketImage(props: {
   const asset = useAssetUrlState(resource ? props.environmentId : null, resource);
   const [failed, setFailed] = useState<string | null>(null);
   const src = source?._tag === "Direct" ? source.uri : asset._tag === "Success" ? asset.url : null;
-  return src && failed !== src ? (
+  if (failed === src || asset._tag === "Failure" || (source?._tag !== "Direct" && resource === null))
+    return null;
+  return src ? (
     <img
       src={src}
       alt=""
@@ -171,7 +174,17 @@ export function TicketAttachment(props: {
         <TicketPdf environmentId={environmentId} attachment={attachment} onOpen={open} />
       </Suspense>
     );
-  if (["text", "markdown", "html"].includes(kind))
+  if (kind === "text" || kind === "markdown")
+    return (
+      <TicketTextFile
+        environmentId={environmentId}
+        ticket={props.ticket}
+        attachment={attachment}
+        markdown={kind === "markdown"}
+        onOpen={open}
+      />
+    );
+  if (kind === "html")
     return (
       <div
         className={cn(
