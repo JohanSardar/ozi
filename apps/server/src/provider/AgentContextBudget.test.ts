@@ -30,6 +30,7 @@ import { ScheduledTaskService } from "../scheduledTasks/ScheduledTaskService.ts"
 import { SecretRequests } from "../secrets/SecretRequests.ts";
 import { ServerSettingsService } from "../serverSettings.ts";
 import { TicketClearing } from "../tickets/TicketClearing.ts";
+import { Calendar } from "../calendar/Calendar.ts";
 import { Tickets } from "../tickets/Tickets.ts";
 import { buildCodexAdditionalContext } from "./CodexDeveloperInstructions.ts";
 import { DocumentText } from "./DocumentText.ts";
@@ -60,6 +61,7 @@ const toolHandlerServices = Layer.mergeAll(
   Layer.mock(ThreadManagementService)({}),
   Layer.mock(ThreadSearch)({}),
   Layer.mock(Tickets)({}),
+  Layer.mock(Calendar)({}),
   Layer.mock(TicketClearing)({}),
 ).pipe(Layer.provideMerge(NodeServices.layer));
 

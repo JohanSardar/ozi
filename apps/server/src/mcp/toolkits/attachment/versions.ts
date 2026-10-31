@@ -125,7 +125,7 @@ export const attachmentVersions = Effect.fn("attachment.versions")(function* (
       threadId: input.threadId,
       commandId: command,
       messageId: MessageId.make(command),
-      text: `${input.message ?? ""}\n\nFile: ${input.attachment.name}\nAttachment: ${input.attachment.id}\nVersion: ${selected.id}\n${(input.notes ?? selected.notes).map((note) => `> ${note.quote}\n${note.comment}`).NodePath.join("\n\n")}`,
+      text: `${input.message ?? ""}\n\nFile: ${input.attachment.name}\nAttachment: ${input.attachment.id}\nVersion: ${selected.id}\n${(input.notes ?? selected.notes).map((note) => `> ${note.quote}\n${note.comment}`).join("\n\n")}`,
       attachments: [selected.attachment],
       mode: "auto",
       createdBy: "user",
