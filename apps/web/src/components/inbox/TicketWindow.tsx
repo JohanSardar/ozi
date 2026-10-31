@@ -43,9 +43,7 @@ export function Choices(props: {
     <div
       role="group"
       aria-label="Choices"
-      className={
-        pictures ? "grid grid-cols-[repeat(auto-fill,minmax(10.5rem,1fr))] gap-2" : "grid gap-1.5"
-      }
+      className="grid gap-1.5"
     >
       {props.ticket.choices.map((choice, index) =>
         pictures ? (
@@ -53,24 +51,26 @@ export function Choices(props: {
             key={choice.label}
             type="button"
             onClick={() => props.onChoose(index)}
-            className="relative flex flex-col overflow-hidden rounded-lg border border-border bg-card text-left transition-colors hover:border-ring/40 hover:bg-accent"
+            className="flex w-full items-center gap-3 rounded-lg border border-border bg-card p-2 pe-3 text-left transition-colors hover:border-ring/40 hover:bg-accent"
           >
             {choice.image ? (
               <TicketImage
                 environmentId={props.environmentId}
                 ticket={props.ticket}
                 image={choice.image}
-                className="aspect-video w-full"
+                className="aspect-4/3 w-20 shrink-0 rounded-md"
               />
             ) : (
-              <span className="block aspect-video w-full bg-muted" />
+              <span className="block aspect-4/3 w-20 shrink-0 rounded-md bg-muted" />
             )}
-            <span className="absolute top-1.5 left-1.5 h-5 min-w-5 rounded-sm bg-background/85 px-1 text-center text-xs leading-5 text-muted-foreground tabular-nums backdrop-blur">
-              {index + 1}
-            </span>
-            <span className="px-2.5 pt-2 text-sm leading-5 font-medium">{choice.label}</span>
-            <span className="px-2.5 pb-2.5 text-xs leading-4.5 text-muted-foreground">
-              {choice.detail}
+            <span className="min-w-0 flex-1">
+              <span className="block text-sm leading-5 font-medium">
+                <span className="me-1.5 text-muted-foreground tabular-nums">{index + 1}</span>
+                {choice.label}
+              </span>
+              <span className="mt-0.5 block text-xs leading-4.5 text-muted-foreground">
+                {choice.detail}
+              </span>
             </span>
           </button>
         ) : (
