@@ -49,6 +49,7 @@ const EventBlock = Schema.Struct({
 });
 const DraftBlock = Schema.Struct({
   kind: Schema.Literals(["email", "message"]),
+  from: Schema.optional(Text),
   to: Text,
   subject: Schema.optional(Text),
   body: Text,
@@ -285,6 +286,7 @@ const draftReply = (lead: string, draft: typeof DraftBlock.Type, body: string) =
   [
     lead,
     "",
+    ...(draft.from ? [`From: ${draft.from}`] : []),
     `To: ${draft.to}`,
     ...(draft.subject ? [`Subject: ${draft.subject}`] : []),
     "",
@@ -341,7 +343,7 @@ function DraftCard(props: typeof DraftBlock.Type) {
       </Button>
     </div>
   ) : null;
-  const summary = [`To ${props.to}`, props.subject, body].filter(Boolean).join("\n");
+  const summary = [props.from ? `From ${props.from}` : "", `To ${props.to}`, props.subject, body].filter(Boolean).join("\n");
   if (props.kind === "message")
     return (
       <Card summary={summary}>
@@ -350,6 +352,9 @@ function DraftCard(props: typeof DraftBlock.Type) {
             {props.to.slice(0, 1).toUpperCase()}
           </span>
           <span className="text-xs text-muted-foreground">{props.to}</span>
+          {props.from ? (
+            <span className="block text-2xs text-muted-foreground">From {props.from}</span>
+          ) : null}
         </div>
         <div className="flex flex-col items-end gap-2 px-4 py-4">
           {editing ? (
@@ -373,6 +378,12 @@ function DraftCard(props: typeof DraftBlock.Type) {
         New email
       </div>
       <dl className="divide-y divide-border border-b border-border px-4 text-sm">
+        {props.from ? (
+          <div className="flex gap-3 py-2">
+            <dt className="w-14 shrink-0 text-muted-foreground">From</dt>
+            <dd className="min-w-0 truncate">{props.from}</dd>
+          </div>
+        ) : null}
         <div className="flex gap-3 py-2">
           <dt className="w-14 shrink-0 text-muted-foreground">To</dt>
           <dd className="min-w-0 truncate">{props.to}</dd>

@@ -44,6 +44,7 @@ export const TicketRichBlocks = {
   }),
   draft: Schema.Struct({
     kind: Schema.Literals(["email", "message"]),
+    from: Schema.optional(RichText),
     to: RichText,
     subject: Schema.optional(RichText),
     body: RichText,
@@ -70,7 +71,7 @@ export const TICKET_MEDIA_GUIDE = [
   "Use closed fenced blocks: opening line ```map, ```event, ```draft or ```browser, then JSON on its own line, then ```.",
   'map: {"name":"Cafe","address":"12 Main St","lat":41.88,"lon":-87.63}; name and address required, coordinates optional.',
   'event: {"title":"Dinner","start":"2026-11-01T19:30:00-06:00","end":"2026-11-01T21:00:00-06:00","location":"Cafe","notes":"Patio"}; title/start required; ISO date or timestamp with timezone. A card proposes an event; it does not book it.',
-  'draft: {"kind":"email","to":"team@example.com","subject":"Dinner","body":"See you at seven."}; kind is email or message; subject optional. A draft is unsent; user Send asks the agent to send it.',
+  'draft: {"kind":"email","from":"me@example.com","to":"team@example.com","subject":"Dinner","body":"See you at seven."}; kind is email or message; from is the account or number that will send it, set it whenever known; subject optional. A draft is unsent; user Send asks the agent to send it.',
   'browser: {"url":"https://example.com/checkout","label":"Finish checkout","note":"Confirm the total"}; url required, label/note optional. Opens the shared browser for a user-only step.',
   "A URL alone on a line becomes a link card. ![Cafe](https://example.com/cafe.jpg) embeds a real photo; first image is the thumbnail. Use real photos or evidence screenshots, never illustrations, emoji, vector art or drawn placeholders; omit a picture if unavailable.",
   "![Demo](/absolute/demo.mp4) and ![Recording](/absolute/recording.wav) use app video/audio players. [Report](/absolute/report.pdf) opens a file; PDF, docx, xlsx, csv, md and txt attachments open the in-app file sheet. Use actual uploaded attachment IDs, never invented IDs.",
