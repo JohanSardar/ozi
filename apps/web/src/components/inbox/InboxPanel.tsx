@@ -46,7 +46,6 @@ import { buildThreadRouteParams } from "../../threadRoutes";
 import { Button } from "../ui/button";
 import { InputGroup, InputGroupAddon, InputGroupInput } from "../ui/input-group";
 import { Menu, MenuItem, MenuPopup, MenuTrigger } from "../ui/menu";
-import { Textarea } from "../ui/textarea";
 import { RichActionsContext } from "../chat/RichBlocks";
 import { Spinner } from "../ui/spinner";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
@@ -610,7 +609,7 @@ function GroupHeading(props: {
         aria-expanded={!props.collapsed}
         onClick={props.onToggle}
         aria-description={props.hint}
-        className="mb-2 flex w-full items-center gap-2 rounded-md px-1 py-2 text-left text-sm font-medium hover:bg-accent"
+        className="mb-2 flex w-full items-center gap-2 rounded-lg px-1.5 py-2 text-left text-sm font-medium outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring"
       >
         <Glyph className="size-3.5 text-muted-foreground" />
         {props.group}
@@ -675,9 +674,14 @@ function TicketRow(props: {
           : undefined
       }
       aria-label={ticket.title}
-      className="group/ticket relative mb-2 rounded-lg border border-border bg-card transition-colors focus-within:border-ring/40 hover:border-ring/40"
+      className={cn(
+        "group/ticket relative mb-2 rounded-xl border bg-foreground/7 shadow-xs transition-[border-color,box-shadow,background-color]",
+        props.open
+          ? "border-primary/40 ring-4 ring-primary/10"
+          : "border-border hover:border-primary/30 hover:bg-foreground/10",
+      )}
     >
-      <div className="pointer-events-none absolute -top-3.5 end-2 z-10 flex gap-0.5 rounded-lg border border-border bg-popover p-0.5 opacity-0 shadow-md transition-opacity group-hover/ticket:pointer-events-auto group-hover/ticket:opacity-100 group-focus-within/ticket:pointer-events-auto group-focus-within/ticket:opacity-100">
+      <div className={cn("pointer-events-none absolute -top-3.5 end-2 z-10 flex gap-0.5 rounded-xl border border-border bg-popover p-0.5 opacity-0 shadow-md transition-opacity group-hover/ticket:pointer-events-auto group-hover/ticket:opacity-100 group-focus-within/ticket:pointer-events-auto group-focus-within/ticket:opacity-100", props.open && "hidden")}>
         <Button
           variant="ghost"
           size="xs"
@@ -753,23 +757,22 @@ function TicketRow(props: {
               </div>
             ) : null}
           </RichActionsContext>
-          <div className="sticky bottom-0 z-10 -mx-1 mt-4 flex flex-wrap items-end gap-1 rounded-lg border border-border bg-popover p-1 text-sm shadow-lg">
+          <div className="sticky bottom-0 z-10 mt-4 flex flex-wrap items-end gap-1 rounded-xl border border-border bg-foreground/10 p-1.5 text-sm">
             {quoted ? (
               <button
                 type="button"
                 onClick={() => setQuoted(null)}
                 aria-label="Remove quote"
-                className="flex w-full items-center gap-2 rounded-md bg-accent/60 px-3 py-1.5 text-left text-xs text-muted-foreground"
+                className="flex w-full items-center gap-2 rounded-lg bg-background/60 px-3 py-1.5 text-left text-xs text-muted-foreground"
               >
                 <ReplyIcon className="size-3.5 shrink-0" />
                 <span className="min-w-0 truncate">{quoted}</span>
                 <XIcon className="ms-auto size-3.5 shrink-0" />
               </button>
             ) : null}
-            <Textarea
+            <textarea
               ref={replyField}
               rows={1}
-              unstyled
               value={reply}
               onChange={(event) => setReply(event.target.value)}
               onKeyDown={(event) => {
@@ -779,7 +782,7 @@ function TicketRow(props: {
               }}
               placeholder="Reply…"
               aria-label={`Reply to ${ticket.title}`}
-              className="min-w-0 flex-1 [&_textarea]:max-h-40 [&_textarea]:min-h-9 [&_textarea]:resize-none"
+              className="field-sizing-content max-h-40 min-h-9 min-w-0 flex-1 resize-none bg-transparent px-2.5 py-2 text-sm outline-none wrap-anywhere placeholder:text-muted-foreground"
             />
             <Menu>
               <MenuTrigger

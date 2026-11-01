@@ -252,9 +252,9 @@ export function TicketWindow(props: {
     : (routeRef && titles.get(routeRef.threadId)) || "a new chat";
   const footer = (
     <div className="pointer-events-none sticky bottom-0 z-20 flex justify-center px-4 pt-6 pb-4">
-      <div className="pointer-events-auto flex w-full max-w-3xl flex-wrap items-end gap-1 rounded-lg border border-border bg-popover p-1 shadow-lg">
+      <div className="pointer-events-auto flex w-full max-w-3xl flex-wrap items-end gap-1 rounded-2xl border border-border bg-popover p-1.5 shadow-lg">
         {quoted !== null ? (
-          <div className="flex w-full items-center gap-2 rounded-md bg-accent/60 py-1.5 ps-3 pe-1 text-xs text-muted-foreground">
+          <div className="flex w-full items-center gap-2 rounded-xl bg-accent/60 py-1.5 ps-3 pe-1 text-xs text-muted-foreground">
             <ReplyIcon className="size-3.5 shrink-0" />
             <span className="min-w-0 flex-1 truncate">{quoted.replaceAll("\n", " · ")}</span>
             <Button

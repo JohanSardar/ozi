@@ -66,7 +66,7 @@ Three columns: chats, conversation, inbox.
 
 ## Look
 
-- T3's design, squarer: 8px corners, never pills. The app's line icons only; no emoji, illustrations or drawn placeholders. Real photos or no picture.
+- T3's design and T3's corner radii (rounder cards and controls). The app's line icons only; no emoji, illustrations or drawn placeholders. Real photos or no picture.
 - Colour stays: blue for the main button, links and edit mode; green and amber for meaning; coloured details such as the date tile.
 - Content first: one column, few nested boxes, clear type sizes, generous padding. No scrollbars anywhere and no browser-native widgets that can't be styled (PDFs use the app's PDF.js viewer).
 - Material 3 Expressive toolbar ideas only: the current thing gets a floating action bar with one emphasised action and the rest in a ⋯ menu. Quick motion, not springy.

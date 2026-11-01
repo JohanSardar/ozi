@@ -85,7 +85,7 @@ export function richBlock(language: string, code: string): ReactNode | null {
 }
 
 const CARD_CLASS =
-  "group/card relative my-3 max-w-xl rounded-lg border border-border bg-card text-card-foreground transition-colors";
+  "group/card relative my-3 max-w-xl rounded-xl border border-border bg-card text-card-foreground transition-colors";
 
 function HoverAction(props: { icon: ReactNode; label: string; onClick: () => void }) {
   return (
@@ -122,7 +122,7 @@ function Card(props: {
       }}
       className={cn(CARD_CLASS, onOpen && "cursor-pointer hover:border-ring/40", props.className)}
     >
-      <div className="pointer-events-none absolute -top-4 end-2 z-10 flex gap-0.5 rounded-lg border border-border bg-popover p-0.5 opacity-0 shadow-md transition-opacity group-focus-within/card:pointer-events-auto group-focus-within/card:opacity-100 group-hover/card:pointer-events-auto group-hover/card:opacity-100">
+      <div className="pointer-events-none absolute -top-4 end-2 z-10 flex gap-0.5 rounded-xl border border-border bg-popover p-0.5 opacity-0 shadow-md transition-opacity group-focus-within/card:pointer-events-auto group-focus-within/card:opacity-100 group-hover/card:pointer-events-auto group-hover/card:opacity-100">
         {quote ? (
           <HoverAction icon={<ReplyIcon />} label="Reply" onClick={() => quote(props.summary)} />
         ) : null}
@@ -444,7 +444,7 @@ export function LinkCard(props: { url: string; children: ReactNode }) {
       href={props.url}
       target="_blank"
       rel="noreferrer"
-      className="my-3 flex max-w-xl overflow-hidden rounded-lg border border-border bg-card text-card-foreground no-underline transition-colors hover:border-ring/40"
+      className="my-3 flex max-w-xl overflow-hidden rounded-xl border border-border bg-card text-card-foreground no-underline transition-colors hover:border-ring/40"
     >
       <span className="min-w-0 flex-1 p-3">
         <span className="block truncate text-xs text-muted-foreground">{preview.site}</span>

@@ -18,26 +18,14 @@ async function classLines() {
   return lines;
 }
 
-it("l4.corners: every radius token is 6–8px", async () => {
+it("l4.corners: radius tokens keep T3 Code's scale", async () => {
   const css = await NodeFSP.readFile(NodePath.join(web, "index.css"), "utf8");
   const radius = Number(/--radius: ([\d.]+)rem;/.exec(css)?.[1]) * 16;
   const tokens = [...css.matchAll(/--radius-(\w+): (.+);/g)].map(([, name, value]) => {
     const offset = /calc\(var\(--radius\) ([+-]) (\d+)px\)/.exec(value!);
-    const px = offset ? radius + (offset[1] === "+" ? 1 : -1) * Number(offset[2]) : radius;
-    return [name, px] as const;
+    return [name, offset ? radius + (offset[1] === "+" ? 1 : -1) * Number(offset[2]) : radius];
   });
-  expect(tokens.map(([name]) => name)).toEqual(["sm", "md", "lg", "xl", "2xl", "3xl"]);
-  for (const [name, px] of tokens) {
-    expect(px, name).toBeGreaterThanOrEqual(6);
-    expect(px, name).toBeLessThanOrEqual(8);
-  }
-});
-
-it("l4.no-pills: nothing with text is fully rounded", async () => {
-  const pills = (await classLines()).filter(
-    (line) => /\brounded-full\b/.test(line) && /\bpx-\d/.test(line),
-  );
-  expect(pills).toEqual([]);
+  expect(Object.fromEntries(tokens)).toEqual({ sm: 4, md: 6, lg: 8, xl: 12, "2xl": 16, "3xl": 20 });
 });
 
 it("l4.no-coloured-dots: status shows as spinners and text, not coloured dots", async () => {
