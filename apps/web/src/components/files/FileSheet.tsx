@@ -39,8 +39,7 @@ import { useAtomCommand } from "~/state/use-atom-command";
 import { useAssetUrlRefresh } from "~/assets/assetUrls";
 import { Dialog, DialogPopup, DialogTitle } from "~/components/ui/dialog";
 import { cn, randomUUID } from "~/lib/utils";
-import VirtualTablePreview from "./VirtualTablePreview";
-import { PREVIEW_PAGE_ROWS } from "./largeTextProtocol";
+import { PaperSheet } from "./PaperSheet";
 import PdfViewer from "./PdfViewer";
 import { AttachmentFilePreview } from "./AttachmentFilePreview";
 import { type FileSheetTarget } from "./fileSheetState";
@@ -94,13 +93,18 @@ export function FileSheet({ target, onClose }: { target: FileSheetTarget; onClos
   const extension = target.name.split(".").at(-1)?.toLowerCase();
   const canEdit = ["md", "txt", "docx", "csv", "xlsx"].includes(extension ?? "");
   const grid = extension === "csv" || extension === "xlsx";
+  const paper = extension === "docx";
   const editor = useEditor({
     extensions: [StarterKit],
     content: "",
     editable: true,
     onUpdate: () => setDirty(true),
     editorProps: {
-      attributes: { class: "min-h-full outline-none prose prose-sm dark:prose-invert max-w-none" },
+      attributes: {
+        class: paper
+          ? "min-h-full outline-none prose prose-neutral max-w-none text-sm leading-normal"
+          : "min-h-full outline-none prose prose-sm dark:prose-invert max-w-none",
+      },
     },
   });
   const canVersion = !!(target.environmentId && target.attachment && target.threadRef);
@@ -205,7 +209,9 @@ export function FileSheet({ target, onClose }: { target: FileSheetTarget; onClos
             target.name,
             editor.getHTML(),
             editor.getText({ blockSeparator: "\n" }),
-            rows,
+            rows
+              .map((row) => row.slice(0, row.findLastIndex(Boolean) + 1))
+              .slice(0, rows.findLastIndex((row) => row.some(Boolean)) + 1),
           )
         : blob;
     if (!file) return;
@@ -354,28 +360,33 @@ export function FileSheet({ target, onClose }: { target: FileSheetTarget; onClos
             {diff !== null ? (
               <pre className="flex-1 overflow-auto whitespace-pre-wrap p-8 text-sm">{diff}</pre>
             ) : editing && grid ? (
-              <VirtualTablePreview
-                name={target.name}
-                count={rows.length}
-                columns={Math.max(1, ...rows.map((row) => row.length))}
-                getRows={(page) =>
-                  rows.slice(page * PREVIEW_PAGE_ROWS, (page + 1) * PREVIEW_PAGE_ROWS)
-                }
+              <PaperSheet
+                rows={rows}
                 onCellEdit={(index, column, value) => {
                   setRows((current) =>
-                    current.map((row, rowIndex) =>
-                      rowIndex === index
-                        ? Array.from({ length: Math.max(row.length, column + 1) }, (_, cell) =>
-                            cell === column ? value : (row[cell] ?? ""),
+                    Array.from({ length: Math.max(current.length, index + 1) }, (_, row) =>
+                      row === index
+                        ? Array.from(
+                            { length: Math.max(current[row]?.length ?? 0, column + 1) },
+                            (_, cell) => (cell === column ? value : (current[row]?.[cell] ?? "")),
                           )
-                        : row,
+                        : (current[row] ?? []),
                     ),
                   );
                   setDirty(true);
                 }}
               />
+            ) : editing && paper ? (
+              <div className="flex-1 overflow-auto bg-muted/60 px-6 py-10 scrollbar-gutter-both">
+                <EditorContent
+                  editor={editor}
+                  className="mx-auto min-h-[1056px] w-full max-w-[816px] bg-paper px-18 py-18 font-office text-paper-ink shadow-lg [color-scheme:light] sm:px-24 sm:py-24 [&_.ProseMirror]:min-h-[880px]"
+                />
+              </div>
             ) : editing ? (
-              <EditorContent editor={editor} className="flex-1 overflow-auto px-12 py-8" />
+              <div className="flex-1 overflow-auto scrollbar-gutter-both">
+                <EditorContent editor={editor} className="mx-auto w-full max-w-3xl px-10 py-10" />
+              </div>
             ) : url && extension === "pdf" ? (
               <PdfViewer src={url} title={target.name} />
             ) : url && !blob && target.mimeType.startsWith("image/") ? (

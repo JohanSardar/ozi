@@ -186,6 +186,15 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
     -apple-system, BlinkMacSystemFont, "Inter Variable", "Segoe UI", system-ui, sans-serif;
   --font-mono:
     ui-monospace, "SF Mono", "SFMono-Regular", Menlo, Consolas, "Liberation Mono", monospace;
+  --font-office: Aptos, Calibri, Carlito, ui-sans-serif, system-ui, sans-serif;
+  --color-paper: #ffffff;
+  --color-paper-ink: #1f1f1f;
+  --color-sheet-header: #f5f5f5;
+  --color-sheet-label: #5c5c5c;
+  --color-sheet-line: #d4d4d4;
+  --color-sheet-edge: #bdbdbd;
+  --color-sheet-grid: #e1e1e1;
+  --color-sheet-accent: #217346;
 }
 
 @theme inline {
