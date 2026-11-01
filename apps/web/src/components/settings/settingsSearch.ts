@@ -21,6 +21,7 @@ export type SettingsPath =
   | "/settings/connections"
   | "/settings/access"
   | "/settings/maintenance"
+  | "/settings/labs"
   | "/settings/about";
 
 export type SettingsSearchScope =
@@ -76,6 +77,7 @@ export const SETTINGS_SECTION_LABELS: Readonly<Record<SettingsPath, string>> = {
   "/settings/connections": "Environments",
   "/settings/access": "Sharing & access",
   "/settings/maintenance": "Maintenance",
+  "/settings/labs": "Labs",
   "/settings/about": "About",
 };
 
@@ -95,7 +97,7 @@ export const SETTINGS_NAV_GROUPS: ReadonlyArray<{
   { heading: "Connections", paths: ["/settings/connections", "/settings/access"] },
   {
     heading: null,
-    paths: ["/settings/maintenance", "/settings/about"],
+    paths: ["/settings/maintenance", "/settings/labs", "/settings/about"],
   },
 ];
 
@@ -277,14 +279,14 @@ export const SETTINGS_SEARCH_ITEMS = [
   {
     id: "guest-links",
     title: "Guest links",
-    to: "/settings/access",
+    to: "/settings/labs",
     scope: "environment",
     searchTerms: ["beta share guest invite link teammate watch t3 connect tunnel"],
   },
   {
     id: "linked-environments-beta",
     title: "Linked environments",
-    to: "/settings/connections",
+    to: "/settings/labs",
     scope: "environment",
     searchTerms: ["beta link another machine vps peer agents work there delegate"],
   },
@@ -376,10 +378,10 @@ export const SETTINGS_SEARCH_ITEMS = [
     searchTerms: ["composer rich text tiptap bold italic markdown styled wysiwyg"],
   },
   {
-    id: "plan-mode",
-    title: "Plan mode",
-    to: "/settings/chat",
-    searchTerms: ["build plan composer shift tab default"],
+    id: "legacy-plan-mode",
+    title: "Plan mode (legacy)",
+    to: "/settings/labs",
+    searchTerms: ["build plan composer shift tab default old"],
   },
   {
     id: "send-shortcut",
@@ -748,6 +750,7 @@ const SETTINGS_CATEGORY_SCOPES: Readonly<Record<SettingsPath, SettingsSearchScop
   "/settings/access": "connections",
   "/settings/scheduled-tasks": null,
   "/settings/maintenance": null,
+  "/settings/labs": null,
   "/settings/about": null,
 };
 

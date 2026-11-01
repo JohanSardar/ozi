@@ -119,6 +119,7 @@ it("g4.settings-sections: settings keeps only Ozi's sections and finds moved set
       "Environments",
       "Sharing & access",
       "Maintenance",
+      "Labs",
       "About",
     ]);
     expect(
@@ -135,7 +136,7 @@ it("g4.settings-sections: settings keeps only Ozi's sections and finds moved set
     await page.getByRole("switch", { name: "Dock badge" }).waitFor();
 
     const search = page.getByRole("combobox", { name: "Search settings" });
-    for (const removed of ["SnapShots", "Snooze options", "Archived threads", "Labs"]) {
+    for (const removed of ["SnapShots", "Snooze options", "Archived threads", "Simlock"]) {
       await search.fill(removed);
       await page.getByText("No settings found").waitFor();
     }
@@ -145,8 +146,12 @@ it("g4.settings-sections: settings keeps only Ozi's sections and finds moved set
     await page.getByText("New chats", { exact: true }).first().waitFor();
     await page.getByText("Text generation model", { exact: true }).first().waitFor();
 
-    await page.goto(`${origin}/settings/labs`);
-    await sections.waitFor({ state: "detached" });
+    await search.fill("Plan mode");
+    await page.getByRole("option", { name: /Plan mode \(legacy\)\s*Labs/ }).click();
+    await page.waitForURL(/\/settings\/labs/);
+    await page.getByRole("switch", { name: "Guest links" }).waitFor();
+    await page.getByRole("switch", { name: "Linked environments" }).waitFor();
+    await page.getByRole("switch", { name: "Plan mode (legacy)" }).waitFor();
   } finally {
     await browser.close();
     for (const stop of stops) await stop();

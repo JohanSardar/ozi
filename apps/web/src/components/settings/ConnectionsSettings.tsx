@@ -37,7 +37,6 @@ import { searchableSetting } from "./settingsSearch";
 import { EnvironmentIconMenu } from "./EnvironmentIconPicker";
 import { FoldedSettingsSection } from "./FoldedSettingsSection";
 import { LinkedEnvironmentsSettings } from "./LinkedEnvironmentsSettings";
-import { GuestLinksSection, LinkedEnvironmentsSection } from "./SharingSettings";
 import { usePeerLinkHosts } from "~/state/peerLinks";
 import { LoadBalancingSettings } from "./LoadBalancingSettings";
 import { Input } from "../ui/input";
@@ -1472,7 +1471,6 @@ export function ConnectionsSettings({ view }: { readonly view: "environments" | 
     return (
       <SettingsPageContainer>
         {primarySettings}
-        <GuestLinksSection />
       </SettingsPageContainer>
     );
 
@@ -1532,7 +1530,6 @@ export function ConnectionsSettings({ view }: { readonly view: "environments" | 
           }}
         />
       ) : null}
-      <LinkedEnvironmentsSection />
       {peerLinkHosts.map((environment, index) => (
         <LinkedEnvironmentsSettings
           key={environment.environmentId}

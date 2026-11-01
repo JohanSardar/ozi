@@ -269,7 +269,7 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks; page?:
           key={ticket.id}
           type="button"
           onClick={() => setArchivedPick(ticket.id)}
-          className="flex flex-col rounded-lg border border-border bg-card p-4 text-left transition-colors hover:border-ring/40 hover:bg-accent/40"
+          className="flex flex-col rounded-xl border border-border bg-card p-4 text-left transition-colors hover:border-ring/40 hover:bg-accent/40"
         >
           <span className="flex gap-3">
             <span className="min-w-0 flex-1">
@@ -283,7 +283,7 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks; page?:
                 environmentId={environmentId}
                 ticket={ticket}
                 image={thumbnail}
-                className="size-16 shrink-0 rounded-md"
+                className="size-16 shrink-0 rounded-lg"
               />
             ) : null}
           </span>
@@ -507,7 +507,7 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks; page?:
                   </span>
                 </button>
                 {workingOpen ? (
-                  <div className="overflow-hidden rounded-lg border border-border bg-card">
+                  <div className="overflow-hidden rounded-xl border border-border bg-card">
                     {jobs.map((job) => (
                       <button
                         key={job.id}
@@ -731,7 +731,7 @@ function TicketRow(props: {
             environmentId={environmentId}
             ticket={ticket}
             image={thumbnail}
-            className="size-9 shrink-0 rounded-md"
+            className="size-9 shrink-0 rounded-lg"
           />
         ) : null}
       </button>
@@ -757,13 +757,13 @@ function TicketRow(props: {
               </div>
             ) : null}
           </RichActionsContext>
-          <div className="sticky bottom-0 z-10 mt-4 flex flex-wrap items-end gap-1 rounded-xl border border-border bg-foreground/10 p-1.5 text-sm">
+          <div className="sticky bottom-0 z-10 mt-4 flex flex-wrap items-end gap-1 rounded-2xl border border-border bg-foreground/10 p-1.5 text-sm">
             {quoted ? (
               <button
                 type="button"
                 onClick={() => setQuoted(null)}
                 aria-label="Remove quote"
-                className="flex w-full items-center gap-2 rounded-lg bg-background/60 px-3 py-1.5 text-left text-xs text-muted-foreground"
+                className="flex w-full items-center gap-2 rounded-xl bg-background/60 px-3 py-1.5 text-left text-xs text-muted-foreground"
               >
                 <ReplyIcon className="size-3.5 shrink-0" />
                 <span className="min-w-0 truncate">{quoted}</span>

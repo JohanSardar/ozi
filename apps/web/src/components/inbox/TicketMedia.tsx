@@ -140,7 +140,7 @@ function TicketVideo(props: { environmentId: EnvironmentId; attachment: ChatAtta
       sourceFailed={asset._tag === "Failure"}
       label={props.attachment.name}
       preload="metadata"
-      className="block w-full max-w-xl overflow-hidden rounded-lg bg-black"
+      className="block w-full max-w-xl overflow-hidden rounded-xl bg-black"
       videoClassName="aspect-auto"
     />
   );

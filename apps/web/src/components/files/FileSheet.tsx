@@ -513,7 +513,7 @@ export function FileSheet({ target, onClose }: { target: FileSheetTarget; onClos
             ) : null}
             {commenting ? (
               <form
-                className="mb-2 flex gap-2 rounded-lg border border-border bg-popover p-2 shadow"
+                className="mb-2 flex gap-2 rounded-xl border border-border bg-popover p-2 shadow"
                 onSubmit={(event) => {
                   event.preventDefault();
                   mark(comment);
@@ -558,7 +558,7 @@ export function FileSheet({ target, onClose }: { target: FileSheetTarget; onClos
             <div
               style={{ borderRadius: 10 }}
               className={cn(
-                "mx-auto flex w-fit max-w-full items-center gap-1 rounded-lg p-2 shadow-lg",
+                "mx-auto flex w-fit max-w-full items-center gap-1 rounded-2xl p-2 shadow-lg",
                 editing ? "bg-primary text-primary-foreground" : "border border-border bg-popover",
               )}
             >

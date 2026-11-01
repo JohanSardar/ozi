@@ -72,7 +72,7 @@ Three columns: chats, conversation, inbox.
 - Material 3 Expressive toolbar ideas only: the current thing gets a floating action bar with one emphasised action and the rest in a ⋯ menu. Quick motion, not springy.
 - Cards have no inner buttons: clicking a card opens it; hovering shows Reply, Open and Copy, in tickets and in chat. Reply quotes the card above the reply field or composer.
 - T3's light and dark modes, preset themes and advanced theme editor (background, surface, raised surface, overlay, text, muted text, border, input, accent, message surface, sidebar colors, status colors).
-- Settings is T3's overlay window with search, keeping General, Appearance, Chat, Keybindings, Agents (Providers, Browser, Scheduled tasks), Connections (Environments, Sharing & access), Maintenance and About.
+- Settings is T3's overlay window with search, keeping General, Appearance, Chat, Keybindings, Agents (Providers, Browser, Scheduled tasks), Connections (Environments, Sharing & access), Maintenance, Labs and About.
 
 ## Later
 
@@ -193,7 +193,7 @@ Every clearance goes through `tickets.close` (and `ozi ticket close`), `tickets.
 
 ## G4 settings sections
 
-Settings shows General, Appearance, Chat, Keybindings, Agents (Providers, Browser, Scheduled tasks), Connections (Environments, Sharing & access), Maintenance and About; search finds only their rows. Threads, Labs, SnapShots and Archive are gone, with their old redirects. Their surviving settings moved: new-chat defaults, text generation and plan mode to Chat, usage-limit resume and snooze to Providers, auto-settle to General, guest links to Sharing & access and linked environments to Environments. Snooze presets and the context window meter are removed; snooze uses the fixed presets. SnapShots is removed end to end, including desktop capture, its native helpers, attachment sources and dependencies. `e2e/g4.settings.test.ts` checks the sections, the ticket toggles and search. Screenshots: [General](screenshots/g4-general.png), [Chat](screenshots/g4-chat.png), [Sharing & access](screenshots/g4-sharing.png).
+Settings shows General, Appearance, Chat, Keybindings, Agents (Providers, Browser, Scheduled tasks), Connections (Environments, Sharing & access), Maintenance, Labs and About; search finds only their rows. Threads, SnapShots and Archive are gone, with their old redirects. Their surviving settings moved: new-chat defaults and text generation to Chat, usage-limit resume and snooze to Providers, auto-settle to General. Labs is T3's: Beta has guest links and linked environments, Legacy has plan mode; rows for removed features (boring sidebar, Simlock, context window meter) are not shown. Snooze presets and the context window meter are removed; snooze uses the fixed presets. SnapShots is removed end to end, including desktop capture, its native helpers, attachment sources and dependencies. `e2e/g4.settings.test.ts` checks the sections, the ticket toggles and search. Screenshots: [General](screenshots/g4-general.png), [Chat](screenshots/g4-chat.png), [Sharing & access](screenshots/g4-sharing.png).
 
 ## F2 file sheet
 

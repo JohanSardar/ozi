@@ -56,17 +56,17 @@ export function Choices(props: {
             key={choice.label}
             type="button"
             onClick={() => props.onChoose(index)}
-            className="flex w-full items-center gap-3 rounded-lg border border-border bg-card p-2 pe-3 text-left transition-colors hover:border-ring/40 hover:bg-accent"
+            className="flex w-full items-center gap-3 rounded-xl border border-border bg-card p-2 pe-3 text-left transition-colors hover:border-ring/40 hover:bg-accent"
           >
             {choice.image ? (
               <TicketImage
                 environmentId={props.environmentId}
                 ticket={props.ticket}
                 image={choice.image}
-                className="aspect-4/3 w-20 shrink-0 rounded-md"
+                className="aspect-4/3 w-20 shrink-0 rounded-lg"
               />
             ) : (
-              <span className="block aspect-4/3 w-20 shrink-0 rounded-md bg-muted" />
+              <span className="block aspect-4/3 w-20 shrink-0 rounded-lg bg-muted" />
             )}
             <span className="min-w-0 flex-1">
               <span className="block text-sm leading-5 font-medium">
@@ -83,9 +83,9 @@ export function Choices(props: {
             key={choice.label}
             type="button"
             onClick={() => props.onChoose(index)}
-            className="grid w-full grid-cols-[22px_minmax(0,1fr)] gap-x-2.5 rounded-md border border-border py-2 pr-3 pl-2 text-left transition-colors hover:bg-accent"
+            className="grid w-full grid-cols-[22px_minmax(0,1fr)] gap-x-2.5 rounded-lg border border-border py-2 pr-3 pl-2 text-left transition-colors hover:bg-accent"
           >
-            <span className="h-5 rounded-sm bg-accent text-center text-xs leading-5 text-muted-foreground tabular-nums">
+            <span className="h-5 rounded-md bg-accent text-center text-xs leading-5 text-muted-foreground tabular-nums">
               {index + 1}
             </span>
             <span className="text-sm leading-5">{choice.label}</span>

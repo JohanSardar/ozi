@@ -10,6 +10,7 @@ import {
 import {
   BotIcon,
   CalendarClockIcon,
+  FlaskConicalIcon,
   GlobeIcon,
   InfoIcon,
   MessageSquareTextIcon,
@@ -75,6 +76,7 @@ const SETTINGS_SECTION_ICONS: Readonly<
   "/settings/connections": ServerIcon,
   "/settings/access": ShieldCheckIcon,
   "/settings/maintenance": WrenchIcon,
+  "/settings/labs": FlaskConicalIcon,
   "/settings/about": InfoIcon,
 };
 

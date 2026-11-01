@@ -1080,17 +1080,6 @@ export function ChatSettingsPanel() {
             </Select>
           }
         />
-        <SettingsRow
-          {...searchableSetting("plan-mode")}
-          description="Restore Build/Plan, /plan, /default, and Shift+Tab. Off uses build mode."
-          control={
-            <Switch
-              checked={settings.planModeEnabled}
-              onCheckedChange={(checked) => updateSettings({ planModeEnabled: Boolean(checked) })}
-              aria-label="Plan mode"
-            />
-          }
-        />
         <AdvancedSettings targetIds={[searchableSetting("skills-in-slash-menu").id]}>
           <SettingsRow
             {...searchableSetting("skills-in-slash-menu")}

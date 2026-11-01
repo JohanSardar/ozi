@@ -10,7 +10,7 @@ The work in `ui-redesign.md`, split into tickets. A ticket starts when everythin
 | G3  | Desktop dev mode under a virtual display with Playwright; nothing under the macOS window buttons                                    | GUI    | F1         | 1    |
 | L2  | Top bar spinner and elapsed time; Reply on any assistant text                                                                       | GUI    | F1         | 1    |
 | L3  | Composer: steer, queue, stop and attachments (images, video, files) behave as in T3                                                 | GUI    | F1         | 1    |
-| L4  | Look: 6–8px corners; no pills, coloured dots or monospace capitals; themes and theme editor                                         | GUI    | F1         | 1    |
+| L4  | Look: T3's corner radii and rounded controls; no coloured dots or monospace capitals; themes and theme editor                       | GUI    | F1         | 1    |
 | I1  | Ticket store and contracts: groups, visible, clickable and in-depth parts, automatic links, clearing record, archive                | GUI    | F1         | 1    |
 | C1  | Schedules and webhooks on the GUI                                                                                                   | GUI    | F1         | 1    |
 | C3  | Sessions: new, fork, clone, resume, import, export, print mode                                                                      | GUI    | F1         | 1    |

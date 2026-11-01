@@ -1,25 +1,43 @@
 import { useAuth } from "@clerk/react";
+import { Link } from "@tanstack/react-router";
 
 import { hasCloudPublicConfig } from "~/cloud/publicConfig";
 import { useT3ConnectAuthPrompt } from "../clerk/useT3ConnectAuthPrompt";
 import { Button } from "../ui/button";
+import { Switch } from "../ui/switch";
 import { ScopedSwitch } from "./ScopedSwitch";
-import { SettingsRow, SettingsSection } from "./settingsLayout";
+import { SettingsPageContainer, SettingsRow, SettingsSection } from "./settingsLayout";
 import { searchableSetting } from "./settingsSearch";
 import { useScopedSettings, useUpdateScopedSettings } from "./useScopedSettings";
 
-export function GuestLinksSection() {
+export function LabsSettingsPanel() {
   return (
-    <SettingsSection id="guest-sharing" title="Guests">
-      {hasCloudPublicConfig() ? <GuestLinksRowWithSignIn /> : <GuestLinksRow />}
-    </SettingsSection>
+    <SettingsPageContainer>
+      <SettingsSection id="beta" title="Beta">
+        {hasCloudPublicConfig() ? <GuestLinksRowWithSignIn /> : <GuestLinksRow />}
+        <LinkedEnvironmentsRow />
+      </SettingsSection>
+      <LegacyFeaturesSection />
+    </SettingsPageContainer>
   );
 }
 
-export function LinkedEnvironmentsSection() {
+function LegacyFeaturesSection() {
+  const settings = useScopedSettings();
+  const updateSettings = useUpdateScopedSettings();
   return (
-    <SettingsSection id="linked-environments-setting" title="Your machines">
-      <LinkedEnvironmentsRow />
+    <SettingsSection id="legacy-features" title="Legacy">
+      <SettingsRow
+        {...searchableSetting("legacy-plan-mode")}
+        description="Restore Build/Plan, /plan, /default, and Shift+Tab. Off uses build mode."
+        control={
+          <Switch
+            checked={settings.planModeEnabled}
+            onCheckedChange={(checked) => updateSettings({ planModeEnabled: Boolean(checked) })}
+            aria-label="Plan mode (legacy)"
+          />
+        }
+      />
     </SettingsSection>
   );
 }
@@ -54,8 +72,11 @@ function GuestLinksRow() {
       description={
         <>
           Share a thread with a guest who watches it live in their browser and sends messages you
-          approve. Needs Ozi Connect: sign in and link this machine above. While it is off, every
-          guest link stops working.
+          approve. Needs Ozi Connect: sign in and link this machine in{" "}
+          <Link to="/settings/access" className="underline underline-offset-2">
+            Sharing & access
+          </Link>
+          . While it is off, every guest link stops working.
         </>
       }
       control={
@@ -81,8 +102,11 @@ function LinkedEnvironmentsRow() {
       description={
         <>
           Let agents here work on your other machines, and theirs here. Turn it on for each machine,
-          then link them below. While it is off, nothing new starts over a link; tasks already
-          running finish.
+          then link them in{" "}
+          <Link to="/settings/connections" className="underline underline-offset-2">
+            Environments
+          </Link>
+          . While it is off, nothing new starts over a link; tasks already running finish.
         </>
       }
       control={

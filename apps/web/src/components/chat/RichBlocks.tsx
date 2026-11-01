@@ -254,7 +254,7 @@ function EventCard(props: typeof EventBlock.Type) {
     >
       <div className="flex gap-3.5 p-3.5">
         {valid ? (
-          <div className="flex w-14 shrink-0 flex-col items-center self-start overflow-hidden rounded-md border border-border bg-background">
+          <div className="flex w-14 shrink-0 flex-col items-center self-start overflow-hidden rounded-lg border border-border bg-background">
             <span className="w-full bg-primary py-0.5 text-center text-3xs font-semibold tracking-wide text-primary-foreground uppercase">
               {start.toLocaleDateString(undefined, {
                 month: "short",
