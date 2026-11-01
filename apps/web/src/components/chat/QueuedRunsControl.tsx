@@ -438,7 +438,7 @@ function QueuedMessage(props: {
       {/* Dashed and unfilled: a turn that has not been sent yet. */}
       <div
         className={cn(
-          "flex min-w-0 max-w-[80%] flex-col rounded-lg border border-dashed text-sm",
+          "flex min-w-0 max-w-[80%] flex-col rounded-2xl border border-dashed text-sm",
           props.isEditing
             ? "border-primary/60 text-foreground"
             : attribution === "guest"

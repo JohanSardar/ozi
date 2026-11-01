@@ -18,7 +18,7 @@ export function SettingsGroup({
       className={cn(
         "relative overflow-visible text-foreground",
         variant === "grouped"
-          ? "rounded-lg border border-border/60 bg-card/30"
+          ? "rounded-xl border border-border/60 bg-card/30"
           : "space-y-1",
         variant === "grouped" &&
           divided &&

@@ -345,7 +345,7 @@ export function SettingsRow({
       tabIndex={rowProps.id ? -1 : rowProps.tabIndex}
       data-slot="settings-row"
       className={cn(
-        "group/settings-row @container/settings-row rounded-lg px-4 sm:px-5 aria-disabled:opacity-64 aria-disabled:[&_*]:text-muted-foreground",
+        "group/settings-row @container/settings-row rounded-xl px-4 sm:px-5 aria-disabled:opacity-64 aria-disabled:[&_*]:text-muted-foreground",
         children ? "pt-4 pb-2" : "py-4",
         className,
       )}

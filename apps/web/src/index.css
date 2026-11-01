@@ -931,7 +931,7 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
   [data-settings-page-scroll] div.settings-search-target-pulse,
   [data-settings-page-scroll] section.settings-search-target-pulse > div:first-child {
     animation: settings-search-target-pulse 650ms ease-in-out 2;
-    border-radius: var(--radius);
+    border-radius: 0.75rem;
   }
 
   /* The pulse is the destination indicator; without it (reduced motion), the

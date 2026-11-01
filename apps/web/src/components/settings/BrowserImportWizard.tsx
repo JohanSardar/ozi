@@ -439,7 +439,7 @@ function SelectableTile({
       </span>
       <span
         className={cn(
-          "grid size-4 shrink-0 place-items-center rounded-sm border",
+          "grid size-4 shrink-0 place-items-center rounded-full border",
           selected ? "border-primary bg-primary text-primary-foreground" : "border-input",
         )}
       >
