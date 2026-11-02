@@ -171,7 +171,10 @@ function sortProviderInstanceEntries(
     const customs = bucket.filter((entry) => !entry.isDefault);
     sorted.push(...defaults, ...customs);
   }
-  return sorted;
+  return [
+    ...sorted.filter((entry) => entry.instanceId === "ozi"),
+    ...sorted.filter((entry) => entry.instanceId !== "ozi"),
+  ];
 }
 
 function getProviderInstanceEntry(
