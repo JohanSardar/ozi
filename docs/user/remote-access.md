@@ -52,18 +52,18 @@ another link to share.
 ### Reach one machine several ways
 
 A machine can have more than one route: LAN, Tailscale, another VPN, a public
-URL, SSH, or Ozi Connect. Tailscale shares its `100.64.0.0/10` address range with
+URL, SSH, or T3 Connect. Tailscale shares its `100.64.0.0/10` address range with
 other VPNs such as Cloudflare WARP, so an address in that range shows as VPN
 unless the machine confirms it is on Tailscale. To add a route, choose **Add
-route** in the machine's route list, or next to it in the Ozi Connect list.
+route** in the machine's route list, or next to it in the T3 Connect list.
 A pairing link for a saved machine is refused when it comes from an address
 that machine does not have yet; add that address with **Add route** instead.
 Pairing again over an address the machine already has still works. A new route
 is placed by speed, in that order, and you can reorder routes at any time.
 
-While connected through Ozi Connect or a paired address, Ozi also learns the
+While connected through T3 Connect or a paired address, Ozi also learns the
 machine's current LAN and Tailscale addresses and adds them as routes, so
-pairing once through Ozi Connect is enough to use the LAN at home. When the
+pairing once through T3 Connect is enough to use the LAN at home. When the
 machine's LAN address changes, for example after it joins another Wi-Fi network,
 the learned route follows it. The machine must allow network access for its LAN
 address to be learned. The [background service](./background-service.md#local-network-access)
@@ -80,14 +80,14 @@ return to the app, and every minute, and moves back as soon as one works.
 On web and desktop, select the route count under the machine's name in
 **Settings → Environments** to see its routes. Drag a route to change the order,
 or remove it. On mobile, open the machine under **Settings → Environments** and
-choose **Edit**. Signing out of Ozi Connect removes only that route; a machine
+choose **Edit**. Signing out of T3 Connect removes only that route; a machine
 you can still reach another way stays saved.
 
 Open **Permissions** next to **Routes** in web or desktop, or **Your permissions**
 in the mobile route details, to see what your current connection can do on that
 environment. For a remote environment, this is in its route details. Permissions
 shown there apply only to the route marked **In use**; other routes are not
-checked. Direct pairing and Ozi Connect have separate sessions and may grant
+checked. Direct pairing and T3 Connect have separate sessions and may grant
 different permissions.
 
 ### Balance new threads across machines
@@ -247,7 +247,7 @@ off, its result arrives once it is back on.
 
 On the machine you will work from, open **Settings → Environments → Linked environments**,
 choose **Link**, and pick the other machine or enter its address. The list
-holds the machines this app knows and those on your Ozi Connect account. If this
+holds the machines this app knows and those on your T3 Connect account. If this
 app is connected to that machine with a session that manages access there, it
 makes the pairing code itself; otherwise paste one from that machine's
 **Settings → Sharing & access**. From a terminal, use
@@ -295,7 +295,7 @@ npx ozi pair --scope orchestration:read --scope relay:read
 The selected scopes replace the default permissions. The same option works with
 `npx ozi auth pairing create` and `npx ozi auth session issue`; each command's
 `--help` lists the available scopes. Without `--scope`, pairing tokens and issued
-bearer sessions get every permission, including managing access and Ozi Connect.
+bearer sessions get every permission, including managing access and T3 Connect.
 A terminal or a full-access agent on the host can reach those as well, so a
 client that should not manage access also needs to go without `terminal:operate`
 and `orchestration:operate`.
@@ -318,7 +318,7 @@ worktree still creates that branch and worktree with `orchestration:operate`,
 and the agent it runs can use Git however the environment allows.
 
 Settings changes, provider management, environment maintenance, access
-management, and Ozi Connect management can each be granted separately. New
+management, and T3 Connect management can each be granted separately. New
 pairings without `--scope` include all of them. Existing clients keep the
 permissions they paired with and can stay connected after an update, but newly
 separated features may require pairing again with the permissions they need.
@@ -338,7 +338,7 @@ If a computer should only drive work running elsewhere, turn off its local envir
 desktop app, open **Settings → Environments** and switch off **Local
 environment**. Ozi restarts without a local server: no local agents or terminals run, WSL
 backends stay off, and other devices can no longer connect to this computer. Your projects,
-history, and saved connections are kept, and you keep working through pairing, Ozi Connect, or SSH.
+history, and saved connections are kept, and you keep working through pairing, T3 Connect, or SSH.
 
 Switch **Local environment** back on in the same place to restart with your previous local
 settings.

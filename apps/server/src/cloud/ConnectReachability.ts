@@ -70,7 +70,7 @@ export function classifyReachability(
   if (!facts.managedTunnelConfigured) {
     return fail(
       "not_linked",
-      "The server has not set up a Ozi Connect tunnel.",
+      "The server has not set up a T3 Connect tunnel.",
       "Run `ozi connect`, then restart the server (`ozi service restart`) so it applies the link.",
     );
   }
@@ -132,20 +132,20 @@ export function classifyReachability(
   if (status !== null) {
     return fail(
       "unexpected_response",
-      `The Ozi Connect address answered with HTTP ${status}.`,
+      `The T3 Connect address answered with HTTP ${status}.`,
       restart,
     );
   }
   return endpoint.kind === "dns_failed"
     ? fail(
         "dns_failed",
-        "The Ozi Connect address does not resolve from this machine.",
+        "The T3 Connect address does not resolve from this machine.",
         "Check the DNS settings on this machine or its VPN.",
         exitNodeHint(exitNode),
       )
     : fail(
         "timeout",
-        "The Ozi Connect address did not answer from this machine.",
+        "The T3 Connect address did not answer from this machine.",
         "Check the network, VPN, or proxy on this machine.",
         exitNodeHint(exitNode),
       );
@@ -154,7 +154,7 @@ export function classifyReachability(
 /** The loud diagnosis the CLI prints and the server logs. */
 function formatReachabilityFailure(result: Unreachable): string {
   return [
-    "✕ Ozi Connect is NOT reachable from other devices",
+    "✕ T3 Connect is NOT reachable from other devices",
     `  ${result.reason}`,
     ...(result.hint ? [`  ${result.hint}`] : []),
     `  Fix: ${result.fix}`,
@@ -213,7 +213,7 @@ const make = Effect.gen(function* () {
   );
 
   const probeEndpoint = (hostname: string) =>
-    httpClient.get(`https://${hostname}/.well-known/ozi/environment`).pipe(
+    httpClient.get(`https://${hostname}/.well-known/t3/environment`).pipe(
       Effect.map((response): EndpointProbe => ({ kind: "status", status: response.status })),
       Effect.scoped,
       Effect.timeoutOption(ENDPOINT_REQUEST_TIMEOUT),
@@ -286,7 +286,7 @@ const make = Effect.gen(function* () {
       );
     } else {
       yield* Effect.logInfo(
-        `Ozi Connect is reachable from other devices. ${formatConnectReachable(result)}`,
+        `T3 Connect is reachable from other devices. ${formatConnectReachable(result)}`,
       );
     }
     return result;

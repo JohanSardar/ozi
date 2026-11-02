@@ -63,4 +63,4 @@ describe("classifyReachability", () => {
   });
 });
 
-describe("Ozi Connect troubleshooting links", () => {});
+describe("T3 Connect troubleshooting links", () => {});

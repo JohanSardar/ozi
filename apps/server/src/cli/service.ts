@@ -318,9 +318,9 @@ export const offerServiceDuringOnboarding = Effect.gen(function* () {
         ? "The installed Ozi service needs an update or repair. Update it now?"
         : platform === "darwin"
           ? "Run Ozi in the background whenever you log in to this Mac? " +
-            "It stays reachable through Ozi Connect while you are logged in."
+            "It stays reachable through T3 Connect while you are logged in."
           : "Run Ozi in the background whenever this machine boots? " +
-            "It stays reachable through Ozi Connect even after you log out.",
+            "It stays reachable through T3 Connect even after you log out.",
       initial: true,
     }),
   );

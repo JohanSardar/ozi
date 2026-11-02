@@ -13,7 +13,7 @@ import {
   type AuthEnvironmentScope,
   AuthOrchestrationOperateScope,
   AuthOrchestrationReadScope,
-  MCP_PEER_LINK_SOFTWARE_ID,
+  MCP_PEER_LINK_SOFTWARE_IDS,
   mcpClientScopes,
 } from "@t3tools/contracts";
 import { encodeOAuthScope } from "@t3tools/shared/oauthScope";
@@ -322,7 +322,7 @@ const make = Effect.gen(function* () {
         });
       }
       // RFC 7591 allows ignoring unsupported registration options; all clients use public PKCE.
-      const peerLink = metadata.software_id === MCP_PEER_LINK_SOFTWARE_ID;
+      const peerLink = MCP_PEER_LINK_SOFTWARE_IDS.includes(metadata.software_id ?? "");
       if (peerLink && !(yield* linksEnabled)) {
         return yield* new AuthMcpRegistrationError({
           error: "invalid_client_metadata",

@@ -1,10 +1,15 @@
-import { SettingsIcon, SquarePenIcon, UserRoundIcon } from "lucide-react";
+import { AuthOrchestrationReadScope } from "@t3tools/contracts";
+import { BotIcon, SettingsIcon, SquarePenIcon } from "lucide-react";
 import type { ReactNode } from "react";
-import { memo } from "react";
+import { memo, useState } from "react";
 import { useNavigate } from "@tanstack/react-router";
 
 import { useEnvironmentIdentificationMode } from "../../hooks/useSettings";
-import { useEnvironments, usePrimaryEnvironmentId } from "../../state/environments";
+import { usePrimaryEnvironmentId } from "../../state/environments";
+import { serverEnvironment } from "../../state/server";
+import { useEnvironmentScope } from "../../state/session";
+import { useAtomCommand } from "../../state/use-atom-command";
+import { RefreshIcon } from "../ui/refresh-icon";
 import { cn } from "../../lib/utils";
 import { T3Wordmark } from "../T3Wordmark";
 import {
@@ -125,10 +130,12 @@ function SidebarBrandMark(_props: { onBackdrop: boolean }) {
 }
 
 function SidebarUtilityItem({
+  disabled = false,
   icon,
   label,
   onClick,
 }: {
+  disabled?: boolean;
   icon: ReactNode;
   label: string;
   onClick: () => void;
@@ -138,7 +145,7 @@ function SidebarUtilityItem({
       <Tooltip>
         <TooltipTrigger
           render={
-            <SidebarMenuButton aria-label={label} onClick={onClick} size="icon">
+            <SidebarMenuButton aria-label={label} disabled={disabled} onClick={onClick} size="icon">
               {icon}
             </SidebarMenuButton>
           }
@@ -149,49 +156,50 @@ function SidebarUtilityItem({
   );
 }
 
-const CONNECTION_LABELS = {
-  connected: "Connected",
-  connecting: "Connecting",
-  reconnecting: "Reconnecting",
-  offline: "Offline",
-  error: "Connection failed",
-  available: "Not connected",
-  unsupported: "Not supported",
-} as const;
-
 const SidebarUtilityMenu = memo(function SidebarUtilityMenu() {
   const navigate = useNavigate();
   const { isMobile, setOpenMobile } = useSidebar();
   const environmentId = usePrimaryEnvironmentId();
-  const environment = useEnvironments().environments.find(
-    (environment) => environment.environmentId === environmentId,
-  );
-  const status = environment ? CONNECTION_LABELS[environment.connection.phase] : null;
-  const handleSettingsClick = () => {
+  const canRefreshProviders = useEnvironmentScope(environmentId, AuthOrchestrationReadScope);
+  const refreshServerProviders = useAtomCommand(serverEnvironment.refreshProviders, {
+    reportFailure: false,
+  });
+  const [refreshing, setRefreshing] = useState(false);
+
+  const goTo = (to: "/settings" | "/settings/providers") => {
     if (isMobile) {
       setOpenMobile(false);
     }
-    void navigate({ to: "/settings" });
+    void navigate({ to });
+  };
+
+  const handleRefreshClick = () => {
+    if (refreshing || !environmentId) return;
+    setRefreshing(true);
+    void refreshServerProviders({ environmentId, input: { refreshModels: true } }).finally(() =>
+      setRefreshing(false),
+    );
   };
 
   return (
     <SidebarMenu className="flex-row items-center">
-      <SidebarMenuItem className="flex min-w-0 flex-1 items-center">
-        <span className="flex size-7 shrink-0 items-center justify-center rounded-lg bg-primary/10 text-primary">
-          <UserRoundIcon className="size-4" />
-        </span>
-        <span className="ml-2 flex min-w-0 flex-col text-sm leading-tight">
-          <span>You</span>
-          {environment ? (
-            <span className="truncate text-2xs text-sidebar-muted-foreground">
-              {environment.label}
-              {status ? ` · ${status}` : ""}
-            </span>
-          ) : null}
-        </span>
-      </SidebarMenuItem>
+      <SidebarUtilityItem
+        icon={<SettingsIcon />}
+        label="Settings"
+        onClick={() => goTo("/settings")}
+      />
+      <SidebarUtilityItem
+        icon={<BotIcon />}
+        label="Providers"
+        onClick={() => goTo("/settings/providers")}
+      />
+      <SidebarUtilityItem
+        disabled={refreshing || !environmentId || !canRefreshProviders}
+        icon={<RefreshIcon refreshing={refreshing} />}
+        label={refreshing ? "Refreshing providers" : "Refresh providers"}
+        onClick={handleRefreshClick}
+      />
       <SidebarThreadUndoNotice />
-      <SidebarUtilityItem icon={<SettingsIcon />} label="Settings" onClick={handleSettingsClick} />
     </SidebarMenu>
   );
 });

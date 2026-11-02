@@ -48,7 +48,7 @@ export function TunnelUsageMeter({
       </div>
       <div
         role="meter"
-        aria-label="Ozi Connect tunnels in use"
+        aria-label="T3 Connect tunnels in use"
         aria-valuemin={0}
         aria-valuemax={limit}
         aria-valuenow={used}

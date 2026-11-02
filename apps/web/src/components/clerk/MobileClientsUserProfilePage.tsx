@@ -94,7 +94,7 @@ function EmptyMobileClients() {
       <EmptyHeader>
         <EmptyTitle>No mobile clients</EmptyTitle>
         <EmptyDescription>
-          Install Ozi on your phone and sign in to Ozi Connect to get push notifications and Live
+          Install Ozi on your phone and sign in to T3 Connect to get push notifications and Live
           Activities.
         </EmptyDescription>
       </EmptyHeader>

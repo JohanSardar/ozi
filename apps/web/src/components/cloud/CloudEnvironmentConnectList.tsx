@@ -153,11 +153,11 @@ export function CloudEnvironmentConnectRows({
       toastManager.add({
         type: "success",
         title: savedWithoutRelay.has(environment.environmentId)
-          ? "Ozi Connect route added"
+          ? "T3 Connect route added"
           : "Environment added",
         description: savedWithoutRelay.has(environment.environmentId)
-          ? `${environment.label} falls back to Ozi Connect when its other routes are unreachable.`
-          : `Connecting to ${environment.label} through Ozi Connect.`,
+          ? `${environment.label} falls back to T3 Connect when its other routes are unreachable.`
+          : `Connecting to ${environment.label} through T3 Connect.`,
       });
       return true;
     }
@@ -166,7 +166,7 @@ export function CloudEnvironmentConnectRows({
     }
     const cause = squashAtomCommandFailure(result);
     const message =
-      cause instanceof Error ? cause.message : "Could not connect the Ozi Connect environment.";
+      cause instanceof Error ? cause.message : "Could not connect the T3 Connect environment.";
     const traceId = findErrorTraceId(cause);
     console.error("[t3-connect] Could not connect environment", { message, traceId, cause });
     toastManager.add({
@@ -185,7 +185,7 @@ export function CloudEnvironmentConnectRows({
     return false;
   };
 
-  // Omit machines saved over other routes; onboarding selection must not add a Ozi Connect route.
+  // Omit machines saved over other routes; onboarding selection must not add a T3 Connect route.
   const isVisibleEnvironment = (environmentId: EnvironmentId) =>
     environmentId !== primaryEnvironmentId &&
     (showSavedEnvironments || !savedById.has(environmentId)) &&
@@ -288,7 +288,7 @@ export function CloudEnvironmentConnectRows({
       return (
         <div className={ITEM_ROW_CLASSNAME}>
           <p className="text-sm font-medium text-destructive">
-            Could not load Ozi Connect environments
+            Could not load T3 Connect environments
           </p>
           <p className="mt-1 text-xs text-muted-foreground">{discoveryProblem}</p>
           <Button
@@ -332,23 +332,23 @@ export function CloudEnvironmentConnectRows({
         (descriptor === undefined ? null : { environment: descriptor }),
     );
     const notAdded = savedWithoutRelay.has(environment.environmentId)
-      ? "Saved without Ozi Connect"
+      ? "Saved without T3 Connect"
       : "Not added";
     const statusText =
       unsupported && !savedEnvironment
-        ? `Ozi Connect · ${notAdded} · Client not supported`
+        ? `T3 Connect · ${notAdded} · Client not supported`
         : offlineReason !== null
           ? offlineReason
           : savedConnection
             ? savedConnection.statusText
             : availability === "online"
-              ? `Ozi Connect · ${notAdded} · Relay online`
+              ? `T3 Connect · ${notAdded} · Relay online`
               : availability === "offline"
-                ? `Ozi Connect · ${notAdded} · Relay offline`
+                ? `T3 Connect · ${notAdded} · Relay offline`
                 : availability === "checking"
-                  ? `Ozi Connect · ${notAdded} · Checking relay status…`
+                  ? `T3 Connect · ${notAdded} · Checking relay status…`
                   : (Option.getOrNull(error)?.message ??
-                    `Ozi Connect · ${notAdded} · Relay status unavailable`);
+                    `T3 Connect · ${notAdded} · Relay status unavailable`);
     if (selection) {
       return (
         <label

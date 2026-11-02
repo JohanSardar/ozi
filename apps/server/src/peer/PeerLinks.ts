@@ -34,7 +34,7 @@ import * as ServerEnvironment from "../environment/ServerEnvironment.ts";
 import * as ServerSettings from "../serverSettings.ts";
 
 /** The redirect registered for a link. Nothing ever listens there: the code comes back in the response. */
-const LINK_REDIRECT_URI = "http://127.0.0.1/ozi-peer-link";
+const LINK_REDIRECT_URI = "http://127.0.0.1/t3code-peer-link";
 /**
  * How long a peer's descriptor may take before a route counts as unreachable.
  * A tailnet or relayed route to a machine that is waking up takes longer.

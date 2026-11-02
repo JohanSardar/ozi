@@ -402,7 +402,7 @@ export const EnvironmentConnectReachabilityCause = Schema.Literals([
 ]);
 export type EnvironmentConnectReachabilityCause = typeof EnvironmentConnectReachabilityCause.Type;
 
-/** Whether other devices can reach this environment through its Ozi Connect tunnel. */
+/** Whether other devices can reach this environment through its T3 Connect tunnel. */
 export const EnvironmentConnectReachability = Schema.Union([
   Schema.Struct({
     status: Schema.Literal("reachable"),
@@ -503,7 +503,11 @@ export const AuthOtherClientSessionsRevokeResult = Schema.Struct({
 export type AuthOtherClientSessionsRevokeResult = typeof AuthOtherClientSessionsRevokeResult.Type;
 
 class EnvironmentMetadataHttpApi extends HttpApiGroup.make("metadata").add(
-  HttpApiEndpoint.get("descriptor", "/.well-known/ozi/environment", {
+  HttpApiEndpoint.get("descriptor", "/.well-known/t3/environment", {
+    success: ExecutionEnvironmentDescriptor,
+  }),
+).add(
+  HttpApiEndpoint.get("oziDescriptor", "/.well-known/ozi/environment", {
     success: ExecutionEnvironmentDescriptor,
   }),
 ) {}

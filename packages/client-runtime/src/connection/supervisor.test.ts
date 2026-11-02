@@ -1296,7 +1296,7 @@ describe("EnvironmentSupervisor routes", () => {
         prepare: (_attempt, target) => {
           attempted.push(target._tag);
           return target._tag === "RelayConnectionTarget"
-            ? Effect.fail(blocked("Sign in to Ozi Connect."))
+            ? Effect.fail(blocked("Sign in to T3 Connect."))
             : Effect.succeed(preparedFor(target));
         },
       });
@@ -1311,7 +1311,7 @@ describe("EnvironmentSupervisor routes", () => {
     }).pipe(Effect.provide(TestClock.layer())),
   );
 
-  it.effect("skips a silent LAN route and connects over Ozi Connect", () =>
+  it.effect("skips a silent LAN route and connects over T3 Connect", () =>
     Effect.gen(function* () {
       const harness = yield* makeHarness({
         checkRoute: (route) =>
@@ -1370,7 +1370,7 @@ describe("EnvironmentSupervisor routes", () => {
         checkRoute: () => Effect.succeed("answered"),
         prepare: (_attempt, target) =>
           target._tag === "RelayConnectionTarget"
-            ? Effect.fail(blocked("Sign in to Ozi Connect."))
+            ? Effect.fail(blocked("Sign in to T3 Connect."))
             : Effect.fail(transient("LAN socket refused.")),
       });
       const supervisor = yield* EnvironmentSupervisor.make(LAN_THEN_RELAY_ENTRY, {
@@ -1463,7 +1463,7 @@ describe("EnvironmentSupervisor routes", () => {
     }),
   );
 
-  it.effect("learns the LAN address over Ozi Connect and moves to it", () =>
+  it.effect("learns the LAN address over T3 Connect and moves to it", () =>
     Effect.gen(function* () {
       const relayEntry: ConnectionCatalogEntry = {
         target: RELAY_TARGET,

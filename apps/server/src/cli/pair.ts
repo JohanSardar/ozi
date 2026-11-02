@@ -47,7 +47,7 @@ import {
 import { authScopesFlag } from "./authScopes.ts";
 import { baseDirFlag, DurationFromString } from "./config.ts";
 
-const WELL_KNOWN_ENVIRONMENT_PATH = "/.well-known/ozi/environment";
+const WELL_KNOWN_ENVIRONMENT_PATH = "/.well-known/t3/environment";
 const PAIR_PROBE_TIMEOUT = Duration.millis(2_500);
 // Tailscale's first HTTPS request may take seconds to provision a certificate.
 const TAILSCALE_PROBE_ATTEMPTS = 5;
@@ -522,7 +522,7 @@ export const pairCommand = Command.make("pair", {
           );
         } else if (target.state.privateNetworkOnly) {
           notes.push(
-            "This URL works only from this machine's local network. From elsewhere, re-run with --tailscale or use Ozi Connect.",
+            "This URL works only from this machine's local network. From elsewhere, re-run with --tailscale or use T3 Connect.",
           );
         }
         if (target.variant === "dev" && target.state.devUrl === undefined) {

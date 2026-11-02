@@ -128,7 +128,7 @@ const connectServer = Effect.fn("measure.connectServer")(function* (options: Opt
     HttpClient.filterStatusOk,
   );
   const descriptor = yield* http
-    .get(`${options.server}/.well-known/ozi/environment`)
+    .get(`${options.server}/.well-known/t3/environment`)
     .pipe(Effect.flatMap(HttpClientResponse.schemaBodyJson(ExecutionEnvironmentDescriptor)));
   yield* http
     .get(`${options.server}/api/orchestration/shell`)

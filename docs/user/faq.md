@@ -25,11 +25,11 @@ Yes.
 
 ## How much does Ozi cost?
 
-Nothing. There's no way to pay us to use Ozi. You bring your own sub. It is free and open source (MIT). You still pay your provider like you already do. Ozi Connect is free too, for now. Every account can connect up to 3 machines running Ozi. Phones and browsers that connect to them do not count. Need more? Link a paid T3 Chat account. [More machines](#can-i-connect-more-than-3-machines-with-ozi-connect) We don't want to charge for this, but if the bill gets unacceptable we may have to change course. If you hit limits or have issues, you can always fork it, self host, or use Tailscale. [Install](./install.md)
+Nothing. There's no way to pay us to use Ozi. You bring your own sub. It is free and open source (MIT). You still pay your provider like you already do. T3 Connect is free too, for now. Every account can connect up to 3 machines running Ozi. Phones and browsers that connect to them do not count. Need more? Link a paid T3 Chat account. [More machines](#can-i-connect-more-than-3-machines-with-ozi-connect) We don't want to charge for this, but if the bill gets unacceptable we may have to change course. If you hit limits or have issues, you can always fork it, self host, or use Tailscale. [Install](./install.md)
 
-## Can I connect more than 3 machines with Ozi Connect?
+## Can I connect more than 3 machines with T3 Connect?
 
-Yes. Link your T3 Chat account and Ozi Connect raises your limit: up to 10 machines with T3 Chat Pro, or 100 with Premier. Open your account menu in Ozi, go to **T3 Chat**, and select **Link T3 Chat**. Sign in to T3 Chat and approve. The free T3 Chat plan keeps the normal limit of 3. [More machines with T3 Chat](./remote-access.md#more-machines-with-ozi-chat)
+Yes. Link your T3 Chat account and T3 Connect raises your limit: up to 10 machines with T3 Chat Pro, or 100 with Premier. Open your account menu in Ozi, go to **T3 Chat**, and select **Link T3 Chat**. Sign in to T3 Chat and approve. The free T3 Chat plan keeps the normal limit of 3. [More machines with T3 Chat](./remote-access.md#more-machines-with-ozi-chat)
 
 ## Why is my Claude 5-hour limit draining so fast?
 
@@ -37,15 +37,15 @@ Ozi drives Claude through Anthropic's Agent SDK. I confirmed it's a real bug on 
 
 ## How do I use Ozi remotely?
 
-Your agents run wherever Ozi runs: your desktop, a server, a VPS. You connect to it from anywhere. I do this constantly. Less than 5% of my prompts run on my laptop. Run `npx ozi connect` on that machine and you get really good remote support. Ozi Connect is the easy path. LAN pairing and Tailscale work too, and [app.t3.codes](http://localhost:3773) is the web client. [Remote access](./remote-access.md)
+Your agents run wherever Ozi runs: your desktop, a server, a VPS. You connect to it from anywhere. I do this constantly. Less than 5% of my prompts run on my laptop. Run `npx ozi connect` on that machine and you get really good remote support. T3 Connect is the easy path. LAN pairing and Tailscale work too, and [app.t3.codes](http://localhost:3773) is the web client. [Remote access](./remote-access.md)
 
 ## How do I use Ozi on my phone?
 
-Get the [iOS](https://apps.apple.com/us/app/ozi-code-remote-claude-more/id6787819824) or [Android](https://play.google.com/store/apps/details?id=com.t3tools.t3code) app, then connect it to your computer with Ozi Connect or a pairing link. The phone is a remote. Your computer does the work and needs to stay on. [Mobile setup](./install.md#mobile-app) · [Remote access](./remote-access.md)
+Get the [iOS](https://apps.apple.com/us/app/ozi-code-remote-claude-more/id6787819824) or [Android](https://play.google.com/store/apps/details?id=com.t3tools.t3code) app, then connect it to your computer with T3 Connect or a pairing link. The phone is a remote. Your computer does the work and needs to stay on. [Mobile setup](./install.md#mobile-app) · [Remote access](./remote-access.md)
 
-## Why does Ozi Connect keep disconnecting?
+## Why does T3 Connect keep disconnecting?
 
-Ozi Connect is our built-in alternative to Tailscale for remote connections. If it keeps dropping, open **Settings > Environments**, find the machine, and select **Details**. The first part marked as failed is the cause. I will not be disappointed if you set up Tailscale as a fallback (I do this personally). [Ozi Connect troubleshooting](./ozi-connect-troubleshooting.md)
+T3 Connect is our built-in alternative to Tailscale for remote connections. If it keeps dropping, open **Settings > Environments**, find the machine, and select **Details**. The first part marked as failed is the cause. I will not be disappointed if you set up Tailscale as a fallback (I do this personally). [T3 Connect troubleshooting](./ozi-connect-troubleshooting.md)
 
 ## Will I get banned for using my subscription?
 
@@ -69,7 +69,7 @@ No. Ozi is a serious developer tool. Locally runnable models are not capable of 
 
 ## Does my code go to T3 servers?
 
-No. Your code and prompts go from your machine to your provider (Anthropic, OpenAI, etc.), not to us. With Ozi Connect, traffic rides a Cloudflare tunnel (`cloudflared` on your machine). Our relay sets up the link. It does not proxy your HTTP or WebSocket sessions. Ozi does send basic product usage events (provider, model, token totals, that kind of thing). No prompts, no file contents. That is the same on Tailscale, LAN, or Ozi Connect. Set `OZI_TELEMETRY_ENABLED=false` if you want it off. [Product usage data](./telemetry.md)
+No. Your code and prompts go from your machine to your provider (Anthropic, OpenAI, etc.), not to us. With T3 Connect, traffic rides a Cloudflare tunnel (`cloudflared` on your machine). Our relay sets up the link. It does not proxy your HTTP or WebSocket sessions. Ozi does send basic product usage events (provider, model, token totals, that kind of thing). No prompts, no file contents. That is the same on Tailscale, LAN, or T3 Connect. Set `OZI_TELEMETRY_ENABLED=false` if you want it off. [Product usage data](./telemetry.md)
 
 ## Worktrees are eating my disk. How do I clean them up?
 

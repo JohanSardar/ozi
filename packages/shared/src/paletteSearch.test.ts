@@ -58,9 +58,9 @@ describe("scoreThreadSearch", () => {
           ...busy,
           branch: "t3/diagnose-connect",
         }),
-        thread("Ozi Connect Tunnel Lifecycle Review", {}),
+        thread("T3 Connect Tunnel Lifecycle Review", {}),
       ])[0],
-    ).toBe("Ozi Connect Tunnel Lifecycle Review");
+    ).toBe("T3 Connect Tunnel Lifecycle Review");
     expect(
       rankTitles("ozi", [
         thread("Fix sidebar lag", { ...busy, branch: "t3code/sidebar" }),

@@ -591,7 +591,7 @@ export function ConnectionsSettings({ view }: { readonly view: "environments" | 
     }
   };
 
-  // Removing a Ozi Connect route preserves account registration; use a separate dialog pointing to
+  // Removing a T3 Connect route preserves account registration; use a separate dialog pointing to
   // deregistration.
   const [pendingT3ConnectRemoval, setPendingT3ConnectRemoval] =
     useState<EnvironmentPresentation | null>(null);
@@ -1203,7 +1203,7 @@ export function ConnectionsSettings({ view }: { readonly view: "environments" | 
                 <AlertDialogDescription>
                   {pendingDesktopServerExposureMode === "network-accessible"
                     ? "Let your other devices connect to Ozi over the network. Pair devices to give them access. Ozi will restart."
-                    : "Devices connected over your local network will disconnect. Existing tunnels, such as Ozi Connect or Tailscale HTTPS, keep working. Ozi will restart."}
+                    : "Devices connected over your local network will disconnect. Existing tunnels, such as T3 Connect or Tailscale HTTPS, keep working. Ozi will restart."}
                 </AlertDialogDescription>
               </AlertDialogHeader>
               <AlertDialogFooter>
