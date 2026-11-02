@@ -27,6 +27,7 @@ import {
   resolveShortcutCommand,
   shortcutLabelForCommand,
 } from "../../keybindings";
+import { InboxResizeRail } from "./InboxResizeRail";
 import { isEditableFocused } from "../../lib/editableFocus";
 import { cn } from "../../lib/utils";
 import { primaryEnvironmentIdAtom } from "../../state/primaryEnvironment";
@@ -407,8 +408,9 @@ function Inbox(props: { environmentId: EnvironmentId; hooks: TicketHooks; page?:
   return (
     <aside
       aria-label="Inbox"
-      className="ms-auto hidden w-(--inbox-width) shrink-0 flex-col border-l border-border bg-sidebar text-sidebar-foreground lg:flex"
+      className="relative ms-auto hidden w-(--inbox-width) shrink-0 flex-col border-l border-border bg-sidebar text-sidebar-foreground lg:flex"
     >
+      <InboxResizeRail />
       <div
         role="tablist"
         className="flex h-(--workspace-topbar-height) shrink-0 items-stretch gap-5 border-b border-border ps-3.5 pe-2.5"

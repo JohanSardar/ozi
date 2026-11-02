@@ -144,11 +144,11 @@ html[data-mobile-composer-route-transition="true"]::view-transition-old(t3-mobil
   }
 
   @variant lg {
-    --inbox-width: 340px;
+    --inbox-width: var(--inbox-user-width, 340px);
   }
 
   @variant xl {
-    --inbox-width: 404px;
+    --inbox-width: var(--inbox-user-width, 404px);
   }
 
   @variant dark {
