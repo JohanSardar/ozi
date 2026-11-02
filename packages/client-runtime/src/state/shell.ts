@@ -201,6 +201,22 @@ export const makeEnvironmentShellState = Effect.fn("EnvironmentShellState.make")
         }
         continue;
       }
+      if (item.kind === "snapshot" && item.resolvedRepositoryIdentityRoots !== undefined) {
+        const refreshed = item.snapshot.projects ?? [];
+        next = {
+          ...next,
+          snapshot: Option.map(next.snapshot, (snapshot) => ({
+            ...snapshot,
+            projects: [
+              ...(snapshot.projects ?? []).filter(
+                (project) => !refreshed.some((fresh) => fresh.id === project.id),
+              ),
+              ...refreshed,
+            ],
+          })),
+        };
+        continue;
+      }
       const authoritative = item.kind === "snapshot";
       const nextSnapshot =
         item.kind === "snapshot"

@@ -2181,6 +2181,8 @@ export const OrchestrationV2ShellStreamItem = Schema.Union([
   Schema.Struct({
     kind: Schema.Literal("snapshot"),
     snapshot: OrchestrationV2ShellSnapshot,
+    /** T3 Code servers refresh project details with a thread-less snapshot that names them. */
+    resolvedRepositoryIdentityRoots: Schema.optionalKey(Schema.Array(Schema.String)),
   }),
   Schema.Struct({
     kind: Schema.Literal("project.updated"),
