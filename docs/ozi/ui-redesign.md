@@ -66,7 +66,7 @@ Three columns: chats, conversation, inbox.
 
 ## Look
 
-- Ozi works alongside T3 Code: it speaks T3's environment protocol (`/.well-known/t3/environment`, with `/.well-known/ozi/environment` kept for older Ozi), trusts T3's desktop origins, links environments with T3's peer-link id (accepting Ozi's), and calls the cloud service T3 Connect. T3 machines can add Ozi machines and the other way round.
+- Ozi works alongside T3 Code: it speaks T3's environment protocol (`/.well-known/t3/environment`, with `/.well-known/ozi/environment` kept for older Ozi), trusts T3's desktop origins, links environments with T3's peer-link id (accepting Ozi's), and calls the cloud service T3 Connect. T3 machines can add Ozi machines and the other way round. A T3 machine's chats show in Ozi's sidebar as is; the chat header names the project (`Demo App / title`) and shows the branch and PR number as plain labels. No project management, diffs or PR views.
 - Ozi is the app, not the agent: any harness can be the agent (Ozi's own, OpenClaw, Hermes, Claude, Codex). Copy names the selected agent ("What should Hermes work on?", "Message Hermes…") or stays neutral; it never assumes the agent is Ozi.
 - T3's design and T3's corner radii (rounder cards and controls). The app's line icons only; no emoji, illustrations or drawn placeholders. Real photos or no picture.
 - Colour stays: blue for the main button, links and edit mode; green and amber for meaning; coloured details such as the date tile.
