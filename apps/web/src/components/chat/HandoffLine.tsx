@@ -56,7 +56,7 @@ export function HandoffLine(props: {
       type="button"
       aria-label={`${props.title} · ${state}`}
       onClick={open}
-      className="mt-3 mb-0.5 inline-flex max-w-full items-start gap-2 rounded-lg px-2 py-2 text-left text-sm transition-colors hover:bg-accent"
+      className="-ms-2 inline-flex max-w-full items-start gap-2 rounded-lg px-2 py-1.5 text-left text-sm transition-colors hover:bg-accent"
     >
       <CornerDownRightIcon aria-hidden className="mt-0.5 size-3.5 shrink-0 text-muted-foreground/70" />
       <span className="min-w-0 break-words font-medium">{props.title}</span>
