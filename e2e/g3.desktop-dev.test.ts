@@ -128,11 +128,11 @@ it.skipIf(process.platform !== "linux")(
       await page.getByText("Appearance", { exact: true }).waitFor();
       await page.screenshot({ path: NodePath.join(screenshotDir, "g3-settings.png") });
       await page.keyboard.press("Escape");
-      await page.getByText("What should Ozi take care of?", { exact: true }).waitFor();
+      await page.getByText("What should Ozi work on?", { exact: true }).waitFor();
       const reloadStarted = now();
       await NodeFSP.writeFile(
         source,
-        original.replace("What should Ozi take care of?", "G3 live reload"),
+        original.replace("What should Ozi work on?", "G3 live reload"),
       );
       await page.getByText("G3 live reload", { exact: true }).waitFor();
       timings.rendererReloadMs = Math.round(now() - reloadStarted);
@@ -145,14 +145,14 @@ it.skipIf(process.platform !== "linux")(
       }
       await page.screenshot({ path: NodePath.join(screenshotDir, "g3-live-reload.png") });
       await NodeFSP.writeFile(source, original);
-      await page.getByText("What should Ozi take care of?", { exact: true }).waitFor();
+      await page.getByText("What should Ozi work on?", { exact: true }).waitFor();
       await page.reload();
-      await page.getByText("What should Ozi take care of?", { exact: true }).waitFor();
+      await page.getByText("What should Ozi work on?", { exact: true }).waitFor();
       await page.context().addInitScript(() => {
         Object.defineProperty(navigator, "platform", { value: "MacIntel" });
       });
       await page.reload();
-      await page.getByText("What should Ozi take care of?", { exact: true }).waitFor();
+      await page.getByText("What should Ozi work on?", { exact: true }).waitFor();
       for (const zoom of [0.8, 1, 1.5]) {
         await app.evaluate(({ BrowserWindow }, factor) => {
           BrowserWindow.getAllWindows()[0]?.webContents.setZoomFactor(factor);
@@ -160,7 +160,7 @@ it.skipIf(process.platform !== "linux")(
         for (const reloaded of [false, true]) {
           if (reloaded) {
             await page.reload();
-            await page.getByText("What should Ozi take care of?", { exact: true }).waitFor();
+            await page.getByText("What should Ozi work on?", { exact: true }).waitFor();
           }
           for (const control of [
             page.getByRole("link", { name: "Go to threads" }),
@@ -188,7 +188,7 @@ it.skipIf(process.platform !== "linux")(
         BrowserWindow.getAllWindows()[0]!.setContentSize(1100, 780);
       });
       await page.reload();
-      await page.getByText("What should Ozi take care of?", { exact: true }).waitFor();
+      await page.getByText("What should Ozi work on?", { exact: true }).waitFor();
       const compactToggle = page
         .getByRole("button", { name: "Toggle main sidebar", exact: true })
         .filter({ visible: true });

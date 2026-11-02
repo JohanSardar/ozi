@@ -803,7 +803,7 @@ function renderMain() {
   const leftToggle = state.showSidebar ? '' : `<button class="icon-btn" data-act="toggle-sidebar" aria-label="Show sidebar" title="Show sidebar  ⌘B">${ico('panelL')}</button><button class="icon-btn" data-act="new-chat" aria-label="New chat">${ico('pen')}</button>`;
   if (!chat) {
     main.innerHTML = `<div class="topbar">${leftToggle}<span class="title" style="color:var(--muted);font-weight:500">New chat</span><span class="spacer"></span>${topRight}</div>
-      <div class="hero"><h1>What should Ozi take care of?</h1><p class="sub">Ask for anything. Ozi hands the work to a worker and keeps you posted in the inbox.</p>
+      <div class="hero"><h1>What should Ozi work on?</h1><p class="sub">Ask for anything. Ozi hands the work to a worker and keeps you posted in the inbox.</p>
       <div class="dock-inner">${composerHTML(true)}</div>
       <div class="suggest"><button data-suggest="Book a haircut next week, any weekday after 17">Book a haircut</button><button data-suggest="Every Monday at 8, summarize what came in over the weekend">Weekly summary</button><button data-suggest="Find out why my last electricity bill was so high">Check a bill</button></div></div>`;
   } else {
