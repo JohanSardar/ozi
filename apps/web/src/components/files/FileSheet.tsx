@@ -650,8 +650,8 @@ export function FileSheet({ target, onClose }: { target: FileSheetTarget; onClos
                     <span className="hidden sm:inline">Versions</span>
                   </button>
                   <input
-                    aria-label="Ask Ozi to change"
-                    placeholder="Ask Ozi to change…"
+                    aria-label="Ask for a change"
+                    placeholder="Ask for a change…"
                     className="min-w-0 flex-1 bg-transparent px-3 py-2 text-sm outline-none sm:w-64"
                     value={message}
                     onChange={(event) => setMessage(event.target.value)}

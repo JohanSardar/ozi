@@ -74,8 +74,9 @@ import {
   replaceTextRange,
 } from "../../composer-logic";
 import {
-  DEFAULT_COMPOSER_PLACEHOLDER,
-  DRAFT_COMPOSER_PLACEHOLDER,
+  agentLabel,
+  composerPlaceholder,
+  draftComposerPlaceholder,
 } from "../../composerPlaceholder";
 import {
   deriveComposerSendState,
@@ -3048,7 +3049,7 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                   {prompt.trim() ||
                     (showProviderUnavailable
                       ? "Enable a provider in Settings"
-                      : DEFAULT_COMPOSER_PLACEHOLDER)}
+                      : composerPlaceholder(agentLabel(selectedProviderEntry?.displayName)))}
                 </button>
                 {collapsedComposerImagePreviews}
                 <button
@@ -3219,10 +3220,14 @@ export const ChatComposer = memo(function ChatComposer(props: ChatComposerProps)
                               : showProviderUnavailable
                                 ? "Enable a provider in Settings to send a message"
                                 : runningSendHint
-                                  ? `${followUpBehavior === "queue" ? "Queue" : "Steer"} Ozi, or ${alternateSendShortcutLabel} to ${alternateComposerDispatchAction(followUpBehavior)}…`
+                                  ? `${followUpBehavior === "queue" ? "Queue" : "Steer"} ${agentLabel(selectedProviderEntry?.displayName)}, or ${alternateSendShortcutLabel} to ${alternateComposerDispatchAction(followUpBehavior)}…`
                                   : draftId !== null
-                                    ? DRAFT_COMPOSER_PLACEHOLDER
-                                    : DEFAULT_COMPOSER_PLACEHOLDER
+                                    ? draftComposerPlaceholder(
+                                        agentLabel(selectedProviderEntry?.displayName),
+                                      )
+                                    : composerPlaceholder(
+                                        agentLabel(selectedProviderEntry?.displayName),
+                                      )
                     }
                     disabled={
                       environmentSelectionRequired ||

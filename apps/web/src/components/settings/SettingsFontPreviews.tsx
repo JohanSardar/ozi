@@ -7,7 +7,7 @@ import {
 import { EMPTY_COMPOSER_CONTEXT_RECORDS } from "../composerContextPresentation";
 import { terminalThemeFromApp } from "../ThreadTerminalDrawer";
 import { useTheme } from "../../hooks/useTheme";
-import { DEFAULT_COMPOSER_PLACEHOLDER } from "../../composerPlaceholder";
+import { composerPlaceholder } from "../../composerPlaceholder";
 import { GhosttyTerminalSurface } from "~/terminal/ghostty/surface";
 
 const PREVIEW_SKILLS: ReadonlyArray<ServerProviderSkill> = [];
@@ -35,7 +35,7 @@ export function PromptFontPreview() {
         contextRecords={EMPTY_COMPOSER_CONTEXT_RECORDS}
         skills={PREVIEW_SKILLS}
         disabled={false}
-        placeholder={DEFAULT_COMPOSER_PLACEHOLDER}
+        placeholder={composerPlaceholder("your agent")}
         className="max-h-42"
         onChange={onChange}
         onPaste={noop}

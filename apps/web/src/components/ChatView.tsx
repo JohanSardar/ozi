@@ -223,6 +223,7 @@ import {
 import { useEnvironmentShellHasSnapshot } from "../state/shell";
 import { ChatComposer, type ChatComposerHandle } from "./chat/ChatComposer";
 import { DraftHeroHeadline } from "./chat/DraftHeroHeadline";
+import { agentLabel } from "../composerPlaceholder";
 import { ExpandedImageDialogHost } from "./chat/ExpandedImageDialog";
 import { RevertConfirmHost } from "./chat/ChatOverlayHosts";
 import type { AssistantCitationRequest } from "./chat/AssistantCitationSource";
@@ -2899,7 +2900,7 @@ export default function ChatView(props: ChatViewProps) {
                             : undefined
                         }
                       >
-                        <DraftHeroHeadline />
+                        <DraftHeroHeadline agent={agentLabel(selectedProviderEntry?.displayName)} />
                       </div>
                     </div>
                   ) : null}
