@@ -1,6 +1,7 @@
 import { createContext, type ReactNode, useContext } from "react";
 
 import { useEnvironments, usePrimaryEnvironmentId } from "../../state/environments";
+import { useEnvironmentProjects } from "./useEnvironmentProjects";
 import { resolveScopedSettingsTargets, selectScopedSettingsEnvironments } from "./scopedSettings";
 import { resolveSettingsScope, type SettingsScopeSearch } from "./settingsScope";
 import { selectSingleEnvironmentScope } from "./settingsScopeAxis";
@@ -16,18 +17,19 @@ function useResolvedSettingsScope(rawSearch: SettingsScopeSearch, singleEnvironm
         primaryEnvironmentId,
       )
     : rawSearch;
-  const scope = resolveSettingsScope(search, availableEnvironments);
+  const projects = useEnvironmentProjects(search.machine);
+  const scope = resolveSettingsScope(search, availableEnvironments, projects);
   const selected = selectScopedSettingsEnvironments(
     scope,
     availableEnvironments,
     primaryEnvironmentId,
   );
-  const targets = resolveScopedSettingsTargets(selected.connectedEnvironments);
+  const targets = resolveScopedSettingsTargets(scope, selected.connectedEnvironments);
   const target =
     targets.find((candidate) => candidate.environmentId === selected.environment?.environmentId) ??
     targets[0] ??
     null;
-  return { scope, search, ...selected, targets, target };
+  return { scope, projects, search, ...selected, targets, target };
 }
 
 const SettingsScopeContext = createContext<

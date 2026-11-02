@@ -837,6 +837,40 @@ export const OZI_PROVIDER_INSTANCE: ProviderInstanceConfig = {
   config: { harness: "ozi" },
 };
 
+export const PROJECT_SCOPED_SERVER_SETTING_KEYS = [
+  "defaultModelSelection",
+  "defaultRuntimeMode",
+  "enableAgentBrowserAccess",
+  "textGenerationModelSelection",
+  "threadTitleInstructions",
+  "sidebarAutoSettleAfterDays",
+  "continueThreadsAfterServerUpdate",
+  "responseStreamingMode",
+] as const;
+export type ProjectScopedServerSettingKey = (typeof PROJECT_SCOPED_SERVER_SETTING_KEYS)[number];
+
+const ProjectSettingsOverridesFields = {
+  defaultModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
+  defaultRuntimeMode: Schema.optionalKey(RuntimeMode),
+  enableAgentBrowserAccess: Schema.optionalKey(Schema.Boolean),
+  textGenerationModelSelection: Schema.optionalKey(ModelSelection),
+  threadTitleInstructions: Schema.optionalKey(TrimmedString),
+  sidebarAutoSettleAfterDays: Schema.optionalKey(Schema.NullOr(SidebarAutoSettleAfterDays)),
+  continueThreadsAfterServerUpdate: Schema.optionalKey(Schema.Boolean),
+  responseStreamingMode: Schema.optionalKey(ResponseStreamingMode),
+} satisfies Record<ProjectScopedServerSettingKey, unknown>;
+
+/** Absent keys inherit; null is a value for nullable settings. Keys Ozi does not know pass through so a T3 Code server's other overrides survive. */
+export const ProjectSettingsOverrides = Schema.StructWithRest(
+  Schema.Struct(ProjectSettingsOverridesFields),
+  [Schema.Record(Schema.String, Schema.Unknown)],
+);
+export type ProjectSettingsOverrides = typeof ProjectSettingsOverrides.Type;
+
+export function isNullableProjectSettingsOverride(key: ProjectScopedServerSettingKey): boolean {
+  return key === "defaultModelSelection" || key === "sidebarAutoSettleAfterDays";
+}
+
 export const ServerSettings = Schema.Struct({
   // Null means unmigrated; empty is authoritative and must not resurrect cleared preferences.
   favorites: Schema.NullOr(ModelFavorites).pipe(Schema.withDecodingDefault(Effect.succeed(null))),
@@ -869,6 +903,9 @@ export const ServerSettings = Schema.Struct({
   ),
   defaultRuntimeMode: RuntimeMode.pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_RUNTIME_MODE)),
+  ),
+  projectSettingsOverrides: Schema.Record(TrimmedNonEmptyString, ProjectSettingsOverrides).pipe(
+    Schema.withDecodingDefault(Effect.succeed({})),
   ),
   sidebarAutoSettleAfterDays: Schema.NullOr(SidebarAutoSettleAfterDays).pipe(
     Schema.withDecodingDefault(Effect.succeed(DEFAULT_SIDEBAR_AUTO_SETTLE_AFTER_DAYS)),
@@ -1124,6 +1161,10 @@ export const ServerSettingsPatch = Schema.Struct({
   defaultModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
   defaultRuntimeMode: Schema.optionalKey(RuntimeMode),
   fallbackModelSelection: Schema.optionalKey(Schema.NullOr(ModelSelection)),
+  /** Replaces each project's override set; null removes it. */
+  projectSettingsOverrides: Schema.optionalKey(
+    Schema.Record(TrimmedNonEmptyString, Schema.NullOr(ProjectSettingsOverrides)),
+  ),
   sidebarAutoSettleAfterDays: Schema.optionalKey(Schema.NullOr(SidebarAutoSettleAfterDays)),
   compactIdleThreads: Schema.optionalKey(LegacyCompactIdleThreads),
   idleCompaction: Schema.optionalKey(IdleCompactionMode),

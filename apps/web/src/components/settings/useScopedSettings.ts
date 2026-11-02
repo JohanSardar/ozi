@@ -9,6 +9,7 @@ import * as Cause from "effect/Cause";
 import { AsyncResult } from "effect/reactivity";
 import {
   DEFAULT_SERVER_SETTINGS,
+  type ProjectScopedServerSettingKey,
   type ServerSettings,
   type UnifiedSettings,
 } from "@t3tools/contracts";
@@ -17,9 +18,10 @@ import { persistClientSettingsPatch, useMergedSettings } from "../../hooks/useSe
 import { serverEnvironment } from "../../state/server";
 import { useAtomCommand } from "../../state/use-atom-command";
 import { toastManager } from "../ui/toast";
-import { useSettingsScope } from "./SettingsScopeContext";
+import { useOptionalSettingsScope, useSettingsScope } from "./SettingsScopeContext";
 import {
   persistScopedSettingsPatch,
+  planScopedSettingsClear,
   planScopedSettingsPatch,
   scopedSettingsAreMixed,
   type ScopedSettingsPatch,
@@ -93,6 +95,15 @@ export function useUpdateScopedSettings() {
   /** `onFailed` runs when any target rejects or drops the patch, so a draft can fall back. */
   return (patch: ScopedSettingsPatch, options?: { readonly onFailed?: () => void }) =>
     run(planScopedSettingsPatch(scope, environments, patch), options?.onFailed);
+}
+
+export function useClearScopedSettings() {
+  const context = useOptionalSettingsScope();
+  const run = useRunScopedPlan();
+  return (keys: readonly ProjectScopedServerSettingKey[]) => {
+    if (context === null) return;
+    run(planScopedSettingsClear(context.scope, context.environments, keys));
+  };
 }
 
 export function useScopedSettingsWriteAllowed() {

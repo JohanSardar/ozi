@@ -3,7 +3,8 @@ import { AuthSettingsWriteScope } from "@t3tools/contracts";
 import { usePrimaryEnvironmentId, usePrimaryEnvironment } from "../../state/environments";
 import { useEnvironmentScope, useEnvironmentsWithScope } from "../../state/session";
 import { InfoIcon, Undo2Icon } from "lucide-react";
-import { type ServerSettings } from "@t3tools/contracts";
+import { DEFAULT_SERVER_SETTINGS, type ServerSettings } from "@t3tools/contracts";
+import * as Equal from "effect/Equal";
 import { useLocation, useNavigate } from "@tanstack/react-router";
 import { createContext, type ComponentPropsWithoutRef, type ReactNode, useContext } from "react";
 
@@ -17,7 +18,13 @@ import { Button } from "../ui/button";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "../ui/tooltip";
 import { useOptionalSettingsScope } from "./SettingsScopeContext";
 import { SettingsScopeSentence } from "./SettingsScopeSentence";
-import { scopedSettingsAreMixed } from "./scopedSettings";
+import {
+  isProjectScopedSettingKey,
+  scopedSettingsAreMixed,
+  scopedSettingsSource,
+} from "./scopedSettings";
+import { useClearScopedSettings } from "./useScopedSettings";
+import { SettingInheritance, type SettingInheritanceState } from "./SettingInheritance";
 
 const EMPTY_SETTING_KEYS: readonly (keyof ServerSettings)[] = [];
 
@@ -292,13 +299,29 @@ export function SettingsRow({
     ? context.connectedEnvironments.length > 0 &&
       context.connectedEnvironments.every((target) => writableIds.has(target.environmentId))
     : primaryCanWrite;
+  const clearOverrides = useClearScopedSettings();
+  const isProjectScope = context !== null && context.scope.kind === "project";
+  const scopedKeys = settingKeys.filter(isProjectScopedSettingKey);
+  const environmentWide = isProjectScope && serverScoped && scopedKeys.length === 0;
   const mixed =
     mixedOverride ?? (context !== null && scopedSettingsAreMixed(context.targets, settingKeys));
+  const source =
+    context && isProjectScope ? scopedSettingsSource(context.targets, scopedKeys) : null;
   const unavailable =
     serverScoped &&
     (!canWriteSettings ||
       !(context ? context.connectedEnvironments.length > 0 : primarySettingsAvailable));
-  const renderedReset = unavailable ? null : resetAction;
+  const renderedReset = unavailable ? null : isProjectScope && scopedKeys.length > 0 ? (
+    source === "project" || source === "mixed" ? (
+      <SettingResetButton
+        label={typeof title === "string" ? title : "override"}
+        tooltip="Reset to inherited value"
+        onClick={() => clearOverrides(scopedKeys)}
+      />
+    ) : null
+  ) : (
+    resetAction
+  );
   const inertControl = (message: string) => (
     <Tooltip>
       <TooltipTrigger
@@ -335,7 +358,40 @@ export function SettingsRow({
               ? "Reconnect the selected environment to change this setting."
               : PRIMARY_SETTINGS_UNAVAILABLE_MESSAGE,
         )
-      : control;
+      : environmentWide && control
+        ? inertControl("Environment-wide setting. Select an environment to change it.")
+        : control;
+  const environmentSettings = (environmentId: string) =>
+    context?.connectedEnvironments.find(
+      (environment) => environment.environmentId === environmentId,
+    )?.serverConfig?.settings;
+  const customized =
+    context !== null &&
+    settingKeys.some((key) =>
+      context.targets.some((candidate) => {
+        const settings = environmentSettings(candidate.environmentId);
+        return settings !== undefined && !Equal.equals(settings[key], DEFAULT_SERVER_SETTINGS[key]);
+      }),
+    );
+  const inheritance: { state: SettingInheritanceState; summary: string } = mixed
+    ? { state: "mixed", summary: "Mixed across selected environments" }
+    : source === "project"
+      ? { state: "overridden", summary: "Overridden for this project" }
+      : source === "environment" && scopedKeys.length > 0
+        ? { state: "inherited", summary: "Inherited from environment" }
+        : customized
+          ? { state: "environment", summary: "Set on the environment" }
+          : { state: "default", summary: "Built-in default" };
+  const renderedInheritance =
+    context && serverScoped && settingKeys.length > 0 ? (
+      <SettingInheritance
+        state={inheritance.state}
+        summary={inheritance.summary}
+        targets={context.targets}
+        environments={context.connectedEnvironments}
+        keys={settingKeys}
+      />
+    ) : null;
   const renderedStatus = status;
 
   return (
@@ -354,7 +410,19 @@ export function SettingsRow({
         <div className="min-w-0 flex-1 space-y-1">
           <div className="flex min-h-5 items-center gap-1.5">
             <h3 className="text-sm font-medium text-foreground">{title}</h3>
-            {mixed ? <span className="text-xs text-warning">Mixed</span> : null}
+            {renderedInheritance ? (
+              <span
+                className={cn(
+                  "inline-flex h-5 w-5 shrink-0 items-center justify-center",
+                  (inheritance.state === "default" || inheritance.state === "environment") &&
+                    "opacity-0 group-hover/settings-row:opacity-100 has-focus-visible:opacity-100 has-data-popup-open:opacity-100",
+                )}
+              >
+                {renderedInheritance}
+              </span>
+            ) : mixed ? (
+              <span className="text-xs text-warning">Mixed</span>
+            ) : null}
             <span className="inline-flex h-5 w-5 shrink-0 items-center justify-center">
               {renderedReset}
             </span>
@@ -454,7 +522,10 @@ export function SettingsPageContainer({
         className="topbar-scroll-fade min-h-0 flex-1 overflow-x-hidden overflow-y-auto [scrollbar-width:none] [&::-webkit-scrollbar]:hidden"
         data-settings-page-scroll
       >
-        <WorkspacePageContainer width={width} className={cn("gap-7 px-5 pt-7 pb-12 sm:px-8", className)}>
+        <WorkspacePageContainer
+          width={width}
+          className={cn("gap-7 px-5 pt-7 pb-12 sm:px-8", className)}
+        >
           <SettingsScopeSentence />
           {children}
         </WorkspacePageContainer>

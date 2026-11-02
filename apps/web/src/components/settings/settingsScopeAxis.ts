@@ -37,6 +37,20 @@ export function settingsScopeEnvironmentLabel(
   return secondary ? `${primary} · ${secondary}` : primary;
 }
 
+export const ALL_ENVIRONMENTS_VALUE = "all";
+export const ALL_PROJECTS_VALUE = "all";
+
+export function selectEnvironmentAxis(value: string): SettingsScopeSearch {
+  return value === ALL_ENVIRONMENTS_VALUE ? {} : { machine: value };
+}
+
+export function selectProjectAxis(search: SettingsScopeSearch, value: string): SettingsScopeSearch {
+  return {
+    ...(value === ALL_PROJECTS_VALUE ? {} : { project: value }),
+    ...(search.machine ? { machine: search.machine } : {}),
+  };
+}
+
 export function selectSingleEnvironmentScope(
   search: SettingsScopeSearch,
   scope: ResolvedSettingsScope,

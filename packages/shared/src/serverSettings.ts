@@ -207,6 +207,7 @@ export function applyServerSettingsPatch(
     usageLimitSources: usageLimitSourcesPatch,
     usagePriceOverrides: usagePriceOverridesPatch,
     usageModelAliases: usageModelAliasesPatch,
+    projectSettingsOverrides: projectSettingsOverridesPatch,
     ...patchForMerge
   } = patch;
   const currentBackgroundActivity = normalizeServerBackgroundActivitySettings(current);
@@ -339,6 +340,14 @@ export function applyServerSettingsPatch(
           usageModelAliases: mergeSettingsEntries(
             current.usageModelAliases,
             usageModelAliasesPatch,
+          ),
+        }
+      : {}),
+    ...(projectSettingsOverridesPatch !== undefined
+      ? {
+          projectSettingsOverrides: mergeSettingsEntries(
+            current.projectSettingsOverrides,
+            projectSettingsOverridesPatch,
           ),
         }
       : {}),

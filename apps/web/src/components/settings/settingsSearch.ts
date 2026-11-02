@@ -27,7 +27,7 @@ export type SettingsPath =
 export type SettingsSearchScope =
   | "environment"
   | "environment-defaults"
-  | "environment-defaults"
+  | "project-defaults"
   | "connections";
 
 export interface SettingsSearchItem {
@@ -140,21 +140,21 @@ export const SETTINGS_SEARCH_ITEMS = [
     id: "environment-defaults",
     title: "Chat defaults",
     to: "/settings/chat",
-    scope: "environment-defaults",
+    scope: "project-defaults",
     searchTerms: ["model environments defaults"],
   },
   {
     id: "default-model",
     title: "Default model",
     to: "/settings/chat",
-    scope: "environment-defaults",
+    scope: "project-defaults",
     searchTerms: ["new chat provider reasoning effort"],
   },
   {
     id: "default-permissions",
     title: "Permissions",
     to: "/settings/chat",
-    scope: "environment-defaults",
+    scope: "project-defaults",
     searchTerms: [
       "new thread default runtime mode supervised approvals auto accept edits full access",
     ],
@@ -309,7 +309,7 @@ export const SETTINGS_SEARCH_ITEMS = [
     id: "auto-settle-inactive-threads",
     title: "Auto-settle inactive threads",
     to: "/settings/general",
-    scope: "environment-defaults",
+    scope: "project-defaults",
     searchTerms: ["sidebar inactivity days no activity automatically"],
   },
   {
@@ -317,7 +317,7 @@ export const SETTINGS_SEARCH_ITEMS = [
     title: "Days of inactivity before auto-settle",
     to: "/settings/general",
     targetId: "auto-settle-inactive-threads",
-    scope: "environment-defaults",
+    scope: "project-defaults",
     searchTerms: ["thread timeout activity sidebar"],
   },
   {
@@ -362,7 +362,7 @@ export const SETTINGS_SEARCH_ITEMS = [
     id: "response-streaming",
     title: "Response streaming",
     to: "/settings/chat",
-    scope: "environment-defaults",
+    scope: "project-defaults",
     searchTerms: ["output token paragraph buffered wait turn legacy"],
   },
   {
@@ -406,7 +406,7 @@ export const SETTINGS_SEARCH_ITEMS = [
     id: "continue-threads-after-server-update",
     title: "Continue threads after restarts",
     to: "/settings/maintenance",
-    scope: "environment-defaults",
+    scope: "project-defaults",
     searchTerms: [
       "resume running active interrupted work restart reboot machine crash desktop update automatically",
     ],
@@ -456,14 +456,14 @@ export const SETTINGS_SEARCH_ITEMS = [
     id: "text-generation-model",
     title: "Text generation model",
     to: "/settings/chat",
-    scope: "environment-defaults",
+    scope: "project-defaults",
     searchTerms: ["generated thread titles source control content default provider"],
   },
   {
     id: "thread-title-instructions",
     title: "Thread title instructions",
     to: "/settings/chat",
-    scope: "environment-defaults",
+    scope: "project-defaults",
     searchTerms: ["generated thread titles prompt custom style naming rename regenerate"],
   },
   {
@@ -562,7 +562,7 @@ export const SETTINGS_SEARCH_ITEMS = [
     id: "agent-browser-access",
     title: "Agent browser access",
     to: "/settings/browser",
-    scope: "environment-defaults",
+    scope: "project-defaults",
     searchTerms: ["allow disable enable open drive preview tools sessions environment override"],
   },
   {
@@ -779,6 +779,8 @@ export function isSettingsSearchScopeAvailable(
       return requiredScope === scopeKind;
     case "environment-defaults":
       return scopeKind === "environment" || scopeKind === "all";
+    case "project-defaults":
+      return scopeKind === "environment" || scopeKind === "all" || scopeKind === "project";
   }
 }
 

@@ -10,7 +10,7 @@ export function validateSettingsRouteSearch(raw: Record<string, unknown>) {
   );
 }
 
-const SCOPE_KEYS = ["machine"] as const satisfies readonly (keyof SettingsScopeSearch)[];
+const SCOPE_KEYS = ["project", "machine"] as const satisfies readonly (keyof SettingsScopeSearch)[];
 const TARGET_INPUT_KEYS = [...SCOPE_KEYS, "environmentId"];
 
 export const retainSettingsScope: SearchMiddleware<SettingsScopeSearch> = ({ search, next }) => {

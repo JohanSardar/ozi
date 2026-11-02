@@ -126,6 +126,7 @@ function SettingsRouteLayout() {
         void navigate({
           to: pathname,
           search: () => ({
+            project: next.project,
             machine: next.machine,
           }),
           hash: "",
