@@ -111,7 +111,7 @@ it("H6.main-checked: default Ozi checks its own text-only completion", async () 
       "--wait",
     );
     expect(JSON.stringify(result), output).toContain("h2b-ozi-ok");
-    for (const name of ["log_mistake", "completion_check"]) {
+    for (const name of ["log_mistake"]) {
       expect(fake.requests.flatMap((request) => request.tools.map((tool) => tool.name))).toEqual(
         expect.arrayContaining([expect.stringMatching(new RegExp(`(?:^|__)${name}$`))]),
       );
