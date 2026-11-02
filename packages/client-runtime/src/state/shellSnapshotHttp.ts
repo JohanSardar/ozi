@@ -67,7 +67,7 @@ const decodeShellSnapshotResponse = (
 > => {
   if (response.status === 200) {
     return response.json.pipe(
-      Effect.flatMap(Schema.decodeUnknownEffect(OrchestrationV2ShellSnapshot)),
+      Effect.flatMap(Schema.decodeUnknownEffect(Schema.toCodecJson(OrchestrationV2ShellSnapshot))),
     );
   }
   const statusError = new HttpClientError.HttpClientError({

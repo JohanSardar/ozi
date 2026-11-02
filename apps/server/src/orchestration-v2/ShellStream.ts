@@ -38,6 +38,10 @@ export const bufferShellLiveStream = <E, R>(
           return `thread:${item.location}:${item.thread.id}`;
         case "thread.removed":
           return `thread:${item.location}:${item.threadId}`;
+        case "project.updated":
+          return `project:${item.project.id}`;
+        case "project.removed":
+          return `project:${item.projectId}`;
       }
     },
     limits,

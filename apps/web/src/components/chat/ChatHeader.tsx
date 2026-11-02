@@ -46,6 +46,7 @@ interface ChatHeaderProps {
   activeThreadId: ThreadId;
   activeThreadTitle: string;
   activeThreadLinkOrigin?: string | null | undefined;
+  project: { title: string | null; branch: string | null; pullRequest: number | null };
   workStartedAt: string | null;
   extensionTitle: string | null;
   isServerThread: boolean;
@@ -71,6 +72,7 @@ export const ChatHeader = memo(function ChatHeader({
   activeThreadId,
   activeThreadTitle,
   activeThreadLinkOrigin,
+  project,
   workStartedAt,
   extensionTitle,
   isServerThread,
@@ -264,6 +266,18 @@ export const ChatHeader = memo(function ChatHeader({
         ariaLabel="Thread breadcrumb"
         className="flex-1 overflow-clip [overflow-clip-margin:2px]"
       >
+        {project.title ? (
+          <>
+            <WorkspaceBreadcrumbItem className="shrink">
+              <WorkspaceBreadcrumbText className="max-w-40 text-muted-foreground">
+                {project.title}
+              </WorkspaceBreadcrumbText>
+            </WorkspaceBreadcrumbItem>
+            <WorkspaceBreadcrumbSeparator>
+              <WorkspaceBreadcrumbText>/</WorkspaceBreadcrumbText>
+            </WorkspaceBreadcrumbSeparator>
+          </>
+        ) : null}
         {parentThreadLink ? (
           <>
             <WorkspaceBreadcrumbItem>
@@ -375,6 +389,13 @@ export const ChatHeader = memo(function ChatHeader({
                   return `Working ${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
                 }, true)}
               />
+            </span>
+          ) : null}
+          {renamingTitle === null && (project.branch || project.pullRequest) ? (
+            <span className="ms-2 min-w-0 truncate text-muted-foreground text-xs">
+              {[project.branch, project.pullRequest ? `#${project.pullRequest}` : null]
+                .filter(Boolean)
+                .join(" · ")}
             </span>
           ) : null}
           {renamingTitle === null && extensionTitle ? (

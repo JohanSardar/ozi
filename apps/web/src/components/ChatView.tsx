@@ -220,7 +220,7 @@ import {
   useThreadCheckpointSummaries,
   useQuietThreadShell,
 } from "../state/entities";
-import { useEnvironmentShellHasSnapshot } from "../state/shell";
+import { useEnvironmentShellHasSnapshot, useProjectTitle } from "../state/shell";
 import { ChatComposer, type ChatComposerHandle } from "./chat/ChatComposer";
 import { DraftHeroHeadline } from "./chat/DraftHeroHeadline";
 import { agentLabel } from "../composerPlaceholder";
@@ -875,6 +875,10 @@ export default function ChatView(props: ChatViewProps) {
   );
   const browserAvailable = isPreviewSupportedInRuntime() || activeEnvironmentServerBrowser;
   const activeThreadShell = serverThread;
+  const projectTitle = useProjectTitle(
+    activeThreadShell?.environmentId ?? environmentId,
+    activeThreadShell?.source.projectId,
+  );
   const extensionUi = activeThreadShell?.extensionUi ?? null;
   useExtensionEditorText(extensionUi, activeThreadId, composerDraftTarget);
   const timelineThreadError =
@@ -2724,6 +2728,11 @@ export default function ChatView(props: ChatViewProps) {
             isServerThread={isServerThread}
             activeThreadTitle={activeThread.title}
             activeThreadLinkOrigin={activeThreadShell?.linkOrigin?.label ?? null}
+            project={{
+              title: projectTitle,
+              branch: activeThreadShell?.source.branch ?? null,
+              pullRequest: activeThreadShell?.source.pullRequests?.at(-1)?.number ?? null,
+            }}
             workStartedAt={isWorking ? (activeWorkStartedAt ?? null) : null}
             extensionTitle={extensionUi?.title ?? null}
             defaultCwd={defaultCwd}

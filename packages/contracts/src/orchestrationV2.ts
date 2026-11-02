@@ -423,7 +423,9 @@ export const OrchestrationV2AppThread = Schema.Struct({
   modelSelection: ModelSelection,
   runtimeMode: RuntimeMode,
   interactionMode: ProviderInteractionMode,
-  workingDirectory: Schema.NullOr(TrimmedNonEmptyString),
+  workingDirectory: Schema.NullOr(TrimmedNonEmptyString).pipe(
+    Schema.withDecodingDefault(Effect.succeed(null)),
+  ),
   activeProviderThreadId: Schema.NullOr(ProviderThreadId),
   historyOrigin: Schema.optional(OrchestrationV2ThreadHistoryOrigin),
   linkOrigin: Schema.optional(OrchestrationV2LinkOrigin),
@@ -1997,6 +1999,19 @@ export const OrchestrationV2LatestVisibleMessageSummary = Schema.Struct({
 export type OrchestrationV2LatestVisibleMessageSummary =
   typeof OrchestrationV2LatestVisibleMessageSummary.Type;
 
+/** A T3 Code server's project, shown as a label on its chats. */
+export const OrchestrationV2ProjectLabel = Schema.Struct({
+  id: TrimmedNonEmptyString,
+  title: TrimmedNonEmptyString,
+});
+export type OrchestrationV2ProjectLabel = typeof OrchestrationV2ProjectLabel.Type;
+
+export const OrchestrationV2PullRequestLabel = Schema.Struct({
+  number: PositiveInt,
+  url: TrimmedNonEmptyString,
+});
+export type OrchestrationV2PullRequestLabel = typeof OrchestrationV2PullRequestLabel.Type;
+
 export const OrchestrationV2ThreadShell = Schema.Struct({
   ...OrchestrationV2CreationFields,
   id: ThreadId,
@@ -2005,7 +2020,12 @@ export const OrchestrationV2ThreadShell = Schema.Struct({
   modelSelection: ModelSelection,
   runtimeMode: RuntimeMode,
   interactionMode: ProviderInteractionMode,
-  workingDirectory: Schema.NullOr(TrimmedNonEmptyString),
+  workingDirectory: Schema.NullOr(TrimmedNonEmptyString).pipe(
+    Schema.withDecodingDefault(Effect.succeed(null)),
+  ),
+  projectId: Schema.optional(TrimmedNonEmptyString),
+  branch: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
+  pullRequests: Schema.optional(Schema.Array(OrchestrationV2PullRequestLabel)),
   lineage: OrchestrationV2AppThreadLineage,
   forkedFrom: Schema.NullOr(OrchestrationV2AppThread.fields.forkedFrom),
   activeProviderThreadId: Schema.NullOr(ProviderThreadId),
@@ -2121,10 +2141,21 @@ export function isOlderSettledThreadShell(
  * project, every thread `isOlderSettledThreadShell` matches, sent or not. `asOfSequence` is the
  * snapshot's own sequence: the counts are exact until a later change.
  */
+const OlderSettledCounts = {
+  count: Schema.optional(NonNegativeInt),
+  /** T3 Code servers count per project. */
+  counts: Schema.optional(Schema.Array(Schema.Struct({ count: NonNegativeInt }))),
+};
+
+export const olderSettledTotal = (older: {
+  readonly count?: number | undefined;
+  readonly counts?: ReadonlyArray<{ readonly count: number }> | undefined;
+}) => older.count ?? (older.counts ?? []).reduce((total, entry) => total + entry.count, 0);
+
 export const OrchestrationV2OlderSettledThreads = Schema.Struct({
   before: IsoDateTime,
   asOfSequence: NonNegativeInt,
-  count: NonNegativeInt,
+  ...OlderSettledCounts,
 });
 export type OrchestrationV2OlderSettledThreads = typeof OrchestrationV2OlderSettledThreads.Type;
 
@@ -2139,6 +2170,7 @@ export type OrchestrationV2ThreadShellSnapshot = typeof OrchestrationV2ThreadShe
 export const OrchestrationV2ShellSnapshot = Schema.Struct({
   ...OrchestrationV2ThreadShellSnapshot.fields,
   olderSettled: Schema.optionalKey(OrchestrationV2OlderSettledThreads),
+  projects: Schema.optionalKey(Schema.Array(OrchestrationV2ProjectLabel)),
 });
 export type OrchestrationV2ShellSnapshot = typeof OrchestrationV2ShellSnapshot.Type;
 
@@ -2149,6 +2181,16 @@ export const OrchestrationV2ShellStreamItem = Schema.Union([
   Schema.Struct({
     kind: Schema.Literal("snapshot"),
     snapshot: OrchestrationV2ShellSnapshot,
+  }),
+  Schema.Struct({
+    kind: Schema.Literal("project.updated"),
+    sequence: NonNegativeInt,
+    project: OrchestrationV2ProjectLabel,
+  }),
+  Schema.Struct({
+    kind: Schema.Literal("project.removed"),
+    sequence: NonNegativeInt,
+    projectId: TrimmedNonEmptyString,
   }),
   Schema.Struct({
     kind: Schema.Literal("thread.updated"),
@@ -3501,7 +3543,7 @@ export type OrchestrationV2GetOlderSettledThreadsInput =
 export const OrchestrationV2OlderSettledThreadsPage = Schema.Struct({
   snapshotSequence: NonNegativeInt,
   threads: Schema.Array(OrchestrationV2ThreadShell),
-  count: NonNegativeInt,
+  ...OlderSettledCounts,
 });
 export type OrchestrationV2OlderSettledThreadsPage =
   typeof OrchestrationV2OlderSettledThreadsPage.Type;

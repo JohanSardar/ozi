@@ -142,3 +142,28 @@ export const allReachableShellsLiveAtom = Atom.make((get) => {
   }
   return true;
 }).pipe(Atom.withLabel("web-all-reachable-shells-live"));
+
+const projectTitleAtom = Atom.family((key: string) => {
+  const [environmentId, projectId] = key.split("\u0000") as [EnvironmentId, string];
+  return Atom.make(
+    (get) =>
+      Option.getOrNull(get(environmentShell.stateValueAtom(environmentId)).snapshot)?.projects?.find(
+        (project) => project.id === projectId,
+      )?.title ?? null,
+  ).pipe(Atom.withLabel(`web-project-title:${key}`));
+});
+const NO_PROJECT_TITLE_ATOM = Atom.make<string | null>(null).pipe(
+  Atom.withLabel("web-project-title:none"),
+);
+
+/** A T3 Code server's project name for one of its chats. */
+export function useProjectTitle(
+  environmentId: EnvironmentId,
+  projectId: string | undefined,
+): string | null {
+  return useAtomValue(
+    projectId === undefined
+      ? NO_PROJECT_TITLE_ATOM
+      : projectTitleAtom(`${environmentId}\u0000${projectId}`),
+  );
+}

@@ -75,7 +75,17 @@ export function applyShellStreamEvent(
         archivedThreads: snapshot.archivedThreads.filter((thread) => thread.id !== event.threadId),
         snapshotSequence: event.sequence,
       };
-    default:
-      return snapshot;
+    case "project.updated":
+      return {
+        ...snapshot,
+        projects: upsertById(snapshot.projects ?? [], event.project),
+        snapshotSequence: event.sequence,
+      };
+    case "project.removed":
+      return {
+        ...snapshot,
+        projects: (snapshot.projects ?? []).filter((project) => project.id !== event.projectId),
+        snapshotSequence: event.sequence,
+      };
   }
 }

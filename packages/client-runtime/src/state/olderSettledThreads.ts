@@ -8,6 +8,7 @@ import {
   type OrchestrationV2ThreadFamily,
   type OrchestrationV2ThreadShell,
   type ThreadId,
+  olderSettledTotal,
 } from "@t3tools/contracts";
 import * as DateTime from "effect/DateTime";
 import * as Effect from "effect/Effect";
@@ -260,7 +261,7 @@ export function createOlderSettledThreadAtoms<R, ER, E>(
         fromSnapshot = {
           before: cut.before,
           beforeMs: DateTime.toEpochMillis(DateTime.makeUnsafe(cut.before)),
-          count: cut.count,
+          count: olderSettledTotal(cut),
         };
       }
       // Most shell updates move only the cursor; the key needs new rows or removals.
@@ -285,7 +286,7 @@ export function createOlderSettledThreadAtoms<R, ER, E>(
       );
       if (read !== null && read !== lastReadPage) {
         lastReadPage = read;
-        lastRead = { ...fromSnapshot, count: read.count };
+        lastRead = { ...fromSnapshot, count: olderSettledTotal(read) };
       }
       return lastRead ?? fromSnapshot;
     }).pipe(Atom.withLabel(`environment-older-settled:${environmentId}`));
